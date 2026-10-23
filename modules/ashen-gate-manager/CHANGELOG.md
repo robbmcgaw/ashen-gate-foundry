@@ -1,3 +1,12 @@
+## 0.54.0 — 2026-10-23
+
+Nine new appearance skins, 16 in all. Pick them in GM Setup → General (world default) or My Appearance (your own; every player can choose any of them).
+
+- **Colour skins:** *Blightgreen* (olive-grey with a pale lime accent), *Cinderlight* (near-black with one orange-gold ember), *Hearthfire* (warm amber on dark oak), *Frostbound* (cold blue-white on deep navy), *High Contrast* (pure black and white, yellow focus ring; text at least 7:1 and borders at least 4.5:1) and *Daylight* (cool, low-glare paper with a calm teal accent). Daylight is the only light one.
+- **Shaped skins:** *Ledger Book* (ruled lines, column rules and stamped headings on green-cream paper), *Field Journal* (leather cover, stitched edges, pasted-note cards) and *Frontier Map* (faint contour lines, a compass rose beside the title, sepia ink). Like Stone Tablet and Tome Pages they only reshape the shared kit components, work at both sizes, use no images beyond inline SVG and have no animation.
+- Every text, status, focus-ring and border pairing of the nine skins is checked by a test (text 4.5:1, focus ring and borders 3:1).
+- Saved data: no change. Existing skin choices stay as they are. No migration.
+
 ## 0.53.1 — 2026-10-23
 
 Code-read review fixes for the pre-session check and ZIP import.

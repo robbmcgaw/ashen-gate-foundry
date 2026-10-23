@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {bindSkinPicker,nextRadioIndex} from '../scripts/skin-picker.js';
 
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const SKINS=['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment','ag-stone-tablet','ag-tome-pages'];
+const SKINS=['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment','ag-blightgreen','ag-cinderlight','ag-hearthfire','ag-frostbound','ag-high-contrast','ag-daylight','ag-stone-tablet','ag-tome-pages','ag-ledger-book','ag-field-journal','ag-frontier-map'];
 
 function fakePicker(values,selected){
   const listeners={};
@@ -19,10 +19,10 @@ function fakePicker(values,selected){
 
 test('clicking a card selects it, only one stays checked, and the value is reported',()=>{
   const p=fakePicker(['',...SKINS],'ag-slate');let got;bindSkinPicker(p.group,v=>{got=v;});
-  p.fire('click',p.radios[6]);
+  const at=SKINS.indexOf('ag-stone-tablet')+1;p.fire('click',p.radios[at]);
   assert.equal(got,'ag-stone-tablet');assert.deepEqual(p.checked(),['ag-stone-tablet']);
-  assert.equal(p.radios[6].getAttribute('tabindex'),'0');assert.equal(p.radios[2].getAttribute('tabindex'),'-1');
-  assert.equal(p.radios[6].classList.has('is-selected'),true);assert.equal(p.radios[2].classList.has('is-selected'),false);
+  assert.equal(p.radios[at].getAttribute('tabindex'),'0');assert.equal(p.radios[2].getAttribute('tabindex'),'-1');
+  assert.equal(p.radios[at].classList.has('is-selected'),true);assert.equal(p.radios[2].classList.has('is-selected'),false);
 });
 test('the Inherit card reports an empty value',()=>{
   const p=fakePicker(['',...SKINS],'ag-ember');let got='unset';bindSkinPicker(p.group,v=>{got=v;});

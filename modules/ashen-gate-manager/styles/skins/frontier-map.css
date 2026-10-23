@@ -1,0 +1,169 @@
+/*
+ * Ashen Gate skin: Frontier Map (ag-frontier-map). Loaded by General Manager only while this skin is
+ * the effective one, and every rule is scoped to html[data-ag-skin="ag-frontier-map"], so it is
+ * inert otherwise. Colours come from the skin's --ag-* tokens (scripts/appearance.js); this file
+ * adds the survey sheet: faint contour lines (CSS gradients, a few per cent of the ink so text keeps
+ * its token contrast), a ruled map frame, italic cartographer's lettering and a compass rose by the
+ * header title. The rose is an inline SVG mask painted in the accent colour.
+ * Generic element rules use :where() (zero specificity) like the kit, so module CSS still wins.
+ * No web fonts, no images other than inline SVG, no animation.
+ */
+html[data-ag-skin="ag-frontier-map"] {
+  --ag-radius-sm: 1px;
+  --ag-radius: 2px;
+  --ag-radius-lg: 3px;
+  --ag-radius-control: 2px;
+  --ag-radius-field: 2px;
+  --ag-radius-window: 3px;
+  --ag-font-display: "Palatino Linotype", "Book Antiqua", Palatino, "Iowan Old Style", Georgia, serif;
+  --agx-ink: var(--ag-text);
+  --agx-line: color-mix(in srgb, var(--agx-ink) 8%, transparent);
+  --agx-frame: color-mix(in srgb, var(--agx-ink) 55%, transparent);
+  /* Contour lines: two sets of nested rings from different centres, 1px every 26px and 34px. */
+  --agx-contours:
+    repeating-radial-gradient(circle at 14% 18%, transparent 0 25px, var(--agx-line) 25px 26px),
+    repeating-radial-gradient(ellipse 120% 90% at 86% 78%, transparent 0 33px, var(--agx-line) 33px 34px);
+  /* Compass rose: four long points, four short, and a ring. */
+  --agx-rose: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 0.5 14 10 23.5 12 14 14 12 23.5 10 14 0.5 12 10 10Z'/><path d='M5.2 5.2 10.6 10.6 13.4 13.4 18.8 18.8 13.4 10.6ZM18.8 5.2 13.4 10.6 10.6 13.4 5.2 18.8 10.6 13.4Z' opacity='.55'/><circle cx='12' cy='12' r='8.4' fill='none' stroke='black' stroke-width='.9'/></svg>");
+}
+
+/* ---------- Window: a sheet in a ruled frame ---------- */
+html[data-ag-skin="ag-frontier-map"] .application.ag-app {
+  border: 1px solid var(--agx-frame);
+  box-shadow: 0 0 0 3px var(--ag-surface-raised), 0 0 0 4px var(--agx-frame), var(--ag-shadow);
+}
+html[data-ag-skin="ag-frontier-map"] .application.ag-app > .window-header {
+  background-color: var(--ag-surface-raised);
+  border-bottom: 3px double var(--agx-frame);
+}
+html[data-ag-skin="ag-frontier-map"] .application.ag-app > .window-header .window-title {
+  font-family: var(--ag-font-display);
+  font-style: italic;
+  letter-spacing: .05em;
+}
+html[data-ag-skin="ag-frontier-map"] .application.ag-app > .window-content {
+  background-color: var(--ag-surface);
+  background-image: var(--agx-contours);
+  background-attachment: local;
+}
+
+/* ---------- Cartographer's lettering ---------- */
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(h1, h2, h3, h4, legend) {
+  font-family: var(--ag-font-display);
+  font-style: italic;
+  letter-spacing: .04em;
+}
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(hr) { border: 0; border-top: 1px dashed var(--agx-frame); }
+
+/* ---------- Header: the compass rose beside the title ---------- */
+html[data-ag-skin="ag-frontier-map"] .ag-header {
+  background-color: var(--ag-surface-raised);
+  border-bottom: 3px double var(--agx-frame);
+}
+html[data-ag-skin="ag-frontier-map"] .ag-header :where(h1, h2) {
+  font-family: var(--ag-font-display);
+  font-style: italic;
+  letter-spacing: .05em;
+}
+html[data-ag-skin="ag-frontier-map"] .ag-header__brand::before {
+  content: "";
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: .4em;
+  vertical-align: -.2em;
+  background-color: var(--ag-accent);
+  -webkit-mask: var(--agx-rose) center / contain no-repeat;
+  mask: var(--agx-rose) center / contain no-repeat;
+}
+html[data-ag-skin="ag-frontier-map"] .ag-footer {
+  background-color: var(--ag-surface-raised);
+  border-top: 3px double var(--agx-frame);
+}
+
+/* ---------- Tabs: map legend entries ---------- */
+html[data-ag-skin="ag-frontier-map"] .ag-tabs {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--agx-frame);
+}
+html[data-ag-skin="ag-frontier-map"] .ag-tabs > :where(button, a, .ag-tab) {
+  border: 1px solid transparent;
+  border-bottom: 2px dotted var(--ag-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ag-muted);
+  font-style: italic;
+  box-shadow: none;
+}
+html[data-ag-skin="ag-frontier-map"] .ag-tabs > :where(button, a, .ag-tab):where(:hover:not(:disabled)) {
+  background: var(--ag-surface-hover);
+  color: var(--ag-text);
+}
+html[data-ag-skin="ag-frontier-map"] .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  background: var(--ag-surface);
+  color: var(--ag-text);
+  border: 1px solid var(--agx-frame);
+  border-bottom: 3px solid var(--ag-accent);
+  box-shadow: none;
+}
+
+/* ---------- Buttons: survey stamps ---------- */
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(button:not(.header-control):not([data-action="close"])),
+html[data-ag-skin="ag-frontier-map"] .ag-btn {
+  border-radius: var(--ag-radius-control);
+  box-shadow: none;
+}
+html[data-ag-skin="ag-frontier-map"] :is(.ag-btn--primary, .ag-app button.primary) {
+  border-color: var(--ag-accent);
+  box-shadow: inset 0 0 0 2px var(--ag-accent), inset 0 0 0 3px color-mix(in srgb, var(--ag-accent-contrast) 50%, transparent);
+}
+html[data-ag-skin="ag-frontier-map"] .ag-btn--ghost { border-color: transparent; }
+
+/* ---------- Inputs ---------- */
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+  border-radius: var(--ag-radius-field);
+  background-color: var(--ag-surface-sunken);
+}
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(fieldset) { border: 1px dashed var(--agx-frame); border-radius: 0; }
+
+/* ---------- Cards and lists: boxed map panels; an opaque fill keeps the contours out from under text ---------- */
+html[data-ag-skin="ag-frontier-map"] .ag-card {
+  background-color: var(--ag-surface-raised);
+  background-image: none;
+  border: 1px solid var(--agx-frame);
+  border-radius: 0;
+  box-shadow: inset 0 0 0 3px var(--ag-surface-raised), inset 0 0 0 4px var(--ag-border);
+}
+html[data-ag-skin="ag-frontier-map"] .ag-list > * { border-bottom: 1px dotted var(--ag-border); }
+html[data-ag-skin="ag-frontier-map"] .ag-list > *:last-child { border-bottom: 0; }
+:where(html[data-ag-skin="ag-frontier-map"]) :where(.ag-app) :where(td, th) { border-bottom: 1px dotted var(--ag-border); }
+html[data-ag-skin="ag-frontier-map"] .ag-badge { border-radius: 0; }
+html[data-ag-skin="ag-frontier-map"] .ag-empty { border: 1px dashed var(--agx-frame); border-radius: 0; }
+
+/* ---------- Sidebar launchers ---------- */
+html[data-ag-skin="ag-frontier-map"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group]) {
+  border-color: var(--agx-frame);
+  border-radius: 0;
+  background-color: var(--ag-surface);
+}
+html[data-ag-skin="ag-frontier-map"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button) {
+  border-radius: var(--ag-radius-control);
+  box-shadow: none;
+}
+
+/* ---------- Kit 2 parts ---------- */
+html[data-ag-skin="ag-frontier-map"] :is(.ag-chip, .ag-segmented, .ag-rarity-badge, .ag-notice, .ag-table-wrap, .ag-rows, .ag-siderail, .ag-devtools) { border-radius: 0; }
+html[data-ag-skin="ag-frontier-map"] .ag-segmented > [aria-checked="true"] { box-shadow: inset 0 -3px 0 var(--ag-accent); }
+html[data-ag-skin="ag-frontier-map"] .ag-section__title { font-family: var(--ag-font-display); font-style: italic; }
+html[data-ag-skin="ag-frontier-map"] .ag-section__head { border-bottom: 1px solid var(--agx-frame); }
+html[data-ag-skin="ag-frontier-map"] :is(.ag-table thead th, .ag-rows__head) { border-bottom: 3px double var(--agx-frame); }
+html[data-ag-skin="ag-frontier-map"] .ag-row + .ag-row { border-top: 1px dotted var(--ag-border); }
+html[data-ag-skin="ag-frontier-map"] .application.ag-dialog .form-footer { border-top: 3px double var(--agx-frame); padding-top: var(--ag-space-3); }
+
+/* ---------- Kit parts that keep the kit look in this skin ----------
+ * .ag-btn-group, .ag-card-grid, .ag-chip-group, .ag-cluster, .ag-eyebrow, .ag-field, .ag-file,
+ * .ag-fold, .ag-form-grid, .ag-gm-flag, .ag-hotbar, .ag-icon-chip, .ag-kv, .ag-link, .ag-meter,
+ * .ag-orb, .ag-pad, .ag-pips, .ag-portrait, .ag-rarity-edge, .ag-scroll, .ag-search, .ag-slot,
+ * .ag-split, .ag-sr-only, .ag-stack, .ag-steps, .ag-toolbar, .ag-tooltip, .ag-version,
+ * .ag-window
+ */

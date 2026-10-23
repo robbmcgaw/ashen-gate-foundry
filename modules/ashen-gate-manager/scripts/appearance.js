@@ -41,6 +41,24 @@ const SKINS = Object.freeze([
   Object.freeze({id:'ag-parchment',label:'Ashen Gate — Parchment',description:'Light parchment with ink and bronze',tokens:skinTokens({
     surface:'#f4efe6',sunken:'#fbf8f2',raised:'#ebe3d6',text:'#2a241d',muted:'#6a5f52',border:'#cfc2ae',
     accent:'#734e21',onAccent:'#ffffff',danger:'#94352e',ok:'#25603b',warn:'#734f0c',focus:'#a5772b'})}),
+  Object.freeze({id:'ag-blightgreen',label:'Ashen Gate — Blightgreen',description:'Sickly olive-grey with a pale lime accent, like the blight creeping in',tokens:skinTokens({
+    surface:'#1b1f17',sunken:'#13160f',raised:'#252a1e',text:'#e6e9d8',muted:'#b3b99b',border:'#737c5e',
+    accent:'#c5e86c',onAccent:'#141a05',danger:'#f2a090',ok:'#8fd49a',warn:'#e6c258',focus:'#e2f79e'})}),
+  Object.freeze({id:'ag-cinderlight',label:'Ashen Gate — Cinderlight',description:'Near-black with one glowing orange-gold ember',tokens:skinTokens({
+    surface:'#0e0c0b',sunken:'#080706',raised:'#171412',text:'#ece4dc',muted:'#ab9f95',border:'#6e6155',
+    accent:'#ff9a2e',onAccent:'#1a0d00',danger:'#f39488',ok:'#86c99b',warn:'#e8c15f',focus:'#ffc266'})}),
+  Object.freeze({id:'ag-hearthfire',label:'Ashen Gate — Hearthfire',description:'Warm tavern amber on dark oak, softer and cosier than Ember',tokens:skinTokens({
+    surface:'#2a1d14',sunken:'#20150e',raised:'#35261b',text:'#f6e6cf',muted:'#d0b698',border:'#92704f',
+    accent:'#e8a93c',onAccent:'#251502',danger:'#f4a08c',ok:'#a6d08a',warn:'#f0c765',focus:'#ffd98a'})}),
+  Object.freeze({id:'ag-frostbound',label:'Ashen Gate — Frostbound',description:'Cold blue-white on deep navy',tokens:skinTokens({
+    surface:'#0f1a2b',sunken:'#0a1220',raised:'#17263c',text:'#e9f2fb',muted:'#a3b9d2',border:'#547194',
+    accent:'#9fd4f5',onAccent:'#06182a',danger:'#f6a6a6',ok:'#8fdcc0',warn:'#f0d27a',focus:'#d6f0ff'})}),
+  Object.freeze({id:'ag-high-contrast',label:'Ashen Gate — High Contrast',description:'Pure black and white with a bold yellow focus ring, for accessibility',tokens:skinTokens({
+    surface:'#000000',sunken:'#000000',raised:'#141414',text:'#ffffff',muted:'#e2e2e2',border:'#a6a6a6',
+    accent:'#ffffff',onAccent:'#000000',danger:'#ffb0a8',ok:'#a6ffbc',warn:'#ffd77a',focus:'#ffe600'})}),
+  Object.freeze({id:'ag-daylight',label:'Ashen Gate — Daylight',description:'Cool, low-glare paper with dark ink and a calm teal accent, for bright rooms',tokens:skinTokens({
+    surface:'#f1f4f7',sunken:'#fafbfc',raised:'#e4e9ee',text:'#1a2027',muted:'#4a5663',border:'#76828f',
+    accent:'#0b5f78',onAccent:'#ffffff',danger:'#9c2926',ok:'#1a5f35',warn:'#7a4a00',focus:'#1558b8'})}),
   // Structural skins: tokens as above plus a stylesheet (scoped by html[data-ag-skin]) that reshapes the kit components.
   Object.freeze({id:'ag-stone-tablet',label:'Ashen Gate — Stone Tablet',description:'Carved stone slabs, engraved headings and inset tabs',
     stylesheet:'styles/skins/stone-tablet.css',tokens:skinTokens({
@@ -49,7 +67,19 @@ const SKINS = Object.freeze([
   Object.freeze({id:'ag-tome-pages',label:'Ashen Gate — Tome Pages',description:'Vellum pages, ink lettering and a ribbon bookmark',
     stylesheet:'styles/skins/tome-pages.css',tokens:skinTokens({
     surface:'#f1e6cc',sunken:'#f9f2e1',raised:'#e9dbbb',text:'#2c1d10',muted:'#5a4630',border:'#b49b74',
-    accent:'#8a2a22',onAccent:'#fff8ec',danger:'#8a2219',ok:'#235a2c',warn:'#6b4400',focus:'#1d4f91'})})
+    accent:'#8a2a22',onAccent:'#fff8ec',danger:'#8a2219',ok:'#235a2c',warn:'#6b4400',focus:'#1d4f91'})}),
+  Object.freeze({id:'ag-ledger-book',label:'Ashen Gate — Ledger Book',description:"A merchant's account book: ruled lines, column rules and stamped headings on green-cream paper",
+    stylesheet:'styles/skins/ledger-book.css',tokens:skinTokens({
+    surface:'#e9eddc',sunken:'#f4f7ea',raised:'#dde3cb',text:'#121a10',muted:'#3f4a35',border:'#6f7e63',
+    accent:'#2f5d3a',onAccent:'#f7faee',danger:'#8f2a24',ok:'#1f5f35',warn:'#6e4a05',focus:'#1b4f9a'})}),
+  Object.freeze({id:'ag-field-journal',label:'Ashen Gate — Field Journal',description:"A surveyor's notebook: leather cover, stitched edges and pasted-note cards",
+    stylesheet:'styles/skins/field-journal.css',tokens:skinTokens({
+    surface:'#2b2119',sunken:'#201812',raised:'#382c22',text:'#e8dfd0',muted:'#c0b29a',border:'#907a63',
+    accent:'#d9b26f',onAccent:'#21160a',danger:'#f2a08c',ok:'#9ccd8a',warn:'#ecc468',focus:'#f2d796'})}),
+  Object.freeze({id:'ag-frontier-map',label:'Ashen Gate — Frontier Map',description:'Sepia cartography with faint contour lines and a compass rose',
+    stylesheet:'styles/skins/frontier-map.css',tokens:skinTokens({
+    surface:'#ecdfc1',sunken:'#f6ecd5',raised:'#e8dbbb',text:'#231911',muted:'#54402a',border:'#8a714d',
+    accent:'#7a3b1d',onAccent:'#fff6e4',danger:'#80241a',ok:'#285225',warn:'#6b4300',focus:'#1d4e89'})})
 ]);
 export const DEFAULT_SKIN_ID = 'ag-default';
 const findSkin = id => SKINS.find(s=>s.id===id);
