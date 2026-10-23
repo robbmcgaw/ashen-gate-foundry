@@ -1,3 +1,13 @@
+## 0.52.2 — 2026-10-23
+
+Import fixes from the real-Foundry test run.
+
+- **Deep folder paths no longer fail the import.** Foundry allows at most 4 folder levels. A deeper `folder_path` keeps its first 3 levels and joins the rest into the 4th with " - ": *Ashen Gate/Professions/Artistry/Music/Compositions* files into *Ashen Gate/Professions/Artistry/**Music - Compositions***. Same path, same folder every time, so re-imports reuse it. Applies to Items, Journals, Actors, Roll Tables and Macros. The Import preview shows the folder that will be used under the record's type, plus one note listing the shortened paths. Content files are unchanged. A failed earlier run may have left an empty *Music* folder; it can be deleted.
+- **Re-importing a package you already imported plans Update again.** Foundry stores Manager's last-import record of each field in nested form after a document update, and Manager misread that as the package having removed `system`, so every changed record showed Blocked "Source removed system". Manager now reads both forms, so a changed record is Update, one where your edit would be overwritten is Conflict, and a field a package really removed is still Blocked.
+- **ZIP import ("Import everything without stopping"): Blocked and Conflict records are listed under Needs your decision** with their reason (grouped, e.g. "Blocked (reason): A, B"), instead of being counted as Skipped.
+- **Browse: "activity" finds activity recipes.** The word activity (or activities) now matches activity recipes and names with the word, not every crafted item whose description mentions a dnd5e activity. Other words still search descriptions.
+- Saved data: no change; no migration. Earlier imports are read as they are.
+
 ## 0.52.1 — 2026-10-23
 
 - Removed the Beta wording from the interface. The module description in Setup → Add-on Modules now reads *GM-only import/library and optional module hub, Player Access dashboard, plus the appearance controller with separate GM and player choices. For Foundry V14.* (before: "…Beta; Foundry V14 runtime unverified.").

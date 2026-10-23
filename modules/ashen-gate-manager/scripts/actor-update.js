@@ -1,4 +1,4 @@
-import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject} from './core.js';
+import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject, baselineFields} from './core.js';
 import {canonicalDefinition} from './source-projection.mjs';
 /**
  * Opt-in update of existing Actors on re-import (0.19.0).
@@ -58,7 +58,7 @@ export function planActor(record, raws, {updateExisting = false, includeDrafts =
   if (raws.length > 1) return {action: 'blocked', reason: 'Two or more existing Actors share this permanent ID.', changes: []};
   if (!updateExisting) return {action: 'skipped', reason: 'Actor already exists; kept unchanged. Turn on "Update existing actors" to update its definition.', changes: []};
   const raw = raws[0], data = record.foundry.data;
-  const baseline = raw.flags?.[MODULE_ID]?.source?.managedFields;
+  const baseline = baselineFields(raw.flags?.[MODULE_ID]?.source?.managedFields);
   if (!isPlainObject(baseline)) return {action: 'blocked', reason: 'No record of the last import on this Actor, so GM edits cannot be told apart from package changes. Update it by hand.', changes: []};
   if (raw.type !== data.type) return {action: 'blocked', reason: `Actor type differs (${raw.type} in the world, ${data.type} in the package).`, changes: []};
 

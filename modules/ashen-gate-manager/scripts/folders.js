@@ -22,12 +22,34 @@ export function renameSegments(segments){
   }
   return out;
 }
+/**
+ * Foundry nests folders at most 4 levels deep (CONST.FOLDER_MAX_DEPTH). A deeper path keeps its first 3 levels and
+ * joins the rest into the 4th with " - " (0.52.2): "Ashen Gate/Professions/Artistry/Music/Compositions" files into
+ * "Ashen Gate/Professions/Artistry/Music - Compositions". Same path in, same folders out, so re-imports find them.
+ */
+export const FOLDER_JOIN = ' - ';
+export const FOLDER_MAX_DEPTH = 4;
+export function collapseSegments(segments,max=FOLDER_MAX_DEPTH){
+  if(segments.length<=max) return [...segments];
+  return [...segments.slice(0,max-1),segments.slice(max-1).join(FOLDER_JOIN)];
+}
+/** The folder names an import actually creates for a folder_path (renames, then the depth limit); null for no path. */
+export function foundryFolderSegments(path){
+  const given=folderSegments(path);
+  return given?collapseSegments(renameSegments(given)):null;
+}
+/** {path, collapsed} for the preview: the folder path that will be used, and whether the depth limit shortened it. */
+export function folderDestination(path){
+  const given=folderSegments(path);
+  if(!given) return null;
+  const renamed=renameSegments(given), used=collapseSegments(renamed);
+  return {path:used.join('/'),collapsed:used.length<renamed.length};
+}
 /** Create missing typed folders from root down. Never guess if same-name siblings are ambiguous. */
 export async function ensureFolder(type,path,{folders,create,cache=new Map(),report=()=>{}}){
   if(!['Item','JournalEntry','Actor','RollTable','Macro'].includes(type)) throw new Error(`Unsupported Foundry folder type ${type}.`);
-  const given=folderSegments(path);
-  if(!given) throw new Error('ensureFolder requires an explicit folder_path.');
-  const segments=renameSegments(given);
+  const segments=foundryFolderSegments(path);
+  if(!segments) throw new Error('ensureFolder requires an explicit folder_path.');
   let parentId=null,last=null;
   for(const [level,name] of segments.entries()){
     const key=JSON.stringify([type,parentId,name]);

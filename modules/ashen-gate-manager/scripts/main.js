@@ -5,7 +5,7 @@ import {createAppearanceController, registerAppearanceSettings, makeFoundryAppea
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
-import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical} from "./core.js";
+import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical, baselineFields} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
 import {renderPlayerCodexHtml} from "./codex.js";
@@ -22,8 +22,8 @@ import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendRefe
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES, NO_CONFIDENT_MATCH} from './smart-icons.js';
 import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
-import {ensureFolder, renameManagerFolders, FOLDER_RENAMES_SETTING} from "./folders.js";
-import {readImportZip, readImportBundle, planBundleImport, bundleSummary, autoSelect, autoFileCounts, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
+import {ensureFolder, renameManagerFolders, folderDestination, FOLDER_RENAMES_SETTING, FOLDER_MAX_DEPTH} from "./folders.js";
+import {readImportZip, readImportBundle, planBundleImport, bundleSummary, autoSelect, decisionText, autoFileCounts, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
 import {downloadJson, downloadText} from "./download.js";
@@ -77,7 +77,11 @@ function documentsOfType(type) {
   if(!collection) throw new Error(`Unsupported Foundry document type: ${type}`);
   return collection.contents;
 }
-function sourceFlag(doc) { return doc.getFlag(MODULE_ID, "source") ?? null; }
+/** The source flag with its managed-field baseline read back as flat paths (Foundry may have expanded it, 0.52.2). */
+function sourceFlag(doc) {
+  const flag=doc.getFlag(MODULE_ID, "source") ?? null;
+  return flag?.managedFields ? {...flag, managedFields:baselineFields(flag.managedFields)} : flag;
+}
 function docWrapper(doc) {
   return {
     doc,
@@ -1236,7 +1240,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const f=b.files.find(x=>x.filename===filename), s=b.summary.get(filename), status=b.outcome.get(filename)??'Waiting';
       return {filename,label:f?.label??'',status,tone:tone[status]??'',hasCounts:Boolean(s),counts:s?.counts??{},note:s?.note??''};
     });
-    const decisions=(b.autoPlan??[]).map(filename=>({filename,names:(b.summary.get(filename)?.needsDecision??[]).join(', ')})).filter(d=>d.names);
+    const decisions=(b.autoPlan??[]).map(filename=>({filename,names:b.summary.get(filename)?.decisionNote??''})).filter(d=>d.names);
     return {auto:b.auto, autoUpdates:b.autoUpdates, autoLocked:Boolean(b.queue)||this.busy, autoMode:Boolean(b.auto&&b.queue),
       autoRunning:Boolean(b.autoRunning), paused:Boolean(b.paused), stopping:Boolean(b.stopRequested),
       progress:b.autoRunning&&b.current?`File ${b.step} of ${b.total}: ${b.current}`:b.paused?`Paused at file ${b.step} of ${b.total}: ${b.paused.filename}`:'',
@@ -1321,7 +1325,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         }
         const rows=this.preview.map(r=>({id:r.id,name:r.name,action:r.action,reason:r.reason}));
         const {selected,needsDecision}=autoSelect(rows,{updates:bundle.autoUpdates});
-        const entry={label:next.label,needsDecision:needsDecision.map(r=>r.name),...autoFileCounts(rows,[],[])};
+        const entry={label:next.label,needsDecision:needsDecision.map(r=>r.name),decisionNote:decisionText(needsDecision),...autoFileCounts(rows,[],[])};
         if(!selected.length) {
           // A specialist module that is off or too old previews as one skipped row carrying the reason.
           const why=rows.find(r=>r.action==='skipped'&&r.id===SPECIALISTS[next.kind]?.moduleId)?.reason;
@@ -1485,10 +1489,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         continue;
       }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', lifecycle:record.status, action, reason, patch, changes, effects,
+      // 0.52.2: a folder_path deeper than Foundry allows shows the folder it will actually file into.
+      let dest=null; try{dest=folderDestination(record.foundry?.folder_path);}catch{dest=null;}
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
         effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
       this.warnings.push(...flagWarnings(record));
     }
+    const collapsed=new Set(this.preview.map(r=>r.folderNote).filter(Boolean));
+    if(collapsed.size) this.warnings.push(`Foundry allows ${FOLDER_MAX_DEPTH} folder levels, so ${collapsed.size} deeper folder path(s) file into one folder at level ${FOLDER_MAX_DEPTH}: ${[...collapsed].slice(0,3).join('; ')}${collapsed.size>3?'; …':''}. The Type column shows each record's folder.`);
     this.#assignIcons();
     this.message = `Validated ${records.length} records. ${this.dependencyNotes} Nothing changes before Apply.`;
     await this.render();

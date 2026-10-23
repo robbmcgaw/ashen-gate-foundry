@@ -1,5 +1,5 @@
 /** Ashen Gate Manager v0.3: deterministic, Foundry-independent build & lifecycle rules. */
-import {canonical, getPath, isPlainObject, exportedFields, equal, flatten} from './core.js';
+import {canonical, getPath, isPlainObject, exportedFields, equal, flatten, baselineFields} from './core.js';
 import {classifyDelivery,domainHandoff} from './delivery.js';
 import {managerAssignedIcon} from './smart-icons.js';
 
@@ -109,7 +109,7 @@ export function localEdits(document) {
   const snapshot=raw && typeof raw==='object' ? raw : document;
   // 0.47.0: an icon Manager picked (smart icons) is not a local edit.
   const managerIcon=managerAssignedIcon(snapshot?.img,snapshot?.flags?.['ashen-gate-manager']??document.flags?.['ashen-gate-manager']);
-  return Object.entries(source.managedFields).flatMap(([path,baseline])=>{
+  return Object.entries(baselineFields(source.managedFields)).flatMap(([path,baseline])=>{
     if (path==='img' && managerIcon) return [];
     const current=getPath(snapshot,path);
     if (equal(current,baseline)) return [];
@@ -137,7 +137,7 @@ export function buildSourceReplacementPatch(record, docWrapper, {allowLocalEdits
   const handoff=domainHandoff(record);
   if(handoff) return {action:'blocked',reason:handoff};
   if (record.foundry.document_type!=='Item') return {action:'blocked',reason:'Full source replacement works for Items only.'};
-  const old=docWrapper.flag?.managedFields;
+  const old=baselineFields(docWrapper.flag?.managedFields);
   if (!old) return {action:'blocked',reason:'No baseline; cannot replace unmanaged content.'};
   if (docWrapper.type!==record.foundry.data.type) return {action:'blocked',reason:'Item subtype mismatch.'};
   if (docWrapper.coreLink?.adopted) return {action:'blocked',reason:`Uses data adopted from core item ${docWrapper.coreLink.name ?? ''}; undo that core link first (Core Links tab).`};

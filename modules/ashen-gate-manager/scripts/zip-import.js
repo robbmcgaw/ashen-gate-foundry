@@ -135,18 +135,37 @@ export function planBundleImport(bundle, picked, {isGM = false} = {}) {
  * "Import everything without stopping" (0.50.0): the preview rows auto mode ticks. Only rows the manual flow could tick
  * are ever chosen. New records and metadata refreshes are always ticked; rows that change a record already in the world
  * (an update, or an icon-only fill) only when `updates` is on, otherwise they are returned as needing the GM's decision.
+ * 0.52.2: Blocked and Conflict rows (auto mode never applies them) are always returned as needing the GM's decision too,
+ * so they are listed by name with their reason instead of being counted as skipped.
  */
 const AUTO_SAFE = new Set(['create', 'metadata']);
 const AUTO_UPDATE = new Set(['update', 'icon']);
+const AUTO_REVIEW = new Set(['blocked', 'conflict']);
 const AUTO_UNCHANGED = new Set(['unchanged', 'local']);
 const KEPT = /kept|already|exists|unchanged/i;
+const needsGM = action => AUTO_UPDATE.has(action) || AUTO_REVIEW.has(action);
 export function autoSelect(rows, {updates = false} = {}) {
   const selected = [], needsDecision = [];
   for(const row of rows ?? []) {
     if(AUTO_SAFE.has(row.action) || (updates && AUTO_UPDATE.has(row.action))) selected.push(row.id);
-    else if(AUTO_UPDATE.has(row.action)) needsDecision.push(row);
+    else if(needsGM(row.action)) needsDecision.push(row);
   }
   return {selected, needsDecision};
+}
+
+/**
+ * The "Needs your decision" line for one file: updates by name, then Blocked / Conflict rows grouped by their reason
+ * ("A, B; Blocked (reason): C, D"), so the GM sees why each one was not imported.
+ */
+export function decisionText(rows = []) {
+  const updates = rows.filter(r => AUTO_UPDATE.has(r.action)).map(r => r.name);
+  const groups = new Map();
+  for(const r of rows.filter(r => AUTO_REVIEW.has(r.action))) {
+    const key = `${r.action === 'conflict' ? 'Conflict' : 'Blocked'} (${r.reason || 'no reason given'})`;
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r.name);
+  }
+  return [updates.length ? updates.join(', ') : null, ...[...groups].map(([k, names]) => `${k}: ${names.join(', ')}`)].filter(Boolean).join('; ');
 }
 
 /**
@@ -161,7 +180,7 @@ export function autoFileCounts(rows = [], selectedIds = [], results = []) {
     if(!picked.has(row.id)) {
       // A specialist module's "already there, kept" row previews as skipped; it is unchanged, like the results panel's Kept.
       const kept = AUTO_UNCHANGED.has(row.action) || (row.action === 'skipped' && KEPT.test(row.reason ?? ''));
-      counts[AUTO_UPDATE.has(row.action) ? 'needsDecision' : kept ? 'unchanged' : 'skipped']++;
+      counts[needsGM(row.action) ? 'needsDecision' : kept ? 'unchanged' : 'skipped']++;
       continue;
     }
     const mine = results.filter(r => r.id === row.id);

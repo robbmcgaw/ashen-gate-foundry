@@ -111,13 +111,14 @@ test('0.50.0 pure: auto mode ticks new records and metadata refreshes; updates a
     {id:'E',action:'unchanged'},{id:'F',action:'blocked'},{id:'G',action:'conflict'},{id:'H',action:'skipped',reason:'Unapproved record; enable Include drafts to test.'},{id:'I',action:'local'}];
   const off=autoSelect(rows);
   assert.deepEqual(off.selected,['A','B']);
-  assert.deepEqual(off.needsDecision.map(r=>r.id),['C','D']);
+  // 0.52.2: Blocked and Conflict rows need the GM's decision (listed with their reason), never counted as skipped.
+  assert.deepEqual(off.needsDecision.map(r=>r.id),['C','D','F','G']);
   const on=autoSelect(rows,{updates:true});
   assert.deepEqual(on.selected,['A','B','C','D'],'blocked, conflict, excluded and unchanged rows are never ticked');
-  assert.deepEqual(on.needsDecision,[]);
+  assert.deepEqual(on.needsDecision.map(r=>r.id),['F','G']);
   const results=[{id:'A',action:'create',status:'ok'},{id:'B',action:'metadata',status:'ok'}];
   const summary=autoFileCounts(rows,off.selected,results);
-  assert.deepEqual(summary.counts,{created:1,updated:0,unchanged:3,needsDecision:2,skipped:3,failed:0});
+  assert.deepEqual(summary.counts,{created:1,updated:0,unchanged:3,needsDecision:4,skipped:1,failed:0});
   assert.equal(summary.toneLabel,'Done with notes');
   assert.equal(autoFileCounts([{id:'A',action:'create'}],['A'],[{id:'A',action:'create',status:'error',message:'x'}]).toneLabel,'Needs attention');
   assert.equal(autoFileCounts([{id:'A',action:'create'}],['A'],[{id:'A',action:'create',status:'ok'}]).toneLabel,'Done');

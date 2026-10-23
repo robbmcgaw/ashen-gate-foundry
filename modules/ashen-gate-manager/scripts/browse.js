@@ -9,7 +9,7 @@ import {collectModuleSections, sourceFlagOf} from './world-export.js';
 import {systemOf, normalizeSourceRef} from './browser.js';
 import {FILTER_INDEX_FIELDS, itemFacts, rarityKey, sharedMatch} from './item-filters.js';
 import {loadItemPreview} from './item-preview.js';
-import {professionFacts} from './profession-records.js';
+import {professionFacts, recipeKind} from './profession-records.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 const GM_ONLY = 'Only the GM can browse Ashen Gate data.';
@@ -65,14 +65,14 @@ function definitionFields(def = {}, system = {}) {
 
 function entry(base) {
   const e = {id: null, uuid: null, docType: null, ag: false, managed: false, entityType: null, status: null, visibility: null,
-    profession: null, tier: null, quality: null, tags: [], description: '', folder: null, category: null, modified: 0,
+    profession: null, tier: null, quality: null, recipeKind: null, tags: [], description: '', folder: null, category: null, modified: 0,
     refIds: [], linked: false, draggable: false, pack: null, sources: [], open: null, chips: [], extraFields: [], searchText: [], ...base};
   e.kinds = [e.kind];
   // Items tab shared filters (0.36.0): partner records with no document have no source and only show under "All sources".
   e.source ??= null; e.origin ??= e.ag ? 'ag' : null; e.rarity ??= rarityKey(e.quality); e.coreRef ??= false; e.folderIds ??= [];
   e.provenance ??= e.pack ? `Compendium: ${e.pack}` : e.owner === 'world' || e.owner === MODULE_ID && e.uuid ? 'World' : TITLES[e.owner] ?? e.owner;
   e.sources = [e.provenance];
-  // 0.52.0: every chip the row shows is searchable too ("activity" finds the rows with the Activity chip).
+  // 0.52.0: every chip the row shows is searchable too (0.52.2: the word "activity" is matched by recipe kind, see termMatch).
   e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description, ...e.searchText, ...e.chips].filter(Boolean).join(' \u0001 '));
   e.idFold = fold(e.id ?? '');
   return e;
@@ -84,7 +84,7 @@ function agFields(source, system) {
   // 0.48.0: a recipe's kind (Activity / Craft) and a profession's category (Creative, ...) as a chip and detail fields.
   // 0.49.0: also an activity's effect note and a profession's recipe label (chips, fields, and searchable).
   const facts = professionFacts({id: source.sourceId, entity_type: source.entityType, ...def});
-  return {...(facts ? {chips: facts.chips, extraFields: facts.fields, searchText: facts.searchText} : {}), id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
+  return {...(facts ? {chips: facts.chips, extraFields: facts.fields, searchText: facts.searchText} : {}), recipeKind: recipeKind({id: source.sourceId, entity_type: source.entityType, ...def}), id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
     visibility: str(source.visibility), category: sys.label, ...definitionFields(def, system),
     refIds: [...new Set([...(source.refs ?? []).map(r => normalizeSourceRef(r).targetId).filter(Boolean), ...scanIds(def)])].filter(id => id !== source.sourceId)};
 }
@@ -239,7 +239,7 @@ export function mergeEntries(...lists) {
       for (const f of ['kinds', 'chips']) hit[f] = [...new Set([...hit[f], ...e[f]])];
       hit.extraFields = [...hit.extraFields, ...e.extraFields.filter(([l]) => !hit.extraFields.some(([h]) => h === l))];
       hit.description ||= e.description;
-      for (const f of ['profession', 'tier', 'quality', 'status', 'visibility', 'entityType']) hit[f] ??= e[f];
+      for (const f of ['profession', 'tier', 'quality', 'status', 'visibility', 'entityType', 'recipeKind']) hit[f] ??= e[f];
       hit.hay += ' \u0001 ' + e.hay;
       continue;
     }
@@ -265,7 +265,13 @@ export function parseQuery(text) {
   }
   return terms;
 }
+/**
+ * 0.52.2: the word for a recipe kind finds that kind of recipe (and names with the word), not every item whose
+ * description mentions it ("activity" matched crafted items whose text talks about a dnd5e activity).
+ */
+const KIND_WORDS = Object.freeze({activity: 'activity', activities: 'activity'});
 const termMatch = (e, t) => {
+  if (!t.field && KIND_WORDS[t.value]) return e.recipeKind === KIND_WORDS[t.value] || fold(e.name).includes(t.value);
   switch (t.field) {
     case 'id': return e.idFold.startsWith(t.value) || e.idFold.includes(t.value);
     case 'tag': return e.tags.some(tag => fold(tag).includes(t.value));
