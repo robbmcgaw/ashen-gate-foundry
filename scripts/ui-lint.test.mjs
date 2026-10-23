@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {RULES, STRICT_EXCEPTIONS, kitBlocks, lintModule, judgeModule, checkExceptions, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
+import {RULES, STRICT_EXCEPTIONS, statusWords, kitBlocks, lintModule, judgeModule, checkExceptions, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
 
 const kitCss = `/* ag-ui kit 2.0.0 */
 :root { --ag-text-md: 13px; --ag-space-1: 3px; --ag-control-h: 28px; --ag-radius: 8px; }
@@ -99,6 +99,7 @@ const PLANTED = {
   'header-brand-version': {'templates/t.hbs': '<header class="ag-header"><h1>Ashen Gate</h1></header>'},
   'button-title-attr': {'templates/t.hbs': '<button type="button" title="Delete">x</button>'},
   'lint-allow-reason': {'styles/mod.css': '.agx-a { display: none; } /* ag-lint-allow: why */'},
+  'status-wording': {'scripts/a.mjs': "game.settings.register('agx', 'mode', {name: 'Fast mode (Beta)', hint: 'Speeds things up.'});"},
 };
 const lint = files => lintModule(fakeModule(files), kitBlocks(kitCss));
 
@@ -166,4 +167,35 @@ test('a new module starts strict on every rule; the exception list only names re
   ]);
   const modules = fs.readdirSync(new URL('../modules/', import.meta.url));
   assert.deepEqual(checkExceptions(modules, STRICT_EXCEPTIONS), [], 'the real list is valid');
+});
+
+test('status wording: module.json description, settings names and hints, templates and Help fail; the message says why', () => {
+  const bad = lint({
+    'module.json': JSON.stringify({id: 'agx', title: 'Ashen Gate | X', description: 'Standalone builder Alpha. Beta; Foundry V14 runtime unverified.'}),
+    'scripts/main.mjs': "game.settings.registerMenu('agx', 'menu', {name: 'Experimental tools', hint: 'Coming soon.'});\nconst HELP = '<p>Party view (WIP)</p>';",
+    'templates/t.hbs': '<span class="ag-badge">Preview build</span><p>Work in progress</p>',
+  });
+  assert.equal(bad.counts['status-wording'], 8);
+  assert.deepEqual(bad.where['status-wording'], ['module.json (3)', 'scripts/main.mjs (3)', 'templates/t.hbs (2)']);
+  const {failures} = judgeModule('agx', bad, {});
+  assert.match(failures[0], /status-wording must be 0, found 8.*Status words don't belong in the UI; discuss them in chat\./);
+});
+
+test('status wording: contract ids, identifiers, comments, preview as a feature and other senses pass', () => {
+  const ok = lint({
+    'module.json': JSON.stringify({id: 'agx', description: 'Builds facilities and previews imports, sorted alphabetically.'}),
+    'scripts/main.mjs': [
+      "const api = {contract: 'ag-utilities/0.2-alpha', quests: 'ag-objectives/0.1-alpha', look: 'ag-appearance/0.1-beta'};",
+      "el.style.setProperty('--agu-ov-alpha', '60%'); const alpha_v = 1; obj.beta = 2;",
+      '/** Headquarters alpha pure state logic. */',
+      '// Beta flag kept for old saves',
+      "const help = '<p><strong>Player preview</strong> shows what players see. Validate &amp; Preview first.</p>';",
+      "bundle.outcome.set(name, 'In preview');",
+    ].join('\n'),
+    'templates/t.hbs': '{{!-- alpha layout --}}<!-- beta --><button type="button" data-act="player-preview">Player preview</button>',
+    'tests/a.test.mjs': "assert.match(x, /Alpha/);",
+  });
+  assert.equal(ok.counts['status-wording'], 0, ok.where['status-wording'].join(', '));
+  assert.equal(statusWords("throw Error('Only player-visible facility definitions can be stored.')"), 0);
+  assert.equal(statusWords("throw Error('Alpha stores only player-visible facility definitions.')"), 1);
 });

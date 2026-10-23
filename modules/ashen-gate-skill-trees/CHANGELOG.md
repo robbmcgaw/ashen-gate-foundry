@@ -1,3 +1,8 @@
+## 0.21.1 — 2026-10-23
+
+- Removed the Alpha wording: the GM Actor progress backup file's note now reads "GM backup only. It is not restored automatically." (before: "…No automatic restore in this alpha.").
+- Saved data: no change; no migration.
+
 ## 0.21.0 — 2026-10-22
 
 Professions with several skill trees (first use: Artistry with Music, Performance, Visual Arts and Literary Arts).

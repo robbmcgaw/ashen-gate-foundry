@@ -1,3 +1,8 @@
+## 0.29.2 — 2026-10-23
+
+- Removed the Beta wording from the interface: the module description in Setup → Add-on Modules no longer ends in "(Beta)", and the note when Skill Trees is missing says "Skill Trees is not enabled." (before: "Skill Trees prototype is not enabled.").
+- Saved data: no change; no migration.
+
 ## 0.29.1 — 2026-10-22
 
 - **Fix: imported Profession content no longer wipes a default it says nothing about.** In **GM Setup → Tools and checks**, Archaeology's advantage tool showed *None · From content* once the profession content was imported, because the Archaeology record lists who qualifies but gives no advantage tool. It now stays **Calligrapher’s Supplies · Default**. Fishing's carried **Fishing Tackle** advantage stays **Default** the same way.

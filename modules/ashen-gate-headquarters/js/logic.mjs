@@ -1,5 +1,5 @@
 import {ensurePersonnel,registerHireling,setHirelingWorking,departHireling,assignHireling,unassignHireling,ensureInstallationSlots} from './hirelings.mjs';
-/** Headquarters alpha pure state logic: no Foundry/DOM dependencies. */
+/** Headquarters pure state logic: no Foundry/DOM dependencies. */
 export const MODULE_ID = "ashen-gate-headquarters";
 export const FORMAT = "aghq-state/0.1";
 export const COPY_KEY = /^[a-z][a-z0-9_-]*$/;
@@ -24,9 +24,9 @@ const validateAsset = value => {
 };
 const collision = (a,b) => a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y;
 export const demoCatalog = () => [
-  {id:"FAC-DEMO-FORGE",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder alpha demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Forge",category:"Profession",placements:["shared"],stages:[{key:"base",label:"Basic",width:4,height:3,staffing_slots:1,art:"",benefits:[{name:"Workshop Access (demo)",recipient:"guild",description:"Informational demonstration only."}]},{key:"improved",label:"Expanded",width:5,height:4,staffing_slots:2,art:"",benefits:[]}]},
-  {id:"FAC-DEMO-STUDY",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder alpha demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Study",category:"Administrative",placements:["shared","personal"],stages:[{key:"base",label:"Basic",width:3,height:3,staffing_slots:0,art:"",benefits:[]}]},
-  {id:"FAC-DEMO-DESK",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder alpha demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Writing Desk",category:"Personal",placements:["personal"],stages:[{key:"base",label:"Basic",width:2,height:2,staffing_slots:0,art:"",benefits:[]}]}
+  {id:"FAC-DEMO-FORGE",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Forge",category:"Profession",placements:["shared"],stages:[{key:"base",label:"Basic",width:4,height:3,staffing_slots:1,art:"",benefits:[{name:"Workshop Access (demo)",recipient:"guild",description:"Informational demonstration only."}]},{key:"improved",label:"Expanded",width:5,height:4,staffing_slots:2,art:"",benefits:[]}]},
+  {id:"FAC-DEMO-STUDY",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Study",category:"Administrative",placements:["shared","personal"],stages:[{key:"base",label:"Basic",width:3,height:3,staffing_slots:0,art:"",benefits:[]}]},
+  {id:"FAC-DEMO-DESK",entity_type:"Facility",status:"draft",version:"0.1.0",provenance:{sources:["synthetic builder demo"]},visibility:"player",refs:[],scope:"generic_rules",name:"Demo Writing Desk",category:"Personal",placements:["personal"],stages:[{key:"base",label:"Basic",width:2,height:2,staffing_slots:0,art:"",benefits:[]}]}
 ];
 export const rankRules = () => Array.from({length:5},(_,i)=>({rank:i+1,shared_facility_slots:2,orders_per_downtime:2,unlock_refs:[]}));
 export function emptyState(){return {format:FORMAT,active:false,core:null,config:{name:"Guildhall",bounds:{width:24,height:18},cell_px:44,background:"",background_fit:"contain",background_x:50,background_y:50,background_opacity:100,rank_rules:rankRules(),manual_unlock_refs:[],decoration_art:[]},catalog:[],inventory:[],personal_layouts:{},editor_lease:null,personnel:{format:"aghq-personnel/0.1",hirelings:[]},state_revision:0};}
@@ -49,7 +49,7 @@ export const getPlacement = (stage,x,y,rotation) => {
 export function validateDefinition(def){
   if(!def || typeof def!=="object" || !FAC_ID.test(def.id||"") || def.entity_type!=="Facility" || !Array.isArray(def.refs) || !Array.isArray(def.provenance?.sources)) throw Error("Facility requires canonical FAC-* identity and shared metadata.");
   safeText(def.name,"facility name");
-  if(def.visibility!=="player") throw Error("Alpha stores only player-visible facility definitions. Do not import GM secrets.");
+  if(def.visibility!=="player") throw Error("Only player-visible facility definitions can be stored. Do not import GM secrets.");
   if(!['draft','approved','proposed'].includes(def.status)||typeof def.version!=='string'||!def.version||!['generic_rules','setting_adapter'].includes(def.scope))throw Error("Invalid definition status, version or scope.");
   for(const r of def.refs){if(!r||typeof r.relation!=='string'||!r.relation||typeof r.target_id!=='string'||!(/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/).test(r.target_id)||!['required','optional'].includes(r.mode))throw Error("Invalid typed facility reference.");}
   if(!Array.isArray(def.placements) || !def.placements.length || def.placements.some(x=>!['shared','personal'].includes(x))) throw Error("A facility must allow shared and/or personal placement.");

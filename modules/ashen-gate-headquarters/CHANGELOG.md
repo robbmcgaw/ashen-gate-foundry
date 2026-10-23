@@ -1,3 +1,9 @@
+## 0.13.1 — 2026-10-23
+
+- Removed the Alpha wording from the interface. The module description in Setup → Add-on Modules now says what the module does: *Standalone Headquarters/Guildhall builder: facilities, decorations and hosted Hirelings on an adjustable canvas image, with compact GM controls and private Journal storage.* (before: "…Guildhall Alpha… Live GM/player acceptance pending.").
+- The error for a GM-only facility definition now reads "Only player-visible facility definitions can be stored. Do not import GM secrets." (before: "Alpha stores only…").
+- Saved data: no change; no migration.
+
 ## 0.13.0 — 2026-10-22
 
 UI cleanup from the October 2026 audit (HQ-01 to HQ-15). No saved-data, setting-key, flag or API changes.

@@ -20,7 +20,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.21.0';
+const VERSION='0.21.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -1491,7 +1491,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     download('AG_Skill_Tree_Actor_Progress_v02_BACKUP.json',{
       schema:'ag-skill-trees-progress/0.2',createdAt:new Date().toISOString(),
       actors:(game.actors?.contents??[]).map(a=>({actorId:a.id,actorName:a.name,progress:copy(safeFlag(a,'progressV2')??{})})),
-      note:'GM backup only. No automatic restore in this alpha.'});notify('GM Actor progress backup downloaded.');
+      note:'GM backup only. It is not restored automatically.'});notify('GM Actor progress backup downloaded.');
   }
   async _legacyPreview(){
     if(!game.user.isGM)throw Error('GM only');

@@ -294,8 +294,10 @@ device to Comfortable.
 6. **Plurals** done properly ("1 stage", "2 stages"), never "stage(s)". **Ours**
 7. **Same word for the same thing** across modules (Help, launcher, tabs and embeds included). Don't call one thing
    "Compact" in one place and use "Compact" for something else in the same header. [WCAG 3.2.4] [Apple Writing]
-8. Labels describe what a switch does when on ("Show hidden locations"), not the mechanism. "Experimental" and "alpha" go in
-   a badge, once. [Apple Writing]
+8. Labels describe what a switch does when on ("Show hidden locations"), not the mechanism. [Apple Writing]
+9. **Production wording:** no Alpha, Beta, Preview, New, Experimental or similar status labels anywhere a user sees them
+   (UI, Help, settings, module descriptions); status is discussed in chat. Internal API contract ids keep their names.
+   `scripts/ui-lint.mjs` (`status-wording`) checks module.json, scripts and templates. **Ours** (Robb, 2026-10)
 
 ## 13. Theming
 

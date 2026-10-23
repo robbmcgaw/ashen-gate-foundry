@@ -1,3 +1,9 @@
+## 0.52.1 — 2026-10-23
+
+- Removed the Beta wording from the interface. The module description in Setup → Add-on Modules now reads *GM-only import/library and optional module hub, Player Access dashboard, plus the appearance controller with separate GM and player choices. For Foundry V14.* (before: "…Beta; Foundry V14 runtime unverified.").
+- Import messages no longer say "in alpha": a Journal template that shares pages says "Journal pages cannot be shared between records.", and a blocked full replacement says "Full source replacement works for Items only."
+- Internal contract ids (such as `ag-appearance/0.1-beta`) keep their names. Saved data: no change; no migration.
+
 ## 0.52.0 — 2026-10-23
 
 Browse search and smart icons, from the live test.

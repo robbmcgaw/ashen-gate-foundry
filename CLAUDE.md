@@ -43,6 +43,7 @@ Full rules and their sources: `docs/ui-ux-guidelines.md`. Latest audit and per-m
 - Keyboard and accessibility: everything clickable is a `<button>` or an `<a href>`; icon-only buttons have `aria-label` + `data-tooltip`; status icons carry text; colour is never the only signal (use the kit's ink tokens on tinted fills); focus stays on the same control after a re-render; drag and drop has a keyboard alternative; respect reduced motion.
 - Use the kit's components rather than module-local copies (skins only reshape kit classes). A kit change ships in every module in the same PR.
 - Copy: one name per thing across launcher, header, tabs, Help and embeds; buttons start with a verb, end with "…" when they open a dialog; no raw ids, status tokens or timestamps in the UI.
+- Production wording: modules are production-ready. Never put Alpha, Beta, Preview, New or similar status labels in the UI, Help, settings or module descriptions; talk about status in chat. Internal API contract ids keep their names.
 - Modules must render with a default theme when Manager's appearance controller is absent; they don't ship their own theme or skin settings.
 
 ## Tests
