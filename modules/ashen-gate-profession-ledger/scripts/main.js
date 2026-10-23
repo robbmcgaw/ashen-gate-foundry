@@ -13,6 +13,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
   TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
+import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -21,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.30.1';
+const VERSION='0.31.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -130,8 +131,8 @@ const GM_VIEWS=new Set(['gm','assign','nodes']);
 /** 0.26.0 sub-tabs (kit 2.2). The chosen one is remembered per user on this device (uiState), never in world data. */
 const GM_SETUP_TABS=[{id:'party',label:'Party'},{id:'tools',label:'Tools and checks'},{id:'gather',label:'Gathering & crafting'},{id:'access',label:'Player Access'}];
 const GATHER_TAB_IDS=['requests','active','start'];
-/** 0.30.0 Assign sub-tabs. */
-const ASSIGN_TABS=[{id:'professions',label:'Professions'},{id:'recipes',label:'Starting recipes'}];
+/** Assign sub-tabs (0.30.0 Starting recipes, 0.31.0 Signature perks). */
+const ASSIGN_TABS=[{id:'professions',label:'Professions'},{id:'recipes',label:'Starting recipes'},{id:'signature',label:'Signature perks'}];
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
 const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
 const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
@@ -222,6 +223,8 @@ function dependentsText(plan,name,actor=null,profId=null){
   if(tree?.nodesAboveLevel?.length)parts.push(`${tree.nodesAboveLevel.length} ${name} Skill Tree perk${tree.nodesAboveLevel.length===1?'':'s'} (${tree.nodesAboveLevel.map(n=>n.name).join(', ')}) ${tree.nodesAboveLevel.length===1?'needs':'need'} a higher level than ${plan.level}. They are kept, not removed. Resolve them in Skill Trees.`);
   else if(tree?.overSpent>0)parts.push(`${name} Skill Tree perks use ${tree.overSpent} more point${tree.overSpent===1?'':'s'} than level ${plan.level} gives. They are kept, not removed. Resolve them in Skill Trees.`);
   if(!tree&&plan.perksBeyondLevel.length)parts.push(`${plan.perksBeyondLevel.length} held ${name} perk${plan.perksBeyondLevel.length===1?'':'s'} (${plan.perksBeyondLevel.join(', ')}) ${plan.perksBeyondLevel.length===1?'exceeds':'now exceed'} level ${plan.level}. They are kept, not removed. Review them.`);
+  const sig=signaturePerksBeyondLevel(actor,profId,plan.level);
+  if(sig.length)parts.push(`${sig.length} held ${name} signature perk${sig.length===1?'':'s'} (${sig.map(x=>`${x.name}, ${x.tier}`).join('; ')}) ${sig.length===1?'needs':'need'} a higher level than ${plan.level}. ${sig.length===1?'It is':'They are'} kept, not removed.`);
   if(plan.lockedRecipes.length)parts.push(`Known recipes now above this level (kept, but crafting is blocked until the level returns): ${plan.lockedRecipes.join(', ')}.`);
   return parts.join(' ');
 }
@@ -690,10 +693,10 @@ async function assignProfessions({actorIds=null,rowIds=null}={}){
 const requireGrantGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can grant starting recipes');};
 const isPlayerCharacter=a=>a?.type==='character'&&!isLevelBackup(a)&&a.hasPlayerOwner===true;
 /** The given characters (each must be a player character; a level backup is refused), else Assign's party, player characters only. */
-function grantActors(actorIds=null){
+function grantActors(actorIds=null,what='starting recipes'){
   if(Array.isArray(actorIds)&&actorIds.length)return [...new Set(actorIds)].map(id=>{const a=actorById(id);
     if(!a)throw Error('Character not found');
-    if(!isPlayerCharacter(a))throw Error(`${a.name} is not a player character: starting recipes go to player-owned characters only.`);
+    if(!isPlayerCharacter(a))throw Error(`${a.name} is not a player character: ${what} go to player-owned characters only.`);
     return a;});
   return assignActors().filter(isPlayerCharacter);
 }
@@ -760,6 +763,126 @@ async function grantStartingRecipes({preview=true,actorIds=null,rowIds=null}={})
     }
   }finally{ids.forEach(id=>grantLocks.delete(id));}
   return {preview:false,granted,skipped};
+}
+/* ---- Signature perks (0.31.0) -----------------------------------------------------------------
+ * A ProfessionPerk record with `signature: true`, a `tier` (journeyman | expert) and a `profession_id` is imported by General
+ * Manager as a feat Item. When a character's level in that profession reaches the tier (Journeyman 4, Expert 7), the GM client
+ * adds the imported Item to the Actor. Nothing is ever removed. The Item on the Actor is the only record: no Ledger flag copies it. */
+const requireSignatureGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can grant signature perks');};
+/** GM: imported, active signature perks (Manager source definition) with their world Items. */
+function signaturePerkDefs(){
+  if(!game.user?.isGM)return [];
+  const out=[];
+  for(const doc of game.items?.contents??[]){
+    const id=agSourceId(doc);if(!/^PERK-[A-Z0-9-]+$/.test(id??'')||classify(doc)!=='ProfessionPerk')continue;
+    const hit=lookupWorldDefinition(game,id,{entityType:'ProfessionPerk'});
+    if(hit.status!=='ok'||hit.document!==doc)continue;
+    const sig=signatureOf(hit.source?.definition);
+    if(sig)out.push({...sig,name:sig.name||doc.name,visibility:hit.source.visibility,doc});
+  }
+  return out;
+}
+/** '' when the perk may go to a player; else why not. A signature perk in a player's hands is visible to them, so GM-only ones are held back. */
+function signatureUnreleased(perk){
+  if(perk.visibility==='gm')return 'GM-only: not released to players. Make it player-visible in General Manager.';
+  if(perk.visibility==='reveal_gated')return 'Reveal-gated: not released to players yet. Reveal it in General Manager.';
+  if(perk.visibility!=='player')return 'Not released to players: make it player-visible in General Manager.';
+  return '';
+}
+const holdsSourceItem=(actor,sourceId)=>Array.from(actor?.items??[]).some(i=>agSourceId(i)===sourceId);
+const professionNameOf=(actor,profId)=>professionsOf(actor).find(p=>p.sourceId===profId)?.name??humanizeId(profId);
+/** Signature perks a character holds above the given level of a profession (read from the held Item's own source definition). */
+function signaturePerksBeyondLevel(actor,profId,level){
+  if(!actor||!profId)return [];
+  return Array.from(actor.items??[]).map(i=>signatureOf(i.flags?.['ashen-gate-manager']?.source?.definition))
+    .filter(sig=>sig&&sig.professionId===profId&&sig.level>level).map(sig=>({id:sig.id,name:sig.name,tier:signatureTierName(sig.tier)}));
+}
+const signatureQueue=new Map();
+/** One grant at a time per character, so the progression hook and the catch-up action can't both add the same perk. */
+function inSignatureQueue(actorId,fn){
+  const prev=signatureQueue.get(actorId)??Promise.resolve();
+  const next=prev.catch(()=>{}).then(fn);
+  signatureQueue.set(actorId,next);
+  next.then(()=>{},()=>{}).then(()=>{if(signatureQueue.get(actorId)===next)signatureQueue.delete(actorId);});
+  return next;
+}
+/** Add the perks this character doesn't hold yet (re-checked inside the queue, so re-running adds nothing), then post one
+ * chat note per profession. Returns the perks added. GM only. */
+async function addSignaturePerks(actor,perks){
+  requireSignatureGM();
+  const added=await inSignatureQueue(actor.id,async()=>{
+    const fresh=[...new Map(perks.filter(p=>!holdsSourceItem(actor,p.id)).map(p=>[p.id,p])).values()];
+    if(!fresh.length)return [];
+    const data=fresh.map(p=>{const copy=p.doc.toObject();for(const k of ['_id','folder','sort','ownership'])delete copy[k];return copy;});
+    await actor.createEmbeddedDocuments('Item',data);
+    return fresh;
+  });
+  for(const profId of [...new Set(added.map(p=>p.professionId))]){
+    const mine=added.filter(p=>p.professionId===profId),name=professionNameOf(actor,profId);
+    const tiers=[...new Set(mine.map(p=>p.tier))].map(t=>`${esc(signatureTierName(t))}: ${esc(mine.filter(p=>p.tier===t).map(p=>p.name).join(', '))}`).join(' · ');
+    await whisperXpNote(actor,`<strong>${esc(actor.name)} earned ${mine.length===1?'a signature perk':'signature perks'} in ${esc(name)}</strong><span>${tiers}</span>`);
+  }
+  return added;
+}
+const signatureWarned=new Set();
+/** Tell the GM once per session (notification and a GM whisper) when a reached tier has no grantable signature perk imported. */
+function warnSignatureMissing(actor,profId,tier,why){
+  const key=`${profId}:${tier}`;if(signatureWarned.has(key))return;signatureWarned.add(key);
+  const name=professionNameOf(actor,profId),text=`${actor.name} reached ${signatureTierName(tier)} in ${name}, but ${why} Import the signature perks with General Manager; then use Assign → Signature perks to catch up.`;
+  try{ui.notifications.warn(text);}catch{}
+  try{void globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><header><div><strong>Signature perk not granted</strong><span>${esc(text)}</span></div></header></div>`});}catch(err){console.warn(`[${ID}] signature note failed`,err);}
+}
+/**
+ * ashenGateLedger.progressionChanged: for each signature tier the change crossed upward, add that profession's signature perks.
+ * The hook fires only on the client that wrote the XP, which is always a GM, so exactly one client acts per change.
+ * Lowering never removes anything (the hook's level only goes up here). A tier with nothing imported is reported once.
+ */
+async function onProgressionChanged(payload){
+  if(!game.user?.isGM)return;
+  const {actorId,profId,previousLevel,level}=payload??{};
+  const tiers=tiersCrossed(previousLevel,level);
+  if(!tiers.length)return;
+  const actor=game.actors?.get?.(actorId);
+  if(!actor||actor.type!=='character'||isLevelBackup(actor)||!linkedProfession(actor,profId))return;
+  const defs=signaturePerkDefs(),forProfession=defs.filter(p=>p.professionId===profId);
+  const expected=forProfession.length>0||GATHERING_KEYS.includes(professionKeyFromId(profId));
+  const grant=[];
+  for(const tier of tiers){
+    const atTier=forProfession.filter(p=>p.tier===tier),ok=atTier.filter(p=>!signatureUnreleased(p));
+    if(ok.length)grant.push(...ok);
+    else if(atTier.length)warnSignatureMissing(actor,profId,tier,`its signature perks aren't released to players (${signatureUnreleased(atTier[0])})`);
+    else if(expected)warnSignatureMissing(actor,profId,tier,`no ${signatureTierName(tier)} signature perk for ${professionNameOf(actor,profId)} is imported.`);
+  }
+  if(grant.length)await addSignaturePerks(actor,grant);
+}
+/** GM dry run for the catch-up: characters who hold a tier but lack its perks. Writes nothing. */
+function signaturePerksPreview({actorIds=null}={}){
+  requireSignatureGM();
+  const actors=grantActors(actorIds,'signature perks'),defs=signaturePerkDefs();
+  const rows=signaturePlan(actors,defs,{
+    professions:a=>professionItems(a).map(i=>({id:agSourceId(i),name:professionDisplayName(i)||humanizeId(agSourceId(i)),level:progressOf(a,agSourceId(i))?.level??1})),
+    holds:holdsSourceItem,unreleased:signatureUnreleased});
+  return {actors:actors.map(a=>({id:a.id,name:a.name,hasProfession:professionItems(a).length>0})),rows,signaturePerks:defs.length};
+}
+/**
+ * GM: add the 'new' rows of the preview (`rowIds` limits it). Re-checked just before writing, so a second run adds nothing.
+ * A character that can't be updated is reported in `failed`; the others still get theirs (re-running finishes the job).
+ * Returns {granted:[{actorId, actorName, perks:[{id, name, profession, tier}]}], skipped, failed}.
+ */
+async function grantSignaturePerks({actorIds=null,rowIds=null}={}){
+  requireSignatureGM();
+  const plan=signaturePerksPreview({actorIds}),defs=new Map(signaturePerkDefs().map(p=>[p.id,p]));
+  const picked=selectedRows(plan,'new',rowIds);
+  const granted=[],skipped=[],failed=[];
+  for(const actorId of [...new Set(picked.map(r=>r.actorId))]){
+    const actor=actorById(actorId),rows=picked.filter(r=>r.actorId===actorId);
+    try{
+      const added=await addSignaturePerks(actor,rows.map(r=>defs.get(r.perkId)).filter(Boolean));
+      for(const r of rows)if(!added.some(p=>p.id===r.perkId))skipped.push({...r,reason:'already held'});
+      if(added.length)granted.push({actorId,actorName:actor.name,perks:added.map(p=>({id:p.id,name:p.name,profession:professionNameOf(actor,p.professionId),tier:signatureTierName(p.tier)}))});
+    }catch(err){console.error(`[${ID}] signature perks for ${actor.name}`,err);failed.push({actorId,actorName:actor.name,error:String(err?.message??err)});}
+  }
+  return {preview:false,granted,skipped,failed};
 }
 /**
  * What a recipe needs at the bench. Its own tool wins; a workstation-only recipe needs no tool; otherwise
@@ -1945,6 +2068,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.assignState={target:'party',preview:null,selected:new Set()};
     // 0.30.0 Assign → Starting recipes: target, dry run, ticked rows and the last grant's result.
     this.grantState={target:'party',preview:null,selected:new Set(),result:null};this.assignTab=null;
+    // 0.31.0 Assign → Signature perks: same shape.
+    this.signatureState={target:'party',preview:null,selected:new Set(),result:null};
     // 0.25.0 Gathering Nodes tab: the open editor draft, an import preview, and the activity filter.
     this.nodeDraft=null;this.nodeImport=null;this.nodeFilter='all';
     // 0.26.0: sub-tabs shown (null: pick on first show), and the node editor's unsaved-edit guard (kit guardDirty).
@@ -2157,7 +2282,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _assign(){
     if(!game.user.isGM)return emptyState('Assign is restricted to the GM.');
     const tab=this.assignTab=ASSIGN_TABS.some(t=>t.id===this.assignTab)?this.assignTab:this._ui.get('assignTab','professions',ASSIGN_TABS.map(t=>t.id));
-    const panels={professions:this._assignProfessions(),recipes:this._assignRecipes()};
+    const panels={professions:this._assignProfessions(),recipes:this._assignRecipes(),signature:this._assignSignature()};
     return `${subTabs({group:'agl-assign',label:'Assign',tabs:ASSIGN_TABS,selected:tab})}
       ${ASSIGN_TABS.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-assign',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
   }
@@ -2188,6 +2313,38 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return `<section class="ag-card agl-panel"><h2>Grant starting recipes</h2>
       <p class="agl-sub">Adds the recipes marked as starting recipes for the professions each player character has to their known recipes. Run it again after a character gains a profession; recipes they already know are skipped.</p>
       <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="grant-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button></div>
+      ${result}${body}</section>`;
+  }
+  /** 0.31.0 GM: catch-up for signature perks (characters who already hold a tier but lack its perks): dry run, then confirm. */
+  _assignSignature(){
+    const g=this.signatureState,party=assignActors().filter(isPlayerCharacter),chars=allCharacters().filter(isPlayerCharacter);
+    const target=`<label class="ag-field ag-field--inline">Characters <select data-signature-target><option value="party" ${g.target==='party'?'selected':''}>Whole party (${party.length})</option>${chars.map(c=>`<option value="${esc(c.id)}" ${g.target===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`;
+    let result='';
+    if(g.result){
+      const done=g.result.granted.length?`<ul>${g.result.granted.map(x=>`<li><b>${esc(x.actorName)}</b> (${x.perks.length}): ${esc(x.perks.map(p=>p.name).join(', '))}</li>`).join('')}</ul>`:'<p class="agl-sub">Nothing new was granted.</p>';
+      const bad=g.result.failed?.length?`${notice(`Not granted: ${g.result.failed.map(f=>`${esc(f.actorName)} (${esc(f.error)})`).join('; ')}. Press Preview and grant again to finish.`,'warn')}`:'';
+      result=`<div class="agl-section" role="status"><h3>Granted</h3>${done}${bad}</div>`;
+    }
+    const p=g.preview;
+    let body='<p class="agl-sub">Preview lists signature perks for tiers each player character has already reached. Nothing changes until you confirm.</p>';
+    if(p){
+      const fresh=p.rows.filter(r=>r.status==='new');
+      const groups=p.actors.map(act=>{const rows=p.rows.filter(r=>r.actorId===act.id),n=rows.filter(r=>r.status==='new').length,k=rows.filter(r=>r.status==='held').length;
+        const note=!act.hasProfession?'no profession yet':!rows.length?'no signature perks for the tiers reached':`${n?`${plural(n,'perk')} to grant`:'nothing to grant'}${k?`, ${k} already held`:''}`;
+        return `<tr class="agl-map-group agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)} <span class="agl-sub">— ${esc(note)}</span></th></tr>${rows.map(r=>`<tr>
+          <td>${r.status==='new'?`<input type="checkbox" data-signature-row="${esc(r.id)}" ${g.selected.has(r.id)?'checked':''} aria-label="Grant ${esc(r.perkName)} to ${esc(r.actorName)}">`:''}</td>
+          <td>${esc(r.perkName)}</td><td>${esc(r.profession)} · ${esc(r.tier)}</td>
+          <td>${r.status==='new'?badge('Will grant','ok'):r.status==='held'?badge('Already held','muted'):`${badge('Not granted','warn')} <span class="agl-reason">${esc(r.reason)}</span>`}</td></tr>`).join('')}`;}).join('');
+      body=`${p.signaturePerks?'':'<p class="agl-sub">No signature perks are imported. Import them with General Manager.</p>'}
+        ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Grant</span></th><th scope="col">Perk</th><th scope="col">Profession and tier</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
+          :emptyState('No player characters to check.','Choose the party in GM Setup, or pick one character above.')}
+        <p class="agl-sub">${fresh.length?`${plural(fresh.length,'signature perk')} to grant. Each is added to the character as an Item and announced in chat. Nothing is removed, and a perk a character already holds is skipped.`:'Nothing new to grant.'}</p>
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="signature-apply" data-id="selected" ${[...g.selected].some(id=>fresh.some(r=>r.id===id))?'':'disabled'}>Grant selected…</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="signature-apply" data-id="all" ${fresh.length?'':'disabled'}>Grant all new (${fresh.length})…</button></div>`;
+    }
+    return `<section class="ag-card agl-panel"><h2>Grant signature perks</h2>
+      <p class="agl-sub">Signature perks are granted automatically when a character reaches Journeyman (level 4) or Expert (level 7) in a profession. Use this for characters who reached a tier before the perks were imported. They keep a perk if their XP is lowered later.</p>
+      <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="signature-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button></div>
       ${result}${body}</section>`;
   }
   /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
@@ -2632,6 +2789,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-assign-row]')&&game.user.isGM){const id=e.target.dataset.assignRow;if(e.target.checked)this.assignState.selected.add(id);else this.assignState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-grant-target]')&&game.user.isGM){this.grantState={target:e.target.value,preview:null,selected:new Set(),result:null};this.render();return;}
       if(e.target?.matches?.('[data-grant-row]')&&game.user.isGM){const id=e.target.dataset.grantRow;if(e.target.checked)this.grantState.selected.add(id);else this.grantState.selected.delete(id);this.render();return;}
+      if(e.target?.matches?.('[data-signature-target]')&&game.user.isGM){this.signatureState={target:e.target.value,preview:null,selected:new Set(),result:null};this.render();return;}
+      if(e.target?.matches?.('[data-signature-row]')&&game.user.isGM){const id=e.target.dataset.signatureRow;if(e.target.checked)this.signatureState.selected.add(id);else this.signatureState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
@@ -2752,6 +2911,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         g.result=out;g.preview=startingRecipesPreview({actorIds});g.selected=new Set();
         const total=out.granted.reduce((n,x)=>n+x.recipes.length,0);
         this.notice=total?`Granted ${plural(total,'starting recipe')} to ${plural(out.granted.length,'character')}.`:'Nothing new to grant.';this.render();say(this.notice);return;}
+      if(action==='signature-preview'){requireSignatureGM();const g=this.signatureState;
+        g.preview=signaturePerksPreview({actorIds:g.target==='party'?null:[g.target]});g.selected=new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));g.result=null;this.render();return;}
+      if(action==='signature-apply'){requireSignatureGM();const g=this.signatureState;if(!g.preview)throw Error('Preview first');
+        const rows=g.preview.rows.filter(r=>r.status==='new'&&(id==='all'||g.selected.has(r.id)));
+        if(!rows.length)throw Error('Nothing selected to grant');
+        const byActor=[...new Set(rows.map(r=>r.actorName))].map(n=>`• ${n}: ${rows.filter(r=>r.actorName===n).map(r=>r.perkName).join(', ')}`);
+        const ok=await confirmDialog(`Grant these signature perks:\n${byActor.join('\n')}\nEach is added to the character as an Item and announced in chat. Nothing is removed.`,{title:'Grant signature perks?',yes:'Grant perks'});
+        if(!ok)return;
+        const actorIds=g.target==='party'?null:[g.target];
+        const out=await grantSignaturePerks({actorIds,rowIds:rows.map(r=>r.id)});
+        g.result=out;g.preview=signaturePerksPreview({actorIds});g.selected=new Set();
+        const total=out.granted.reduce((n,x)=>n+x.perks.length,0);
+        this.notice=total?`Granted ${plural(total,'signature perk')} to ${plural(out.granted.length,'character')}.${out.failed.length?` ${plural(out.failed.length,'character')} could not be updated.`:''}`:out.failed.length?`${plural(out.failed.length,'character')} could not be updated.`:'Nothing new to grant.';
+        this.render();say(this.notice,out.failed.length>0&&!total);return;}
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
       if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
         if(!api?.open){say('Skill Trees is not enabled.',true);return;}
@@ -3138,6 +3311,9 @@ Hooks.once('ready',()=>{
       apply:options=>{checkPlayerLedger();return assignProfessions(options);}},
     /** GM only (0.30.0): grantStartingRecipes({preview = true, actorIds?, rowIds?}). See the README. */
     grantStartingRecipes:async options=>{checkPlayerLedger();return structuredClone(await grantStartingRecipes(options));},
+    /** GM only (0.31.0): signaturePerks.preview({actorIds?}) writes nothing; grant({actorIds?, rowIds?}) adds the missing perks. See the README. */
+    signaturePerks:{preview:options=>{checkPlayerLedger();return structuredClone(signaturePerksPreview(options));},
+      grant:async options=>{checkPlayerLedger();return structuredClone(await grantSignaturePerks(options));}},
     /** GM only (0.20.0): baseline file import (preview, then apply) and export of the current crosswalk table. */
     crosswalk:{previewBaseline:data=>structuredClone(previewBaseline(data)),applyBaseline:(data,options)=>applyBaseline(data,options),
       exportTable:()=>exportCurrentCrosswalk(),baseline:()=>{requireCrosswalkGM();return structuredClone(baselineRecord());}},
@@ -3154,6 +3330,8 @@ Hooks.once('ready',()=>{
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,refresh);
+  // 0.31.0: signature perks are granted on the GM client that wrote the XP (the only client that fires this hook).
+  Hooks.on(PROGRESSION_HOOK,payload=>{void onProgressionChanged(payload).catch(err=>{console.error(`[${ID}] signature perks`,err);try{say(`Signature perks were not granted: ${err.message}`,true);}catch{}});});
   // Another GM client saved node templates.
   for(const hook of ['createJournalEntry','updateJournalEntry'])Hooks.on(hook,doc=>{if(game.user?.isGM&&doc?.getFlag?.(ID,'role')==='gm-data')refresh();});
   // Handle Actor Directory already rendered before ready hook ran.
