@@ -18,6 +18,29 @@ function visibleToEveryPlayer(doc, game) {
   catch { return false; }
 }
 /**
+ * Active definition bindings by source id. Looking one id up used to scan every world document, which made a render
+ * with ~700 recipes and ~400 materials quadratic. The index is rebuilt when the set of documents changes,
+ * is always dropped at the next microtask, and every hit is re-checked, so a document edited since is never read stale.
+ */
+let bindingIndex=null;
+function activeBindings(game,sourceId){
+  // Compared by document identity, not by collection: a Collection's `contents` may be a fresh array on every read.
+  const docs=[game?.items?.contents,game?.journal?.contents,game?.actors?.contents,game?.tables?.contents,game?.macros?.contents].flatMap(l=>l??[]);
+  const same=bindingIndex&&bindingIndex.game===game&&bindingIndex.docs.length===docs.length&&bindingIndex.docs.every((d,i)=>d===docs[i]);
+  if(!same){
+    const map=new Map();
+    for(const doc of docs){
+      if(!isActiveDefinition(doc))continue;
+      const id=definitionSource(doc)?.sourceId;
+      if(typeof id!=='string')continue;
+      if(map.has(id))map.get(id).push(doc);else map.set(id,[doc]);
+    }
+    bindingIndex={game,docs,map};
+    queueMicrotask(()=>{bindingIndex=null;});
+  }
+  return (bindingIndex.map.get(sourceId)??[]).filter(doc=>isActiveDefinition(doc)&&definitionSource(doc)?.sourceId===sourceId);
+}
+/**
  * Conservative standalone WORLD-document fallback. The versioned Archie
  * resolver handles explicit compendium packs and domain providers; this local
  * helper does NOT claim equivalent coverage or impose a Manager dependency.
@@ -31,9 +54,7 @@ export function lookupWorldDefinition(game,sourceId,{
   if(typeof sourceId!=='string'||!CANONICAL_ID.test(sourceId))return {status:'invalid'};
   const viewer=game?.user;
   if(!viewer)return {status:'not_found'};
-  const docs=[...(game?.items?.contents??[]),...(game?.journal?.contents??[]),
-    ...(game?.actors?.contents??[]),...(game?.tables?.contents??[]),...(game?.macros?.contents??[])];
-  const bindings=docs.filter(doc=>isActiveDefinition(doc)&&definitionSource(doc)?.sourceId===sourceId);
+  const bindings=activeBindings(game,sourceId);
   if(!bindings.length)return {status:'not_found'};
   // Do not reveal whether a restricted source has competing bindings.
   if(bindings.length!==1)return {status:viewer.isGM?'conflict':'not_found'};

@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.31.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.31.1',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -233,8 +233,8 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   // Ad-hoc dropdowns: every material, drafts in their own group with a draft label.
   app.gather.source='adhoc';Object.assign(app.gather.adhoc,{skill:'Herbalism',tier:'1',materialId:'MAT-TG-FISH'});
   h=await html('gathering');
-  assert.match(h,/<optgroup label="Released"><option value="MAT-TG-HERB" >\[TEST\] Herb<\/option>/);
-  assert.match(h,/<optgroup label="Draft \/ unreleased \(GM only\)">[^]*?<option value="MAT-TG-FISH" selected>\[TEST\] Ford Fish — draft \(draft\)<\/option>[^]*?<\/optgroup>/);
+  assert.match(h,/<optgroup label="Released"><option value="MAT-TG-HERB" >\[TEST\] Herb( · [^<]*)?<\/option>/,'0.31.1: a material may carry its quality and tier after the name');
+  assert.match(h,/<optgroup label="Draft \/ unreleased \(GM only\)">[^]*?<option value="MAT-TG-FISH" selected>\[TEST\] Ford Fish( · [^<]*?)? — draft \(draft\)<\/option>[^]*?<\/optgroup>/);
   assert.doesNotMatch(h.match(/<optgroup label="Released">[^]*?<\/optgroup>/)[0],/Ford Fish/,'drafts are not in the released group');
   assert.match(h,/Common material <span[^>]*><span class="ag-badge ag-badge--warn">Draft<\/span>/,'a clear draft badge');
   assert.match(h,/Use draft materials anyway/);
@@ -279,7 +279,9 @@ test('Robb B: Skinning & Harvesting nodes read Hunting for the GM and players',a
 test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about Locations), import and export',async()=>{
   game.user=gm;app.element={querySelector:()=>null,querySelectorAll:()=>[]};
   let h=await html('nodes');
-  assert.match(h,/data-id="nodes" class="active ag-tab--gm"/);
+  assert.match(h,/data-id="gathering" class="active" aria-selected="true"/,'0.31.1: Gathering stays the selected top tab on the nodes');
+  assert.match(h,/id="agl-gather-tab-nodes" data-tab="nodes"[^>]*aria-selected="true"[^>]*>Gathering nodes</,'…with Gathering nodes the selected sub-tab');
+  assert.doesNotMatch(h,/data-id="nodes"/,'…and no seventh top-level tab');
   assert.match(h,/Copied 2 Location gathering nodes|2 Location gathering nodes copied into templates/);
   assert.match(h,/backed up in the Journal “Profession Ledger \(GM Data\)”/);
   assert.match(h,/<summary>.*<strong>Hunting<\/strong>/s,'grouped by activity');

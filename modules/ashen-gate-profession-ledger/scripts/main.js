@@ -22,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.0';
+const VERSION='0.31.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -994,11 +994,16 @@ function learnControl(actor,item,{available=true}={}){
  * Folders of other things (Gathering Nodes) show the number only. */
 const folderWord=g=>{const recipe=g.rows.find(r=>r.recipe)?.recipe;return recipe?` ${recipeWord(recipe,{plural:g.rows.length!==1,capitalize:false})}`:'';};
 /** Folders grouped by profession; native <details> so they work without the app (sheet tab). Rows: {group, html, recipe?}. */
+const BIG_FOLDER_ROWS=40;
 function folders(rows,closed=new Set()){
   if(!rows.length)return '';
   const groups=new Map();
   for(const row of rows){const key=norm(row.group)||'unassigned';if(!groups.has(key))groups.set(key,{key,name:row.group||'Unassigned profession',rows:[]});groups.get(key).rows.push(row);}
-  return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<details class="agl-folder" data-folder="${esc(g.key)}" ${closed.has(g.key)?'':'open'}>
+  // A big list (a world with hundreds of recipes) starts with every folder shut, so the window opens at a glance;
+  // such folders remember being opened as `open:<key>`. Search still opens the folders that match.
+  const big=rows.length>BIG_FOLDER_ROWS;
+  const isOpen=g=>big?closed.has(`open:${g.key}`):!closed.has(g.key);
+  return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<details class="agl-folder" data-folder="${esc(g.key)}" ${big?'data-big ':''}${isOpen(g)?'open':''}>
     <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}${esc(folderWord(g))}</span></summary>
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
 }
@@ -1425,7 +1430,9 @@ const draftText=m=>m.state==='draft'?`draft (${m.status})`:m.state==='gm-only'?'
 /** GM select options: released materials, then draft/unreleased ones in their own group, marked. A stored id that is not imported stays selectable and says so. */
 function materialOptions(selected,{blank='',quality=null}={}){
   const list=gmMaterialChoices().filter(m=>!quality||norm(m.quality)===norm(quality));
-  const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${m.state==='ok'?'':` — ${esc(draftText(m))}`}</option>`;
+  // With hundreds of materials the name alone is ambiguous (Mining Master Common / Rare): say the quality and tier too.
+  const kind=m=>[m.quality,m.tier!=null?`Tier ${m.tier}`:''].filter(Boolean).join(' ');
+  const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${!quality&&kind(m)?` · ${esc(kind(m))}`:''}${m.state==='ok'?'':` — ${esc(draftText(m))}`}</option>`;
   const released=list.filter(m=>m.state==='ok'),drafts=list.filter(m=>m.state!=='ok');
   return `${blank?`<option value="">${esc(blank)}</option>`:''}${selected&&!list.some(m=>m.id===selected)?`<option value="${esc(selected)}" selected>${esc(selected)} — ${esc(materialState(selected).state==='missing'?'not imported':materialState(selected).state)}</option>`:''}${released.length?`<optgroup label="Released">${released.map(opt).join('')}</optgroup>`:''}${drafts.length?`<optgroup label="Draft / unreleased (GM only)">${drafts.map(opt).join('')}</optgroup>`:''}`;
 }
@@ -2090,9 +2097,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   get actors(){return partyActors();}
   get library(){return catalog();}
   get actor(){const mine=myCharacters();return mine.find(a=>a.id===this.actorId)??mine[0]??null;}
-  _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['nodes','Gathering Nodes'],['assign','Assign'],['gm','GM Setup']]:[])];
+  _tabs(){
+    // 0.31.1: Gathering Nodes is a sub-tab of Gathering (the GM's top row stays within six tabs), so Gathering stays selected on it.
+    const onTab=key=>this.view===key||(key==='gathering'&&this.view==='nodes');
+    const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['assign','Assign'],['gm','GM Setup']]:[])];
     // 0.26.0 (PL-10): ids and aria-controls; bindTablist adds the arrow keys (one Tab stop, Left/Right, Home/End).
-    return names.map(([key,title])=>`<button type="button" role="tab" id="agl-tab-${key}" aria-controls="agl-panel" data-action="tab" data-id="${key}" class="${[this.view===key?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${this.view===key}" tabindex="${this.view===key?0:-1}">${title}</button>`).join('');}
+    return names.map(([key,title])=>`<button type="button" role="tab" id="agl-tab-${key}" aria-controls="agl-panel" data-action="tab" data-id="${key}" class="${[onTab(key)?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${onTab(key)}" tabindex="${onTab(key)?0:-1}">${title}</button>`).join('');}
   _search(placeholder){return `<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"></label>`;}
   _noRoster(){return game.user.isGM?emptyState('No party yet.','Choose the party characters in GM Setup.','<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Choose the party in GM Setup</button>')
     :emptyState('No party yet.','Your GM hasn’t chosen the party yet. The Ledger fills in once they do.');}
@@ -2307,6 +2317,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Grant</span></th><th scope="col">Recipe</th><th scope="col">Profession</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
           :emptyState('No player characters to check.','Choose the party in GM Setup, or pick one character above.')}
         <p class="agl-sub">${fresh.length?`${plural(fresh.length,'starting recipe')} to grant. Granting adds them to the known recipes: no recipe item is needed or used up, and no known recipe is removed. A recipe above the character’s level is known but can’t be crafted until the level is reached.`:'Nothing new to grant.'}</p>
+        ${fresh.length>1?`<div class="ag-btn-group agl-select-actions"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="grant-select" data-id="all">Select all</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="grant-select" data-id="none">Clear selection</button></div>`:''}
         <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="grant-apply" data-id="selected" ${[...g.selected].some(id=>fresh.some(r=>r.id===id))?'':'disabled'}>Grant selected…</button>
           <button type="button" class="ag-btn ag-btn--primary" data-action="grant-apply" data-id="all" ${fresh.length?'':'disabled'}>Grant all new (${fresh.length})…</button></div>`;
     }
@@ -2339,6 +2350,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Grant</span></th><th scope="col">Perk</th><th scope="col">Profession and tier</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
           :emptyState('No player characters to check.','Choose the party in GM Setup, or pick one character above.')}
         <p class="agl-sub">${fresh.length?`${plural(fresh.length,'signature perk')} to grant. Each is added to the character as an Item and announced in chat. Nothing is removed, and a perk a character already holds is skipped.`:'Nothing new to grant.'}</p>
+        ${fresh.length>1?`<div class="ag-btn-group agl-select-actions"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="signature-select" data-id="all">Select all</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="signature-select" data-id="none">Clear selection</button></div>`:''}
         <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="signature-apply" data-id="selected" ${[...g.selected].some(id=>fresh.some(r=>r.id===id))?'':'disabled'}>Grant selected…</button>
           <button type="button" class="ag-btn ag-btn--primary" data-action="signature-apply" data-id="all" ${fresh.length?'':'disabled'}>Grant all new (${fresh.length})…</button></div>`;
     }
@@ -2372,7 +2384,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <button type="button" class="ag-btn ag-btn--primary" data-action="assign-apply" data-id="all" ${proposals.length?'':'disabled'}>Add all missing (${proposals.length})</button></div>`;
     }
     return `<section class="ag-card agl-panel"><h2>Assign professions</h2>
-      <p class="agl-sub">Matches each character’s skill and tool <b>proficiencies</b> (not class) against GM Setup → Tools and checks, and proposes the imported PROF-* Profession features they don’t have yet.</p>
+      <p class="agl-sub">Matches each character’s skill and tool <b>proficiencies</b> (not class) against GM Setup → Tools and checks, and proposes the imported Profession features they don’t have yet.</p>
       <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="assign-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button></div>
       ${body}</section>`;
   }
@@ -2388,7 +2400,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
-    ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
@@ -2436,7 +2448,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <button type="button" class="ag-btn ag-btn--sm" data-action="node-export" ${store.nodes.length?'':'disabled'}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
         <button type="button" class="ag-btn ag-btn--sm" data-action="node-copy-locations" ${canCopy?'':`disabled ${tip(GATHER_FIX.noLocations)}`}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy Location nodes</button>
         <button type="button" class="ag-btn ag-btn--primary ag-btn--sm" data-action="node-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New node</button></div></div>
-      <p class="agl-sub">Node templates are gathering spots you can roll on from anywhere (Gathering → Node template). A Location can point to one by its NODE id. Ids are permanent: a deleted node’s id is never reused. Players never see this tab.</p>
+      <p class="agl-sub">Node templates are gathering spots you can roll on from anywhere (Gathering → Node template). A Location can point to one by its NODE id. Ids are permanent: a deleted node’s id is never reused. Players never see node templates.</p>
       ${migNote}
       ${folders(rows,this.closedFolders)||emptyState(store.nodes.length?'No nodes match this filter.':'No gathering nodes yet.',store.nodes.length?'Choose All activities.':'Create one with New node, import a node file, or copy the gathering nodes your Locations already have.')}
       <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every node.</p></div>`;
@@ -2509,7 +2521,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** GM: what a node file import will do; nothing is written until Apply. */
   _nodeImportPreview(){
     const {fileName,plan}=this.nodeImport;
-    const list=(label,nodes,kind='')=>nodes.length?`<li>${badge(`${label}: ${nodes.length}`,kind)} ${esc(nodes.map(n=>`${n.name} (${n.id})`).join(', '))}</li>`:'';
+    // One fold per outcome with a node per line (a sandbox file has 30 nodes); short lists start open.
+    const list=(label,nodes,kind='')=>nodes.length?`<li><details class="agl-node-plan-group" ${nodes.length<=8?'open':''}><summary>${badge(`${label}: ${nodes.length}`,kind)}</summary>
+        <ul class="agl-node-plan-list">${nodes.map(n=>`<li>${esc(n.name)} <code>${esc(n.id)}</code></li>`).join('')}</ul></details></li>`:'';
     return `<section class="ag-card agl-panel agl-node-import"><h2>Import ${esc(fileName||'node file')}</h2>
       ${plan.ok?`<ul class="agl-node-plan">${list('New',plan.add,'ok')}${list('Updated',plan.update,'ok')}${list('Kept (edited here; your edit stays)',plan.keep,'warn')}${list('Unchanged',plan.unchanged)}${list('Skipped (deleted id; ids are never reused)',plan.retired,'warn')}</ul>
         ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
@@ -2666,17 +2680,25 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     // sub-tab switch keeps what was typed; new requests and checks no longer push Start gathering down the page.
     const tab=this._gatherTabNow();
     const active=sessions||last?`${last}${sessions}`:emptyState('No gathering checks open.','Start one in Start gathering, or approve a request. Checks wait here until they are rolled or cancelled.');
-    const tabs=[{id:'requests',label:'Requests',count:gatherRequests.size},{id:'active',label:'Active checks',count:gatherSessions.size},{id:'start',label:'Start gathering'}];
-    const panels={requests:this._gatherQueue(),active,start};
+    const tabs=this._gatherTabs();
+    const panels={requests:this._gatherQueue(),active,start,nodes:''};
     return `${subTabs({group:'agl-gather',label:'Gathering',tabs,selected:tab})}
       ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
+  }
+  /** The GM's Gathering sub-tabs. Gathering nodes (0.31.1) is the fourth: it opens the node templates in the same place. */
+  _gatherTabs(){return [{id:'requests',label:'Requests',count:gatherRequests.size},{id:'active',label:'Active checks',count:gatherSessions.size},{id:'start',label:'Start gathering'},{id:'nodes',label:'Gathering nodes'}];}
+  /** The same sub-tab row around the node templates, with Gathering nodes selected; the other three go back to Gathering. */
+  _nodesInGathering(content){
+    const tabs=this._gatherTabs();
+    return `${subTabs({group:'agl-gather',label:'Gathering',tabs,selected:'nodes'})}
+      ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!=='nodes'})}>${t.id==='nodes'?content:''}</div>`).join('')}`;
   }
   async _prepareContext(options){checkPlayerLedger();const ctx=await super._prepareContext(options);
     this.demo=false;
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
-    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodes(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
+    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodesInGathering(this._nodes()),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm',inNodes=game.user.isGM&&this.view==='nodes';
     const plan=this.nodeImport?.plan;
     const footer=inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
@@ -2685,7 +2707,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`;
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
       <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header>
-      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-${esc(this.view)}" tabindex="-1" data-agl-screen="${esc(this._screen())}">${content}</main>
+      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-${esc(this.view==='nodes'?'gathering':this.view)}" tabindex="-1" data-agl-screen="${esc(this._screen())}">${content}</main>
       <footer class="ag-footer">${footer}</footer></div>`};
   }
   /** 0.22.0: every action re-renders the whole part, which replaces the .agl-main scroll box (and the tables' sideways
@@ -2743,7 +2765,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._events?.abort();this._events=new AbortController();
     const signal=this._events.signal;
     this.element.addEventListener('click',e=>{
-      const sub=e.target.closest?.('.ag-tabs--sub [role="tab"]');if(sub){this._showSubTab(sub);return;}
+      const sub=e.target.closest?.('.ag-tabs--sub [role="tab"]');
+      if(sub){
+        // Gathering nodes shares Gathering's sub-tab row but is its own view (it has an editor and a footer).
+        if(game.user.isGM&&sub.id.startsWith('agl-gather-')&&(sub.dataset.tab==='nodes'||this.view==='nodes')){void this._click('gather-tab',sub.dataset.tab);return;}
+        this._showSubTab(sub);return;}
       const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b))return;
       // 0.27.0: a Tools and checks cell's checkbox list opens and closes in place (no re-render, the draft is untouched).
       if(b.dataset.action==='map-pick'||b.dataset.action==='map-pick-done'){const picker=b.closest('[data-map-picker]');
@@ -2763,7 +2789,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui)];
     signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
     if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
-    this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
+    this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-gather-helper]')){
@@ -2858,6 +2884,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.view==='gm'&&next!=='gm'&&!await this._leaveGmSetup())return;
         if(next==='gathering'&&this.view!=='gathering')this.gatherTab=null;
         this.view=next;this.render();return;}
+      if(action==='gather-tab'){
+        if(!game.user.isGM)throw Error('GM only');
+        if(id==='nodes'){this.view='nodes';this.render();return;}
+        if(!GATHER_TAB_IDS.includes(id))return;
+        this._ui.set('gatherTab',this.gatherTab=id);this.view='gathering';this.render();return;}
       if(action==='help'){await infoDialog('Profession Ledger help',this._help());return;}
       // 0.26.0 (PL-13): Cancel discards the GM Setup drafts and stays on GM Setup (the suite convention).
       if(action==='gm-cancel'){if(!game.user.isGM)throw Error('GM only');if(!await this._leaveGmSetup())return;this.baselinePreview=null;this.render();return;}
@@ -2900,6 +2931,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.notice=`Added ${plural(out.added.length,'profession feature')}${out.skipped.length?`; ${out.skipped.length} skipped (already there)`:''}.`;this.render();say(this.notice);return;}
       if(action==='grant-preview'){requireGrantGM();const g=this.grantState;
         g.preview=startingRecipesPreview({actorIds:g.target==='party'?null:[g.target]});g.selected=new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));g.result=null;this.render();return;}
+      if(action==='grant-select'){requireGrantGM();const g=this.grantState;if(!g.preview)return;g.selected=id==='none'?new Set():new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));this.render();return;}
       if(action==='grant-apply'){requireGrantGM();const g=this.grantState;if(!g.preview)throw Error('Preview first');
         const rows=g.preview.rows.filter(r=>r.status==='new'&&(id==='all'||g.selected.has(r.id)));
         if(!rows.length)throw Error('Nothing selected to grant');
@@ -2913,6 +2945,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.notice=total?`Granted ${plural(total,'starting recipe')} to ${plural(out.granted.length,'character')}.`:'Nothing new to grant.';this.render();say(this.notice);return;}
       if(action==='signature-preview'){requireSignatureGM();const g=this.signatureState;
         g.preview=signaturePerksPreview({actorIds:g.target==='party'?null:[g.target]});g.selected=new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));g.result=null;this.render();return;}
+      if(action==='signature-select'){requireSignatureGM();const g=this.signatureState;if(!g.preview)return;g.selected=id==='none'?new Set():new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));this.render();return;}
       if(action==='signature-apply'){requireSignatureGM();const g=this.signatureState;if(!g.preview)throw Error('Preview first');
         const rows=g.preview.rows.filter(r=>r.status==='new'&&(id==='all'||g.selected.has(r.id)));
         if(!rows.length)throw Error('Nothing selected to grant');
