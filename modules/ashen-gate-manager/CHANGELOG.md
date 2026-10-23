@@ -1,3 +1,7 @@
+## 0.54.1 — 2026-10-23
+
+Fix: when one player saved My Appearance, every other client changed to that skin too. Foundry tells every client when any user's per-user setting changes, and Manager adopted the value it was handed as its own. Now a per-user skin is taken only from your own changes, and another user's change is ignored. The world default and your own Size are unchanged. Saved data is untouched. (Tests are mocked; please check with two accounts in Forge.)
+
 ## 0.54.0 — 2026-10-23
 
 Nine new appearance skins, 16 in all. Pick them in GM Setup → General (world default) or My Appearance (your own; every player can choose any of them).

@@ -152,7 +152,22 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
     await setSetting(SIZE_KEY,value);observed.set(SIZE_KEY,value);emit();return getState();
   }
-  function noteChange(key,value){if([WORLD_SKIN_KEY,USER_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();}
+  /**
+   * Foundry calls a setting's onChange on every client. The world skin is the same for everyone, so its value is taken
+   * as handed over (game.settings.get can still be stale then). The per-user skin is not: a change another user made
+   * arrives here too (0.54.1), so it is taken only when it is this user's own (userId = the changing user, when
+   * Foundry says), and otherwise this client's own stored value is read again instead of adopting someone else's.
+   */
+  function noteChange(key,value,userId){
+    if(key===USER_SKIN_KEY){
+      const me=currentUser()?.id;
+      if(userId&&me&&userId!==me){return;}
+      if(userId&&userId===me&&(value===undefined||typeof value==='string'))observed.set(key,value??'');
+      else observed.delete(key);
+      emit();return;
+    }
+    if([WORLD_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();
+  }
   function applyTo(root){
     if(!root?.style || typeof root.style.setProperty!=='function')throw new TypeError('Appearance target must be an application root');
     const state=getState();const skin=findSkin(state.effective)||SKINS[0];
@@ -180,7 +195,7 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   });
   game.settings.register(namespace,USER_SKIN_KEY,{
     name:'My Ashen Gate appearance',scope:'user',config:false,type:String,
-    default:'',onChange:value=>onSettingChange(USER_SKIN_KEY,value)
+    default:'',onChange:(value,options,userId)=>onSettingChange(USER_SKIN_KEY,value,typeof userId==='string'?userId:options?.userId)
   });
   game.settings.register(namespace,SIZE_KEY,{
     name:'Ashen Gate size',hint:'Comfortable makes text and controls larger on this device only.',

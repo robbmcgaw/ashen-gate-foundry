@@ -88,10 +88,25 @@ test('a player client that reads the old value inside onChange still gets the ne
   c.noteChange('worldSkin','ag-slate');          // Foundry onChange(value) while game.settings.get is still stale
   assert.equal(c.getState().effective,'ag-slate');
   assert.deepEqual(seen,['ag-slate']);
-  c.noteChange('userSkin','ag-ember');
+  c.noteChange('userSkin','ag-ember','p');      // this user's own change
   assert.equal(c.getState().effective,'ag-ember');
-  c.noteChange('userSkin','');
+  c.noteChange('userSkin','','p');
   assert.equal(c.getState().effective,'ag-slate');
+});
+
+test('0.54.1: another user\'s My Appearance change does not change this client',()=>{
+  let mine='';
+  const c=createAppearanceController({currentUser:()=>({id:'gm'}),getSetting:k=>k==='worldSkin'?'ag-default':mine,setSetting:async()=>{},subscribeSettings:()=>()=>{}});
+  const seen=[];c.subscribe(s=>seen.push(s.effective));
+  c.noteChange('userSkin','ag-ember','player1');   // a player saved My Appearance; Foundry calls onChange here too
+  assert.equal(c.getState().effective,'ag-default');
+  assert.deepEqual(seen,[],'no redraw for someone else\'s choice');
+  c.noteChange('userSkin','ag-ember');              // no user id given: this client's own stored value is read, not the handed value
+  assert.equal(c.getState().effective,'ag-default');
+  mine='ag-slate';c.noteChange('userSkin','ag-ember');
+  assert.equal(c.getState().effective,'ag-slate','reads its own stored value');
+  c.noteChange('userSkin','ag-ember','gm');         // own change from another tab/device
+  assert.equal(c.getState().effective,'ag-ember');
 });
 
 test('0.15: no Templates or Audit tab; samples under Import; Check library in Items (was Library); no bundled macros',()=>{
