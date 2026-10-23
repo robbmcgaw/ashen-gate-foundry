@@ -1,3 +1,9 @@
+## 0.28.1 — 2026-10-23
+
+- **Party stash: a tidy purse at every width.** In the Character Hub's *Inventory → Party stash* the purse is one card again. The *Party purse* title has the GM's *Adjust Purse* (and *Convert electrum to silver/gold* when shown) on its line, at the right; they move under the title only when both can't fit. The coins are centred below, and wrap into centred rows on a narrow pane. Under them, *Character*, *Coin*, *Amount*, *Deposit* and *Take* are one centred group laid out by the pane's own width: one line on a wide pane; *Character* on its own line and the rest below on a medium one; on a narrow one *Character*, then *Coin* and *Amount* side by side, then *Deposit* and *Take* as two equal buttons. The select, the amount box and the buttons are the same height, the amount box fits six digits, and nothing runs off the side. The coin vote (GM) or the player's note is a small centred line under the form.
+- **Stash toolbar.** *Search items*, *Take into*, the item count and *Add to stash…* sit on one line on a wide pane; on a narrower one the search gets its own line, and *Add to stash…* always ends its line at the right. Same in the Utilities window's *Party Inventory → Items*.
+- The *Party Fund* purse uses the same card (title and GM tools on one line, coins centred). Who may deposit or take, the vote, messages, keyboard use, tab order and focus after a re-render are unchanged. No change to saved data, settings or the API; nothing to migrate.
+
 ## 0.28.0 — 2026-10-23
 
 - **Party stash: a shorter purse.** In the Character Hub's *Inventory → Party stash*, *Character*, *Coin*, *Amount*, *Deposit* and *Take* now sit in the *Party purse* heading row instead of a second row below the coins. The selects and the amount box are sized to their content; on a narrow window the row wraps, with Deposit and Take kept together. The Coin list shows the coin's name (Gold, Silver, …).

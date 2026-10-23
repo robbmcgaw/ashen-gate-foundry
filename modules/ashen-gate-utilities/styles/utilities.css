@@ -116,7 +116,7 @@
 .ag-app.ag-utilities button.agu-stash-name {justify-content:flex-start;min-height:0;padding:var(--ag-space-1);border:0;background:transparent;color:var(--ag-text);font-weight:600;text-align:left;overflow-wrap:anywhere;}
 .ag-app.ag-utilities button.agu-stash-name:hover {color:var(--ag-accent);text-decoration:underline;background:transparent;}
 .ag-utilities .agu-dropzone {margin:var(--ag-space-3) 0;padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius);color:var(--ag-muted);text-align:center;}
-.ag-utilities .agu-purse {margin:0 0 var(--ag-space-3);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
+.ag-utilities .agu-purse {margin:0 0 var(--ag-space-3);padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
 .ag-utilities .agu-purse h3 {margin:0;}
 /* ---------- 0.24.0 Coins: one look everywhere (purses, the Bank, prices, previews, chat cards) ----------
    Shared by core.coinBoxHTML / coinStripHTML / coinChipHTML. Not scoped to .ag-utilities, so dialogs, chat cards and
@@ -140,21 +140,55 @@
 .agu-coin-chip .agu-coin__icon {width:calc(var(--ag-icon) * 1.2);height:calc(var(--ag-icon) * 1.2);box-shadow:none;}
 .ag-utilities-trade .agu-coin-chip {color:inherit;}
 .ag-utilities .agu-ep-note {margin:var(--ag-space-2) 0;}
-/* 0.28.0: the Character / Coin / Amount form sits in the purse's heading row; controls sized to their content, the row
-   wraps on a narrow pane and Deposit + Take wrap as one. */
-.ag-utilities .agu-purse-head {align-items:flex-end;justify-content:flex-start;gap:var(--ag-space-2) var(--ag-space-3);margin:0;}
-.ag-utilities .agu-purse-head > h3 {align-self:flex-start;}
-.ag-utilities .agu-purse-head > .ag-toolbar__end {margin-left:auto;}
-.ag-utilities .agu-purse-move {display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--ag-space-2);flex:1 1 0;min-width:min(100%,14rem);}
-.ag-utilities .agu-purse-move > .ag-field {margin:0;flex:0 1 auto;min-width:0;max-width:100%;}
-.ag-utilities .agu-purse-move > .ag-field > select {width:auto;max-width:100%;}
-/* A long character name may shorten the closed Character list (the open list shows it whole); Coin never shrinks. */
-.ag-utilities .agu-purse-move > .agu-purse-who {max-width:min(100%,16rem);}
-.ag-utilities .agu-purse-move #agu-purse-coin {flex:none;}
-.ag-utilities .agu-purse-move > .ag-field > input[type="number"] {width:calc(6ch + 2 * var(--ag-space-3));}
-.ag-utilities .agu-purse-move .agu-actions {margin:0;flex-wrap:nowrap;}
+/* 0.28.1: the purse is one card. Line 1: the title, with the GM's tools at the right (they drop under the title,
+   left-aligned, only when both can't fit). Then the coins and the Deposit/Take form, each centred as a group, and a
+   centred caption. The form follows the card's own width (container queries, not the viewport: the Hub and the
+   Utilities window are resizable panes). Wide: one line. Medium: Character on its own line, then Coin, Amount,
+   Deposit, Take. Narrow: Character, then Coin + Amount, then Deposit + Take as two equal buttons. */
+.ag-utilities .agu-purse {display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2) var(--ag-space-3);container:agu-purse/inline-size;}
+.ag-utilities .agu-purse > * {flex:1 1 100%;min-width:0;margin:0;}
+.ag-utilities .agu-purse > .agu-purse__title {order:1;flex:1 0 auto;white-space:nowrap;}
+.ag-utilities .agu-purse > .agu-purse-tools {order:2;flex:0 1 auto;display:flex;flex-wrap:wrap;justify-content:flex-start;gap:var(--ag-space-2);}
+.ag-utilities .agu-purse > .agu-coins {order:3;justify-content:center;}
+.ag-utilities .agu-purse > .agu-ep-note {order:4;}
+.ag-utilities .agu-purse > .agu-purse-move {order:5;}
+.ag-utilities .agu-purse > .agu-purse-caption {order:6;text-align:center;font-size:var(--ag-text-xs);text-wrap:balance;}
+.ag-utilities .agu-purse-move {display:grid;grid-template-columns:repeat(3,max-content);justify-content:center;align-items:end;gap:var(--ag-space-2);}
+.ag-utilities .agu-purse-move > .agu-purse-who {grid-column:1 / -1;}
+.ag-utilities .agu-purse-move > .ag-field {margin:0;min-width:0;white-space:nowrap;}
+/* Select, number box and buttons: one height (the kit lets a select size to its text, so it is pinned here). */
+.ag-utilities .agu-purse-move :is(select,input,.ag-btn) {box-sizing:border-box;height:var(--ag-control-h) !important;min-height:var(--ag-control-h);padding-block:0;margin:0;}
+.ag-utilities .agu-purse-move select {width:100%;min-width:0;}
+.ag-utilities .agu-purse-move #agu-purse-amount {width:calc(9ch + 2 * var(--ag-space-3));} /* 6 digits and the spin buttons */
+.ag-utilities .agu-purse-move .agu-purse-buttons {display:grid;grid-template-columns:1fr 1fr;gap:var(--ag-space-2);margin:0;}
+.ag-utilities .agu-purse-move .agu-purse-buttons > .ag-btn {justify-content:center;min-width:0;}
+@container agu-purse (min-width:33rem) {
+ .ag-utilities .agu-purse-move {grid-template-columns:minmax(8.5rem,16rem) repeat(3,max-content);}
+ .ag-utilities .agu-purse-move > .agu-purse-who {grid-column:auto;}
+}
+@container agu-purse (max-width:24.99rem) {
+ .ag-utilities .agu-purse-move {grid-template-columns:repeat(2,minmax(0,1fr));justify-content:stretch;}
+ .ag-utilities .agu-purse-move > .agu-purse-buttons {grid-column:1 / -1;}
+ .ag-utilities .agu-purse-move #agu-purse-amount {width:100%;}
+}
+/* 0.28.1: the stash toolbar under the purse. Wide: search, Take into, count, Add to stash… on one line. Medium:
+   search on its own line, then Take into, the count and Add to stash…. Narrow: search, Take into, then the count
+   and Add to stash…. Add to stash… always ends its line at the right. */
+.ag-utilities .agu-stash-tools {display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"search search search" "take count add";align-items:center;gap:var(--ag-space-2) var(--ag-space-3);}
+.ag-utilities .agu-stash-tools > .ag-search {grid-area:search;width:auto;}
+.ag-utilities .agu-stash-tools > .ag-toolbar__filters {grid-area:take;min-width:0;}
+.ag-utilities .agu-stash-tools > .ag-toolbar__count {grid-area:count;}
+.ag-utilities .agu-stash-tools > .ag-toolbar__end {grid-area:add;margin:0;justify-self:end;}
+.ag-utilities .agu-stash-tools .agu-take-into {flex:1 1 auto;min-width:0;white-space:nowrap;}
+.ag-utilities .agu-stash-tools .agu-take-into > select {flex:1 1 auto;min-width:0;width:auto;max-width:16rem;}
+@container (min-width:36rem) {
+ .ag-utilities .agu-stash-tools {grid-template-columns:minmax(10rem,1fr) auto auto auto;grid-template-areas:"search take count add";}
+}
+@container (max-width:23.99rem) {
+ .ag-utilities .agu-stash-tools {grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"search search" "take take" "count add";}
+}
 /* Party stash embedded in a partner module (api.embed.mount). The host element carries .ag-utilities.agu-embed. */
-.agu-embed {display:block;min-width:0;}
+.agu-embed {display:block;min-width:0;container-type:inline-size;}
 .agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:var(--ag-space-1);border-radius:var(--ag-radius);}
 .agu-embed.agu-drop-over .agu-dropzone {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
 
