@@ -137,7 +137,7 @@
       <div class="ag-toolbar">
         <span class="ag-toolbar__count">{{manage.count}} {{#if manage.countOne}}Cinder{{else}}Cinders{{/if}}</span>
         <div class="ag-toolbar__end">
-          {{#unless manage.definitions}}<span class="ag-field__hint agc-hint">Import Cinder (MUT-*) definitions through General Manager first.</span>{{/unless}}
+          {{#unless manage.definitions}}<span class="ag-field__hint agc-hint">Import Cinder definitions through General Manager first.</span>{{/unless}}
           <button type="button" class="ag-btn" data-act="cinder-new" {{#unless manage.definitions}}disabled{{/unless}}><i class="fa-solid fa-plus" aria-hidden="true"></i> New Cinder</button>
         </div>
       </div>
@@ -147,7 +147,7 @@
         <h2 class="ag-card__title">Cinders</h2>
         <p class="ag-field__hint">Up to {{manage.limit}} per character · {{manage.initial}} starting {{#if manage.initialOne}}point{{else}}points{{/if}} on the first binding. Only the GM binds, transfers or unbinds a Cinder; Help explains how they move.</p>
         {{#if manage.hasCinders}}
-          {{#each manage.groups}}<h3 class="agc-group">{{name}} <span class="agc-id">{{definitionId}}</span></h3>
+          {{#each manage.groups}}<h3 class="agc-group">{{name}}</h3>
           <div class="ag-table-wrap"><table class="ag-table agc-manage-table"><thead><tr><th scope="col">Bearer</th><th scope="col">Points</th><th scope="col">Powers</th><th scope="col" class="is-actions">Actions</th></tr></thead><tbody>
             {{#each rows}}<tr><td data-label="Bearer">{{#if bearerName}}{{bearerName}}{{else}}<em>{{#if lost}}Lost{{else}}Unbound{{/if}}</em>{{#if lastName}} <span class="agc-meta">(last: {{lastName}})</span>{{/if}}{{/if}}{{#if migrated}} <span class="ag-badge">Moved from older data</span>{{/if}}</td>
               <td data-label="Points">{{spent}} of {{awarded}} spent</td><td data-label="Powers">{{unlocks}} unlocked</td>

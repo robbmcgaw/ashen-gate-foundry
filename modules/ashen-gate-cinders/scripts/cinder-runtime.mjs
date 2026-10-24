@@ -48,7 +48,7 @@ export function createCinders(deps){
 
   const cinderTree=definitionId=>accounts().treeBySource(definitionId,{kind:'cinder_milestone'});
   const definition=id=>{const hit=lookup(id);return hit?.status==='ok'?sourceOf(hit.document)?.definition??null:null;};
-  const definitionName=id=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:id;};
+  const definitionName=(id,fallback='Unnamed Cinder')=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:fallback;};
   /** 0.9.0: the art the MUT-* definition gives its Cinders (cinder.art), or null. */
   const defArt=id=>definitionArt(definition(id));
   const actorById=id=>game.actors?.get?.(id)??null;
@@ -65,7 +65,7 @@ export function createCinders(deps){
   // ---- Bearer: the tree account (through Skill Trees) and a pointer in this module's Actor flags ----
   const pointersOf=actor=>Array.isArray(actor?.flags?.[module]?.cinders)?actor.flags[module].cinders.filter(p=>p&&typeof p.instanceId==='string'):[];
   async function setPointers(actor,pointers){await actor.setFlag(module,'cinders',pointers);}
-  function treeFor(instance){const t=cinderTree(instance.definitionId);if(!t)throw Error(`No Cinder tree uses ${instance.definitionId}. Import it into Skill Trees first.`);return t;}
+  function treeFor(instance){const t=cinderTree(instance.definitionId);if(!t)throw Error(`No Cinder tree uses ${definitionName(instance.definitionId)}. Import it into Skill Trees first.`);return t;}
   const pointerData=instance=>({instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),art:instance.art??null,...withDefaultArt(instance.definitionId)});
   // 0.9.0: the definition's art copied to the bearer's pointer (a player may not see the MUT-* record). Left out when there is none,
   // so pointers saved before read the same.
@@ -91,9 +91,9 @@ export function createCinders(deps){
   /** The world Item a bearer item is copied from: {doc}, or {problem} when it is missing or of the wrong kind. */
   function bearerSource(sourceId,slot){
     const hit=lookup(sourceId),label=SLOT_LABEL[slot].toLowerCase();
-    if(hit?.status!=='ok'||hit.document?.documentName!=='Item')return {problem:`${sourceId} (the Cinder's ${label}) is not in this world as an Item. Import it through General Manager.`};
+    if(hit?.status!=='ok'||hit.document?.documentName!=='Item')return {problem:`The Cinder's ${label} is not in this world as an Item. Import it through General Manager.`};
     const kind=powerBlock(sourceOf(hit.document)?.definition)?.kind;
-    if(kind!==SLOT_KIND[slot])return {problem:`${sourceId} is ${kind?`a ${kind}`:'not a Power with a power block'}, not a ${SLOT_KIND[slot]}, so it is not given as the Cinder's ${label}.`};
+    if(kind!==SLOT_KIND[slot])return {problem:`The Cinder's ${label} is ${kind?`a ${kind}`:'not a Power with a power block'}, not a ${SLOT_KIND[slot]}, so it is not given.`};
     return {doc:hit.document};
   }
   /** Make one character carry exactly the bearer items of the Cinders it bears (the registry is the truth). Idempotent: missing copies
@@ -116,8 +116,8 @@ export function createCinders(deps){
       const plan=planBearerItems(taggedOn(actor),bearerWant(registry,actor.id));
       for(const c of plan.create){const src=bearerSource(c.sourceId,c.slot),name=definitionName(c.definitionId);
         rows.push(src.problem?{instanceId:c.instanceId,name,actorId:actor.id,text:`${actor.name}: ${src.problem}`}
-          :{instanceId:c.instanceId,name,actorId:actor.id,repair:true,text:`${actor.name} is missing this Cinder's ${SLOT_LABEL[c.slot].toLowerCase()} (${c.sourceId}).`});}
-      for(const r of plan.remove)rows.push({instanceId:r.instanceId,name:itemOf(actor,r.id)?.name??r.id,actorId:actor.id,repair:true,
+          :{instanceId:c.instanceId,name,actorId:actor.id,repair:true,text:`${actor.name} is missing this Cinder's ${SLOT_LABEL[c.slot].toLowerCase()}.`});}
+      for(const r of plan.remove)rows.push({instanceId:r.instanceId,name:itemOf(actor,r.id)?.name??'Bearer item',actorId:actor.id,repair:true,
         text:`${actor.name} has an extra ${SLOT_LABEL[r.slot].toLowerCase()} item (${WHY[r.why]??r.why}).`});
     }
     return rows;
@@ -127,7 +127,7 @@ export function createCinders(deps){
   /** New unbound Cinder. Its art is the definition's art (0.9.0) unless options.art names another image. */
   async function create(definitionId,{art}={}){
     requireGM();
-    if(lookup(definitionId)?.status!=='ok')throw Error(`${definitionId} is not in this world. Import it through General Manager first.`);
+    if(lookup(definitionId)?.status!=='ok')throw Error(`That Cinder is not in this world. Import it through General Manager first.`);
     const own=art===undefined?defArt(definitionId):artInput(art);
     return withRegistry(async()=>{
       const {registry,instance}=createInstance(readRegistry(),definitionId,{instanceId:`cinst_${foundry.utils.randomID(16)}`,at:Date.now(),art:own});
@@ -283,7 +283,7 @@ export function createCinders(deps){
     if(t.status!=='ok'){rows.push({instanceId:null,name:'Skill Trees',text:t.message});return rows;}
     for(const inst of registry.instances){
       const name=definitionName(inst.definitionId),actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);
-      if(!tree)rows.push({instanceId:inst.instanceId,name,text:`No Cinder tree uses ${inst.definitionId}; its powers cannot be unlocked.`});
+      if(!tree)rows.push({instanceId:inst.instanceId,name,text:`No Cinder tree uses ${name}; its powers cannot be unlocked.`});
       if(inst.bearer&&!actor)rows.push({instanceId:inst.instanceId,name,text:'Its bearer is not in this world.'});
       if(actor&&tree){
         const mirror=cleanAccount(t.accounts.account(actor,tree.id));
@@ -293,7 +293,7 @@ export function createCinders(deps){
     for(const actor of playable())for(const g of t.accounts.grants(actor)){
       if(!g.wallet?.startsWith('cinder:'))continue;const definitionId=g.wallet.slice(7);
       if(registry.instances.some(i=>i.definitionId===definitionId)&&!bearerInstance(registry,actor.id,definitionId))
-        rows.push({instanceId:null,name:actor.items?.get?.(g.itemId)?.name??g.perkId,actorId:actor.id,repair:true,text:`${actor.name} has a Cinder power (${g.perkId}) but does not bear that Cinder.`});
+        rows.push({instanceId:null,name:actor.items?.get?.(g.itemId)?.name??'Cinder power',actorId:actor.id,repair:true,text:`${actor.name} has a Cinder power but does not bear that Cinder.`});
     }
     rows.push(...socketReport(registry));
     return rows;
@@ -343,7 +343,7 @@ export function createCinders(deps){
   function socketItemProblem(item,{user=game.user}={}){
     if(!item)return 'That item is not in the bearer\'s inventory';
     const src=sourceOf(item);
-    if(!String(src?.sourceId??'').startsWith('ITEM-'))return `${item.name} is not an Ashen Gate item (ITEM-*) imported by General Manager`;
+    if(!String(src?.sourceId??'').startsWith('ITEM-'))return `${item.name} is not an Ashen Gate item imported by General Manager`;
     if(!blockModifiers(src.definition).length)return `${item.name} has no Cinder modifiers, so it does not fit a socket`;
     if(!user?.isGM&&src.visibility==='gm')return 'GM only';
     return null;
@@ -412,7 +412,7 @@ export function createCinders(deps){
   // ---- Push and Backfire (GM client) ----
   const roll=async formula=>{const r=await new Roll(formula).evaluate();return {total:r.total,formula};};
   function tablesFor(cinderDef,powerDef,mode){
-    return categoriesFor(cinderDef,powerDef,mode).map(id=>{const b=backfireBlock(definition(id));return b?{id,label:b.label??id,weight:b.weight??1,entries:b.entries??[]}:null;}).filter(Boolean);
+    return categoriesFor(cinderDef,powerDef,mode).map(id=>{const b=backfireBlock(definition(id));return b?{id,label:b.label??'Backfire',weight:b.weight??1,entries:b.entries??[]}:null;}).filter(Boolean);
   }
   async function applyEffect(actor,effect,{opId}){
     const problem=effectProblem(effect);if(problem)throw Error(problem);
@@ -423,7 +423,7 @@ export function createCinders(deps){
   /** Checks shared by Push and normal use; throws when the character cannot use the power. */
   function context(actor,powerId){
     const registry=readRegistry();
-    const unlockedOn=(inst,tree)=>tree?tree.nodes.filter(n=>n.perkId&&inst.progression.unlocks.includes(n.id)).map(n=>({powerId:n.perkId,name:definitionName(n.perkId),power:powerBlock(definition(n.perkId))})):[];
+    const unlockedOn=(inst,tree)=>tree?tree.nodes.filter(n=>n.perkId&&inst.progression.unlocks.includes(n.id)).map(n=>({powerId:n.perkId,name:definitionName(n.perkId,'Unnamed power'),power:powerBlock(definition(n.perkId))})):[];
     const ctx=(inst,tree,node)=>{const st=socketState(actor,inst.definitionId,inst.sockets);
       return {instance:inst,tree,node,unlocked:unlockedOn(inst,tree),extra:[...st.perks,...st.activeItems],powerDef:definition(powerId),cinderDef:definition(inst.definitionId)};};
     for(const inst of boundTo(registry,actor.id)){
@@ -445,7 +445,7 @@ export function createCinders(deps){
     const config=strain.config(),plan=planPush({strainValue:strain.readState(actor).value,config,mode,unlocked:ctx.unlocked,powerId,extra:ctx.extra});
     // Everything is rolled before anything is written.
     const backfire=await resolveBackfire({chance:plan.chance,tables:tablesFor(ctx.cinderDef,ctx.powerDef,mode),config,strain:plan.after,severity:plan.modifiers.severity.total,roll});
-    const opId=`push:${foundry.utils.randomID(16)}`,powerName=definitionName(powerId);
+    const opId=`push:${foundry.utils.randomID(16)}`,powerName=definitionName(powerId,'Unnamed power');
     // The one write that must succeed: if it fails, the Push did not happen and nothing else is done.
     const change=await strain.api.add(actor,plan.cost,{source:{module,kind:'push',ref:powerId},reason:`Push: ${powerName} (${mode.label})`,opId});
     const result={opId,kind:'push',actorId:actor.id,instanceId:ctx.instance.instanceId,powerId,powerName,mode:{id:mode.id,label:mode.label,effect:mode.effect??''},
@@ -461,7 +461,7 @@ export function createCinders(deps){
     const ctx=context(actor,powerId);if(!isPushable(powerBlock(ctx.powerDef)))return null;
     const severity=collectModifiers(ctx.unlocked,'backfire.severity',{powerId,modeId:null,extra:ctx.extra}).total;
     const backfire=await resolveBackfire({chance:100,forced:true,tables:tablesFor(ctx.cinderDef,ctx.powerDef,null),config,strain:value,severity,roll});
-    const result={opId:`use:${foundry.utils.randomID(16)}`,kind:'use',actorId:actor.id,instanceId:ctx.instance.instanceId,powerId,powerName:definitionName(powerId),
+    const result={opId:`use:${foundry.utils.randomID(16)}`,kind:'use',actorId:actor.id,instanceId:ctx.instance.instanceId,powerId,powerName:definitionName(powerId,'Unnamed power'),
       mode:null,plan:null,strain:{from:value,to:value,overflow:0},backfire,effectApplied:false,effectError:null,by:forUser?.id??game.user.id};
     await finish(actor,result);
     return result;
@@ -641,7 +641,7 @@ export function createCinders(deps){
         rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's sockets differs from the Cinder.`});
       if(p&&(cleanArt(p.art)!==(inst.art??null)||cleanArt(p.defaultArt)!==defArt(inst.definitionId)))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's art differs from the Cinder.`});
       for(const a of inst.sockets.attached){const item=itemOf(actor,a.itemId);
-        if(!item)rows.push({instanceId:inst.instanceId,name,repair:true,text:`A socketed item (${a.sourceId??a.itemId}) is no longer on ${actor.name}; its socket reads as empty.`});
+        if(!item)rows.push({instanceId:inst.instanceId,name,repair:true,text:`A socketed item is no longer on ${actor.name}; its socket reads as empty.`});
         else if(JSON.stringify(markerOf(item))!==JSON.stringify({instanceId:inst.instanceId,slot:a.slot}))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${item.name} is in a socket but not marked as attached.`});}
     }
     for(const actor of game.actors?.contents??[])for(const item of actor.items??[]){const m=markerOf(item);if(!m)continue;

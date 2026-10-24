@@ -303,7 +303,7 @@ export async function resolveBackfire({chance, tables, config, strain, severity 
     let acc = 0;
     category = usable.find((t, i) => (acc += weights[i]) >= r.total) ?? usable.at(-1);
   }
-  out.category = {id: category.id, label: category.label ?? category.id};
+  out.category = {id: category.id, label: category.label ?? 'Backfire'};
   const n = category.entries.length, bonus = strainEffectBonus(config, strain);
   const r = await roll(`1d${n}`);
   const result = Math.min(n, Math.max(1, r.total + bonus + (int(severity) ? severity : 0)));

@@ -210,7 +210,7 @@ test('header, tabs, toolbar, empty states and tooltips follow the UI standard',(
   assert.doesNotMatch(hbs,/agc-active|agc-card|agc-table|agc-toolbar|agc-note|title=/);
   const end=hbs.slice(hbs.indexOf('ag-toolbar__end'),hbs.indexOf('</div>',hbs.indexOf('ag-toolbar__end')));
   assert.match(end,/<button type="button" class="ag-btn" data-act="cinder-new"/,'New Cinder is a plain button on the right');
-  assert.match(end,/<span class="ag-field__hint agc-hint">Import Cinder \(MUT-\*\) definitions through General Manager first\.<\/span>/,'its disabled reason is visible text');
+  assert.match(end,/<span class="ag-field__hint agc-hint">Import Cinder definitions through General Manager first\.<\/span>/,'its disabled reason is visible text');
   for(const t of ['No Cinder bound to this character yet.','No powers unlocked yet.','No Cinders yet.'])assert.ok(hbs.includes(`<p class="ag-empty__title">${t}</p>`),t);
   assert.ok(hbs.includes('<p class="ag-empty__text">Unlock them in Skill Trees.</p>'));
   assert.ok(hbs.includes('<p class="ag-empty__text">Create one with New Cinder, then bind it.</p>'));

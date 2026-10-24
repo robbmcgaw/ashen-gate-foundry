@@ -1,3 +1,7 @@
+## 0.11.1 — 2026-10-24
+
+- Canonical ids (MUT-*, POWER-*, ITEM-* and similar) no longer appear in the UI. Manage no longer prints the definition id beside each Cinder's name. The New Cinder picker, Check rows, Bind warnings, socket refusals, and Push and Backfire messages use display names (a neutral label such as "Unnamed Cinder" when a record is missing). No saved data, ids, flags or API change.
+
 ## 0.11.0 — 2026-10-22
 
 UI cleanup (audit 2026-10, CN-01 to CN-12). No rules or saved data change: same setting keys, flags and ids, no migration.

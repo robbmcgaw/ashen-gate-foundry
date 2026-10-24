@@ -16,7 +16,7 @@ import {draftFromConfig,draftDirty,setDraftField,addBand,removeBand,checkDraft,e
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.11.0';
+const VERSION='0.11.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -472,7 +472,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _socket(kind,instanceId,slot,actorId,preItem=null){
     const actor=this._socketActor(actorId),host=cinders.socketsApi.slots(actor,instanceId);if(!host)throw Error('That character does not bear this Cinder');
     const fits=cinders.socketsApi.socketable(actor).filter(f=>!host.slots.some(x=>x.itemId===f.itemId));
-    if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate ITEM-* with Cinder modifiers).`);
+    if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate item with Cinder modifiers).`);
     const where=f=>f.attachedTo?' (in another Cinder\'s socket: it moves here)':'';
     const f=await input(kind==='swap'?'Swap socket item':'Attach to a socket',[{name:'item',label:'Item',type:'select',value:fits.some(x=>x.itemId===preItem)?preItem:fits[0].itemId,options:fits.map(x=>({value:x.itemId,label:`${x.name}${where(x)}`})),
       hint:`The item stays in ${actor.name}'s inventory. Its Cinder modifiers count while it is in an active socket.`}],kind==='swap'?'Swap':'Attach');
@@ -538,8 +538,8 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   async _new(){
     if(!game.user.isGM)throw Error('GM only');
-    const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder (MUT-*) definitions in this world. Import them through General Manager first.');
-    const f=await input('New Cinder',[{name:'def',label:'Cinder',type:'select',value:defs[0].id,options:defs.map(d=>({value:d.id,label:`${d.name} (${d.id})`})),hint:'The new Cinder starts with no bearer. Bind it to a character next.'}],'Create');
+    const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder definitions in this world. Import them through General Manager first.');
+    const f=await input('New Cinder',[{name:'def',label:'Cinder',type:'select',value:defs[0].id,options:defs.map(d=>({value:d.id,label:d.name})),hint:'The new Cinder starts with no bearer. Bind it to a character next.'}],'Create');
     if(!f?.def)return;await cinders.api.create(f.def);notify('Cinder created.');
   }
   async _bind(instanceId,isTransfer){
