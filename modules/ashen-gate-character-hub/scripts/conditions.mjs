@@ -10,13 +10,14 @@
  *
  * Who may change what (checked here, at the click, not only by hiding buttons):
  *   - the GM: anyone, linked or not;
- *   - a player, with Utilities' conditions API (contract ag-utilities-conditions/1): Utilities' rules decide (condition
- *     controllers, "owners manage conditions", the per-character unlock), through its canApply / canRemove, and
+ *   - a player, with Utilities' conditions API (contract ag-utilities-conditions/1): Utilities' rule decides (0.46.1: their own
+ *     character and any actor that is not a player's character; the GM or a condition controller for another player's),
+ *     through its canApply / canRemove / canChangeActor, and
  *     Utilities' apply / remove carry the change out (on the GM client when needed). Utilities works on world
  *     characters, so a token that is not linked to one is left to the GM;
  *   - a player without Utilities: only on characters they own (as the Hub's Conditions box allowed before).
  */
-import {esc, MODULE_ID as MODULE_ID_FOR_SETTINGS} from './constants.mjs';
+import {esc, dnd5eConfig, labelOf, MODULE_ID as MODULE_ID_FOR_SETTINGS} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {conditionsData} from './data.mjs';
 import {targetedTokens, requestGM} from './marks.mjs';
@@ -36,8 +37,13 @@ export function conditionChoices(actor) {
   let shared = null;
   try { shared = utilitiesConditions()?.choices?.(); } catch { shared = null; }
   if (Array.isArray(shared) && shared.length) return shared.filter(c => c?.id).map(({id, label, img}) => ({id, label: label || id, img: img || ''}));
-  return conditionsData(actor ?? {}).map(({id, label, img}) => ({id, label, img}));
+  const base = conditionsData(actor ?? {}).map(({id, label, img}) => ({id, label, img}));
+  // 0.46.1: Exhaustion is offered too (Utilities' tracker offers it), put on and off with the same toggleStatusEffect.
+  const ex = statusConfigFor('exhaustion');
+  if (ex && !base.some(c => c.id === 'exhaustion')) base.push({id: 'exhaustion', label: dnd5eConfig().conditionTypes?.exhaustion?.label ? labelOf(dnd5eConfig().conditionTypes.exhaustion) : 'Exhaustion', img: ex.img ?? ex.icon ?? ''});
+  return base.sort((a, b) => a.label.localeCompare(b.label));
 }
+const statusConfigFor = id => { const reg = globalThis.CONFIG?.statusEffects; const list = Array.isArray(reg) ? reg : Object.entries(reg ?? {}).map(([k, v]) => ({...v, id: v?.id ?? k})); return list.find(e => e?.id === id) ?? null; };
 
 /** The last conditions this user put on (most recent first), for one-click chips. Per browser (a client setting). */
 export function recentConditions() {
@@ -70,10 +76,14 @@ export function conditionTargets(self, mode) {
   }).filter(Boolean);
 }
 
-/** Utilities' Player Access (its api.playerAccess); false when it can't be read. */
-const accessOn = () => { try { return globalThis.game.modules.get('ashen-gate-utilities').api.playerAccess.getState().playerAccessEnabled !== false; } catch { return false; } };
-/** Whether `user` may ask the GM client to change conditions on an unlinked token: a condition controller while Player Access is on. */
-const relayAllowed = (utilities, user) => { try { return utilities?.isController?.(user?.id) === true && accessOn(); } catch { return false; } };
+/** Why a player is refused: another player's character, else Player Access (the GM's switch in Utilities). */
+function refusalText(actor, name, apply, utilities) {
+  let pc = false;
+  try { pc = utilities?.isPlayerCharacter?.(actor) === true; } catch { pc = false; }
+  const verb = apply ? 'put conditions on' : 'take conditions off';
+  return pc ? `You can't ${verb} ${name}: it is another player's character, so only the GM can change its conditions.`
+    : `You can't ${verb} ${name}: the GM decides that in Ashen Gate | Utilities (Player Access).`;
+}
 const callOk = fn => { try { return fn() === true; } catch { return false; } };
 /**
  * Whether `user` may put on (apply) or take off a condition on `actor`, and how: {ok, route: 'direct' | 'utilities'}
@@ -86,13 +96,12 @@ export function conditionDecision({actor, name = actor?.name ?? 'that character'
   if (utilities) {
     const world = worldActor(actor);
     if (!world) {
-      // 0.45.2: a token that is not linked to a character (a monster): the GM client makes the change for a condition controller.
-      if (token && relayAllowed(utilities, user)) return {ok: true, route: 'gm'};
-      return refuse(`Only the GM or a condition controller can change conditions on ${name}: it is not linked to a character.`);
+      // 0.46.1: a token that is not linked to a character (a monster): Utilities' rule decides, the GM client makes the change.
+      const can = token && callOk(() => utilities.canChangeActor(actor, statusId, apply));
+      return can ? {ok: true, route: 'gm'} : refuse(refusalText(actor, name, apply, utilities));
     }
     const allowed = apply ? callOk(() => utilities.canApply(world.id, statusId)) : callOk(() => utilities.canRemove(world.id, statusId));
-    return allowed ? {ok: true, route: 'utilities', actorId: world.id}
-      : refuse(`You can't ${apply ? 'put conditions on' : 'take conditions off'} ${name}: the GM decides that in Ashen Gate | Utilities (Conditions).`);
+    return allowed ? {ok: true, route: 'utilities', actorId: world.id} : refuse(refusalText(actor, name, apply, utilities));
   }
   return canEdit(actor, user) ? {ok: true, route: 'direct'} : refuse(`You don't own ${name}, so you can't change its conditions.`);
 }
@@ -175,8 +184,8 @@ export function appliedNotice(label, applied, already) {
 
 /**
  * GM side of a condition change on a token that is not linked to a character (marks' socket, same receipt). Checks the
- * requester again: they own the source character, the Hub hotbars are shown to them, the status is on the list, the token
- * is not a world character (those go through Utilities' own rules), and they are the GM or a condition controller.
+ * requester again: they own the source character, the Hub hotbars are shown to them, the status is on the list, and Utilities'
+ * rule allows them (their own character or any actor that is not a player's character, Player Access on).
  */
 export async function conditionToggleOnGM(msg, user) {
   const g = globalThis.game;
@@ -189,8 +198,9 @@ export async function conditionToggleOnGM(msg, user) {
   const statusId = String(msg.statusId ?? ''), active = msg.active === true;
   if (!conditionChoices(source).some(c => c.id === statusId)) throw new Error('Pick a condition from the list.');
   if (!user.isGM) {
-    if (worldActor(target)) throw new Error(`${target.name} is a character: Utilities' condition rules decide.`);
-    if (!relayAllowed(utilitiesConditions(), user)) throw new Error('Only the GM or a condition controller can change conditions on a token that is not a linked character.');
+    const u = utilitiesConditions();
+    if (!u || typeof u.canChangeActor !== 'function') throw new Error('Ashen Gate | Utilities is needed to change conditions on a token that is not yours.');
+    if (!callOk(() => u.canChangeActor(target, statusId, active, user.id))) throw new Error(refusalText(target, target.name, active, u));
   }
   await target.toggleStatusEffect(statusId, {active});
   if (hasStatus(target, statusId) !== active) throw new Error(`${target.name} still ${active ? 'does not have' : 'has'} it: another effect or module keeps it.`);
@@ -206,7 +216,8 @@ function chipsHtml(self, choices, off) {
     seen.add(t.uuid);
     for (const c of choices.filter(x => hasStatus(t.actor, x.id))) {
       const can = !off && conditionDecision({actor: t.actor, name: t.name, statusId: c.id, apply: false, valid, token: t.token}).ok;
-      const what = t.self ? c.label : `${t.name}: ${c.label}`, take = `Take ${c.label} off ${t.name}`;
+      const lvl = c.id === 'exhaustion' ? Number(t.actor?.system?.attributes?.exhaustion) : 0, cl = lvl > 0 ? `${c.label} ${lvl}` : c.label;
+      const what = t.self ? cl : `${t.name}: ${cl}`, take = `Take ${c.label} off ${t.name}`;
       rows.push(`<li class="${t.self ? 'is-self' : 'is-target'}">${byId.get(c.id)?.img ? `<img src="${esc(c.img)}" alt="">` : ''} ${esc(what)}${can
         ? `<button type="button" class="agch-placed__off" data-action="cond-remove" data-uuid="${esc(t.uuid)}" data-status="${esc(c.id)}" data-tooltip="${esc(take)}" aria-label="${esc(take)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ''}</li>`);
     }

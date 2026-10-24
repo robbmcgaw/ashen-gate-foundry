@@ -1,3 +1,13 @@
+## 0.46.1 — 2026-10-24
+
+Conditions follow the GM's rule: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character; the GM can change everything.** (Needs Ashen Gate | Utilities 0.29.2 for anything a player does to a monster; Player Access still gates it.)
+
+- **Monsters, NPCs, creatures:** with Target on, any player can put conditions on and take them off a targeted token, linked to a character or not. For an unlinked token the GM's client makes the change after asking Utilities' rule again for the player who asked (the earlier "condition controllers only" rule is gone).
+- **Another player's character:** refused with "... is another player's character, so only the GM can change its conditions." (A condition controller named in Utilities still can.)
+- **Player Access off:** refused with a message that names Player Access.
+- **Exhaustion** is offered in the conditions list like the other conditions (the same list Utilities' tracker uses), and its chip shows the level. Put on and off exactly as Utilities does. Change levels with the − / + beside HP.
+- No change to saved data.
+
 ## 0.46.0 — 2026-10-24
 
 Inventory: the resurrection diamond reminder is now a medium-light red when the character has no diamond and a medium-light green when they have one (the skin's own danger and ok colours, so they stay readable in every skin).
