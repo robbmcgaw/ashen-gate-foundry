@@ -108,11 +108,15 @@
 .ag-utilities .agu-stash-group > .ag-eyebrow {margin:var(--ag-space-2) 0 var(--ag-space-1);}
 /* 0.26.0: the stash is a kit ag-table per item type; narrow windows keep picture, item and action. */
 .ag-utilities .agu-stash-table {font-size:var(--ag-text-md);}
-.ag-utilities .agu-stash-table .agu-col-icon {width:var(--ag-icon-chip);}
+/* 0.30.4: stash pictures are about twice the old size (64px comfortable, 48px compact) and show the whole icon, like the character inventory rows. */
+.ag-utilities .agu-stash-table {--agu-stash-pic:calc(var(--ag-icon-chip) * 2);}
+.ag-utilities .agu-stash-table .agu-col-icon {width:calc(var(--agu-stash-pic) + var(--ag-space-2));vertical-align:middle;}
+.ag-utilities .agu-stash-table td {vertical-align:middle;}
 .ag-utilities .agu-stash-row {cursor:grab;}
 .ag-utilities .agu-stash-bar {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);}
 @container (max-width:35rem) {.ag-utilities .agu-stash-table :is(.agu-col-qty,.agu-col-weight,.agu-col-value,.agu-col-type) {display:none;}}
 .ag-utilities .agu-stash-icon {width:calc(var(--ag-icon-chip) + var(--ag-space-1));height:calc(var(--ag-icon-chip) + var(--ag-space-1));object-fit:contain;border-radius:var(--ag-radius-sm);border:0;}
+.ag-utilities .agu-stash-table .agu-stash-icon {display:block;box-sizing:border-box;flex:none;width:var(--agu-stash-pic);height:var(--agu-stash-pic);min-width:var(--agu-stash-pic);aspect-ratio:1 / 1;background:var(--ag-surface-sunken);}
 .ag-app.ag-utilities button.agu-stash-name {justify-content:flex-start;min-height:0;padding:var(--ag-space-1);border:0;background:transparent;color:var(--ag-text);font-weight:600;text-align:left;overflow-wrap:anywhere;}
 .ag-app.ag-utilities button.agu-stash-name:hover {color:var(--ag-accent);text-decoration:underline;background:transparent;}
 .ag-utilities .agu-dropzone {margin:var(--ag-space-3) 0;padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius);color:var(--ag-muted);text-align:center;}

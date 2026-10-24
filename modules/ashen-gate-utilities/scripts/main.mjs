@@ -1217,7 +1217,8 @@ function onSheetDrop(actor,sheet,data){
  notifyResult(depositItem(data.uuid));return false;
 }
 /** Party stash table columns, in order (0.26.0: a kit ag-table per item type). The header and every row render exactly these cells. */
-const STASH_COLUMNS=[['icon','Picture'],['item','Item'],['qty','Qty'],['weight','Weight (each)'],['value','Value (each)'],['type','Type'],['action','Action']];
+const STASH_COLUMNS=[['icon','Picture'],['item','Item'],['qty','Qty'],['weight','Weight'],['value','Value'],['type','Type'],['action','Action']];
+const STASH_HEAD_TIPS={weight:'Weight per item',value:'Value per item'};
 const STASH_HIDDEN_HEAD=new Set(['icon','action']);
 /** Items (window) or the embed. `purse`: the full purse strip (embed); the window shows one line and Party Fund holds the purse. */
 function stashBody(app,{purse=true}={}){
@@ -1230,7 +1231,7 @@ function stashBody(app,{purse=true}={}){
  const target=takers.some(a=>a.id===app.takeActorId)?app.takeActorId:takers[0]?.id;
  const groups=[...new Set(shown.map(r=>r.typeLabel))].sort((a,b)=>a.localeCompare(b));
  const num=col=>col==='qty'||col==='weight'?' is-num':col==='action'?' is-actions':'';
- const head=`<thead><tr>${STASH_COLUMNS.map(([col,label])=>`<th scope="col" class="agu-col-${col}${num(col)}">${STASH_HIDDEN_HEAD.has(col)?`<span class="ag-sr-only">${E(label)}</span>`:E(label)}</th>`).join('')}</tr></thead>`;
+ const head=`<thead><tr>${STASH_COLUMNS.map(([col,label])=>`<th scope="col" class="agu-col-${col}${num(col)}"${STASH_HEAD_TIPS[col]?` title="${STASH_HEAD_TIPS[col]}"`:''}>${STASH_HIDDEN_HEAD.has(col)?`<span class="ag-sr-only">${E(label)}</span>`:E(label)}</th>`).join('')}</tr></thead>`;
  const cell=(col,html)=>`<td class="agu-col-${col}${num(col)}">${html}</td>`;
  const stashRowHTML=r=>`<tr class="agu-stash-row" draggable="true" data-stash-item="${E(r.id)}" data-uuid="${E(r.uuid??'')}">${cell('icon',r.img?`<img class="agu-stash-icon" src="${E(r.img)}" alt="">`:'')}${cell('item',`<button type="button" class="agu-stash-name" data-open-item="${E(r.id)}"${uuidTipAttrs(r.uuid,`Open ${r.name}`)}>${E(r.name)}</button>`)}${cell('qty',E(r.quantity))}${cell('weight',E(r.weight))}${cell('value',coinChipsHTML(r.value))}${cell('type',E(r.typeLabel))}${cell('action',(target?btn('stash-take','Take',{kind:'sm',attrs:`data-item="${E(r.id)}" aria-label="Take ${E(r.name)}"`}):'')+(isGM()||target?btn('stash-delete','Delete…',{kind:'sm',attrs:`data-item="${E(r.id)}" aria-label="Delete ${E(r.name)}…"`}):''))}</tr>`;
  const gid=g=>`agu-stash-g-${E(g.replace(/\W+/g,'-'))}`;
