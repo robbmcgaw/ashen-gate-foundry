@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.30.0';
+export const VERSION = '0.30.1';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -1705,8 +1705,9 @@ export function planShopImport(records, {mode = 'create', shops = [], services =
         if (b.location_id !== undefined && b.location_id !== null && !/^LOC(-[A-Z0-9]+)+$/.test(b.location_id)) throw Error('merchant_list.location_id must be a LOC-* id.');
         if (!Array.isArray(b.shop_ids)) throw Error('merchant_list.shop_ids must be a list.');
         const bad = b.shop_ids.filter(x => !validId(x, 'SHOP') && !validId(x, 'SVC'));
-        if (bad.length) throw Error(`merchant_list.shop_ids: ${bad.map(x => JSON.stringify(x)).join(', ')} is not a SHOP-* or SVC-* id.`);
-        for (const x of new Set(b.shop_ids)) if (!inImport.has(x) && !byId.Shop.has(x) && !byId.Service.has(x)) row.notes.push(`${x} is not in this world or this file; the list shows it as missing.`);
+        if (bad.length) throw Error(`merchant_list.shop_ids: ${bad.length} ${bad.length === 1 ? 'entry is' : 'entries are'} not a SHOP-* or SVC-* id.`);
+        const absent = [...new Set(b.shop_ids)].filter(x => !inImport.has(x) && !byId.Shop.has(x) && !byId.Service.has(x)).length;
+        if (absent) row.notes.push(`${absent} ${absent === 1 ? 'entry is' : 'entries are'} not in this world or this file; the list shows ${absent === 1 ? 'it' : 'them'} as missing.`);
         if (old && mode === 'create') { row.result = 'kept'; row.reason = 'Already in this world; kept as it is.'; continue; }
         if (old) { writes.lists.push(normalizeMerchantList({...old, name, shopIds: b.shop_ids, ...stamp})); row.result = 'updated'; row.name = name; continue; }
         writes.lists.push(normalizeMerchantList({id, name, locationId: b.location_id ?? null, shopIds: b.shop_ids, visible: false, createdAt: now, ...stamp}));
@@ -1737,7 +1738,7 @@ export function exportShopsPackage({shops = [], services = [], lists = []} = {},
     const lines = [];
     for (const l of s.lines ?? []) {
       const ref = l.itemId ? {item_id: l.itemId} : l.itemUuid ? {item_uuid: l.itemUuid} : null;
-      if (!ref) { notes.push(`${s.id}: ${l.item?.name ?? l.lineId} has no item id or uuid, so it was left out.`); continue; }
+      if (!ref) { notes.push(`${s.name}: ${l.item?.name ?? l.lineId} has no item id or uuid, so it was left out.`); continue; }
       lines.push({...ref, price: exportPrice(l.priceCp, l.priceCoin), ...(l.stockStart !== null && l.stockStart !== undefined ? {stock: l.stockStart} : {}),
         ...(l.flavour ? {flavour: l.flavour} : {}), ...(l.costCp !== null && l.costCp !== undefined ? {cost: exportPrice(l.costCp, l.priceCoin)} : {}), ...(l.hidden ? {hidden: true} : {})});
     }

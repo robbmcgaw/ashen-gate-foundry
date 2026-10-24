@@ -46,7 +46,7 @@ async function save(data={}){
   let id=data.id;
   if(!old){
    const taken=[...readAll().map(s=>s.id),...readServices().map(s=>s.id),...meta.lists.map(l=>l.id)];
-   if(id){if(!validId(id,'MLIST'))throw Error('Merchant list id must be MLIST- and upper-case letters, digits and single hyphens.');if(taken.includes(id)||meta.retiredIds.includes(id))throw Error(`The merchant list id ${id} is already used.`);}
+   if(id){if(!validId(id,'MLIST'))throw Error('Merchant list id must be MLIST- and upper-case letters, digits and single hyphens.');if(taken.includes(id)||meta.retiredIds.includes(id))throw Error('That merchant list id is already used.');}
    else id=shopIdFromName(data.name,taken,'MLIST',meta.retiredIds);
   }
   const was=old?(()=>{try{return normalizeMerchantList(old).audience;}catch{return null;}})():null;
@@ -72,7 +72,7 @@ async function setVisible(id,visible){
 /** What a list's entry is right now: {id, name, kind, open (shown to the whole audience), presented, canOpen, reason}. */
 function entryState(l,id){
  let rec=null;try{rec=getRecord(id);}catch{rec=null;}
- if(!rec)return {id,name:id,open:false,presented:null,canOpen:false,reason:'Missing (deleted)'};
+ if(!rec)return {id,name:'Deleted shop or service',open:false,presented:null,canOpen:false,reason:'Missing (deleted)'};
  const base={id,name:rec.name,kind:rec.kind==='service'?'service':'shop',presented:clone(rec.presented??null),open:presentedCovers(rec.presented,l.audience)};
  if(rec.kind==='service'&&!rec.known)return {...base,canOpen:false,reason:'Unknown service type: never shown to players'};
  if(l.audience.mode==='hidden')return {...base,canOpen:false,reason:'Share the list first'};
@@ -168,7 +168,7 @@ function editorHTML(d,index,locations){
  const opt=(v,label,sel)=>`<option value="${E(v)}"${String(v)===String(sel)?' selected':''}>${E(label)}</option>`;
  // 0.26.0: the same Settlement select as the shop editor (Locations' settlements only).
  const city=settlementSelect(d,{attr:'data-mlist-field',hint:'Optional. Players see its name only once it is revealed in Locations.'})??'';
- const rows=d.shopIds.map((id,i)=>{const e=index.get(id)??{name:id,what:'Missing (deleted)'};
+ const rows=d.shopIds.map((id,i)=>{const e=index.get(id)??{name:'Deleted shop or service',what:'Missing (deleted)'};
   return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(e.name)}</span><span class="ag-row__meta">${E(e.what)}</span></div><div class="ag-row__end">
   ${button('mlist-up','',{kind:'icon sm',ic:'fa-arrow-up',disabled:i===0,attrs:`data-index="${i}" aria-label="Move ${E(e.name)} up" ${tip('Move up')}`})}${button('mlist-down','',{kind:'icon sm',ic:'fa-arrow-down',disabled:i===d.shopIds.length-1,attrs:`data-index="${i}" aria-label="Move ${E(e.name)} down" ${tip('Move down')}`})}${button('mlist-remove','',{kind:'icon sm danger',ic:'fa-xmark',attrs:`data-index="${i}" aria-label="Take ${E(e.name)} off the list" ${tip('Take off the list')}`})}</div></li>`;}).join('');
  const left=[...index.values()].filter(e=>!d.shopIds.includes(e.id)).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
@@ -244,7 +244,7 @@ export async function handleLists(app,action,b,{render,root}){
    }
    const r=await setAllOpen(l.id,open);
    ui.notifications?.info(`${l.name}: ${r.changed.length} ${r.changed.length===1?'store':'stores'} ${open?'opened':'closed'}.`);
-   if(r.skipped.length)ui.notifications?.warn(`Not opened: ${r.skipped.map(x=>`${x.id} (${x.reason})`).join(', ')}.`);
+   if(r.skipped.length)ui.notifications?.warn(`Not opened: ${r.skipped.map(x=>`${entryState(l,x.id).name} (${x.reason})`).join(', ')}.`);
    break;
   }
   case 'mlist-save':{if(!d)return true;const l=await save({id:d.id??undefined,name:d.name,locationId:d.locationId,shopIds:d.shopIds});app.listDraft=null;app.listDirty=false;app.listStatus='';ui.notifications?.info(`Saved ${l.name}.`);break;}

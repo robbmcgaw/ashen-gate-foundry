@@ -78,11 +78,11 @@ function row(r){
  const [tone,ic,label]=BADGES[r.result]??BADGES.skipped;
  const skipped=r.lines?.skipped??[];
  // A trainer shop can have a dozen unresolved lines: more than three fold into one "not found" disclosure instead of a dozen rows of text.
- const long=skipped.length>3,why=[r.reason,...(long?[]:skipped.map(s=>`Line ${s.ref}: ${s.reason}`)),...(r.notes??[])].filter(Boolean);
- const fold=long?`<details class="ag-row__meta agu-import-skipped"><summary>${skipped.length} items not found in this world</summary><ul>${skipped.map(s=>`<li>${E(s.ref)}</li>`).join('')}</ul></details>`:'';
+ const long=skipped.length>3,why=[r.reason,...(long?[]:skipped.map(s=>s.reason)),...(r.notes??[])].filter(Boolean);
+ const fold=long?`<details class="ag-row__meta agu-import-skipped"><summary>${skipped.length} items not found in this world</summary><ul>${skipped.map((s,i)=>`<li>Item line ${i+1}</li>`).join('')}</ul></details>`:'';
  const lines=r.lines?`${r.lines.imported} ${r.lines.imported===1?'item':'items'}${r.lines.skipped.length?`, ${r.lines.skipped.length} not found`:''}`:'';
- return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(r.name||r.id)}</span><span class="ag-row__meta">${E([TYPE_LABEL[r.type]??'Record',lines].filter(Boolean).join(' · '))}</span>
- ${why.map(w=>`<span class="ag-row__meta">${E(w)}</span>`).join('')}${fold}</div><div class="ag-row__end"><span class="${['ag-badge',tone].filter(Boolean).join(' ')}">${icon(ic)} ${label}</span>${r.lines?.skipped.length&&r.result!=='skipped'?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${r.lines.skipped.length} ${r.lines.skipped.length===1?'line':'lines'} skipped</span>`:''}</div></li>`;
+ return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(r.name||'Unnamed record')}</span><span class="ag-row__meta">${E([TYPE_LABEL[r.type]??'Record',lines].filter(Boolean).join(' · '))}</span>
+ ${why.map(w=>`<span class="ag-row__meta">${E(w)}</span>`).join('')}${fold}${skipped.length?button('shop-import-copy-missing','Copy missing item ids',{kind:'ghost sm',ic:'fa-copy',attrs:'data-tooltip="Copies the ids of the items this world lacks, one per line"'}):''}</div><div class="ag-row__end"><span class="${['ag-badge',tone].filter(Boolean).join(' ')}">${icon(ic)} ${label}</span>${r.lines?.skipped.length&&r.result!=='skipped'?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${r.lines.skipped.length} ${r.lines.skipped.length===1?'line':'lines'} skipped</span>`:''}</div></li>`;
 }
 /** The preview pane shown in place of the Shops list while a file is open. */
 export function importView(app){
@@ -127,6 +127,11 @@ export async function handleImport(app,action,{render,root}){
    if(notes.length)ui.notifications?.warn(`Left out: ${notes.join(' ')}`);
    return true;
   }
+  case 'shop-import-copy-missing':{
+   gmOnly();const refs=(app.shopImport?.results??[]).flatMap(r=>(r.lines?.skipped??[]).map(s=>s.ref)).join('\n');
+   try{await navigator.clipboard.writeText(refs);ui.notifications?.info('Copied the missing item ids.');}catch{ui.notifications?.warn('Could not copy to the clipboard.');}
+   return true;
+  }
   case 'shop-import-cancel':app.shopImport=null;await render();return true;
   case 'shop-import-apply':{
    const st=app.shopImport;if(!st||st.busy)return true;
@@ -136,7 +141,7 @@ export async function handleImport(app,action,{render,root}){
     const n=k=>r.filter(x=>x.result===k).length,lines=r.reduce((t,x)=>t+(x.lines?.skipped.length??0),0);
     ui.notifications?.info(`Imported: ${n('created')} created, ${n('updated')} updated, ${n('kept')} kept, ${n('skipped')} skipped.${lines?` ${lines} ${lines===1?'line':'lines'} skipped (item not found).`:''}`);
     const bad=r.filter(x=>x.result==='skipped');
-    if(bad.length)ui.notifications?.warn(`Skipped: ${bad.map(x=>`${x.id} (${x.reason})`).join('; ')}`);
+    if(bad.length)ui.notifications?.warn(`Skipped: ${bad.map(x=>`${x.name||'Unnamed record'} (${x.reason})`).join('; ')}`);
     app.shopImport=null;
    }finally{if(app.shopImport)app.shopImport.busy=false;}
    await render();return true;

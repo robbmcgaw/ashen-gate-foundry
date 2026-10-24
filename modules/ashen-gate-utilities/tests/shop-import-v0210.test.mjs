@@ -61,13 +61,13 @@ test('refusals name the record and the line: ep while electrum is off, bad ids, 
  assert.equal(why([svcRec,svcRec]),'Duplicate id in this import.');
  assert.equal(why({...svcRec,service:{type:'tailor'}}),'Unknown service type: tailor.');
  assert.match(why({...svcRec,service:{type:'bank',settings:{fee_percent:60}}}),/0 to 50/);
- assert.match(why({...listRec,merchant_list:{shop_ids:['SHOP-TEST-TANNER','LOC-TEST-X']}}),/"LOC-TEST-X" is not a SHOP-\* or SVC-\* id/);
+ assert.match(why({...listRec,merchant_list:{shop_ids:['SHOP-TEST-TANNER','LOC-TEST-X']}}),/1 entry is not a SHOP-\* or SVC-\* id/);
  assert.equal(why(shopRec({shop:{...shopRec().shop,lines:[{price:{value:1,denomination:'gp'}}]}})),'line 1 needs item_id or item_uuid.');
  assert.equal(why(shopRec({shop:{...shopRec().shop,lines:[{item_id:'ITEM-TEST-LEATHER',stock:-1}]}})),'line 1: stock must be a whole number from 0 (leave it out for unlimited).');
  assert.equal(why(shopRec({shop:{...shopRec().shop,merchant_name:''}})),'shop.merchant_name is required.');
  assert.equal(why(shopRec({status:'retired'})),'Status retired: not imported.');
  assert.match(why(shopRec({shop:{...shopRec().shop,buys:{enabled:true,types:['container']}}})),/buys\.types: container/);
- assert.deepEqual(planShopImport([{...listRec,merchant_list:{shop_ids:['SHOP-TEST-ELSEWHERE']}}],{randomId}).results[0].notes,['SHOP-TEST-ELSEWHERE is not in this world or this file; the list shows it as missing.']);
+ assert.deepEqual(planShopImport([{...listRec,merchant_list:{shop_ids:['SHOP-TEST-ELSEWHERE']}}],{randomId}).results[0].notes,['1 entry is not in this world or this file; the list shows it as missing.']);
 });
 test('export: definitions only (starting stock and cash, never presented or stock left), whole-coin prices, lines without a ref named',()=>{
  assert.deepEqual([exportPrice(150,'gp'),exportPrice(1000,'gp'),exportPrice(20,'sp'),exportPrice(7,'gp')],[{value:15,denomination:'sp'},{value:10,denomination:'gp'},{value:2,denomination:'sp'},{value:7,denomination:'cp'}]);
@@ -78,7 +78,7 @@ test('export: definitions only (starting stock and cash, never presented or stoc
  assert.deepEqual(p.records[0].shop.lines,[{item_id:'ITEM-TEST-X',price:{value:15,denomination:'sp'},stock:4}]);
  assert.deepEqual(p.records[0].shop.purse,{cp:9,sp:0,gp:0,pp:0},'the starting cash, not the coins now');
  assert.equal(JSON.stringify(p).includes('presented'),false);
- assert.deepEqual(notes,['SHOP-TEST-A: [TEST] Loose has no item id or uuid, so it was left out.']);
+ assert.deepEqual(notes,['[TEST] A: [TEST] Loose has no item id or uuid, so it was left out.']);
 });
 
 // ---- Integration through main.mjs (storage, item lookup, GM only) ----
@@ -208,9 +208,9 @@ test('Import JSON preview: more than three missing items fold into one disclosur
   {id:'SHOP-TEST-TRAINER',type:'Shop',name:'[TEST] Trainer',result:'created',lines:{imported:1,skipped:refs},notes:[]},
   {id:'SHOP-TEST-SMALL',type:'Shop',name:'[TEST] Small',result:'created',lines:{imported:2,skipped:refs.slice(0,2)},notes:[]}]}};
  const html=imp.importView(app);
- assert.match(html,/<details class="ag-row__meta agu-import-skipped"><summary>5 items not found in this world<\/summary><ul><li>REC-A<\/li>/);
+ assert.match(html,/<details class="ag-row__meta agu-import-skipped"><summary>5 items not found in this world<\/summary><ul><li>Item line 1<\/li>/);
  assert.equal(html.match(/<details/g).length,1,'two missing items stay as plain lines');
- assert.match(html,/Line REC-A: Item not found in this world\./);
+ assert.match(html,/Item not found in this world\./);assert.doesNotMatch(html.replace(/ data-[a-z-]+="[^"]*"/g,''),/REC-/,'ids are not shown');assert.match(html,/data-action="shop-import-copy-missing"/);
  assert.match(html,/7 item lines name items that aren't in this world yet, so they are skipped\. Import the file's Items/);
  assert.doesNotMatch(html,/<code>|SHOP-TEST-TRAINER/);
  assert.doesNotMatch(imp.importView({shopImport:{fileName:'a.json',mode:'create',ignored:0,results:[{id:'SHOP-TEST-OK',type:'Shop',name:'[TEST] Ok',result:'created',lines:{imported:2,skipped:[]},notes:[]}]}}),/aren't in this world|isn't in this world/);
