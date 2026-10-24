@@ -58,8 +58,8 @@ test('Player Access off, or the Character Hub hiding quests, hides the tab and r
 test('GM New session from the tab, then a player writes, saves, and a conflict asks before replacing',async()=>{
  game.user=gm;app.tab='journal';await app.render();
  await app.journalAction('new',{dataset:{}},rootWith(''));
- assert.equal(journal.length,1);assert.equal(app.jv.sessionId,'SESSION-001');assert.equal(app.jv.renaming,'SESSION-001','rename opens for the new session');
- assert.match(app.lastHTML,/id="agq-jr-name"/);
+ assert.equal(journal.length,1);assert.equal(app.jv.sessionId,'SESSION-001');assert.equal(app.jv.renaming,null,'0.20.0: the name form no longer pops open at the top of the list by itself');
+ assert.doesNotMatch(app.lastHTML,/id="agq-jr-name"/);assert.match(app.lastHTML,/data-jaction="rename"/,'the pencil is there');
  const root={querySelector:sel=>({'#agq-jr-name':{value:'Market day'},'#agq-jr-subtitle':{value:'Ash and rain'}})[sel]??null};
  await app.journalAction('rename-save',{dataset:{id:'SESSION-001'}},root);
  assert.equal(journal[0].getFlag(MOD,'session').name,'Market day');assert.equal(app.jv.renaming,null);
