@@ -20,7 +20,7 @@ test('template checks: permanent NODE id, activity (Skinning & Harvesting is Hun
   assert.equal(activityLabel('hunting'),'Hunting');
   assert.equal(skillText('Skinning & Harvesting'),'Hunting','node labels say Hunting');assert.equal(skillText('nat'),'Nature');assert.equal(skillText('[TEST] Odd'),'[TEST] Odd');
   const bad=r=>checkTemplate(tpl(r)).errors.join(' | ');
-  assert.match(bad({id:'node-1'}),/permanent NODE-\* id/);
+  assert.match(bad({id:'node-1'}),/permanent id of capitals/);
   assert.match(bad({name:''}),/name is required/);
   assert.match(bad({activity:'dancing'}),/activity "dancing" must be one of mining, herbalism, hunting, fishing, archaeology/);
   assert.match(bad({tier:{min:3,max:1}}),/tier min 3 is above max 1/);
@@ -30,7 +30,7 @@ test('template checks: permanent NODE id, activity (Skinning & Harvesting is Hun
   assert.match(bad({materials:{common:[{materialId:'MAT-A',chance:60},{materialId:'MAT-B',chance:30}]}}),/add up to 90, not 100/);
   assert.match(bad({materials:{common:[{materialId:'MAT-A'},{materialId:'MAT-B',chance:50}]}}),/every entry needs a chance/);
   assert.match(bad({materials:{common:[{materialId:'MAT-A',chance:50},{materialId:'MAT-A',chance:50}]}}),/listed twice/);
-  assert.match(bad({materials:{common:[{materialId:'herb'}]}}),/not a MAT-\* id/);
+  assert.match(bad({materials:{common:[{materialId:'herb'}]}}),/not a valid material id/);
   assert.match(bad({materials:{common:[{materialId:'MAT-A'}],exotic:[{materialId:'MAT-X',mode:'designated'}]}}),/designated Exotic needs a chance/);
   assert.match(bad({materials:{rare:[{materialId:'MAT-A'}]}}),/rare table needs a common table/);
   const multi=checkTemplate(tpl({activity:'Hunting',professions:['Hunting','PROF-TG-HERBALISM'],check:{skill:'Survival',tool:'leatherworker'}}));
@@ -62,7 +62,7 @@ test('store: save, duplicate, delete; ids are permanent (a deleted id is never r
   let store=normalizeStore({});
   let r=saveTemplate(store,tpl(),{isNew:true,now:1});assert.equal(r.ok,true);store=r.store;
   assert.equal(store.nodes[0].meta.edited,true);
-  assert.match(saveTemplate(store,tpl(),{isNew:true}).errors[0],/already used/);
+  assert.match(saveTemplate(store,tpl(),{isNew:true}).errors[0],/already uses that id/);
   const dup=duplicateTemplate(store,'NODE-TEST-REEDS',{now:2});store=dup.store;
   assert.equal(dup.node.id,'NODE-TEST-REEDS-COPY');assert.equal(dup.node.name,'[TEST] River Reeds (copy)');
   assert.equal(duplicateTemplate(store,'NODE-TEST-REEDS').node.id,'NODE-TEST-REEDS-COPY-2');
@@ -137,7 +137,7 @@ test('a Location entry that refers to a template: template check and materials, 
   assert.deepEqual([n.label,n.tier,n.dc,n.materialId,n.rareMaterialId,n.quantity,n.finite,n.exhausted,n.templateId],['[TEST] River Reeds',2,14,'MAT-TG-HERB','MAT-TG-RARE',2,true,true,'NODE-TEST-REEDS']);
   const missing=normalizeNode(resolveEntry({id:'k7',nodeId:'NODE-TEST-GONE',label:'[TEST] Place',tier:1},()=>null),{locationId:'LOC-TG-HILL'});
   assert.equal(missing.gatherable,false);assert.equal(missing.label,'[TEST] Place');
-  assert.match(nodeBlocker(missing),/Node template NODE-TEST-GONE no longer exists: pick another node for this place in Locations/);
+  assert.match(nodeBlocker(missing),/The gathering node this place uses no longer exists: pick another node for it in Locations/);
   assert.doesNotMatch(nodeBlocker(missing,{forPlayer:true}),/NODE-/,'players never see ids');
   const pv=templatePlayerView(checkTemplate(tpl({dc:14,materials:{common:[{materialId:'MAT-TG-HERB'}],exotic:[{materialId:'MAT-TG-X'}]}})).node);
   assert.equal(pv.dc,undefined,'no DC unless shown');assert.equal(JSON.stringify(pv).includes('MAT-TG-X'),false,'no Exotic candidates');
@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.32.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.32.1',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -226,7 +226,7 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   // Location node at Ford Shallows with a draft material: the reason says draft, not "not in the world".
   app.gather.source='location';app.gather.nodeRef='LOC-TG-FORD|f1';app.gather.allowDraft=false;
   let h=await html('gathering');
-  assert.match(h,/Material MAT-TG-FISH is draft\/unreleased \(status: draft\): approve it in General Manager, or tick “Use draft materials anyway”/);
+  assert.match(h,/Material “Tg Fish” is draft\/unreleased \(status: draft\): approve it in General Manager, or tick “Use draft materials anyway”/);
   assert.match(h,/data-action="gather-start" disabled/);
   const node=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-FORD').nodes.find(n=>n.id==='f1');
   await assert.rejects(()=>_test.startGather({node,leadId:'belwar'}),/is draft\/unreleased/);
@@ -251,7 +251,7 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   assert.equal(qty('MAT-TG-FISH'),1);assert.equal(qty('MAT-TG-PEARL'),1);
   values.exoticChance=2;app.gather.adhoc.exotics=[];
   // A material that is not imported at all still says so, and "use anyway" does not cover it.
-  await assert.rejects(()=>api.gathering.start({node:{label:'x',skill:'Herbalism',tier:1,materialId:'MAT-TG-GONE'},leadId:'belwar',allowDraft:true}),/MAT-TG-GONE is not imported in this world/);
+  await assert.rejects(()=>api.gathering.start({node:{label:'x',skill:'Herbalism',tier:1,materialId:'MAT-TG-GONE'},leadId:'belwar',allowDraft:true}),/“Tg Gone” is not imported in this world/);
   assert.equal(_test.materialState('MAT-TG-GONE').state,'missing');assert.equal(_test.materialState('MAT-TG-FISH').state,'draft');
 });
 
@@ -327,7 +327,7 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   assert.match(lastConfirm.content,/1 Location entry points to this node: \[TEST\] Hill\. They are not changed or removed/);
   assert.match(lastConfirm.content,/copied from 1 Location entry \(\[TEST\] Ford Shallows\)/);
   const hill=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-HILL');
-  assert.equal(hill.nodes.length,1);assert.match(hill.nodes[0].blocked,/Node template NODE-TEST-BANK-GAME no longer exists/);
+  assert.equal(hill.nodes.length,1);assert.match(hill.nodes[0].blocked,/The gathering node this place uses no longer exists/);
   assert.equal(locs[1].resources[0].nodeId,'NODE-TEST-BANK-GAME','the Location record is untouched');
   await assert.rejects(()=>api.gathering.templates.create(tpl({id:'NODE-TEST-BANK-GAME',name:'[TEST] Reuse'})),/never reused/);
   // Import preview then apply; export.

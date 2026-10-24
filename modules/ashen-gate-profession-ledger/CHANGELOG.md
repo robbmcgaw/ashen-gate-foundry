@@ -1,3 +1,10 @@
+## 0.32.1 — 2026-10-24
+
+- **Fix: ids are no longer shown anywhere in the Ledger.** The GM's recipe rows showed the raw recipe id (for example `REC-ALCHEMY-FIELD-01`) under each recipe, and several GM screens and messages named materials, nodes and results by id. Rows, node cards, the node editor heading, the node import preview, the Node test list, option lists, notifications, confirmation text and error messages now use the item's name (or a neutral label such as "This material"). Search still finds things by id; it just doesn't display it.
+- **No machine text either.** The Ledger does not print refs or relation names (such as `also_available_as_journal`), entity type names or raw status/visibility values; GM badges already use plain labels ("GM-only source", "Reveal gated"), and a test now checks every main view for this.
+- **Where the GM can still reach an id:** only in the gathering node editor, in a closed **Details** fold (the id field, editable only while creating a node).
+- **Saved data:** none changed; ids, flags, APIs and export formats are as before.
+
 ## 0.32.0 — 2026-10-24
 
 - **Recipe cards are easier to read, everywhere recipes are listed** (Individual, Party, Recipe Catalog, the Tidy5e Professions tab and the Character Hub embed). Each card now reads: name with its tier and effort badges, then **Needs** (each material with its quantity) leading to **Makes** (the result), then the **Tool** or **Station** it needs, then the description and effect in a quieter style, then who knows it. Activities (no materials, no result) show **Uses**, **Station** and **Effect** in the same style. The GM-only line of internal recipe ids under each card is gone.

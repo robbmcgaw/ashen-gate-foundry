@@ -12,6 +12,9 @@
 /* Shared text helpers */
 .agl-sub,.agl-reason,.agl-recipe-meta{font-size:var(--ag-text-sm);color:var(--ag-muted);margin:0}
 .agl-id{font-size:var(--ag-text-xs);color:var(--ag-muted);font-family:var(--ag-font-mono)}
+.agl-id-details{font-size:var(--ag-text-xs);color:var(--ag-muted)}
+.agl-id-details summary{cursor:pointer}
+.agl-id-details code{font-family:var(--ag-font-mono);user-select:all}
 .agl-label{display:block;font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.07em;color:var(--ag-muted);margin-bottom:var(--ag-space-1)}
 .agl-who{display:inline-flex;align-items:center;gap:var(--ag-space-2)}
 .agl-avatar{width:var(--ag-icon-chip);height:var(--ag-icon-chip);border-radius:50%;flex:none;border:1px solid var(--ag-border);object-fit:cover;display:inline-grid;place-items:center;background:var(--ag-surface-sunken);color:var(--ag-text)}

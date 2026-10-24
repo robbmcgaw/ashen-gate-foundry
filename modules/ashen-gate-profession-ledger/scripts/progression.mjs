@@ -26,10 +26,10 @@ export function validateProgressState(state){
  if(!state||typeof state!=='object'||Array.isArray(state))throw Error('Invalid Actor Profession progress');
  if(state.schema!==PROGRESSION_SCHEMA||!state.professions||typeof state.professions!=='object'||Array.isArray(state.professions))throw Error('Unsupported Actor progress format');
  for(const [id,row] of Object.entries(state.professions)){
-  if(!validId(id,'PROF')||!row||!validXp(row.xp)||!Array.isArray(row.selectedPerkIds)||!row.selectedPerkIds.every(x=>validId(x,'PERK')))throw Error(`Invalid Profession progress entry ${id}`);
-  if(new Set(row.selectedPerkIds).size!==row.selectedPerkIds.length)throw Error(`Duplicate perk selection on ${id}`);
+  if(!validId(id,'PROF')||!row||!validXp(row.xp)||!Array.isArray(row.selectedPerkIds)||!row.selectedPerkIds.every(x=>validId(x,'PERK')))throw Error('Invalid profession progress entry');
+  if(new Set(row.selectedPerkIds).size!==row.selectedPerkIds.length)throw Error('Duplicate perk selection on a profession');
   // Perks held beyond the current level are allowed: the GM may lower XP, and held perks are kept and flagged (see perksBeyondLevel).
-  if(row.history!==undefined&&(!Array.isArray(row.history)||!row.history.every(h=>h&&typeof h==='object'&&!Array.isArray(h))))throw Error(`Invalid XP history on ${id}`);
+  if(row.history!==undefined&&(!Array.isArray(row.history)||!row.history.every(h=>h&&typeof h==='object'&&!Array.isArray(h))))throw Error('Invalid XP history on a profession');
  }
  return state;
 }
@@ -62,7 +62,7 @@ export function xpHistoryOf(actor,profId){
  return structuredClone(raw.professions[profId]?.history??[]);
 }
 export function nextProgress(state,profId,points,entry=null){
- if(!validId(profId,'PROF'))throw Error('An imported PROF-* Item is required');
+ if(!validId(profId,'PROF'))throw Error('An imported profession is required');
  if(!Number.isSafeInteger(points)||points<=0)throw Error('XP award must be a positive whole number');
  const current=state??emptyProgress();validateProgressState(current);
  const row=current.professions[profId]??{xp:0,selectedPerkIds:[]};
@@ -75,7 +75,7 @@ export function nextProgress(state,profId,points,entry=null){
  * Perks are never touched. Returns the new state plus what the change takes away so the GM can be told.
  */
 export function adjustProgress(state,profId,{delta=null,set=null,entry=null,recipes=[]}={}){
- if(!validId(profId,'PROF'))throw Error('An imported PROF-* Item is required');
+ if(!validId(profId,'PROF'))throw Error('An imported profession is required');
  if((delta===null)===(set===null))throw Error('Give either a change amount or a Set to value');
  const value=delta===null?set:delta;
  if(!Number.isSafeInteger(value)||(delta===null&&value<0))throw Error(delta===null?'Set to must be a whole number, 0 or more':'XP change must be a whole number');
@@ -100,7 +100,7 @@ export function knownRecipesOf(actor){
  return Array.isArray(raw)?[...new Set(raw.filter(id=>validId(id,'REC')))]:[];
 }
 export function canLearnRecipe(actor,item,sourceId,checkVisible=true){
- if(!validId(sourceId,'REC'))return {ok:false,reason:'A permanent REC-* source ID is required'};
+ if(!validId(sourceId,'REC'))return {ok:false,reason:'This recipe has no permanent source record yet'};
  if(knownRecipesOf(actor).includes(sourceId))return {ok:false,reason:'Recipe already learned'};
  if(!item||!Array.from(actor?.items??[]).some(i=>i.id===item.id))return {ok:false,reason:'Recipe Item must be owned by this Actor'};
  const qty=Number(item.system?.quantity??0);
