@@ -1,3 +1,9 @@
+## 0.31.5 — 2026-10-24
+
+- **Fix: ids are no longer shown anywhere in the Ledger.** The GM's recipe rows showed the raw recipe id (for example `REC-ALCHEMY-FIELD-01`) under each recipe, and several GM screens and messages named materials, nodes and results by id. Rows, node cards, the node editor heading, the node import preview, the Node test list, option lists, notifications, confirmation text and error messages now use the item's name (or a neutral label such as "This material"). Search still finds things by id; it just doesn't display it.
+- **Where the GM can still reach an id:** a closed **Details** fold on each recipe row, and a **Details** fold in the gathering node editor (the id field, editable only while creating a node).
+- **Saved data:** none changed; ids, flags, APIs and export formats are as before.
+
 ## 0.31.4 — 2026-10-24
 
 - **Fix: starting recipes no longer say "Not found by the party yet".** A character's own recipe list (Individual tab and the sheet tab) never told the GM who knew a recipe, so every recipe they knew, starting recipes included, was marked "Not found by the party yet". Those rows now show **Known by <name>**, and a recipe item the character holds shows as found by them. Party and Recipe Catalog already counted these correctly. Recipes nobody knows or holds still show "Not found by the party yet". Crafting availability is unchanged.

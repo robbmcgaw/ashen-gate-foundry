@@ -79,7 +79,7 @@ const text=(v,max)=>String(v??'').replace(/\s+/g,' ').trim().slice(0,max);
 function tableEntry(raw,where,errors){
   const e=raw&&typeof raw==='object'?raw:{};
   const materialId=String(e.materialId??e.material_id??'').trim();
-  if(!MAT.test(materialId)){errors.push(`${where}: materialId ${JSON.stringify(materialId||null)} is not a MAT-* id.`);return null;}
+  if(!MAT.test(materialId)){errors.push(`${where}: a material is missing or not a valid material id.`);return null;}
   let quantity=1;
   if(e.quantity!==undefined&&e.quantity!==''){quantity=int(e.quantity,1,MAX_QTY);if(quantity==null){errors.push(`${where}: quantity must be a whole number 1–${MAX_QTY}.`);quantity=1;}}
   let chance=null;
@@ -90,7 +90,7 @@ function tableEntry(raw,where,errors){
 function exoticEntry(raw,where,errors){
   const e=raw&&typeof raw==='object'?raw:{};
   const materialId=String(e.materialId??e.material_id??'').trim();
-  if(!MAT.test(materialId)){errors.push(`${where}: materialId ${JSON.stringify(materialId||null)} is not a MAT-* id.`);return null;}
+  if(!MAT.test(materialId)){errors.push(`${where}: a material is missing or not a valid material id.`);return null;}
   const mode=e.mode==null||e.mode===''?'discovery':String(e.mode);
   if(!['discovery','designated'].includes(mode)){errors.push(`${where}: mode must be "discovery" or "designated".`);return null;}
   if(mode==='discovery')return {materialId,mode};
@@ -107,7 +107,7 @@ function checkTable(list,where,errors){
     else{const sum=list.reduce((n,e)=>n+e.chance,0);if(sum!==100)errors.push(`${where}: chances add up to ${sum}, not 100.`);}
   }
   const seen=new Set();
-  for(const e of list){if(seen.has(e.materialId))errors.push(`${where}: ${e.materialId} is listed twice.`);seen.add(e.materialId);}
+  for(const e of list){if(seen.has(e.materialId))errors.push(`${where}: the same material is listed twice.`);seen.add(e.materialId);}
 }
 
 /**
@@ -119,8 +119,9 @@ export function checkTemplate(raw,{where=''}={}){
   const r=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:null;
   if(!r)return {node:null,errors:[`${where||'Node'}: must be an object.`],warnings};
   const id=String(r.id??'').trim();
-  const at=where||id||'Node';
-  if(!NODE_ID.test(id))errors.push(`${at}: id ${JSON.stringify(id||null)} must be a permanent NODE-* id (capitals, digits and hyphens).`);
+  const nameForMessages=text(r.name,80);
+  const at=where||(nameForMessages?`“${nameForMessages}”`:'This node');
+  if(!NODE_ID.test(id))errors.push(`${at}: the id must be a permanent id of capitals, digits and hyphens (leave it blank in the editor to make one from the name).`);
   const name=text(r.name,80);
   if(!name)errors.push(`${at}: name is required.`);
   const activity=activityOf(r.activity);
@@ -152,7 +153,7 @@ export function checkTemplate(raw,{where=''}={}){
     if(list.length>MAX_TABLE)errors.push(`${at}: materials.${t} has more than ${MAX_TABLE} entries.`);
     materials[t]=list.slice(0,MAX_TABLE).map((e,i)=>(t==='exotic'?exoticEntry:tableEntry)(e,`${at} materials.${t}[${i}]`,errors)).filter(Boolean);
     if(t!=='exotic')checkTable(materials[t],`${at} materials.${t}`,errors);
-    else{const seen=new Set();for(const e of materials[t]){if(seen.has(e.materialId))errors.push(`${at} materials.exotic: ${e.materialId} is listed twice.`);seen.add(e.materialId);}}
+    else{const seen=new Set();for(const e of materials[t]){if(seen.has(e.materialId))errors.push(`${at} materials.exotic: the same material is listed twice.`);seen.add(e.materialId);}}
   }
   if(!materials.common.length)warnings.push(`${at}: no common material, so the GM awards this node by hand.`);
   if(materials.rare.length&&!materials.common.length)errors.push(`${at}: a rare table needs a common table too.`);
@@ -210,9 +211,9 @@ export function saveTemplate(store,raw,{isNew=false,now=Date.now()}={}){
   const {node,errors,warnings}=checkTemplate(raw);
   if(errors.length)return {ok:false,errors,warnings,store};
   const existing=store.nodes.find(n=>n.id===node.id);
-  if(isNew&&existing)return {ok:false,errors:[`${node.id} is already used by “${existing.name}”. Choose another id.`],warnings,store};
-  if(isNew&&store.retiredIds.includes(node.id))return {ok:false,errors:[`${node.id} belonged to a deleted node; ids are never reused. Choose another id.`],warnings,store};
-  if(!isNew&&!existing)return {ok:false,errors:[`No node ${node.id} to update.`],warnings,store};
+  if(isNew&&existing)return {ok:false,errors:[`Another node, “${existing.name}”, already uses that id. Choose another id.`],warnings,store};
+  if(isNew&&store.retiredIds.includes(node.id))return {ok:false,errors:[`That id belonged to a deleted node; ids are never reused. Choose another id.`],warnings,store};
+  if(!isNew&&!existing)return {ok:false,errors:['That node no longer exists, so it cannot be updated.'],warnings,store};
   const meta=existing?{...existing.meta,edited:true,updatedAt:now}:{origin:'gm',edited:true,createdAt:now,updatedAt:now,legacy:[]};
   const next={...store,nodes:[...store.nodes.filter(n=>n.id!==node.id),{...node,meta,problems:[]}].sort((a,b)=>a.name.localeCompare(b.name))};
   return {ok:true,errors:[],warnings,store:next,node:next.nodes.find(n=>n.id===node.id)};
@@ -220,7 +221,7 @@ export function saveTemplate(store,raw,{isNew=false,now=Date.now()}={}){
 /** A copy with a new id (<ID>-COPY, -COPY-2, …) and "(copy)" in the name; it is the GM's own, with no Location history. */
 export function duplicateTemplate(store,id,{now=Date.now()}={}){
   const src=store.nodes.find(n=>n.id===id);
-  if(!src)throw Error(`No node ${id}`);
+  if(!src)throw Error('That gathering node no longer exists');
   const taken=takenIds(store);
   let copyId=`${id}-COPY`;
   for(let n=2;taken.has(copyId);n++)copyId=`${id}-COPY-${n}`;
@@ -229,7 +230,7 @@ export function duplicateTemplate(store,id,{now=Date.now()}={}){
 }
 /** Deletes a template; its id is retired (never reused). Location history links stay, so a copy run never re-creates it. */
 export function removeTemplate(store,id){
-  if(!store.nodes.some(n=>n.id===id))throw Error(`No node ${id}`);
+  if(!store.nodes.some(n=>n.id===id))throw Error('That gathering node no longer exists');
   return {...store,nodes:store.nodes.filter(n=>n.id!==id),retiredIds:[...new Set([...store.retiredIds,id])]};
 }
 
@@ -274,7 +275,7 @@ export function resolveEntry(entry,templateOf){
   if(!id)return entry;
   const t=templateOf(id);
   if(!t)return {...entry,templateId:id,missingTemplate:id,materialId:'',rareMaterialId:'',exotics:[],
-    note:`Node template ${id} no longer exists: pick another node for this place in Locations.`};
+    note:'The gathering node this place uses no longer exists: pick another node for it in Locations.'};
   const base=templateNode(t,{tier:entry.tier,id:entry.id??entry.key});
   const own=k=>entry[k]!==undefined&&entry[k]!==null&&entry[k]!=='';
   return {...base,...(own('label')?{label:entry.label}:{}),...(own('dc')?{dc:entry.dc}:{}),...(own('dcVisible')?{dcVisible:entry.dcVisible}:{}),
@@ -298,9 +299,9 @@ export function parseNodeFile(data){
   if(data.nodes.length>MAX_NODES)errors.push(`At most ${MAX_NODES} nodes in one file.`);
   const nodes=[],seen=new Set();
   data.nodes.forEach((raw,i)=>{
-    const r=checkTemplate(raw,{where:`nodes[${i}]${raw?.id?` ${raw.id}`:''}`});
+    const r=checkTemplate(raw,{where:`nodes[${i}]${raw?.name?` “${text(raw.name,80)}”`:''}`});
     errors.push(...r.errors);warnings.push(...r.warnings);
-    if(r.node){if(seen.has(r.node.id))errors.push(`${r.node.id}: id is used twice in this file.`);seen.add(r.node.id);nodes.push(r.node);}
+    if(r.node){if(seen.has(r.node.id))errors.push(`“${r.node.name}”: its id is used twice in this file.`);seen.add(r.node.id);nodes.push(r.node);}
   });
   return {nodes,errors,warnings};
 }
@@ -379,7 +380,7 @@ export function migrateLocationNodes(store,locations,{now=Date.now(),by='',locat
       const same=!ownId?byShape.get(shapeKey(draft)):null;
       if(same){same.meta={...same.meta,legacy:[...same.meta.legacy,legacy]};migrated.push([key,same.id]);done.add(key);linked++;continue;}
       const t={...draft,meta:{origin:'migration',edited:false,createdAt:now,updatedAt:now,legacy:[legacy]},
-        problems:draft.activity?[]:[`${draft.id}: no activity (the Location skill was not a gathering profession): set one in the editor.`]};
+        problems:draft.activity?[]:[`“${draft.name}”: no activity (the Location skill was not a gathering profession): set one in the editor.`]};
       taken.add(t.id);nodes.push(t);byShape.set(shapeKey(t),t);migrated.push([key,t.id]);done.add(key);created.push(t.id);
     }
   }

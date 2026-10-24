@@ -22,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.4';
+const VERSION='0.31.5';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -100,6 +100,9 @@ const userById=id=>game.users?.get?.(id)??allUsers().find(u=>u.id===id)??null;
 const newId=()=>foundry.utils.randomID?.()??Math.random().toString(36).slice(2,18);
 /** Canonical IDs are never shown to players; this is the last-resort readable label. */
 const humanizeId=id=>String(id??'').replace(/^[A-Z]+-/,'').split('-').map(w=>w.charAt(0)+w.slice(1).toLowerCase()).join(' ');
+/** GM-only "Details" fold on a row: the permanent id for the rare time it is needed (select it to copy). Players get nothing, and no
+ * other view shows an id. */
+const idDetails=(label,id)=>game.user?.isGM&&id?`<details class="agl-details agl-id-details"><summary>Details</summary><p class="agl-sub">${esc(label)} id: <code>${esc(id)}</code></p></details>`:'';
 const looksLikeId=value=>/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(String(value??''));
 const recipeTitle=name=>String(name??'').replace(/^Recipe\s*:\s*/i,'');
 const modeSelect=(mode,attrs='name="mode"')=>`<select ${attrs}>${['1','0','-1'].map(m=>`<option value="${m}" ${String(mode)===m?'selected':''}>${MODE_LABELS[m]}</option>`).join('')}</select>`;
@@ -201,7 +204,7 @@ const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.
 async function awardXP(actor,profId,points,extra={}){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
   playable(actor);
-  if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
+  if(!actor||!linkedProfession(actor,profId))throw Error('The character must hold the matching imported profession');
   const key=`${actor.id}:${profId}`;
   if(xpLocks.has(key))throw Error('Profession XP award already in progress');
   xpLocks.add(key);
@@ -237,7 +240,7 @@ function dependentsText(plan,name,actor=null,profId=null){
 async function adjustXP(actor,profId,{delta=null,set=null,reason='',messageId=null,kind=null}={}){
   if(!game.user.isGM)throw Error('Only the GM can adjust Profession XP');
   playable(actor);
-  if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
+  if(!actor||!linkedProfession(actor,profId))throw Error('The character must hold the matching imported profession');
   const key=`${actor.id}:${profId}`;
   if(xpLocks.has(key))throw Error('Profession XP change already in progress');
   xpLocks.add(key);
@@ -977,13 +980,13 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     </div>
     <div class="agl-recipe-body">
       ${activity?(gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''):`<div><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
-      <div><span class="agl-label">Makes</span> ${result?esc(result.name):`<span class="agl-reason">${gm&&recipe.resultItemId?`Result item ${esc(recipe.resultItemId)} is not imported`:'Not available yet'}</span>`}${gp?` <small class="agl-sub">· also costs ${gp} gp (not deducted automatically)</small>`:''}</div>`}
+      <div><span class="agl-label">Makes</span> ${result?esc(result.name):`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported':'Not available yet'}</span>`}${gp?` <small class="agl-sub">· also costs ${gp} gp (not deducted automatically)</small>`:''}</div>`}
       ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
     </div>
     ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
     ${effectNoteHtml(recipe)}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
-    ${gm?`<small class="agl-id">${esc(recipe.id)}</small>`:''}
+    ${gm?idDetails('Recipe',recipe.id):''}
   </article>`;
 }
 function learnControl(actor,item,{available=true}={}){
@@ -1439,7 +1442,7 @@ function materialOptions(selected,{blank='',quality=null}={}){
   const kind=m=>[m.quality,m.tier!=null?`Tier ${m.tier}`:''].filter(Boolean).join(' ');
   const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${!quality&&kind(m)?` · ${esc(kind(m))}`:''}${m.state==='ok'?'':` — ${esc(draftText(m))}`}</option>`;
   const released=list.filter(m=>m.state==='ok'),drafts=list.filter(m=>m.state!=='ok');
-  return `${blank?`<option value="">${esc(blank)}</option>`:''}${selected&&!list.some(m=>m.id===selected)?`<option value="${esc(selected)}" selected>${esc(selected)} — ${esc(materialState(selected).state==='missing'?'not imported':materialState(selected).state)}</option>`:''}${released.length?`<optgroup label="Released">${released.map(opt).join('')}</optgroup>`:''}${drafts.length?`<optgroup label="Draft / unreleased (GM only)">${drafts.map(opt).join('')}</optgroup>`:''}`;
+  return `${blank?`<option value="">${esc(blank)}</option>`:''}${selected&&!list.some(m=>m.id===selected)?`<option value="${esc(selected)}" selected>${esc(humanizeId(selected))} — ${esc(materialState(selected).state==='missing'?'not imported':materialState(selected).state)}</option>`:''}${released.length?`<optgroup label="Released">${released.map(opt).join('')}</optgroup>`:''}${drafts.length?`<optgroup label="Draft / unreleased (GM only)">${drafts.map(opt).join('')}</optgroup>`:''}`;
 }
 /** GM badge beside a chosen material: nothing when it is released; "Draft", "Unreleased" or "Not imported" otherwise. */
 function materialBadge(id){
@@ -1452,7 +1455,7 @@ function materialBadge(id){
 /** GM: the first material problem of a node (its common table), as startBlocker/nodeBlocker options. */
 function nodeMaterialCheck(node,allowDraft=false){
   const ids=[...new Set([node?.materialId,...(node?.tables?.common??[]).map(e=>e.materialId)].filter(Boolean))];
-  for(const id of ids){const s=materialState(id);if(s.state!=='ok'&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,allowDraft};}
+  for(const id of ids){const s=materialState(id);if(s.state!=='ok'&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,materialName:materialName(id),allowDraft};}
   return {materialFound:true,materialState:'ok',allowDraft};
 }
 /** A skip reason with the specific Manager fix when the material is not awardable. */
@@ -1470,7 +1473,7 @@ const exoticPercent=()=>clampPercent(game.settings.get(ID,EXOTIC_SETTING));
 const requireGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can read Exotic gathering setup');};
 /** Test seam: a scripted d100 for the Node suite. Production uses Foundry's dice RNG. */
 let exoticRoll=defaultRoll;
-const materialName=id=>worldMaterial(id)?.name??(game.user.isGM?id:humanizeId(id));
+const materialName=id=>worldMaterial(id)?.name??humanizeId(id);
 const refreshLedger=()=>{if(current?.rendered)current.render();};
 const nodeBusy=key=>[...gatherSessions.values()].some(s=>s.node.key===key)||[...gatherRequests.values()].some(r=>r.node.key===key);
 const closeGatherDialogs=prefix=>{for(const [key,dialog] of gatherDialogs)if(key.startsWith(prefix)){gatherDialogs.delete(key);dialog?.close?.();}};
@@ -1486,10 +1489,10 @@ function gatherLocations(){
     const templates=gm?new Map(safeNodeStore().nodes.map(t=>[t.id,t])):new Map();
     const locations=(api.listLocations()??[]).map(loc=>{
       const revealed=gm?loc?.revealed===true:true;
-      const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(gm?resolveEntry(entry,id=>templates.get(id)):entry,{locationId:loc.id,locationName:loc.name??loc.id,locationRevealed:revealed,index}))
+      const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(gm?resolveEntry(entry,id=>templates.get(id)):entry,{locationId:loc.id,locationName:loc.name??'Unnamed location',locationRevealed:revealed,index}))
         .filter(n=>n&&(gm||n.visible)).map(n=>gm?n:{...n,exotics:[]}).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
         .map(n=>({...n,blocked:nodeBlocker(n,gm?nodeMaterialCheck(n):{forPlayer:true})}));
-      return {id:loc.id,name:String(loc.name??loc.id),revealed,nodes};
+      return {id:loc.id,name:String(loc.name??'Unnamed location'),revealed,nodes};
     }).filter(l=>l.nodes.length).sort((a,b)=>a.name.localeCompare(b.name));
     return {ok:true,locations};
   }catch(err){return {ok:false,reason:err.message,locations:[]};}
@@ -1603,7 +1606,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
     if(reward){
       let item=awardMaterial(reward.materialId,session.allowDraft);
       if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=awardMaterial(node.materialId,session.allowDraft);}
-      if(!item)throw Error(materialUnavailable(reward.materialId)?`${reward.materialId}: ${materialUnavailable(reward.materialId)}`:`The material ${reward.materialId} is not an imported, player-visible world material`);
+      if(!item)throw Error(materialUnavailable(reward.materialId)?`${materialName(reward.materialId)}: ${materialUnavailable(reward.materialId)}`:`The material “${materialName(reward.materialId)}” is not an imported, player-visible world material`);
       award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity,quality:reward.rare?'rare':'common'};
     }
   }catch(err){session.status='rolling';throw err;}
@@ -1613,7 +1616,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
     try{
       if(!item)throw Error('not an imported, player-visible world material');
       exoticAward={...await stackMaterial(lead,item,1,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:1,materialId:exotic.materialId};
-    }catch(err){console.warn(`[${ID}] Exotic ${exotic.materialId} could not be given`,err);exoticNote=`Exotic ${item?.name??exotic.materialId} was found but could not be given (${err.message}). Give it by hand.`;}
+    }catch(err){console.warn(`[${ID}] Exotic ${exotic.materialId} could not be given`,err);exoticNote=`Exotic ${item?.name??materialName(exotic.materialId)} was found but could not be given (${err.message}). Give it by hand.`;}
   }
   gatherSessions.delete(sessionId);
   let exhausted=null;
@@ -1640,7 +1643,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   if(skipped.length){
     // GM-only: a configured candidate that could not be found this time, and why. Players never get this.
     const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
-    const text=skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??x.materialId} skipped: ${x.reason}.`).join(' ');
+    const text=skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??materialName(x.materialId)} skipped: ${x.reason}.`).join(' ');
     exoticNote=exoticNote?`${exoticNote} ${text}`:text;
   }
   if(exoticNote){
@@ -1844,7 +1847,7 @@ const nodeTemplate=id=>safeNodeStore().nodes.find(t=>t.id===id)??null;
 function locationRecords(){
   const api=locationsApi();
   if(typeof api?.listLocations!=='function'||typeof api?.resourcesAt!=='function')return null;
-  try{return (api.listLocations()??[]).map(l=>({id:l.id,name:String(l.name??l.id),resources:api.resourcesAt(l.id)??[]}));}
+  try{return (api.listLocations()??[]).map(l=>({id:l.id,name:String(l.name??'Unnamed location'),resources:api.resourcesAt(l.id)??[]}));}
   catch(err){console.warn(`[${ID}] Locations records unavailable`,err);return null;}
 }
 /** GM: where a template is used (see nodes.mjs templateReferences). */
@@ -2008,7 +2011,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     const blank=v=>v===null||v===undefined||String(v).trim()==='';
     if(blank(delta)===blank(set))throw Error('Enter either an XP change (+ or −) or a Set to value, not both');
     const d=blank(delta)?null:Number(delta),st=blank(set)?null:Number(set);
-    if(!linkedProfession(actor,id))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
+    if(!linkedProfession(actor,id))throw Error('The character must hold the matching imported profession');
     const name=professionsOf(actor).find(p=>p.sourceId===id)?.name??humanizeId(id);
     const plan=adjustProgress(actor.flags?.[ID]?.professionProgress??emptyProgress(),id,{delta:d,set:st,recipes:professionRecipes(actor,id)});
     if(plan.xp===plan.from)throw Error(`${actor.name}'s ${name} XP is already ${plan.from}${plan.clamped?` (limits are 0 and ${XP_CAP})`:''}`);
@@ -2035,7 +2038,7 @@ function templateLine(t){
 }
 /** The template's material tables, each material with its draft/not-imported badge (GM only). */
 function templateMaterialsHtml(t){
-  const name=id=>esc(gmMaterialChoices().find(m=>m.id===id)?.name??id);
+  const name=id=>esc(gmMaterialChoices().find(m=>m.id===id)?.name??humanizeId(id));
   const part=(label,list,fmt)=>list.length?`<span>${label}: ${list.map(e=>`${fmt(e)} ${materialBadge(e.materialId)}`).join(', ')}</span>`:'';
   const qty=e=>`${e.quantity} × ${name(e.materialId)}${e.chance!=null&&e.chance!==100?` (${e.chance}%)`:''}`;
   const parts=[part('Common',t.materials.common,qty),part('Rare',t.materials.rare,qty),
@@ -2464,7 +2467,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const where=[used.length?badge(`Used by ${plural(used.length,'Location entry','Location entries')}`,'ok'):'',from.length?`<span ${tip(from.map(r=>r.locationName).join(', '))}>${badge(`Copied from ${plural(from.length,'Location entry','Location entries')}`)}</span>`:'',
       t.meta.origin==='import'&&!t.meta.edited?badge('Imported'):'',t.meta.edited&&t.meta.origin!=='gm'?badge('Edited here'):''].filter(Boolean).join(' ');
     return `<article class="ag-card agl-recipe-row agl-node-card" data-recipe-search="${esc(search)}">
-      <div class="agl-recipe-head"><div class="agl-recipe-title"><strong>${esc(t.name)}</strong> <code>${esc(t.id)}</code>
+      <div class="agl-recipe-head"><div class="agl-recipe-title"><strong>${esc(t.name)}</strong>
         <span class="agl-recipe-meta">${esc(templateLine(t))}</span><span class="agl-recipe-meta">${templateMaterialsHtml(t)}</span>${t.note?`<span class="agl-recipe-meta">${esc(t.note)}</span>`:''}
         ${t.problems?.length?`<span class="agl-reason">${esc(t.problems.join(' '))}</span>`:''}</div>
         <div class="agl-recipe-actions">${where}<button type="button" class="ag-btn ag-btn--sm" data-action="node-edit" data-id="${esc(t.id)}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>
@@ -2494,12 +2497,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="node-row-add" data-id="${t}"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add ${t} material</button></div></fieldset>`).join('');
     const used=[...new Set(TABLES.flatMap(t=>d[t].map(e=>e.materialId)).filter(Boolean))];
     const test=used.length?`<ul class="ag-rows">${used.map(id=>{const s=materialState(id),m=gmMaterialChoices().find(x=>x.id===id);
-      return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??id)}</span><span class="ag-row__meta">${esc(id)}${s.state==='ok'?'':` · ${esc(materialUnavailable(id))}`}</span></span><span class="ag-row__end">${s.state==='ok'?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
+      return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??humanizeId(id))}</span><span class="ag-row__meta">${s.state==='ok'?'Can be awarded':esc(materialUnavailable(id))}</span></span><span class="ag-row__end">${s.state==='ok'?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
       :'<p class="agl-sub">No materials yet.</p>';
     // Basics, Check and Materials open; Node test closed (each remembered per user once toggled). No fold inside a fold.
     const basics=`<div class="agl-gather-form">
         <label class="ag-field">Name<input data-node-field="name" maxlength="80" value="${esc(d.name)}" placeholder="e.g. [TEST] River reeds"></label>
-        <label class="ag-field">Id (permanent)${isNew?`<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="${esc(d.name?nodeIdFromName(d.name,taken):'NODE-… (made from the name)')}">`:`<input value="${esc(d.id)}" readonly aria-readonly="true">`}</label>
         <label class="ag-field">Activity${sel('activity',[['','Choose…'],...ACTIVITY_KEYS.map(k=>[k,activityLabel(k)])],d.activity)}</label>
         <fieldset class="agl-gather-eligible"><legend>Gathering professions</legend>${NODE_PROFESSIONS.map(k=>`<label><input type="checkbox" data-node-prof="${k}" ${d.professions.includes(k)?'checked':''}> ${esc(professionTitle(k))}</label>`).join('')}
           <span class="agl-sub">None ticked: the activity’s profession. The first one the lead has gives the XP.</span></fieldset>
@@ -2508,6 +2510,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="finite" ${d.finite?'checked':''}> Finite: used up when gathered at a Location</label>
         <label class="ag-field">Note (GM)<input data-node-field="note" maxlength="500" value="${esc(d.note)}"></label>
       </div>`;
+    // 0.31.5: the permanent id lives in a closed Details fold (GM only), never in the main form.
+    const details=`<div class="agl-gather-form"><label class="ag-field">Id (permanent)${isNew?`<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="Made from the name if left blank">`:`<input value="${esc(d.id)}" readonly aria-readonly="true">`}</label>
+        <span class="agl-sub">${isNew?'Leave this blank to make an id from the name. It cannot be changed after saving.':'The id cannot be changed.'}</span></div>`;
     const check=`<div class="agl-gather-form">
         <label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-node-field="dc" value="${esc(d.dc)}" placeholder="Default for the tier (${Object.values(DEFAULT_DC_BY_TIER).join('/')})"></label>
         <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="dcVisible" ${d.dcVisible?'checked':''}> Players see the DC</label>
@@ -2515,11 +2520,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Check tool${sel('checkTool',[['','The profession’s (GM Setup)'],...toolKeys().map(k=>[k,toolLabel(k)])],d.checkTool)}</label>
       </div>`;
     const count=TABLES.reduce((n,t)=>n+d[t].filter(e=>e.materialId).length,0);
-    return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||d.id)}`}</h2>
+    return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||'gathering node')}`}</h2>
       ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
       ${fold({key:'node-basics',title:'Basics',open:true,body:basics})}
       ${fold({key:'node-check',title:'Check',open:true,body:check})}
       ${fold({key:'node-materials',title:'Materials',count,open:true,body:tables})}
+      ${fold({key:'node-details',title:'Details',body:details})}
       ${fold({key:'node-test',title:'Node test',hint:'can each material be awarded now?',body:`<p class="agl-sub">Whether each material can be awarded now. A draft or unreleased one is awarded only when you tick “Use draft materials anyway” on the Gathering tab.</p>${test}`})}
     </section>`;
   }
@@ -2528,7 +2534,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const {fileName,plan}=this.nodeImport;
     // One fold per outcome with a node per line (a sandbox file has 30 nodes); short lists start open.
     const list=(label,nodes,kind='')=>nodes.length?`<li><details class="agl-node-plan-group" ${nodes.length<=8?'open':''}><summary>${badge(`${label}: ${nodes.length}`,kind)}</summary>
-        <ul class="agl-node-plan-list">${nodes.map(n=>`<li>${esc(n.name)} <code>${esc(n.id)}</code></li>`).join('')}</ul></details></li>`:'';
+        <ul class="agl-node-plan-list">${nodes.map(n=>`<li>${esc(n.name)}</li>`).join('')}</ul></details></li>`:'';
     return `<section class="ag-card agl-panel agl-node-import"><h2>Import ${esc(fileName||'node file')}</h2>
       ${plan.ok?`<ul class="agl-node-plan">${list('New',plan.add,'ok')}${list('Updated',plan.update,'ok')}${list('Kept (edited here; your edit stays)',plan.keep,'warn')}${list('Unchanged',plan.unchanged)}${list('Skipped (deleted id; ids are never reused)',plan.retired,'warn')}</ul>
         ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
@@ -3028,7 +3034,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _nodeAction(action,id){
     requireNodesGM();
     if(action==='node-new'){this._openNodeEditor(nodeDraftOf(null),null);return;}
-    if(action==='node-edit'){const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);this._openNodeEditor(nodeDraftOf(t),id);return;}
+    if(action==='node-edit'){const t=nodeTemplate(id);if(!t)throw Error('That gathering node no longer exists');this._openNodeEditor(nodeDraftOf(t),id);return;}
     if(action==='node-cancel'){if(!await this.nodeGuard.confirm())return;this._closeNodeEditor();return;}
     if(action==='node-row-add'){if(!this.nodeDraft||!TABLES.includes(id))return;
       this.nodeDraft.data[id].push(id==='exotic'?{materialId:'',mode:'discovery',chance:'',condition:'success'}:{materialId:'',quantity:'1',chance:''});this.nodeGuard.markDirty();this.render();return;}
@@ -3039,19 +3045,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const raw=draftTemplate(draft.data,taken),r=saveTemplate(store,raw,{isNew:draft.isNew});
       if(!r.ok){draft.errors=r.errors;this.render();throw Error(`Node not saved: ${r.errors[0]}${r.errors.length>1?` (+${r.errors.length-1} more)`:''}`);}
       await writeNodeStore(r.store);
-      this.notice=`Saved node ${r.node.name} (${r.node.id}).`;this._closeNodeEditor(r.node.id);say(this.notice);return;}
-    if(action==='node-duplicate'){const copy=await duplicateNodeTemplate(id);this.notice=`Duplicated as ${copy.id}.`;this._openNodeEditor(nodeDraftOf(nodeTemplate(copy.id)),copy.id);say(this.notice);return;}
+      this.notice=`Saved node ${r.node.name}.`;this._closeNodeEditor(r.node.id);say(this.notice);return;}
+    if(action==='node-duplicate'){const copy=await duplicateNodeTemplate(id);this.notice=`Duplicated as ${copy.name}.`;this._openNodeEditor(nodeDraftOf(nodeTemplate(copy.id)),copy.id);say(this.notice);return;}
     if(action==='node-delete'){
-      const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);
+      const t=nodeTemplate(id);if(!t)throw Error('That gathering node no longer exists');
       const refs=nodeReferences(id),used=refs.filter(r=>r.kind==='reference'),from=refs.filter(r=>r.kind==='copied-from');
-      const lines=[`Delete the gathering node “${t.name}” (${t.id})? Its id is retired and never reused.`,
+      const lines=[`Delete the gathering node “${t.name}”? Its id is retired and never reused.`,
         ...(used.length?[`${plural(used.length,'Location entry','Location entries')} point${used.length===1?'s':''} to this node: ${used.map(r=>r.locationName).join(', ')}. They are not changed or removed; each shows that its node template is gone until you pick another one in Locations.`]:[]),
         ...(from.length?[`It was copied from ${plural(from.length,'Location entry','Location entries')} (${from.map(r=>r.locationName).join(', ')}); those keep their own gathering data in Locations.`]:[]),
         'Characters keep everything they already gathered.'];
       if(!await confirmDanger(lines.join('\n'),{title:`Delete ${t.name}?`,yes:'Delete node'}))return;
       await deleteNodeTemplate(id);
       if(this.nodeDraft?.data.id===id)this.nodeDraft=null;
-      this.notice=`Deleted node ${t.name} (${t.id}).${used.length?` ${plural(used.length,'Location entry','Location entries')} still point${used.length===1?'s':''} to it: pick another node there.`:''}`;this.render();say(this.notice);return;}
+      this.notice=`Deleted node ${t.name}.${used.length?` ${plural(used.length,'Location entry','Location entries')} still point${used.length===1?'s':''} to it: pick another node there.`:''}`;this.render();say(this.notice);return;}
     if(action==='node-import-cancel'){this.nodeImport=null;this._backToNodeList();this.render();return;}
     if(action==='node-import-apply'){const p=this.nodeImport;if(!p)throw Error('Choose a node file first');
       const out=await importNodeFile(p.data);this.nodeImport=null;this._backToNodeList();
@@ -3329,7 +3335,7 @@ Hooks.once('ready',()=>{
       start:({locationId=null,nodeId=null,node=null,templateId=null,tier=null,leadId,helperIds=[],allowDraft=false}={})=>{checkPlayerLedger();
         if(templateId)requireNodesGM();
         const target=templateId?templateGatherNode(templateId,tier):node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;
-        if(templateId&&!target)throw Error(`No node template ${templateId}`);
+        if(templateId&&!target)throw Error('That gathering node no longer exists');
         return startGather({node:target,leadId,helperIds,allowDraft});},
       resolve:(sessionId,result)=>resolveGather(sessionId,result),cancel:sessionId=>cancelGather(sessionId),
       request:options=>requestGather(options),
