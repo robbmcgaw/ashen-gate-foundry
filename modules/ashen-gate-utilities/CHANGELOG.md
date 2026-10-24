@@ -1,3 +1,9 @@
+## 0.28.3 — 2026-10-24
+
+- **Condition buttons follow Player Access.** When the GM hides Utilities from players, the Character Hub's conditions strip no longer offers Apply or a chip's ✕ that then failed with "Utilities access is hidden"; Utilities' conditions API now says no up front (`canApply` / `canRemove`), as the tracker itself already does.
+- **Marks have names, not ids.** A Character Hub mark on a party character (for example Vexed) showed as `agch-vex` with a Custom badge in Party Conditions and the overlay. It now shows the mark's own name.
+- No change to saved data, settings or the API shape; nothing to migrate.
+
 ## 0.28.2 — 2026-10-23
 
 - **Shops: no raw ids on screen.** The Shops list, the shop and merchant-list editor headings, the Import JSON preview and the item rows in the shop editor no longer show `SHOP-…` / `ITEM-…` ids. Search still finds a shop by its id. An item that has no permanent id shows a "No permanent id" badge.
