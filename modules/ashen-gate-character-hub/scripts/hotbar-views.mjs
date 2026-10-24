@@ -34,14 +34,14 @@ export function strainChip(actor) {
 
 function marksBar(actor, off, compact = false) {
   const marks = availableMarks(actor), placed = placedMarks(actor), n = targetedTokens().length;
-  const buttons = marks.map(a => `<button type="button" class="agch-hotbtn" data-action="mark-apply" data-mark="${esc(a.mark.id)}"${tooltipAttrs(a.sourceUuids?.[0] ?? null, `${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'} (from ${a.sources.join(', ')})`)} aria-label="${esc(`${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'}`)}"${off ? ' disabled' : ''}>
+  const buttons = marks.map(a => `<button type="button" class="agch-hotbtn" data-action="mark-apply" data-mark="${esc(a.mark.id)}"${tooltipAttrs(a.sourceUuids?.[0] ?? null, `${a.label}: ${a.mark.rule ? a.mark.rule : `put on or take off your targeted token${n === 1 ? '' : 's'}`} (from ${a.sources.join(', ')})`)} aria-label="${esc(`${a.label}: ${a.mark.mode === 'reminder' ? 'show the rule' : a.mark.mode === 'save' ? 'ask for the save' : `put on or take off your targeted token${n === 1 ? '' : 's'}`}`)}"${off ? ' disabled' : ''}>
       <img src="${esc(a.mark.icon)}" alt=""><span>${esc(a.label)}</span></button>`).join('');
-  const onTargets = placed.length ? `<ul class="agch-placed" aria-label="Marks you placed">${placed.map(p => `<li><img src="${esc(p.mark.icon)}" alt=""> ${esc(p.tokenName)}: ${esc(p.mark.label)}
+  const onTargets = placed.length ? `<ul class="agch-placed" aria-label="Marks you placed">${placed.map(p => `<li${p.mark.rule ? ` data-tooltip="${esc(p.mark.rule)}"` : ''}><img src="${esc(p.mark.icon)}" alt=""> ${esc(p.tokenName)}: ${esc(p.mark.label)}
       <button type="button" class="agch-placed__off" data-action="mark-remove" data-scene="${esc(p.sceneId)}" data-token="${esc(p.tokenId)}" data-mark="${esc(p.mark.id)}" data-tooltip="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}" aria-label="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}"${off ? ' disabled' : ''}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></li>`).join('')}</ul>` : '';
   const from = 'they come from equipped weapons with a mastery you know, and from spells like Hunter\'s Mark or Hex.';
   // 0.33.1: Compact says "No marks" on one line; where they come from moves into the help button.
   const empty = `<span class="agch-muted agch-marks__empty">${compact ? 'No marks' : `No marks: ${from}`}</span>`;
-  const help = `Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Tracking only: nothing is automated.${compact && !marks.length ? ` Marks: ${from}` : ''}`;
+  const help = `Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Sap, Slow and Vex act as their rules say and end on their own; Topple asks for the save; Cleave, Graze, Nick and Push show their rule.${compact && !marks.length ? ` Marks: ${from}` : ''}`;
   return `<div class="agch-marks"><div class="agch-marks__list">${buttons || empty}${onTargets}</div>
     <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${compact ? '' : strainChip(actor)}<span class="agch-marks__title">Mastery &amp; marks</span><button type="button" class="agch-marks__help" data-tooltip="${esc(help)}" aria-label="${esc(help)}"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div></div>`;
 }

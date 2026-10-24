@@ -18,14 +18,16 @@ test('controller helpers: off by default, grant and revoke',()=>{
  const c=withController({},'bob',true);assert.equal(isController(c,'bob'),true);
  assert.deepEqual(withController(c,'bob',false),{});assert.throws(()=>withController({},'',true),/id required/);
 });
-test('apply decision: GM, controller anywhere, owner only when unlocked or the switch is on; native only; never read-only',()=>{
+test('apply decision (0.29.2): GM anywhere; a player on their own character and on any non-player actor; not on another player\'s; controllers anywhere; native only; never read-only',()=>{
  const actor=mkActor('a1','Wren','alice',['prone']);const nativeIds=['prone','blinded','ag-strain-2'];
- const d=(user,statusId,o={})=>applyDecision({user,actor,statusId,unlocks:{},nativeIds,...o});
+ const users=[gm,alice,bob,carol];
+ const npc={...mkActor('n1','Goblin',null,[]),type:'npc'};
+ const d=(user,statusId,o={})=>applyDecision({user,actor,statusId,nativeIds,users,...o});
  assert.equal(d(gm,'blinded').ok,true);
- assert.match(d(alice,'blinded').reason,/locked/);
- assert.equal(d(alice,'blinded',{unlocks:{a1:true}}).ok,true,'per-character unlock');
- assert.equal(d(alice,'blinded',{ownersManage:true}).ok,true,'GM Setup switch');
- assert.match(d(bob,'blinded',{ownersManage:true}).reason,/do not own/,'switch never reaches other players\' characters');
+ assert.equal(d(alice,'blinded').ok,true,'own character: no unlock or switch needed any more');
+ assert.match(d(bob,'blinded').reason,/another player's character/,'never another player\'s character');
+ assert.equal(applyDecision({user:bob,actor:npc,statusId:'blinded',nativeIds,users}).ok,true,'a monster or NPC: any player');
+ assert.equal(applyDecision({user:alice,actor:{...npc,type:'character'},statusId:'blinded',nativeIds,users}).ok,true,'a Character nobody plays counts as a non-player actor');
  assert.equal(d(bob,'blinded',{controllers:{bob:true}}).ok,true,'controller on any character');
  assert.match(d(gm,'thinking').reason,/Unknown native/,'Custom statuses are never applied');
  assert.match(d(gm,'ag-strain-2').reason,/Strain/,'Strain chip read only, GM too');
@@ -34,15 +36,18 @@ test('apply decision: GM, controller anywhere, owner only when unlocked or the s
  assert.match(applyDecision({user:gm,actor:{...actor,flags:{'ashen-gate-character-hub':{levelBackup:true}}},statusId:'blinded',nativeIds}).reason,/level backup/);
  assert.match(applyDecision({user:null,actor,statusId:'blinded'}).reason,/Unknown user/);
 });
-test('removal decision: controllers and switch-on owners remove native only; Custom stays GM; Strain refused for all',()=>{
- const actor=mkActor('a1','Wren','alice',['prone','thinking','ag-strain-1']);const nativeIds=['prone'];
- const d=(user,statusId,o={})=>removalDecision({user,actor,statusId,unlocks:{},nativeIds,...o});
- assert.equal(d(alice,'prone',{ownersManage:true}).ok,true);
+test('removal decision (0.29.2): owners and controllers remove native only; Custom stays GM; Strain refused for all',()=>{
+ const actor=mkActor('a1','Wren','alice',['prone','thinking','ag-strain-1']);const nativeIds=['prone'];const users=[gm,alice,bob,carol];
+ const d=(user,statusId,o={})=>removalDecision({user,actor,statusId,nativeIds,users,...o});
+ assert.equal(d(alice,'prone').ok,true);
  assert.equal(d(bob,'prone',{controllers:{bob:true}}).ok,true);
  assert.match(d(bob,'thinking',{controllers:{bob:true}}).reason,/Custom/);
  assert.match(d(bob,'ag-strain-1',{controllers:{bob:true}}).reason,/Strain/);
- assert.match(d(bob,'prone',{controllers:{carol:true}}).reason,/do not own/);
+ assert.match(d(bob,'prone',{controllers:{carol:true}}).reason,/another player's character/);
  assert.equal(conditionRole({user:{...gm,id:'bob'},actor,controllers:{}}).role,'gm');
+ assert.equal(conditionRole({user:alice,actor,users}).role,'owner');
+ assert.equal(conditionRole({user:bob,actor:{...actor,type:'npc'},users}).role,'player');
+ assert.equal(conditionRole({user:alice,actor:{...actor,testUserPermission:()=>false}}).role,'','without a user list every Character counts as a player character');
 });
 test('overlay opacity clamps to 0-100 and defaults to the old 25 % look',()=>{
  assert.equal(OVERLAY_OPACITY_DEFAULT,25);assert.equal(clampOverlayOpacity(undefined),25);assert.equal(clampOverlayOpacity(''),25);assert.equal(clampOverlayOpacity('abc'),25);
@@ -59,7 +64,8 @@ const wren=mkActor('a1','Wren','alice',['prone']);
 const ash=mkActor('b1','Ash','bob',['blinded']);
 const hidden=mkActor('c1','Quill','carol',[],{limited:false});
 const users=[gm,alice,bob,carol];users.get=id=>users.find(u=>u.id===id);
-const actors=[wren,ash,hidden];actors.get=id=>actors.find(a=>a.id===id);
+const goblin=mkActor('n1','Goblin',null,[]);goblin.type='npc';
+const actors=[wren,ash,hidden,goblin];actors.get=id=>actors.find(a=>a.id===id);
 globalThis.game={user:gm,users,actors,modules:new Map([[ID,{id:ID,active:true}]]),tables:[],messages:new Map(),i18n:{localize:x=>x},
  settings:{register:(ns,key,o)=>{registered.set(key,o);settings.set(`${ns}.${key}`,{value:o.default,onChange:o.onChange});},get:(ns,key)=>settings.get(`${ns}.${key}`)?.value,set:async(ns,key,v)=>{const x=settings.get(`${ns}.${key}`);x.value=v;x.onChange?.(v);}},
  socket:{emit:(ch,msg)=>sent.push([ch,msg]),on:(ch,fn)=>{socketHandler=fn;}}};
@@ -72,7 +78,7 @@ const api=game.modules.get(ID).api;
 await game.settings.set(ID,'playerAccessEnabled',true);
 const lastReceipt=()=>sent.filter(([,m])=>m.type==='receipt').at(-1)?.[1];
 const deliver=async(msg,senderId=msg.userId)=>{await socketHandler(msg,senderId);await new Promise(r=>setTimeout(r,5));};
-const reset=()=>{wren.statuses=new Set(['prone']);ash.statuses=new Set(['blinded']);hidden.statuses=new Set();for(const a of actors)a.toggled.length=0;};
+const reset=()=>{wren.statuses=new Set(['prone']);ash.statuses=new Set(['blinded']);hidden.statuses=new Set();for(const a of actors)a.toggled.length=0;goblin.statuses=new Set();};
 
 test('no Utilities setting is shown in Foundry\'s Configure Settings (for players or anyone)',()=>{
  assert.deepEqual([...registered].filter(([,o])=>o.config!==false).map(([k])=>k),[]);
@@ -80,11 +86,15 @@ test('no Utilities setting is shown in Foundry\'s Configure Settings (for player
  assert.equal(registered.get('conditionControllers').scope,'world');assert.deepEqual(registered.get('conditionControllers').default,{});
  assert.equal(registered.get('overlayOpacity').scope,'client','overlay opacity is remembered per user');
 });
-test('switch off and character locked: the GM client refuses a player apply',async()=>{
+test('permission matrix at the GM client: own character yes, another player\'s no, linked NPC yes; refused locally too',async()=>{
  reset();game.user=gm;
  await deliver({type:'apply-status',requestId:'p1',userId:'alice',actorId:'a1',statusId:'blinded'});
- assert.deepEqual(wren.toggled,[]);assert.equal(lastReceipt().ok,false);assert.match(lastReceipt().message,/locked/);
- game.user=alice;await assert.rejects(api.conditions.apply('a1','blinded'),/locked/,'refused locally too');game.user=gm;
+ assert.deepEqual(wren.toggled,[['blinded',true]]);assert.equal(lastReceipt().ok,true,'own character, no unlock');
+ await deliver({type:'apply-status',requestId:'p1b',userId:'bob',actorId:'a1',statusId:'prone'});
+ assert.equal(lastReceipt().ok,false);assert.match(lastReceipt().message,/another player's character/);
+ await deliver({type:'apply-status',requestId:'p1c',userId:'bob',actorId:'n1',statusId:'prone'});
+ assert.equal(lastReceipt().ok,true,'a linked NPC: any player');assert.deepEqual(goblin.toggled,[['prone',true]]);
+ game.user=bob;await assert.rejects(api.conditions.apply('a1','blinded'),/another player's character/,'refused locally too');game.user=gm;
 });
 test('only the GM can turn on owner management; then the GM client applies and removes for the owner, own character only',async()=>{
  reset();game.user=alice;await assert.rejects(api.conditions.setOwnersManage(true),/GM only/);
@@ -94,7 +104,7 @@ test('only the GM can turn on owner management; then the GM client applies and r
  await deliver({type:'remove-status',requestId:'p3',userId:'alice',actorId:'a1',statusId:'prone'});
  assert.equal(lastReceipt().ok,true);assert.ok(!wren.statuses.has('prone'));
  await deliver({type:'apply-status',requestId:'p4',userId:'alice',actorId:'b1',statusId:'prone'});
- assert.match(lastReceipt().message,/do not own/);assert.deepEqual(ash.toggled,[]);
+ assert.match(lastReceipt().message,/another player's character/);assert.deepEqual(ash.toggled,[]);
  await deliver({type:'apply-status',requestId:'p5',userId:'alice',actorId:'a1',statusId:'ag-strain-1'});
  assert.match(lastReceipt().message,/Strain/);
  await deliver({type:'apply-status',requestId:'p6',userId:'alice',actorId:'a1',statusId:'thinking'});
@@ -133,7 +143,7 @@ test('condition controllers: GM only, never a GM, listed, and can be revoked',as
  const html=await app._renderHTML();assert.match(html,/Condition controllers: <span class="ag-badge">Bob<button[^>]*data-action="revoke-controller"[^>]*data-user="bob"/);
  app.tab='setup';const setup=await app._renderHTML();
  assert.match(setup,/<input type="checkbox" name="agu-controller" value="bob" data-setup-field checked>Bob/);assert.match(setup,/name="agu-controller" value="alice" data-setup-field >Alice/);
- assert.match(setup,/id="agu-owner-conditions" type="checkbox" data-setup-field >Players apply and remove conditions on their own characters/);
+ assert.doesNotMatch(setup,/agu-owner-conditions/,'0.29.2: the owners-manage switch no longer decides anything and is gone from GM Setup');
  await api.conditions.setController('bob',false);assert.deepEqual(api.conditions.controllers(),[]);
 });
 test('a controller applies and removes native conditions on every character, sees them all, but not Custom or Strain',async()=>{
@@ -152,7 +162,7 @@ test('a controller applies and removes native conditions on every character, see
  assert.match(ov,/data-actor="a1" data-status="blinded"/);assert.ok(!/data-status="thinking"/.test(ov));assert.ok(!/data-status="ag-strain-1"/.test(ov));
  await api.conditions.closeOverlay();
  game.user=gm;await api.conditions.setController('bob',false);
- await deliver({type:'apply-status',requestId:'c6',userId:'bob',actorId:'a1',statusId:'prone'});assert.match(lastReceipt().message,/do not own/,'revoked at once');
+ await deliver({type:'apply-status',requestId:'c6',userId:'bob',actorId:'a1',statusId:'prone'});assert.match(lastReceipt().message,/another player's character/,'revoked at once');
  game.user=bob;app.actorId='a1';assert.ok(!(await app._renderHTML()).includes('data-action="add-status"'));assert.ok(!(await app._renderHTML()).includes('Quill'),'back to visible characters only');
  game.user=gm;
 });
@@ -167,14 +177,13 @@ test('GM Setup Save Changes writes the owner switch and the controller list; not
  game.user=bob;await assert.rejects(app.handle('save-access',{disabled:false},root),/GM only/);game.user=gm;
  await api.conditions.setOwnersManage(false);await game.settings.set(ID,'conditionControllers',{});
 });
-test('owner view: Apply row on own character only when allowed; Strain chip stays read only',async()=>{
+test('owner view: Apply row on own character, never on another player\'s; Strain chip stays read only; no lock control',async()=>{
  reset();wren.statuses.add('ag-strain-1');game.user=alice;const app=await api.open();app.tab='conditions';app.actorId='a1';
- let html=await app._renderHTML();assert.ok(!html.includes('data-action="add-status"'),'locked: no Apply');
- game.user=gm;await api.conditions.setOwnersManage(true);game.user=alice;
- html=await app._renderHTML();assert.ok(html.includes('data-action="add-status"'));assert.ok(html.includes('Owner manages'));
+ let html=await app._renderHTML();assert.ok(html.includes('data-action="add-status"'),'own character: Apply, no unlock needed');
+ assert.ok(!html.includes('toggle-lock')&&!html.includes('Owner manages')&&!html.includes('Locked'));
  assert.ok(html.includes('Read only'));assert.ok(!html.includes('data-status="ag-strain-1"'),'no Remove for the Strain chip');
  app.actorId='b1';html=await app._renderHTML();assert.ok(!html.includes('data-action="add-status"'),'not her character');
- game.user=gm;await api.conditions.setOwnersManage(false);
+ game.user=gm;
 });
 test('overlay: background slider set from the per-user value; header/text stay opaque (CSS variable only)',async()=>{
  game.user=alice;await game.settings.set(ID,'overlayOpacity',60);

@@ -35,7 +35,12 @@ Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortabl
    "Level n" badge and the species · class · background line under it); the brand lives in the window title
    ("Ashen Gate | Character Hub — <name>", 0.37.1). Version and Help stay on the right. ui-lint allows this for the Hub's
    `agch-head__name` heading only; every other module keeps the brand in its header.
-2. Put at most **one** other window-level control in the header (for example a view switch). Anything else goes in the
+2. **Exception, Character Hub only** (0.46.0, Robb's decision): the Hub's header carries a group of icon buttons —
+   Compact / Full, Appearance, Pop out / Pop in and Level up — beside the "⋯" menu. Reason: they are the Hub's everyday
+   window and character actions, and burying them in "⋯" made them hard to find; the "⋯" menu keeps only Configure…, NPC
+   Codex and Open native sheet (plus the GM's Restore backup…). The icon buttons need `aria-label` + `data-tooltip`, keep
+   their disabled reasons, and the group wraps rather than clips in a narrow window. Every other module keeps the rule below.
+   Put at most **one** other window-level control in the header (for example a view switch). Anything else goes in the
    toolbar of the tab it affects, or in a single "⋯" menu next to Help. Tool bars that carry everything become a wall of
    equal-weight buttons. [Apple Toolbars] [WCAG 3.2.3]
 3. **No subtitle** line in the header. Module descriptions belong in Help or the first-use empty state. **Ours**

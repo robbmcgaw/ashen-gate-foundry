@@ -75,15 +75,16 @@ test('A: the ⋯ menu carries Level up, Restore backup… (GM with copies) and C
   const {sheet} = await render();
   await sheet.dispatch('more-menu', {dataset: {}}, {});
   let html = await sheet._renderHTML();
-  assert.match(html, /aria-label="More: Edit name and title, Level up, Configure, Appearance, Pop out, Link quick bar to Foundry&#39;s hotbar, NPC Codex, Open native sheet"/);
+  assert.match(html, /aria-label="More: Configure, Open native sheet"/);
   const menu = html.match(/<div class="agch-menu agch-moremenu"[\s\S]*?<\/div>/)[0];
-  assert.match(menu, /class="ag-btn ag-btn--ghost agch-menu__btn agch-levelup" data-action="level-up"/);
+  assert.doesNotMatch(menu, /level-up|look-menu|pop-out|name-edit|hotbar-link/, '0.46.0: those moved to the header or went away');
   assert.match(menu, /data-action="configure"/); assert.doesNotMatch(menu, /level-restore/, 'players never get Restore');
+  assert.match(html.slice(0, html.indexOf('</header>')), /class="ag-btn ag-btn--ghost ag-btn--icon agch-hdrbtn agch-levelup" data-action="level-up"/, 'Level up is a header button');
+  sheet.menu = null;
   await sheet.dispatch('level-up', {dataset: {}}, {});
-  assert.equal(sheet.menu, null, 'Level up closes the menu before dnd5e\'s flow starts');
   const observer = await render({user: users.observer, before: s => { s.menu = 'more'; }});
   assert.doesNotMatch(observer.html, /data-action="configure"/, 'observers cannot configure');
-  assert.match(observer.html, /aria-label="More: Level up, Appearance/);
+  assert.match(observer.html, /aria-label="More: Open native sheet"/, 'an observer has no Configure…');
   sheet.menu = 'more';
   await sheet.dispatch('configure', {dataset: {}}, {});
   assert.equal(sheet.menu, null);
@@ -187,9 +188,9 @@ const utilitiesApi = (allow = true) => { const calls = []; return {calls, api: {
   canApply: (id, s) => { calls.push(['canApply', id, s]); return allow; }, apply: async (id, s) => { calls.push(['apply', id, s]); return 'ok'; },
   canRemove: (id, s) => { calls.push(['canRemove', id, s]); return allow; }, remove: async (id, s) => { calls.push(['remove', id, s]); return 'ok'; }}}; };
 
-test('F: only dnd5e conditions that are Foundry status effects are offered (no "turned"), exhaustion aside', () => {
+test('F: only dnd5e conditions that are Foundry status effects are offered (no "turned"), exhaustion is offered too (0.46.1)', () => {
   conditionWorld();
-  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['blinded', 'poisoned', 'prone']);
+  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['blinded', 'exhaustion', 'poisoned', 'prone']);
 });
 
 test('F: GM: Self puts it on the character, Target on every targeted token (linked or not), with Foundry\'s toggleStatusEffect', async () => {
@@ -228,7 +229,7 @@ test('F: a player with Utilities follows its condition rules (canApply / canRemo
   assert.deepEqual(u.calls, [['canApply', 'ally', 'prone'], ['apply', 'ally', 'prone']]);
   assert.equal(linked.calls.length, 0, 'Utilities makes the change (on the GM client), not the Hub');
   game.user.targets = new Set([token(unlinked)]);
-  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /Only the GM can change conditions on \[TEST\] gob/);
+  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /You can't put conditions on \[TEST\] gob: the GM decides that in Ashen Gate \| Utilities \(Player Access\)/);
   const no = utilitiesApi(false);
   conditionWorld({user: users.owner, utilities: no.api, actors: [me]});
   assert.match((await conds.applyCondition(me, 'self', 'prone')).error, /the GM decides that in Ashen Gate \| Utilities/, 'locked: refused even on your own character');
