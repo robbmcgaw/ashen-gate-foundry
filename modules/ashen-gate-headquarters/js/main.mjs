@@ -115,7 +115,7 @@ function allowedOpsError(reason){ui.notifications?.warn(`Headquarters: ${reason}
 let vaultRecovery=null;
 const toasted=new Set();
 /** A warning that can repeat (every open, every click) shows once per session. */
-function warnOnce(key,reason){if(toasted.has(key))return;toasted.add(key);allowedOpsError(reason);}
+function warnOnce(key,reason,consoleOnly=false){if(toasted.has(key))return;toasted.add(key);if(consoleOnly)console.warn(reason);else allowedOpsError(reason);}
 function offerRecovery(){
  if(!game.user?.isGM||!privateStore||privateStore.isReady())return false;
  if(!vaultRecovery)vaultRecovery=createVaultRecovery({store:privateStore,isGM:()=>game.user?.isGM===true,dialogs:{choice:choiceDialog,form:formDialog},notify:{info:m=>ui.notifications?.info?.(m)},
@@ -728,9 +728,12 @@ Hooks.once('ready',async()=>{
   privateStore=createPrivateStateStore({game,JournalEntryClass});
   if(game.user?.isGM)await privateStore.initialize();
  }catch(error){
-  console.error('Headquarters private vault initialization failed',error);
-  // A vault problem the GM can fix gets one plain dialog instead of a red toast; anything else keeps the toast.
-  if(!offerRecovery())ui.notifications?.error?.(`Headquarters private save initialization failed: ${friendly(error)}. Open button remains available; GM editing is blocked until recovery.`);
+  // A vault problem the GM can fix gets one plain dialog and one console note (no stack); anything else stays a console error and a toast.
+  if(offerRecovery())warnOnce('vault-console','Headquarters: the private vault Journal is missing or can\'t be used. A recovery dialog is available: open Headquarters (Actors sidebar, or Shift+H) as GM. Nothing has been changed.',true);
+  else{
+   console.error('Headquarters private vault initialization failed',error);
+   ui.notifications?.error?.(`Headquarters private save initialization failed: ${friendly(error)}. Open button remains available; GM editing is blocked until recovery.`);
+  }
  }
  // Restore launcher immediately even when the private vault cannot initialize.
  const actorTab=ui?.sidebar?.tabs?.actors ?? ui?.actors;
