@@ -152,3 +152,40 @@ test('the token box is not a password field, so browsers and password managers d
   }
   assert.match(fs.readFileSync(new URL('../styles/manager.css', import.meta.url), 'utf8'), /\.agm-secret\{-webkit-text-security:disc/);
 });
+
+// 0.60.6: logic only (mocked Foundry, no live window). A folder with no manifest starts unticked and carries a plain note.
+import {defaultSelection, NO_MANIFEST_NOTE} from '../scripts/github-view.js';
+test('0.60.6 folder packs without a manifest start unticked, manifest packs stay ticked', async () => {
+  const files = {'content/main/MANIFEST_x.json': JSON.stringify({schema: 'ag-alpha-manifest/1', ordered_files: ['content/main/a.json']}), 'content/main/a.json': item('MAT-a'), 'content/archive/old.json': item('MAT-old')};
+  const g = fakeGithub(files), store = mkStore();
+  const r = await gh.findPacks(GM, {store, fetch: g.fetch, config: {repo: 'owner/repo', branch: 'main', paths: ['content']}});
+  assert.ok(r.ok);
+  const kinds = r.packs.map(p => p.kind).sort();
+  assert.deepEqual(kinds, ['folder', 'manifest']);
+  const packs = r.packs.map(p => ({id: p.id, label: p.label, source: 's', fileCount: p.files.length, missing: 0, noManifest: p.kind === 'folder'}));
+  const picked = defaultSelection(packs);
+  assert.deepEqual(picked, packs.filter(p => !p.noManifest).map(p => p.id));
+  assert.equal(picked.length, 1);
+  const html = githubView({draft: {}, packs, selected: picked});
+  assert.equal(html.split(NO_MANIFEST_NOTE).length - 1, 1);
+  const boxes = html.match(/<input type="checkbox"[^>]*>/g);
+  assert.equal(boxes.filter(b => /\schecked/.test(b)).length, 1);
+  assert.doesNotMatch(NO_MANIFEST_NOTE, /FOLDER:|\.json|id/i);
+  // Pull logic is untouched: a ticked folder still pulls in name order.
+  const pulled = await gh.pullPacks(GM, {store, fetch: g.fetch, config: {repo: 'owner/repo', branch: 'main', paths: ['content']}, manifestPaths: [packs.find(p => p.noManifest).id]});
+  assert.deepEqual(pulled.files.map(f => f.path), ['content/archive/old.json']);
+});
+
+// 0.60.6: logic only (mocked module API). Skill Trees' row summary is shown when present; absent means the old line.
+import {planSpecialist} from '../scripts/specialist-handoff.js';
+test('0.60.6 tree rows show the Skill Trees summary when present, feature-detected', () => {
+  const file = {schema: 'ag-skill-trees/0.1', trees: [{id: 'TREE-T1'}, {id: 'TREE-T2'}]};
+  const api = rows => ({previewTreeImport: () => ({errors: [], rows}), importTrees: async () => ({})});
+  const withSummary = planSpecialist('skill-trees', file, api([{id: 'TREE-T1', name: '[TEST] A', action: 'new', summary: '24 nodes, 3 rival pairs, up to 21 can be taken together'}, {id: 'TREE-T2', name: '[TEST] B', action: 'new', summary: '  '}]));
+  assert.equal(withSummary.rows[0].reason, '24 nodes, 3 rival pairs, up to 21 can be taken together');
+  assert.match(withSummary.rows[1].reason, /^New; imported through Skill Trees/);
+  const old = planSpecialist('skill-trees', file, api([{id: 'TREE-T1', name: '[TEST] A', action: 'new'}]));
+  assert.match(old.rows[0].reason, /^New; imported through Skill Trees/);
+  const other = planSpecialist('quests', {records: []}, {previewQuestImport: () => ({rows: [{id: 'Q', name: 'q', action: 'new', summary: 'x'}]}), importQuests: async () => ({})});
+  assert.match(other.rows[0].reason, /^New; imported through/);
+});

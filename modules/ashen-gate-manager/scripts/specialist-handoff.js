@@ -73,6 +73,10 @@ export function describeUnrecognized(input) {
   return `${head} ${fix}`;
 }
 
+/** Skill Trees (0.23.0+) describe each new tree in `summary`; show it when present, otherwise the plain line (older versions have none). */
+const newReason = (kind, spec, row) => kind === 'skill-trees' && typeof row.summary === 'string' && row.summary.trim()
+  ? row.summary.trim() : `New; imported through ${spec.label}.`;
+
 /** Preview rows (Manager import-table shape) for a specialist file. */
 export function planSpecialist(kind, input, api, {updateExisting = false} = {}) {
   const spec = SPECIALISTS[kind];
@@ -82,7 +86,7 @@ export function planSpecialist(kind, input, api, {updateExisting = false} = {}) 
   const rows = result.rows.map(r => {
     const action = r.action === 'new' ? 'create' : r.action === 'update' ? 'update' : 'skipped';
     return {id: r.id, name: r.name, kind: rowKind(spec, r.kind), lifecycle: '', action, patch: {},
-      reason: action === 'create' ? `New; imported through ${spec.label}.` : r.reason};
+      reason: action === 'create' ? newReason(kind, spec, r) : r.reason};
   });
   return {errors: result.errors ?? [], rows};
 }
