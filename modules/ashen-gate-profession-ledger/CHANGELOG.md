@@ -1,3 +1,8 @@
+## 0.31.4 — 2026-10-24
+
+- **Fix: starting recipes no longer say "Not found by the party yet".** A character's own recipe list (Individual tab and the sheet tab) never told the GM who knew a recipe, so every recipe they knew, starting recipes included, was marked "Not found by the party yet". Those rows now show **Known by <name>**, and a recipe item the character holds shows as found by them. Party and Recipe Catalog already counted these correctly. Recipes nobody knows or holds still show "Not found by the party yet". Crafting availability is unchanged.
+- **Saved data:** none changed; no migration.
+
 ## 0.31.3 — 2026-10-23
 
 - **Fix: one question when both an edited node and an unapplied import preview are open.** Leaving Gathering nodes asked twice, and answering Discard to the first and Keep reviewing to the second left the editor on screen with its draft already gone. It now asks once (**Discard unsaved changes?**) and changes nothing until you choose **Discard changes**; **Keep editing** leaves the draft, the preview and the focus as they were.
