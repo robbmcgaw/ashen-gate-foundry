@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {RULES, STRICT_EXCEPTIONS, statusWords, kitBlocks, lintModule, judgeModule, checkExceptions, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
+import {idsInTemplate, RULES, STRICT_EXCEPTIONS, statusWords, kitBlocks, lintModule, judgeModule, checkExceptions, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
 
 const kitCss = `/* ag-ui kit 2.0.0 */
 :root { --ag-text-md: 13px; --ag-space-1: 3px; --ag-control-h: 28px; --ag-radius: 8px; }
@@ -98,6 +98,7 @@ const PLANTED = {
   'fa-legacy-prefix': {'templates/t.hbs': '<i class="fas fa-trash"></i>'},
   'header-brand-version': {'templates/t.hbs': '<header class="ag-header"><h1>Ashen Gate</h1></header>'},
   'button-title-attr': {'templates/t.hbs': '<button type="button" title="Delete">x</button>'},
+  'template-id-text': {'templates/t.hbs': '<small class="x">{{recipe.sourceId}}</small>'},
   'lint-allow-reason': {'styles/mod.css': '.agx-a { display: none; } /* ag-lint-allow: why */'},
   'status-wording': {'scripts/a.mjs': "game.settings.register('agx', 'mode', {name: 'Fast mode (Beta)', hint: 'Speeds things up.'});"},
 };
@@ -198,4 +199,14 @@ test('status wording: contract ids, identifiers, comments, preview as a feature 
   assert.equal(ok.counts['status-wording'], 0, ok.where['status-wording'].join(', '));
   assert.equal(statusWords("throw Error('Only player-visible facility definitions can be stored.')"), 0);
   assert.equal(statusWords("throw Error('Alpha stores only player-visible facility definitions.')"), 1);
+});
+
+test('template-id-text flags ids in text, titles and labels but not wiring or GM Details folds', () => {
+  assert.equal(idsInTemplate('<small>{{id}}</small>'), 1);
+  assert.equal(idsInTemplate('<li>{{recipe.sourceId}} {{name}}</li>'), 1);
+  assert.equal(idsInTemplate('<button title="Open {{treeId}}" aria-label="x">Open</button>'), 1);
+  assert.equal(idsInTemplate('<li data-id="{{id}}" data-tooltip="{{name}}">{{name}}{{#if id}}!{{/if}}</li>'), 0);
+  assert.equal(idsInTemplate('<details><summary>Details</summary><code>{{id}}</code></details>'), 0);
+  assert.equal(idsInTemplate('<dd>{{libraryDetail.packageId}}</dd>'), 0);
+  assert.equal(idsInTemplate('{{! {{id}} }}<p>ok</p>'), 0);
 });
