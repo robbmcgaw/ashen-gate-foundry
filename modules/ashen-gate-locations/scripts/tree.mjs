@@ -74,9 +74,9 @@ export function moveTargets(all, id) {
 /** Checks a reparent. Returns the location's current parent id; throws a message the GM can show. */
 export function checkMove(all, id, parentId) {
   const loc = all.find(l => l.id === id);
-  if (!loc) throw new Error(`No location ${id}.`);
-  if (parentId && !all.some(l => l.id === parentId)) throw new Error(`No location ${parentId}.`);
+  if (!loc) throw new Error('No location found with that reference.');
+  if (parentId && !all.some(l => l.id === parentId)) throw new Error('No location found with that reference.');
   if (parentId === id || (parentId && wouldCycle(id, parentId, parentMap(all.filter(l => l.id !== id)))))
-    throw new Error(`${loc.name} cannot go inside ${all.find(l => l.id === parentId)?.name ?? parentId}: that place is inside ${loc.name}.`);
+    throw new Error(`${loc.name} cannot go inside ${all.find(l => l.id === parentId)?.name ?? 'that place'}: that place is inside ${loc.name}.`);
   return loc.parentLocationId || '';
 }

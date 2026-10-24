@@ -46,7 +46,7 @@ export function createNotesService(deps) {
     const all = deps.readAll();
     if (user.isGM) {
       const loc = all.find(l => l.id === ref || l.pinKey === ref);
-      if (!loc) throw new Error(`No location ${ref}.`);
+      if (!loc) throw new Error('No location found with that reference.');
       return loc;
     }
     if (!deps.playerAccessEnabled()) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');

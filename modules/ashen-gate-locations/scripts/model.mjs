@@ -592,7 +592,7 @@ function refForPlayer(e, nodeView) {
   Object.assign(out, {finite, exhausted: finite && e.exhausted, available: e.available, note: e.note});
   return out;
 }
-export const nodeName = n => n.label || n.materialId || n.rareMaterialId || 'Resource';
+export const nodeName = n => n.label || 'Resource';
 
 /** Plain HTML for the player-view Journal page: readable even if the module is later disabled. */
 export function viewHtml(view) {
