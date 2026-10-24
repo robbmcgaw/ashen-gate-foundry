@@ -4,8 +4,9 @@ import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLea
   nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel,suggestActivityXP} from './progression.mjs';
 import {DRAFT_RECIPE_LABEL_DEFAULTS,RECIPE_LABEL_MAX,recipeLabelsOf,resolveRecipeLabels,pickRecipeLabel,cleanLabelStore,cleanRecipeLabel} from './recipe-labels.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
-import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition} from './definition-lookup.mjs';
+import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionSource} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
+import {tierBadge} from './tier-style.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
@@ -22,7 +23,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.4';
+const VERSION='0.32.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -925,21 +926,69 @@ const lacksText=(req,actor)=>req.activity?(req.tools.length>1?`${actor.name} has
   :req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
 function requirementHTML(req,actor){
   const parts=[];
-  if(req.tool)parts.push(`${esc(req.toolLabel)}${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok')}`):''}`);
-  if(req.workstation)parts.push(`Workstation: ${esc(req.workstation)}`);
-  return parts.length?`<div><span class="agl-label">Uses</span> ${parts.join(' · ')}</div>`:'';
+  if(req.tool)parts.push(`<span class="agl-station"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">${req.activity?'Uses':'Tool'}</span> <span>${esc(req.toolLabel)}</span>${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok')}`):''}</span>`);
+  if(req.workstation)parts.push(`<span class="agl-station"><i class="fa-solid fa-warehouse" aria-hidden="true"></i><span class="agl-label agl-label--inline">Station</span> <span>${esc(req.workstation)}</span></span>`);
+  if(!parts.length&&!req.activity)parts.push('<span class="agl-station agl-sub"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">Tool or station</span> <span>None needed</span></span>');
+  return parts.length?`<div class="agl-recipe-station">${parts.join('')}</div>`:'';
+}
+
+/** 0.32.0: a short stable key for a recipe, so two cards that show the same item keep distinct focus keys on re-render.
+ * It is only a data attribute; no id is ever shown. */
+const ctxKey=text=>{let h=0;for(const c of String(text??''))h=(h*31+c.charCodeAt(0))|0;return (h>>>0).toString(36);};
+/** 0.32.0: can this user open this definition's world Item? Players only get an approved, player-visible Item they have at
+ * least Observer permission on; the GM gets any active one. Returns {state:'ok',doc} | {state:'hidden'} (player, not allowed)
+ * | {state:'missing'|'blocked'} (GM: not imported, or duplicate/wrong type). Never exposes a document the user may not open. */
+function itemAccess(sourceId,entityType){
+  const gm=Boolean(game.user?.isGM);
+  const hit=lookupWorldDefinition(game,sourceId,{entityType,partyKnown:!gm});
+  if(hit?.status!=='ok'||!hit.document)return {state:gm?(hit?.status==='not_found'||hit?.status==='invalid'?'missing':'blocked'):'hidden'};
+  if(!gm){
+    if(hit.source?.visibility!=='player'||hit.source?.status!=='approved')return {state:'hidden'};
+    try{if(hit.document.testUserPermission?.(game.user,'OBSERVER')!==true)return {state:'hidden'};}catch{return {state:'hidden'};}
+  }
+  return {state:'ok',doc:hit.document};
+}
+/** 0.32.0: one item a recipe names, as a link when the user may open it. A link is a real button; otherwise the name is plain
+ * text, with a tooltip for a player and a GM-only hint for the GM (never an id). `sourceId` may be null (name only). */
+function itemRef(name,sourceId,entityType,ctx=''){
+  const label=esc(name||'Unknown item');
+  if(!sourceId)return `<span class="agl-item-plain">${label}</span>`;
+  const access=itemAccess(sourceId,entityType);
+  if(access.state==='ok'&&access.doc?.uuid)
+    return `<button type="button" class="ag-link agl-item-link" data-action="open-item" data-uuid="${esc(access.doc.uuid)}" data-ctx="${esc(ctx)}" ${tip('Show this item')}>${label}</button>`;
+  if(game.user?.isGM)
+    return `<span class="agl-item-plain">${label}</span> <small class="agl-sub">GM: ${access.state==='missing'?'not imported yet':'can’t be opened (duplicate or wrong record type)'}</small>`;
+  return `<span class="agl-item-plain" ${tip('Your GM hasn’t released this item to you yet.')}>${label}</span>`;
+}
+/** 0.32.0: open the world Item behind an item link, re-checking permission now (the markup is never trusted). */
+async function openItemLink(uuid){
+  const m=/^Item\.([A-Za-z0-9]{16})$/.exec(String(uuid??''));
+  const doc=m?game.items?.get?.(m[1]):null;
+  const src=doc?definitionSource(doc):null;
+  // Only what a recipe links to: a Material or an Item, never a recipe, profession or other record.
+  if(!doc||!src?.sourceId||!['Material','Item'].includes(src.entityType))return say('That item can’t be opened.',true);
+  const access=itemAccess(src.sourceId,src.entityType);
+  if(access.state!=='ok'||access.doc!==doc)return say(game.user?.isGM?'That item can’t be opened.':'You can’t open this item yet.',true);
+  await doc.sheet?.render?.(true);
+}
+/** Click on an item link (any surface: window, Tidy5e tab, Character Hub embed). Returns true when it handled the click. */
+function itemLinkClick(button){
+  if(button?.dataset?.action!=='open-item')return false;
+  void openItemLink(button.dataset.uuid).catch(err=>{console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);});
+  return true;
 }
 
 /** Baseline recipe row used by every list (Individual, Party, Catalog, sheet tab). */
 function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
+  const ctx=ctxKey(recipe.id);
   const ingredients=recipe.hasStructuredIngredients?recipe.ingredients.map(ing=>{
     const name=ingredientName(ing,lib);
     const req=craft?.plan.requirements.find(r=>r.materialId?r.materialId===ing.materialId:r.name===name);
     const state=!req?'':req.own>=req.required?'ok':req.party>=req.required?'partial':'warn';
     const have=req?` <small>(${req.own} on hand${req.party>req.own?`, ${req.party} in party`:''})</small>`:'';
-    return `<li class="agl-ing ${state}">${ing.quantity} × ${esc(name)}${have}</li>`;
+    return `<li class="agl-ing ${state}"><span class="agl-qty">${ing.quantity} ×</span> ${itemRef(name,ing.materialId,'Material',ctx)}${have}</li>`;
   }).join(''):'<li class="agl-ing">No ingredient list yet</li>';
   const status=[];
   if(showStatus){
@@ -967,23 +1016,28 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   }
   if(learnItem&&actor)actions=learnControl(actor,learnItem,{available});
   const gp=extraCost(recipe);
-  const meta=[activity?'Activity':'',tierLabel(recipe.tier),recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:''].filter(Boolean);
+  const effort=recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:'';
+  const meta=[activity?'Activity':'',tierLabel(recipe.tier),effort].filter(Boolean);
   const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''}`.toLowerCase();
+  // 0.32.0: header (name, tier, effort), then Needs → Makes, then the tool or station, then the quieter text, then who knows it.
+  const makes=result?`<span class="agl-qty">1 ×</span> ${itemRef(result.name,recipe.resultItemId,'Item',ctx)}`
+    :`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported yet':'Not available yet'}</span>`;
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
       <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
-        <span class="agl-recipe-meta">${meta.map(m=>esc(m)).join(' · ')}</span></div>
+        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
       <div class="agl-recipe-actions">${actions}</div>
     </div>
-    <div class="agl-recipe-body">
-      ${activity?(gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''):`<div><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
-      <div><span class="agl-label">Makes</span> ${result?esc(result.name):`<span class="agl-reason">${gm&&recipe.resultItemId?`Result item ${esc(recipe.resultItemId)} is not imported`:'Not available yet'}</span>`}${gp?` <small class="agl-sub">· also costs ${gp} gp (not deducted automatically)</small>`:''}</div>`}
-      ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
-    </div>
+    ${activity?'':`<div class="agl-recipe-flow">
+      <div class="agl-recipe-needs"><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
+      <i class="fa-solid fa-arrow-right agl-recipe-arrow" aria-hidden="true"></i>
+      <div class="agl-recipe-makes"><span class="agl-label">Makes</span><div>${makes}</div></div>
+    </div>`}
+    ${gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''}
+    ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
     ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
     ${effectNoteHtml(recipe)}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
-    ${gm?`<small class="agl-id">${esc(recipe.id)}</small>`:''}
   </article>`;
 }
 function learnControl(actor,item,{available=true}={}){
@@ -1048,7 +1102,7 @@ function professionCard(actor,p,{lastAward=null}={}){
   const value=`${p.xp} XP${p.toNext!==null?` · ${p.toNext} XP to level ${p.level+1}`:' · maximum level'}`;
   return `<div class="ag-card agl-prof ${flash?'agl-flash':''}">
     <div class="agl-prof-head"><strong class="agl-prof-name" data-tooltip="${esc(p.name)}">${esc(p.name)}</strong><span class="agl-prof-badges">${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</span></div>
-    <div class="ag-meter ag-meter--ok"><span class="ag-meter__label">${esc(p.tier)}</span><span class="ag-meter__value">${esc(value)}</span><span class="ag-meter__track" role="progressbar" aria-label="${esc(p.name)} XP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}" aria-valuetext="${esc(value)}" style="--ag-meter:${p.percent}%"><span class="ag-meter__fill"></span></span></div>
+    <div class="ag-meter ag-meter--ok"><span class="ag-meter__label">${tierBadge(p.tier,esc)}</span><span class="ag-meter__value">${esc(value)}</span><span class="ag-meter__track" role="progressbar" aria-label="${esc(p.name)} XP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}" aria-valuetext="${esc(value)}" style="--ag-meter:${p.percent}%"><span class="ag-meter__fill"></span></span></div>
     ${p.tracked?'':'<div class="agl-sub">No XP awarded yet.</div>'}
     ${gm?xpPanel(actor,p):''}
   </div>`;
@@ -2349,7 +2403,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const note=!act.hasProfession?'no profession yet':!rows.length?'no signature perks for the tiers reached':`${n?`${plural(n,'perk')} to grant`:'nothing to grant'}${k?`, ${k} already held`:''}`;
         return `<tr class="agl-map-group agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)} <span class="agl-sub">— ${esc(note)}</span></th></tr>${rows.map(r=>`<tr>
           <td>${r.status==='new'?`<input type="checkbox" data-signature-row="${esc(r.id)}" ${g.selected.has(r.id)?'checked':''} aria-label="Grant ${esc(r.perkName)} to ${esc(r.actorName)}">`:''}</td>
-          <td>${esc(r.perkName)}</td><td>${esc(r.profession)} · ${esc(r.tier)}</td>
+          <td>${esc(r.perkName)}</td><td>${esc(r.profession)} · ${tierBadge(r.tier,esc)}</td>
           <td>${r.status==='new'?badge('Will grant','ok'):r.status==='held'?badge('Already held','muted'):`${badge('Not granted','warn')} <span class="agl-reason">${esc(r.reason)}</span>`}</td></tr>`).join('')}`;}).join('');
       body=`${p.signaturePerks?'':'<p class="agl-sub">No signature perks are imported. Import them with General Manager.</p>'}
         ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Grant</span></th><th scope="col">Perk</th><th scope="col">Profession and tier</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
@@ -2775,7 +2829,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         // Gathering nodes shares Gathering's sub-tab row but is its own view (it has an editor and a footer).
         if(game.user.isGM&&sub.id.startsWith('agl-gather-')&&(sub.dataset.tab==='nodes'||this.view==='nodes')){void this._click('gather-tab',sub.dataset.tab);return;}
         this._showSubTab(sub);return;}
-      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b))return;
+      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||itemLinkClick(b))return;
       // 0.27.0: a Tools and checks cell's checkbox list opens and closes in place (no re-render, the draft is untouched).
       if(b.dataset.action==='map-pick'||b.dataset.action==='map-pick-done'){const picker=b.closest('[data-map-picker]');
         this._toggleMapPicker(picker,b.dataset.action==='map-pick'&&picker?.querySelector('.agl-mpick__pop')?.hidden!==false);return;}
@@ -3207,7 +3261,7 @@ function renderSheetTab(params){
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
-    if(xpModeClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
       if(b.dataset.action==='open-ledger'){game.modules.get(ID)?.api?.open({actorId:sheetActor.id,view:'individual'});return;}
@@ -3251,7 +3305,7 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
-    if(xpModeClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
@@ -3428,4 +3482,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
+  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

@@ -118,8 +118,13 @@
             <dl class="agc-facts">
               <div><dt class="ag-eyebrow">Current bearer</dt><dd>{{gm.bearer}}</dd></div>
               <div><dt class="ag-eyebrow">Since</dt><dd>{{gm.since}}</dd></div>
+              {{#if gm.stage}}<div><dt class="ag-eyebrow">Art stage</dt><dd>{{gm.stage.text}}<span class="agc-meta">{{gm.stage.detail}}</span></dd></div>{{/if}}
             </dl>
             <div class="ag-card__actions"><button type="button" class="ag-btn ag-btn--sm" data-act="art-pick" data-instance="{{instanceId}}"><i class="fa-solid fa-image" aria-hidden="true"></i> Change art…</button>
+              <button type="button" class="ag-btn ag-btn--sm" data-act="stages-edit" data-instance="{{instanceId}}"><i class="fa-solid fa-images" aria-hidden="true"></i> Stages…</button>
+              {{#if gm.stage}}{{#if gm.stage.held}}<button type="button" class="ag-btn ag-btn--sm" data-act="stage-hold" data-mode="auto" data-instance="{{instanceId}}"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Auto again</button>
+              {{else}}<button type="button" class="ag-btn ag-btn--sm" data-act="stage-hold" data-mode="hold" data-instance="{{instanceId}}"><i class="fa-solid fa-lock" aria-hidden="true"></i> Hold this stage</button>{{/if}}
+              <button type="button" class="ag-btn ag-btn--sm" data-act="stage-set" data-instance="{{instanceId}}"><i class="fa-solid fa-list-ol" aria-hidden="true"></i> Set stage…</button>{{/if}}
               {{#if gm.hasArt}}<button type="button" class="ag-btn ag-btn--sm" data-act="art-reset" data-instance="{{instanceId}}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset to default orb</button>{{/if}}</div>
           </section>{{/if}}
         </div>

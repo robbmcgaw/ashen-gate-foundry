@@ -3,10 +3,11 @@
  * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
 import {CINDER_CONTRACT,CINDER_WALLET_CAP,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
   planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
-  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers,isLevelBackup,LEVEL_BACKUP_MESSAGE,definitionArt,isPushable} from './cinder.mjs';
+  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers,isLevelBackup,LEVEL_BACKUP_MESSAGE,definitionArt,definitionStages,isPushable} from './cinder.mjs';
 import {SLOT_KIND,SLOT_LABEL,bearerItemsOf,bearerTag,planBearerItems,bearerItemData,playerUpdateProblem} from './bearer-items.mjs';
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
 import {cleanArt,artInput,resolveArt} from './orb.mjs';
+import {stageState,stagesInput,holdInput} from './stages.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
 export const MAX_CINDERS_SETTING='maxCindersPerActor';
@@ -51,6 +52,18 @@ export function createCinders(deps){
   const definitionName=(id,fallback='Unnamed Cinder')=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:fallback;};
   /** 0.9.0: the art the MUT-* definition gives its Cinders (cinder.art), or null. */
   const defArt=id=>definitionArt(definition(id));
+  /** 0.12.0: the art stages the MUT-* definition gives its Cinders (cinder.artStages), or null. */
+  const defStages=id=>definitionStages(definition(id));
+  /** The stages in force for one Cinder: its own override, else the definition's. */
+  const stagesOf=inst=>inst.artStages??defStages(inst.definitionId);
+  const unlockedCount=inst=>cleanAccount(inst.progression).unlocks.length;
+  /** The art the bearer's pointer carries: the Cinder's own image, the definition's, and (0.12.0) the stage in use, so a player sees the
+   * current stage only (the other stages and their thresholds stay in the GM-only registry). Keys left out when there is nothing to say. */
+  function artCopy(inst){
+    const d=defArt(inst.definitionId),st=stageState(stagesOf(inst),unlockedCount(inst),inst.stageHold);
+    return {art:inst.art??null,...(d?{defaultArt:d}:{}),...(st?{stageArt:st.art,stage:st.index+1,...(st.held?{stageHeld:true}:{})}:{})};
+  }
+  const artSig=o=>JSON.stringify([cleanArt(o?.art),cleanArt(o?.defaultArt),cleanArt(o?.stageArt),Number.isSafeInteger(o?.stage)?o.stage:null,o?.stageHeld===true]);
   const actorById=id=>game.actors?.get?.(id)??null;
   const notBackup=actor=>{if(isLevelBackup(actor))throw Error(LEVEL_BACKUP_MESSAGE);};
   const playable=()=>(game.actors?.contents??[]).filter(a=>!isLevelBackup(a));
@@ -66,10 +79,7 @@ export function createCinders(deps){
   const pointersOf=actor=>Array.isArray(actor?.flags?.[module]?.cinders)?actor.flags[module].cinders.filter(p=>p&&typeof p.instanceId==='string'):[];
   async function setPointers(actor,pointers){await actor.setFlag(module,'cinders',pointers);}
   function treeFor(instance){const t=cinderTree(instance.definitionId);if(!t)throw Error(`No Cinder tree uses ${definitionName(instance.definitionId)}. Import it into Skill Trees first.`);return t;}
-  const pointerData=instance=>({instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),art:instance.art??null,...withDefaultArt(instance.definitionId)});
-  // 0.9.0: the definition's art copied to the bearer's pointer (a player may not see the MUT-* record). Left out when there is none,
-  // so pointers saved before read the same.
-  const withDefaultArt=definitionId=>{const d=defArt(definitionId);return d?{defaultArt:d}:{};};
+  const pointerData=instance=>({instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),...artCopy(instance)});
   async function writeBearer(actor,instance){
     const tree=treeFor(instance);
     await accounts().setAccount(actor,tree.id,instance.progression);
@@ -221,7 +231,9 @@ export function createCinders(deps){
       const registry=readRegistry(),inst=bearerInstance(registry,data.actorId,data.sourceRef);
       if(!inst||JSON.stringify(cleanAccount(inst.progression))===JSON.stringify(cleanAccount(data.account)))return;
       const next=withProgression(registry,data.actorId,data.sourceRef,data.account);
-      await saveRegistry(next.registry);changed('progress',next.instance);
+      await saveRegistry(next.registry);
+      // 0.12.0: the bearer's copy carries the stage in use, which can change with the unlock count.
+      await mirrorSockets(next.instance);changed('progress',next.instance);
     }).catch(error=>console.error(`[${module}] Could not record Cinder progress`,error));
   }
   /** Skill Trees hook before points or an unlock: once a Cinder of a kind exists, only its bearer progresses on that tree. */
@@ -390,12 +402,15 @@ export function createCinders(deps){
       const st=socketState(actor,p.definitionId,p.sockets),extra=[...st.perks,...st.activeItems];
       const powers=st.powers,ids=powers.map(x=>x.powerId);
       // art: what the orb draws (own, then the definition's; null = default orb). ownArt: the Cinder's own image only.
-      const ownArt=cleanArt(p.art),defaultArt=cleanArt(p.defaultArt)??defArt(p.definitionId);
+      const ownArt=cleanArt(p.art),defaultArt=cleanArt(p.defaultArt)??defArt(p.definitionId),stageArt=cleanArt(p.stageArt);
+      // 0.12.0: the GM's own image (Change art…) pins the orb; a copy of the definition's art does not, so the stage in use shows instead.
+      const pinned=ownArt&&ownArt!==defaultArt;
       const modes=(power,powerId)=>availableModes({power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId,extra});
         return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
           modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};});
-      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,art:resolveArt(ownArt,defaultArt),ownArt,defaultArt,
-        artSource:ownArt?'cinder':defaultArt?'definition':null,...treePoints(actor,p.definitionId),
+      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,art:pinned?ownArt:resolveArt(stageArt,resolveArt(ownArt,defaultArt)),ownArt,defaultArt,
+        artSource:pinned?'cinder':stageArt?'stage':ownArt?'cinder':defaultArt?'definition':null,
+        stage:stageArt&&!pinned&&Number.isSafeInteger(p.stage)?{number:p.stage,held:p.stageHeld===true}:null,...treePoints(actor,p.definitionId),
         ...(since?{bearerSince:since.get(p.instanceId)??null}:{}),
         powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',modes:modes(x.power,x.powerId)})),
         enhancements:powers.filter(x=>x.power?.kind==='enhancement').map(x=>({powerId:x.powerId,name:x.name})),
@@ -504,9 +519,9 @@ export function createCinders(deps){
   const putInstance=(registry,next)=>({...registry,instances:registry.instances.map(i=>i.instanceId===next.instanceId?next:i)});
   async function mirrorSockets(inst){
     const actor=inst.bearer?actorById(inst.bearer.actorId):null;if(!actor)return;
-    const want=socketMirror(inst.sockets),art=inst.art??null,defaultArt=defArt(inst.definitionId),p=pointerFor(actor,inst.instanceId);
-    if(p&&(JSON.stringify(p.sockets??null)!==JSON.stringify(want)||cleanArt(p.art)!==art||cleanArt(p.defaultArt)!==defaultArt))
-      await setPointers(actor,pointersOf(actor).map(x=>{if(x.instanceId!==inst.instanceId)return x;const {defaultArt:_old,...rest}=x;return {...rest,sockets:want,art,...withDefaultArt(inst.definitionId)};}));
+    const want=socketMirror(inst.sockets),copy=artCopy(inst),p=pointerFor(actor,inst.instanceId);
+    if(p&&(JSON.stringify(p.sockets??null)!==JSON.stringify(want)||artSig(p)!==artSig(copy)))
+      await setPointers(actor,pointersOf(actor).map(x=>{if(x.instanceId!==inst.instanceId)return x;const {defaultArt:_a,stageArt:_b,stage:_c,stageHeld:_d,...rest}=x;return {...rest,sockets:want,...copy};}));
   }
   /** Attach, detach or swap on the GM client. One registry write, then the bearer's copy and the item markers. */
   async function socketOp(actor,instanceId,op,{user=game.user}={}){
@@ -617,6 +632,36 @@ export function createCinders(deps){
       changed('art',updated,{art});return {changed:true,art};
     });
   }
+  /** GM: one Cinder's art stages, {own, definition, stages (in force), unlocked, hold, state: stageState | null}. */
+  function stagesInfo(instanceId){
+    requireGM();const inst=readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
+    const stages=stagesOf(inst),unlocked=unlockedCount(inst);
+    return {own:inst.artStages,definition:defStages(inst.definitionId),stages,unlocked,hold:inst.stageHold,state:stageState(stages,unlocked,inst.stageHold)};
+  }
+  /** GM: this Cinder's own art stages (2 to 5 {art, at}), or null to use the definition's. Checked here, not just in the editor. */
+  async function setArtStages(instanceId,stages){
+    requireGM();const next=stagesInput(stages);
+    return withRegistry(async()=>{
+      const registry=readRegistry(),inst=registry.instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
+      const count=(next??defStages(inst.definitionId))?.length??0,hold=inst.stageHold&&inst.stageHold<=count?inst.stageHold:null;
+      if(JSON.stringify(inst.artStages)===JSON.stringify(next)&&hold===inst.stageHold)return {changed:false,stages:next};
+      const updated={...inst,artStages:next,stageHold:hold,revision:inst.revision+1};
+      await saveRegistry(putInstance(registry,updated));await mirrorSockets(updated);
+      changed('stages',updated,{stages:next});return {changed:true,stages:next};
+    });
+  }
+  /** GM: hold this Cinder at a stage (1-based; Hold = the current stage, Set = another), or null for automatic again. */
+  async function setStageHold(instanceId,stage){
+    requireGM();
+    return withRegistry(async()=>{
+      const registry=readRegistry(),inst=registry.instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
+      const hold=holdInput(stage,stagesOf(inst)?.length??0);
+      if(hold===inst.stageHold)return {changed:false,hold};
+      const updated={...inst,stageHold:hold,revision:inst.revision+1};
+      await saveRegistry(putInstance(registry,updated));await mirrorSockets(updated);
+      changed('stage',updated,{hold});return {changed:true,hold};
+    });
+  }
   /** GM drop target: an Item dropped on a socket. A world Item is copied into the bearer's inventory first (and removed again if attaching fails). */
   async function attachDropped(instanceId,itemDoc,{slot=null}={}){
     requireGM();
@@ -640,7 +685,7 @@ export function createCinders(deps){
       if(p&&JSON.stringify(normalizeSockets(p.sockets).attached.map(({slot,itemId})=>[slot,itemId]))!==JSON.stringify(inst.sockets.attached.map(({slot,itemId})=>[slot,itemId]))||
         (p&&(normalizeSockets(p.sockets).locked!==inst.sockets.locked||normalizeSockets(p.sockets).count!==inst.sockets.count)))
         rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's sockets differs from the Cinder.`});
-      if(p&&(cleanArt(p.art)!==(inst.art??null)||cleanArt(p.defaultArt)!==defArt(inst.definitionId)))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's art differs from the Cinder.`});
+      if(p&&artSig(p)!==artSig(artCopy(inst)))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's art differs from the Cinder.`});
       for(const a of inst.sockets.attached){const item=itemOf(actor,a.itemId);
         if(!item)rows.push({instanceId:inst.instanceId,name,repair:true,text:`A socketed item is no longer on ${actor.name}; its socket reads as empty.`});
         else if(JSON.stringify(markerOf(item))!==JSON.stringify({instanceId:inst.instanceId,slot:a.slot}))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${item.name} is in a socket but not marked as attached.`});}
@@ -660,10 +705,10 @@ export function createCinders(deps){
     }
     if(dirty)await saveRegistry(next);
     for(const inst of next.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null;if(!actor)continue;
-      const old=pointerFor(actor,inst.instanceId),before=JSON.stringify(old?.sockets??null),artBefore=`${cleanArt(old?.art)}|${cleanArt(old?.defaultArt)}`;await mirrorSockets(inst);
+      const old=pointerFor(actor,inst.instanceId),before=JSON.stringify(old?.sockets??null),artBefore=artSig(old);await mirrorSockets(inst);
       const p=pointerFor(actor,inst.instanceId);
       if(before!==JSON.stringify(p?.sockets??null))done.push(`${actor.name}: socket copy updated`);
-      if(p&&artBefore!==`${cleanArt(p.art)}|${cleanArt(p.defaultArt)}`)done.push(`${actor.name}: Cinder art copy updated`);
+      if(p&&artBefore!==artSig(p))done.push(`${actor.name}: Cinder art copy updated`);
       for(const a of inst.sockets.attached){const item=itemOf(actor,a.itemId);if(item&&JSON.stringify(markerOf(item))!==JSON.stringify({instanceId:inst.instanceId,slot:a.slot})){await setMarker(item,{instanceId:inst.instanceId,slot:a.slot});done.push(`${actor.name}: ${item.name} marked attached`);}}}
     for(const actor of game.actors?.contents??[])for(const item of actor.items??[]){const m=markerOf(item);if(!m)continue;
       const inst=next.instances.find(i=>i.instanceId===m.instanceId);
@@ -788,7 +833,7 @@ export function createCinders(deps){
 
   const api={
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
-    list,previewPush,push:requestPush,validateDefinition,setArt,
+    list,previewPush,push:requestPush,validateDefinition,setArt,stages:stagesInfo,setArtStages,setStageHold,
     instances:()=>readRegistry().instances,
     create,bind,transfer,unbind,rehook,migrate,adoptLegacy,report,repair
   };

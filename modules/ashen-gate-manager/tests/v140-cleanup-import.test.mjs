@@ -69,7 +69,7 @@ test('every load attempt clears the previous file banner; failures say the new f
   assert.match(main,/#clearLoaded\(`Reading \$\{f\.name\}…`\)/);
   assert.match(main,/was not loaded\. Nothing in your world changed\./);
   // 0.46.0: the kit fileButton clears its input after every pick (bindFileButtons), so the same file can be chosen again.
-  assert.match(main,/bindFileButtons\(root,\(files,wrap\)=>this\.#pickFile\(wrap\.dataset\.agFileKind,files\[0\]\)\)/);
+  assert.match(main,/bindFileButtons\(root,\(files,wrap\)=>this\.#pickFile\(wrap\.dataset\.agFileKind,files\[0\],files\)\)/);
 });
 test('Manager UI: no Export or Player Access tab, export lives in Items (was Library), access on Modules',()=>{
   assert.doesNotMatch(tpl,/data-ag-tab="capture"|data-ag-tab="player-access"/);

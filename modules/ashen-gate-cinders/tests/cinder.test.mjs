@@ -585,6 +585,89 @@ test('definition art (0.9.0): checked like the GM\'s art; new Cinders copy it; n
   await cinder.repair();assert.equal('defaultArt' in B.flags[MOD].cinders.find(p=>p.instanceId===ember.instanceId),false);
   const [c]=cinder.list(B);assert.deepEqual([c.art,c.artSource],[null,null],'no art anywhere: the default orb');
 });
+// 0.12.0: art stages. Definition stages (cinder.artStages) or this Cinder's own, picked by the bearer's unlocked-node count; the GM can hold or set a stage.
+test('art stages (0.12.0): the definition check names each problem; the current stage follows the unlocks; Hold / Set / Auto are GM-only in the API; players only get the current image',async()=>{
+  const img=n=>`ashen-gate/cinders/[TEST]-stage-${n}.webp`;
+  const good=[0,1,2,100].map((at,i)=>({art:img(i+1),at}));
+  const check=artStages=>validateDefinition({id:'MUT-TEST-EMBER',entity_type:'Mutation',cinder:{schema:'ag-cinder/0.1',artStages}}).errors.join('\n');
+  assert.equal(check(good),'');
+  assert.match(check('x'),/cinder\.artStages must be a list of 2 to 5 stages/);
+  assert.match(check([good[0]]),/needs 2 to 5 stages \(found 1\)/);
+  assert.match(check([...good,...good]),/needs 2 to 5 stages \(found 8\)/);
+  assert.match(check([{art:img(1),at:1},good[1]]),/artStages\[0\]\.at: stage 1 applies from the bind/);
+  assert.match(check([good[0],{art:'javascript:x',at:3}]),/artStages\[1\]\.art: stage 2 needs an image path/);
+  assert.match(check([good[0],{art:img(2),at:-1}]),/artStages\[1\]\.at: stage 2 "unlocks needed" must be a whole number/);
+  assert.match(check([good[0],{art:img(2),at:2},{art:img(3),at:2}]),/artStages\[2\]\.at: stage 3 needs more unlocks than stage 2 \(2\)/);
+  assert.match(check([good[0],{art:img(2),at:1,extra:1}]),/stage 2 only takes art and at/);
+  game.user=gm;
+  const id=ember.instanceId,inst=()=>cinder.instances().find(i=>i.instanceId===id),ptr=()=>B.flags[MOD].cinders.find(p=>p.instanceId===id);
+  const def=items[0].flags['ashen-gate-manager'].source;
+  const unlocked=()=>inst().progression.unlocks.length;
+  assert.ok(unlocked()>=3,'the earlier tests left the bearer with three nodes');
+  assert.equal(cinder.stages(id).state,null,'no stages anywhere: the orb is the plain art, as before');
+  // Definition stages: stage 4 needs 100 nodes, so with three unlocked the Cinder is at stage 3 (at 2).
+  def.definition.cinder.artStages=good;
+  const full=wallet(B).unlocks.slice();
+  try{
+    await cinder.repair();
+    assert.deepEqual([ptr().stageArt,ptr().stage,'stageHeld' in ptr()],[img(3),3,false],'copied to the bearer\'s pointer: the current image only');
+    assert.equal(JSON.stringify(ptr()).includes(img(4)),false,'the other stages and their numbers never reach the player copy');
+    game.user=bob;let [c]=cinder.list(B);assert.deepEqual([c.art,c.artSource,c.stage],[img(3),'stage',{number:3,held:false}]);game.user=gm;
+    // Live: the bearer's unlock count drops to one node (stage 2), then returns (stage 3). The pointer follows through Skill Trees' hook.
+    await st.api.accounts.setAccount(B,tree.id,{...wallet(B),unlocks:full.slice(0,1)});await settle();
+    assert.deepEqual([ptr().stageArt,ptr().stage],[img(2),2],'one node: stage 2');
+    await st.api.accounts.setAccount(B,tree.id,{...wallet(B),unlocks:[]});await settle();
+    assert.deepEqual([ptr().stageArt,ptr().stage],[img(1),1],'no node: stage 1, from the bind');
+    await st.api.accounts.setAccount(B,tree.id,{...wallet(B),unlocks:full});await settle();
+    assert.equal(ptr().stage,3);
+    // Hold / Set / Auto: the GM only, validated in the data layer.
+    for(const u of [alice,bob]){game.user=u;await assert.rejects(cinder.setStageHold(id,1),/GM only/);await assert.rejects(cinder.setArtStages(id,good),/GM only/);await assert.rejects(()=>Promise.resolve().then(()=>cinder.stages(id)),/GM only/);}
+    game.user=gm;called.length=0;
+    assert.deepEqual(await cinder.setStageHold(id,3),{changed:true,hold:3},'Hold: the current stage');
+    assert.deepEqual(called.find(([e])=>e==='ashenGateCinder.changed')[1],{kind:'stage',instanceId:id,definitionId:DEF,actorId:'B',hold:3});
+    assert.deepEqual(await cinder.setStageHold(id,3),{changed:false,hold:3});
+    await st.api.accounts.setAccount(B,tree.id,{...wallet(B),unlocks:full.slice(0,1)});await settle();
+    assert.deepEqual([ptr().stageArt,ptr().stage,ptr().stageHeld],[img(3),3,true],'held: unlocks no longer move it');
+    assert.equal(cinder.stages(id).state.auto,1);
+    assert.deepEqual(await cinder.setStageHold(id,1),{changed:true,hold:1},'Set: another stage');assert.equal(ptr().stageArt,img(1));
+    for(const bad of [0,6,2.5,'2',-1])await assert.rejects(cinder.setStageHold(id,bad),/Choose a stage from 1 to 5/);
+    await assert.rejects(cinder.setStageHold(id,5),/This Cinder has 4 stages/);
+    await assert.rejects(cinder.setStageHold('cinst_NOPE0000',1),/Unknown Cinder/);
+    game.user=bob;[c]=cinder.list(B);assert.equal(c.art,img(1),'the owner sees the held stage on the orb');game.user=gm;
+    assert.deepEqual(await cinder.setStageHold(id,null),{changed:true,hold:null},'Auto again');
+    assert.deepEqual([ptr().stage,'stageHeld' in ptr()],[2,false]);
+    // The GM's own picture still pins the orb (Change art…); Reset gives the stages back.
+    await cinder.setArt(id,'ashen-gate/cinders/[TEST]-pinned.webp');game.user=bob;[c]=cinder.list(B);assert.deepEqual([c.art,c.artSource],['ashen-gate/cinders/[TEST]-pinned.webp','cinder']);game.user=gm;
+    await cinder.setArt(id,null);
+    // Per-Cinder stages override the definition's; invalid ones are refused with the specific message and nothing is written.
+    const own=[{art:img(7),at:0},{art:img(8),at:1}];
+    await assert.rejects(cinder.setArtStages(id,[{art:img(7),at:0}]),/needs 2 to 5 stages \(found 1\)/);
+    await assert.rejects(cinder.setArtStages(id,[{art:img(7),at:0},{art:'a"b',at:1}]),/stage 2 needs an image path/);
+    assert.equal(inst().artStages,null);
+    await cinder.setStageHold(id,4);
+    assert.deepEqual(await cinder.setArtStages(id,own),{changed:true,stages:own});
+    assert.equal(inst().stageHold,null,'a hold past the new last stage is dropped');
+    assert.deepEqual([ptr().stageArt,ptr().stage],[img(8),2],'own stages: one node unlocked reaches stage 2');
+    assert.deepEqual(await cinder.setArtStages(id,own),{changed:false,stages:own});
+    assert.deepEqual(cinder.stages(id).own,own);
+    assert.equal(cinder.stages(id).definition.length,4);
+    assert.deepEqual(await cinder.setArtStages(id,null),{changed:true,stages:null},'back to the definition\'s');
+    assert.deepEqual(cinder.report(),[]);
+    // Check notices a stale copy, Repair fixes it.
+    B.flags[MOD].cinders=B.flags[MOD].cinders.map(p=>p.instanceId===id?{...p,stageArt:img(1),stage:1}:p);
+    assert.match(cinder.report().map(r=>r.text).join('\n'),/copy of this Cinder's art differs/);
+    assert.ok((await cinder.repair()).some(x=>/art copy updated/.test(x)));assert.deepEqual(cinder.report(),[]);
+    // Sheet: the GM's Binding card row.
+    const {sheetView}=await import('../scripts/main.mjs');
+    const view=sheetView(B,cinder.list(B)[0],null,{strainState:strain.get(B),gm:true,stages:cinder.stages(id)});
+    assert.match(view.gm.stage.text,/Stage 2 of 4, automatic/);assert.deepEqual(view.gm.stage.options.map(o=>o.value),[1,2,3,4]);
+    assert.equal(sheetView(B,cinder.list(B)[0],null,{strainState:strain.get(B),gm:false,stages:cinder.stages(id)}).gm,null,'players get no stage controls or numbers');
+  }finally{
+    await st.api.accounts.setAccount(B,tree.id,{...wallet(B),unlocks:full});await settle();
+    delete def.definition.cinder.artStages;game.user=gm;
+  }
+  await cinder.repair();assert.equal('stageArt' in ptr(),false,'definition stages removed: the copy is cleaned up');
+});
 test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
   game.user=gm;await cinder.unbind(ember.instanceId);await settle();
   let inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
