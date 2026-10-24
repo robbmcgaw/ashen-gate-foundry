@@ -122,7 +122,7 @@ test('frozen bands: Combat, Inventory (search, filters, attunement, purse and we
   const actor = makeActor({items: [...WEAPONS, {id: 'sp', name: '[TEST] Bless', type: 'spell', system: {level: 1, prepared: 1, canPrepare: true, activities: act('action')}},
     {id: 'ft', name: '[TEST] Second Wind', type: 'feat', system: {type: {value: 'class'}, activities: act('bonus'), uses: {max: 1, spent: 0}}}],
     system: {attributes: {...makeActor().system.attributes, encumbrance: {value: 42.5, max: 150, pct: 28.33}}, spells: {spell1: {value: 1, max: 2}}}});
-  const band = html => html.match(/<div class="agch-body"[^>]*><div class="agch-sticky">([\s\S]*?)<\/div>\s*(?=<p class="agch-diamond|<section|<div class="ag-empty"|\n)/)?.[1] ?? '';
+  const band = html => html.match(/<div class="agch-body"[^>]*>(?:<div class="agch-itemzone"[^>]*>)?<div class="agch-sticky">([\s\S]*?)<\/div>\s*(?=<p class="agch-diamond|<section|<div class="ag-empty"|\n)/)?.[1] ?? '';
   assert.match(band(await render('combat', actor)), /data-filter data-tab="combat"/);
   const inv = await render('inventory', actor), invBand = inv.slice(inv.indexOf('agch-sticky'), inv.indexOf('agch-purse'));
   for (const part of [/data-filter data-tab="inventory"/, /Attuned 0 \/ 3/]) assert.match(invBand, part, String(part));

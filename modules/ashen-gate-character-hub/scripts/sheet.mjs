@@ -25,13 +25,13 @@ import * as bio from './biography.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
-import {hotbarLink, linkOn, setLinkOn} from './hotbar-link.mjs';
+import {hotbarLink} from './hotbar-link.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
 import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
-import {togglePopOut, isPoppedOut} from './popout.mjs';
+import {togglePopOut, isPoppedOut, hostWindows, releaseHosting} from './popout.mjs';
 import {placePopovers} from './popover.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
@@ -41,6 +41,7 @@ import * as look from './look.mjs';
 import {openCodex} from './codex.mjs';
 import {configChoices} from './character.mjs';
 import {renameAsk} from './name-title.mjs';
+import {startAdd, dropOnList} from './item-add.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /**
@@ -59,6 +60,9 @@ const askFor = (message, opts = {}) => opts.danger ? confirmDanger(message, opts
 const socketUi = {pick: socketPick, confirm: askFor};
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
+
+/** A conditions action finished: say what happened (a refusal is shown by report), redraw. */
+const condDone = (s, r) => { if (r?.ok) { if (r.notice) globalThis.ui?.notifications?.info?.(r.notice); s.render(); } return r; };
 
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
@@ -83,7 +87,7 @@ export const ACTIONS = {
   'journey-show': (s, t) => journey.setHidden(journeyActor({actor: s.document, sheet: s}), t.dataset.id, false),
   'journey-delete': (s, t) => journeyDelete(s, t),
   'list-filter': (s, t) => { setListFilter(s, t.dataset.tab, t.dataset.key, t.dataset.value); return s.render(); },
-  'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
+  'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) { if (r.notice) globalThis.ui?.notifications?.info?.(r.notice); s.render(); } return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
   // 0.42.0: the slot itself (a key press passes only its number) places dnd5e's roll dialogs (item-actions.mjs rollEvent).
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e, t.getBoundingClientRect ? t : s.element?.querySelector?.(`[data-hotbar-slot="${t.dataset.hotbarSlot}"]`) ?? s.element ?? null),
@@ -101,7 +105,7 @@ export const ACTIONS = {
   'art-change': (s, t) => { closeMenu(s); return changeArtFor(s, t.dataset.art); },
   'char-fold': s => { s.charFolded = s.charFolded !== true; hubUi().set('charFolded', s.charFolded); return s.render(); },
   'filters-menu': (s, t) => toggleMenu(s, `filters:${t.dataset.tab}`),
-  'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
+  'more-menu': s => toggleMenu(s, 'more'),
   // 0.34.0: Level up, Restore backup… and Configure… are items of the header's "⋯" menu, which closes first.
   'level-up': s => { closeMenu(s); return levelUp(s); },
   // 0.40.0: Edit name and title… (header button and ⋯ menu); name-title.mjs checks who may, again.
@@ -124,8 +128,10 @@ export const ACTIONS = {
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   // 0.34.0: the Conditions strip (conditions.mjs checks who may change what, again, at the click).
   'cond-mode': (s, t) => { s.condMode = conds.cleanMode(t.dataset.mode); return s.render(); },
-  'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; const r = await conds.applyCondition(s.document, s.condMode, s.condPick); if (r.ok) s.render(); return r; },
-  'cond-remove': async (s, t) => { const r = await conds.removeCondition(s.document, t.dataset.uuid, t.dataset.status); if (r.ok) s.render(); return r; },
+  'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; return condDone(s, await conds.applyCondition(s.document, s.condMode, s.condPick)); },
+  // 0.45.2: a recent condition, one click (the Self / Target switch decides who gets it).
+  'cond-quick': async (s, t) => condDone(s, await conds.applyCondition(s.document, s.condMode, t.dataset.status)),
+  'cond-remove': async (s, t) => condDone(s, await conds.removeCondition(s.document, t.dataset.uuid, t.dataset.status)),
   // 0.34.0: the quick bar drawer under the bottom bar; the window grows by its height while it is open (fitDrawer).
   'quick-toggle': async s => { s.quickOpen = !s.quickOpen; await s.render(); return s.fitDrawer(); },
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
@@ -134,6 +140,8 @@ export const ACTIONS = {
   'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e),
   'roll-death': (s, t, e) => act.rollDeathSave(s.document, e),
   'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e, t),
+  // 0.45.0: Add item… / spell… / feature… / attack…: dnd5e's compendium browser or a new blank item (item-add.mjs checks who may).
+  'item-add': async (s, t) => { const r = await startAdd(s.document, t.dataset.tab, {sheet: s}); focusAdd(s, t.dataset.tab); return r; },
   'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id, s),
   'item-qty': (s, t) => { const item = s.document.items?.get?.(t.dataset.id); return items.setQuantity(s.document, t.dataset.id, Number(item?.system?.quantity ?? 0) + Number(t.dataset.step)); },
   'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
@@ -158,14 +166,16 @@ export const ACTIONS = {
   'look-set': async (s, t) => { const r = await look.setUserLook(t.dataset.field, t.dataset.value); if (r.ok) { look.applyLook(s.element); s.render(); } return r; },
   'look-more': s => { s.menu = null; s.render(); return look.managerAppearance()?.openMyAppearance?.(); },
   'codex-open': s => { closeMenu(s); return openCodex(); },
-  'pop-out': s => { s.menu = null; return togglePopOut(s); },
-  // 0.42.0: Link quick bar to Foundry's hotbar (per user; applies at once). On: this Hub's character is linked now.
-  'hotbar-link': async s => { const on = !linkOn(); await setLinkOn(on); s.render(); return on ? linkHub(s) : null; }
+  'pop-out': s => { s.menu = null; return togglePopOut(s); }
 };
 /** Links this Hub's character to the user's Foundry hotbar page 1 (hotbar-link.mjs), when the user can change its quick bar. */
 export function linkHub(sheet, link = hotbarLink) {
   if (!sheet?.hubContext?.editable) return null;
   return link.activate(sheet.document);
+}
+/** After an add the focus goes back to the tab's Add button (the dialog that had it is gone, and the list redraws). */
+export function focusAdd(sheet, tab) {
+  try { sheet.element?.querySelector?.(`[data-action="item-add"][data-tab="${tab}"]`)?.focus?.(); } catch { /* focus is a courtesy */ }
 }
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
@@ -713,12 +723,13 @@ export function createHubSheetClass(Base) {
       });
       content.addEventListener?.('submit', ev => ev.preventDefault());
       content.addEventListener?.('dragover', ev => {
-        if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop]')) ev.preventDefault();
-        this._dropHighlight(ev.target?.closest?.('[data-cinder-drop]'));
+        if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop], [data-item-drop]')) ev.preventDefault();
+        this._dropHighlight(ev.target?.closest?.('[data-cinder-drop], [data-item-drop]'));
       });
-      content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop]')) this._dropHighlight(null); });
+      content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop], [data-item-drop]')) this._dropHighlight(null); });
       content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
-        : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
+        : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev)
+        : ev.target?.closest?.('[data-item-drop]') ? this._onListDrop(ev) : this._onCompanionDrop(ev));
       content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
     }
 
@@ -738,7 +749,7 @@ export function createHubSheetClass(Base) {
       const handler = ACTIONS[action];
       if (!handler) return null;
       try { this._agchActionKey = target?.attributes ? fieldKey(target) : null; } catch { this._agchActionKey = null; }   // a popover it opens returns the focus here
-      try { return report(await handler(this, target, event)); } catch (err) {
+      try { return report(await hostWindows(this, () => handler(this, target, event))); } catch (err) {
         console.error(`${MODULE_ID} | ${action}`, err);
         return report({ok: false, error: err?.message ?? String(err)});
       }
@@ -785,7 +796,7 @@ export function createHubSheetClass(Base) {
       if (!this.hubContext.editable) return null;
       event.preventDefault?.();
       const pos = this.position ? {top: (this.position.top ?? 0) + 40, left: (this.position.left ?? 0) + 10} : null;
-      return changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos, hub: this}).then(report);
+      return hostWindows(this, () => changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos, hub: this})).then(report);
     }
 
     /** Double-click (or Enter) on the HP bar opens the small HP editor. Only for users who can edit the character. */
@@ -862,6 +873,7 @@ export function createHubSheetClass(Base) {
     _onClose(options) {
       // The drawer closes with the Hub; the room it added is given back so the window reopens at its own size.
       if (this.quickOpen) { this.quickOpen = false; try { this.fitDrawer(); } catch {} }
+      releaseHosting(this);   // 0.46.2: closing the Hub restores every patched dialog prototype
       unmountEmbeds(this._embeds);
       this._undo?.clear();
       unbindEscape(this); unbindQuickKeys(this);
@@ -901,6 +913,16 @@ export function createHubSheetClass(Base) {
       if (!slot) return null;
       event.preventDefault(); event.stopPropagation();
       try { return report(await hotbar.setHotbarSlot(this.document, slot.dataset.hotbarSlot, await droppedItem(event, ['Item', 'Macro']))); }
+      catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
+    }
+
+    /** Drops on the Combat, Inventory, Magic or Features list add the Item the way the native sheet does (item-add.mjs). */
+    async _onListDrop(event) {
+      const zone = event.target?.closest?.('[data-item-drop]');
+      this._dropHighlight(null);
+      if (!zone) return null;
+      event.preventDefault(); event.stopPropagation();
+      try { return report(await hostWindows(this, () => dropOnList(this.document, zone.dataset.itemDrop, event, {sheet: this, target: zone}))); }   // 0.46.0: dnd5e's advancement window opens in a popped-out Hub's window
       catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 

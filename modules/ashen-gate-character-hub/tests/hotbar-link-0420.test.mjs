@@ -6,12 +6,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
 import * as hb from '../scripts/hotbar.mjs';
-import {createHotbarLink, macroToEntry, itemMacroCommand, itemMacroName, LINK_SETTING, LINK_FLAG} from '../scripts/hotbar-link.mjs';
+import {createHotbarLink, macroToEntry, itemMacroCommand, itemMacroName, LINK_FLAG} from '../scripts/hotbar-link.mjs';
 import {rollEvent, useItem} from '../scripts/item-actions.mjs';
 import {pressQuickSlot} from '../scripts/quick-keys.mjs';
 import {cardHtml, iconHtml} from '../scripts/cards.mjs';
 import {createHubSheetClass, ACTIONS} from '../scripts/sheet.mjs';
-import {linkMenuItem} from '../scripts/views.mjs';
+import {moreMenuHtml, headerHtml} from '../scripts/views.mjs';
+import * as hotbarLinkModule from '../scripts/hotbar-link.mjs';
+import fs from 'node:fs';
 import {MODULE_ID} from '../scripts/constants.mjs';
 
 const ITEMS = [
@@ -181,14 +183,17 @@ test('loop guard: a copy that already matches writes nothing, so each change is 
   assert.equal(w.writes(), u1); assert.equal(assigns(), a1, 'no echo either way');
 });
 
-test('setting off: today\'s behaviour, nothing is linked or copied', async () => {
-  const w = world({hub: [{type: 'Item', id: 'ss'}], settings: {[LINK_SETTING]: false}});
-  assert.equal(await w.link.activate(w.actor, {ask: askNever}), null);
-  await w.link.hubChanged(w.actor); await w.link.foundryChanged();
-  assert.deepEqual(w.user.hotbar, {}); assert.equal(w.user.calls.length, 0);
-  const s = new (createHubSheetClass(FakeActorSheetV2))({document: w.actor});
-  assert.match(linkMenuItem(false), /data-action="hotbar-link"[^>]*aria-pressed="false"[\s\S]*Link quick bar to Foundry's hotbar[\s\S]*Off/);
-  assert.equal(typeof ACTIONS['hotbar-link'], 'function'); assert.ok(s);
+test('0.46.0: always linked, no option: an old stored "unlinked" value is ignored, and no setting, menu item or action exists', async () => {
+  const w = world({hub: [{type: 'Item', id: 'ss'}], settings: {linkFoundryHotbar: false}});
+  await w.link.activate(w.actor, {ask: askNever});
+  assert.equal(w.user.hotbar[1] !== undefined, true, 'the stored false does not leave the user unlinked');
+  assert.equal(w.link.linked, w.actor);
+  for (const gone of ['LINK_SETTING', 'registerLinkSetting', 'linkOn', 'setLinkOn']) assert.equal(hotbarLinkModule[gone], undefined, gone);
+  assert.equal(ACTIONS['hotbar-link'], undefined);
+  const html = moreMenuHtml({menu: 'more'}, {actor: w.actor, sheet: {menu: 'more'}, limited: false, editable: true}) + headerHtml({actor: w.actor, sheet: {menu: null}, limited: false, editable: true}, false);
+  assert.doesNotMatch(html, /hotbar-link|Link quick bar|linkbtn/);
+  const main = fs.readFileSync(new URL('../scripts/main.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /linkFoundryHotbar|registerLinkSetting|linkOn/, 'no setting is registered');
 });
 
 test('no permission to create script macros: the Hub slot still works, one quiet notice, never a throw', async () => {
