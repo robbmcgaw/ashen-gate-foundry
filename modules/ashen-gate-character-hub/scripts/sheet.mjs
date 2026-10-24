@@ -31,7 +31,7 @@ import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} fro
 import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
-import {togglePopOut, isPoppedOut} from './popout.mjs';
+import {togglePopOut, isPoppedOut, hostWindows} from './popout.mjs';
 import {placePopovers} from './popover.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
@@ -738,7 +738,7 @@ export function createHubSheetClass(Base) {
       const handler = ACTIONS[action];
       if (!handler) return null;
       try { this._agchActionKey = target?.attributes ? fieldKey(target) : null; } catch { this._agchActionKey = null; }   // a popover it opens returns the focus here
-      try { return report(await handler(this, target, event)); } catch (err) {
+      try { return report(await hostWindows(this, () => handler(this, target, event))); } catch (err) {
         console.error(`${MODULE_ID} | ${action}`, err);
         return report({ok: false, error: err?.message ?? String(err)});
       }
@@ -785,7 +785,7 @@ export function createHubSheetClass(Base) {
       if (!this.hubContext.editable) return null;
       event.preventDefault?.();
       const pos = this.position ? {top: (this.position.top ?? 0) + 40, left: (this.position.left ?? 0) + 10} : null;
-      return changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos, hub: this}).then(report);
+      return hostWindows(this, () => changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos, hub: this})).then(report);
     }
 
     /** Double-click (or Enter) on the HP bar opens the small HP editor. Only for users who can edit the character. */
