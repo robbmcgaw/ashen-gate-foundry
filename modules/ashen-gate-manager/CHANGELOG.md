@@ -1,3 +1,9 @@
+## 0.60.7 — 2026-10-24
+
+- **Pull from GitHub: folders without a manifest start unticked.** After Find packs, packs with a manifest are still ticked. A folder with no manifest (for example an old or archive folder) now starts unticked and says "No manifest: files import in name order. Tick only if you want this folder." Tick it yourself to pull it. Import order and everything else about pulling is unchanged.
+- **Skill Trees import preview shows the tree summary.** When Skill Trees describes a new tree (for example how many nodes it has), the preview row shows that line instead of "New; imported through Skill Trees." Older Skill Trees versions show the old line. Nothing else changes.
+- Saved data: no change; no migration.
+
 ## 0.60.6 — 2026-10-24
 
 - **Fix: Sync from package no longer reports "unresolved required reference" for records another file in the sync defines.** A package that links to a profession (or any record) defined in an earlier file, such as the Crafting Extensions pack linking to `PROF-*`, was checked against an empty list of known records during Sync, so every cross-file link failed and the whole sync was stopped. Sync now checks links against the world, the other files in the sync, and the file itself. A link to a record that is in none of them is still reported.

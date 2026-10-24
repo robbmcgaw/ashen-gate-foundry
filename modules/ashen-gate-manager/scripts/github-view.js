@@ -14,6 +14,10 @@ export const GITHUB_INTRO = 'Pull a content pack straight from a GitHub reposito
 export const TOKEN_HINT = 'Make a fine-grained personal access token on GitHub for this one repository with Contents set to read-only. The token is kept on this device only (this browser), is never saved in the world, is never shown to players and is sent to GitHub only. Another device or browser needs its own copy.';
 export const LEDGER_NOTE = 'Gathering node files are imported by the Profession Ledger’s own import. They are read, listed as handled by the Ledger and not sent to Sync.';
 
+export const NO_MANIFEST_NOTE = 'No manifest: files import in name order. Tick only if you want this folder.';
+/** Packs ticked when Find packs lists them: manifest packs only. A folder with no manifest starts unticked. */
+export const defaultSelection = packs => (packs ?? []).filter(p => !p.noManifest).map(p => p.id);
+
 const STATUS = {waiting: 'Waiting', reading: 'Reading…', done: 'Read', failed: 'Failed', ledger: 'Handled by the Ledger', skipped: 'Skipped (not a JSON file)'};
 const fileName = path => String(path).slice(String(path).lastIndexOf('/') + 1);
 const TONE = {done: 'ok', failed: 'danger', ledger: 'warn', skipped: 'warn'};
@@ -67,7 +71,7 @@ export function githubView(state) {
     const rows = state.packs.map((p, i) => {
       const id = `agm-gh-pack-${i}`, picked = (state.selected ?? []).includes(p.id);
       return `<li class="ag-row"><label class="ag-row__main agmanager-toggle" for="${id}"><input type="checkbox" id="${id}" data-ag-gh-pack="${esc(p.id)}" ${picked ? 'checked' : ''} ${busy ? 'disabled' : ''}>
-        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.source)} · ${plural(p.fileCount, 'file')}${p.ledgerCount ? ` · ${plural(p.ledgerCount, 'gathering node file')} left for the Ledger` : ''}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span></span></label></li>`;
+        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.source)} · ${plural(p.fileCount, 'file')}${p.ledgerCount ? ` · ${plural(p.ledgerCount, 'gathering node file')} left for the Ledger` : ''}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span>${p.noManifest ? `<span class="ag-row__meta">${esc(NO_MANIFEST_NOTE)}</span>` : ''}</span></label></li>`;
     }).join('');
     parts.push(`<ul class="ag-rows" aria-label="Packs found">${rows}</ul>`);
   }
