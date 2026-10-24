@@ -5,6 +5,7 @@
  * rebuilt from their owners on demand and never written back. Pure logic with injected Foundry globals so the
  * Node suite can cover it; main.js wires the DOM.
  */
+import {tokenLabel} from './labels.js';
 import {collectModuleSections, sourceFlagOf} from './world-export.js';
 import {systemOf, normalizeSourceRef} from './browser.js';
 import {FILTER_INDEX_FIELDS, itemFacts, rarityKey, sharedMatch} from './item-filters.js';
@@ -313,7 +314,7 @@ export function searchIndex(entries, {query = '', scope = 'all', filters = {}, m
   for (const f of FACETS) {
     const counts = new Map();
     for (const e of base) if (passes(e, f)) { const v = facetValue(e, f); if (v !== null) counts.set(String(v), (counts.get(String(v)) ?? 0) + 1); }
-    facets[f] = [...counts].map(([value, count]) => ({value, count, label: f === 'owner' ? ownerLabel(value) : value, selected: String(filters[f]) === value}))
+    facets[f] = [...counts].map(([value, count]) => ({value, count, label: f === 'owner' ? ownerLabel(value) : ['entityType', 'status', 'visibility'].includes(f) ? tokenLabel(value) : value, selected: String(filters[f]) === value}))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, {numeric: true}));
   }
   const cmp = sortKey[sort] ?? sortKey.name;

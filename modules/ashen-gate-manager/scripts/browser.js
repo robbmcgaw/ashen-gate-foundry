@@ -1,3 +1,4 @@
+import {relationLabel,modeLabel,tokenLabel} from './labels.js';
 /** Pure helpers for browsing imported Ashen Gate content (no writes to world documents). */
 const SYSTEM_NAMES = Object.freeze({
   'SYS-PROF':'Professions','SYS-MUT':'Cinders','SYS-FACTION':'Renown',
@@ -71,13 +72,14 @@ export function inspectLibrary(rows,uuid) {
   for(const r of rows)for(const id of r.ownedResourceIds??[])if(!ids.has(id))ids.set(id,r);
   const outgoing=(selected.refs??[]).map(raw=>{
     const r=normalizeSourceRef(raw),match=ids.get(r.targetId);
-    return {...r,exists:Boolean(match),name:match?.name??'Missing / not managed',uuid:match?.uuid??null};
+    return {...r,relationLabel:relationLabel(r.relation),modeLabel:modeLabel(r.mode),exists:Boolean(match),name:match?.name??'Missing / not managed',uuid:match?.uuid??null};
   });
   const incoming=rows.filter(r=>r.uuid!==uuid).flatMap(row=>(row.refs??[])
     .map(normalizeSourceRef).filter(ref=>ref.targetId===selected.sourceId || (selected.ownedResourceIds??[]).includes(ref.targetId))
-    .map(ref=>({...ref,sourceId:row.sourceId,name:row.name,uuid:row.uuid})));
+    .map(ref=>({...ref,relationLabel:relationLabel(ref.relation),modeLabel:modeLabel(ref.mode),sourceId:row.sourceId,name:row.name,uuid:row.uuid})));
   return {...selected, outgoing,incoming,refCount:outgoing.length,inboundCount:incoming.length,
     editedFields:selected.editedFields??[],visibility:selected.visibility??'—',
+    statusLabel:tokenLabel(selected.status),visibilityLabel:tokenLabel(selected.visibility)||'—',scopeLabel:tokenLabel(selected.scope),entityLabel:tokenLabel(selected.entityType),
     provenanceSummary:(selected.provenance?.sources??[]).join(' • ')||'No source recorded'};
 }
 /** Find only actual Ashen Gate modules; never invent IDs for optional modules. */

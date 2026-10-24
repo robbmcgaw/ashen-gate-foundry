@@ -18,7 +18,8 @@ import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
-import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
+import {tokenLabel} from "./labels.js";
+import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES, NO_CONFIDENT_MATCH} from './smart-icons.js';
 import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
@@ -202,6 +203,10 @@ function planWithMetadata(record,matches,unmanaged,includeDrafts,pkg) {
   const keys=['entityType','status','visibility','version','provenance','refs','scope','schemaVersion','ownedResourceIds','ownerSystemId','objectiveKind','definition','sourceVersion'];
   const changed=keys.filter(key=>canonical(f?.[key]??null)!==canonical(expected[key]??null));
   if (changed.length) return {action:'metadata',patch:{},reason:`Metadata refresh: ${changed.join(', ')}. Foundry rule fields remain untouched.`};
+  // 0.54.2: an unedited description that still carries the old References list is cleaned up on the next import of that record.
+  const live=matches[0].get?.('system.description.value');
+  if (typeof live==='string' && live!==stripReferenceBlock(live) && live===f?.managedFields?.['system.description.value'])
+    return {action:'metadata',patch:{},reason:'Metadata refresh: remove the old References list from the description (not edited since import).'};
   return planned;
 }
 
@@ -630,7 +635,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPage=Math.max(0,Math.min(this.libraryPage,pageCount-1));
     const libraryRows=browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
     const libraryDetail=inspectLibrary(library,this.libraryFocus);
-    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,statusTone:statusTone(row.status),focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
+    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,statusLabel:tokenLabel(row.status),statusTone:statusTone(row.status),focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
     const libraryFilterCount=[this.libraryStatus!=='all',this.libraryPackage!=='all',!this.libraryShowArchived].filter(Boolean).length;
     const menus=game.settings?.menus ? [...game.settings.menus.entries()] : [];
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
@@ -688,14 +693,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
-      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows),
+      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows).map(c=>({...c,slug:c.id})),
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
       libraryInScope:libraryInScope.length, libraryNarrowed:libraryInScope.length!==library.length,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
       libraryEditedCount:browser.summary.edited, librarySystemCount:browser.summary.systems,
       libraryShowArchived:this.libraryShowArchived,
       librarySystemOptions:[{value:'all',label:'All systems',selected:this.librarySystem==='all'},...browser.systemOptions],
-      libraryStatusOptions:[{value:'all',label:'All statuses',selected:this.libraryStatus==='all'},...browser.statusOptions.map(r=>({...r,label:r.value}))],
+      libraryStatusOptions:[{value:'all',label:'All statuses',selected:this.libraryStatus==='all'},...browser.statusOptions.map(r=>({...r,label:tokenLabel(r.value)}))],
       libraryPackageOptions:[{value:'all',label:'All packages',selected:this.libraryPackage==='all'},...browser.packageOptions.map(r=>({...r,label:r.value}))],
       libraryPageLabel:`${browser.rows.length ? this.libraryPage*this.libraryPageSize+1 : 0}–${Math.min((this.libraryPage+1)*this.libraryPageSize,browser.rows.length)} of ${browser.rows.length}`,
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
@@ -871,7 +876,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #setupSources() {
     const src=coreLinks().describeSources(), d=this.setupDraft?.sources;
     if(!d)return src;
-    return {...src,auto:d.auto,packs:(src.packs??[]).map(p=>({...p,configured:d.packs.includes(p.id)})),
+    return {...src,auto:d.auto,packs:(src.packs??[]).map(p=>({...p,slug:p.id,configured:d.packs.includes(p.id)})),
       folders:(src.folders??[]).map(f=>({...f,configured:d.folders.includes(f.id)}))};
   }
   /** Import tab file button: JSON or ZIP. */
@@ -1577,7 +1582,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         label:i.pending?'Indexing icons…':this.iconOverrides.has(row.id)?'your choice':i.source==='smart'?(ICON_CONFIDENCE[i.confidence]??'match'):i.reason===NO_CONFIDENT_MATCH?NO_CONFIDENT_MATCH:'generic icon',
         note:i.pending?'A generic icon for now; the pick appears when indexing finishes.':this.iconOverrides.has(row.id)?'Chosen with Change…':i.source==='smart'?`${i.existing?'Replaces a placeholder icon; ':''}${i.reason}.`
           :i.reason===NO_CONFIDENT_MATCH?'Nothing in Foundry\u2019s icon library fits this name well enough, so the generic icon is used. Change… picks one.':'No fitting icon found in the library.'}:null;
-      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
+      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), kind:tokenLabel(row.kind),lifecycle:tokenLabel(row.lifecycle),badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
     });
   }
   #iconIndexText() {
@@ -1923,11 +1928,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           const original=record.foundry.data?.system?.description?.value;
           if(typeof original==='string' || bindings.length) {
             const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-            const final=appendReferenceBlock(linked.text,bindings,linked.resolved);
+            const final=stripReferenceBlock(linked.text);
             for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-            if(doc.system?.description?.value!==final) updates['system.description.value']=final;
-            newFields['system.description.value']=final;
-            log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length,added:bindings.length-bindings.filter(b=>linked.resolved.includes(b.target_id)).length});
+            // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
+            // References section is cleaned up only on documents nobody has changed since the import).
+            const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
+            if(row.action==='create'||live===final||live===baseline) {
+              if(live!==final) updates['system.description.value']=final;
+              newFields['system.description.value']=final;
+            }
+            log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length});
           }
         } else if(doc.documentName==='Actor') {
           // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
@@ -1936,7 +1946,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           const bio=record.foundry.data?.system?.details?.biography?.value;
           if(created && typeof bio==='string') {
             const resolved=resolveRichText(bio,uuidIndex);
-            updates['system.details.biography.value']=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+            updates['system.details.biography.value']=resolved.text;
             for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
           }
           for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
@@ -1951,7 +1961,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           const text=record.foundry.data?.description;
           if(typeof text==='string') {
             const resolved=resolveRichText(text,uuidIndex);
-            updates.description=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+            updates.description=resolved.text;
             for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
           }
         } else if(doc.documentName==='JournalEntry') {
@@ -1960,10 +1970,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
             const page=doc.pages?.contents?.[pi];
             if(!page || typeof pageDef.text?.content!=='string') continue;
             const linked=resolveRichText(pageDef.text.content,uuidIndex);
-            const final=pi===0 ? appendReferenceBlock(linked.text,bindings,linked.resolved) : linked.text;
+            const final=linked.text;
             for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
             try{
-              if(page.text?.content!==final) await page.update({'text.content':final});
+              // Rewrite only a page nobody edited: created this run, or equal to the source text once a legacy References section is removed.
+              if(page.text?.content!==final&&(row.action==='create'||stripReferenceBlock(page.text?.content)===final)) await page.update({'text.content':final});
               log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
             }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
           }

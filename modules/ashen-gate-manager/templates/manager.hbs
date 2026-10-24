@@ -231,7 +231,7 @@
             <input type="checkbox" data-ag-library-select="{{uuid}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" />
             <button type="button" class="aglib-row__main" data-ag-library-inspect="{{uuid}}" {{#if focused}}aria-current="true"{{/if}}{{{tooltip}}}>
               <span class="aglib-row__name">{{name}}</span>
-              <span class="aglib-row__meta"><span class="ag-badge{{#if statusTone}} ag-badge--{{statusTone}}{{/if}}">{{status}}</span>{{#if archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if version}}<span class="ag-badge">v{{version}}</span>{{/if}}{{#if edited}}<span class="ag-badge ag-badge--warn">{{edited}} edit(s)</span>{{/if}}</span>
+              <span class="aglib-row__meta"><span class="ag-badge{{#if statusTone}} ag-badge--{{statusTone}}{{/if}}">{{statusLabel}}</span>{{#if archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if version}}<span class="ag-badge">v{{version}}</span>{{/if}}{{#if edited}}<span class="ag-badge ag-badge--warn">{{edited}} edit(s)</span>{{/if}}</span>
             </button>
           </div>{{/each}}
           {{else}}{{#if libraryTotal}}<div class="ag-empty aglib-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or filters.</p></div>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p class="ag-empty__title">No Ashen Gate records yet</p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab. Items from D&amp;D Beyond, Plutonium or compendiums are under Browse.</p></div>{{/if}}{{/each}}
@@ -265,7 +265,7 @@
         {{#if libraryHasDetail}}
         <div class="aglib-detail__head">
           <div class="aglib-detail__title"><h3>{{libraryDetail.name}}</h3>
-            <div class="aglib-row__meta"><span class="ag-badge{{#if libraryDetail.statusTone}} ag-badge--{{libraryDetail.statusTone}}{{/if}}">{{libraryDetail.status}}</span><span class="ag-badge">{{libraryDetail.kind}} · {{libraryDetail.entityType}}</span>{{#if libraryDetail.archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if libraryDetail.edited}}<span class="ag-badge ag-badge--warn">{{libraryDetail.edited}} local edit(s)</span>{{/if}}</div>
+            <div class="aglib-row__meta"><span class="ag-badge{{#if libraryDetail.statusTone}} ag-badge--{{libraryDetail.statusTone}}{{/if}}">{{libraryDetail.statusLabel}}</span><span class="ag-badge">{{libraryDetail.kind}} · {{libraryDetail.entityLabel}}</span>{{#if libraryDetail.archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if libraryDetail.edited}}<span class="ag-badge ag-badge--warn">{{libraryDetail.edited}} local edit(s)</span>{{/if}}</div>
           </div>
           <button type="button" class="ag-btn" data-ag-library-open="{{libraryDetail.uuid}}"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open sheet</button>
           <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="library-inspect-clear" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
@@ -275,8 +275,8 @@
           <dt>System</dt><dd>{{libraryDetail.systemLabel}}</dd>
           <dt>Version</dt><dd>{{libraryDetail.version}}</dd>
           <dt>Package</dt><dd>{{libraryDetail.packageId}}</dd>
-          <dt>Visibility</dt><dd>{{libraryDetail.visibility}}</dd>
-          <dt>Scope</dt><dd>{{libraryDetail.scope}}</dd>
+          <dt>Visibility</dt><dd>{{libraryDetail.visibilityLabel}}</dd>
+          <dt>Scope</dt><dd>{{libraryDetail.scopeLabel}}</dd>
           <dt>References</dt><dd>{{libraryDetail.refCount}} out · {{libraryDetail.inboundCount}} in</dd>
           <dt>Technical</dt><dd><details class="agm-tech" data-ag-technical><summary>Details</summary><div><span class="agmanager-tiny">Record id</span> <code class="agm-id">{{libraryDetail.sourceId}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{libraryDetail.sourceId}}" aria-label="Copy id for {{libraryDetail.name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></div><div><span class="agmanager-tiny">Foundry UUID</span> <code class="agm-id">{{libraryDetail.uuid}}</code></div></details></dd>
         </dl>
@@ -284,12 +284,12 @@
           <div><h4>Uses <span class="aglib-num">({{libraryDetail.refCount}})</span></h4>
             {{#each libraryDetail.outgoing}}<div class="aglib-ref">
               {{#if uuid}}<button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="aglib-missing">Not in this world</span>{{/if}}
-              <span class="agmanager-tiny">{{relation}} · {{mode}}</span></div>
+              <span class="agmanager-tiny">{{relationLabel}} · {{modeLabel}}</span></div>
             {{else}}<p class="agmanager-tiny">No outgoing typed references.</p>{{/each}}
           </div>
           <div><h4>Used by <span class="aglib-num">({{libraryDetail.inboundCount}})</span></h4>
             {{#each libraryDetail.incoming}}<div class="aglib-ref"><button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>
-              <span class="agmanager-tiny">{{relation}}</span></div>
+              <span class="agmanager-tiny">{{relationLabel}}</span></div>
             {{else}}<p class="agmanager-tiny">No managed records link to this one.</p>{{/each}}
           </div>
         </div>
@@ -742,7 +742,7 @@
     <div class="ag-card-grid agmanager-module-grid">
     {{#each moduleCards}}
       <article class="ag-card agmanager-module-card">
-        <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{id}}</code>
+        <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{slug}}</code>
           <p class="agmanager-module-card__badge"><span class="ag-badge{{#if badge.tone}} ag-badge--{{badge.tone}}{{/if}}">{{badge.label}}</span></p>
           <p class="agmanager-tiny">v{{version}} · {{state}}</p><p class="agmanager-tiny">{{role}}</p>
           {{#unless canToggle}}<p class="agmanager-tiny">{{accessReason}}</p>{{/unless}}</div>
@@ -967,7 +967,7 @@
         <p class="agmanager-tiny"><strong>On:</strong> world items imported by Plutonium or marked 2024, your world compendiums and the dnd5e 2024 compendiums. <strong>Off:</strong> only what you tick below.</p>
         <h4>Also use these compendiums</h4>
         <p class="agmanager-tiny"><span class="ag-badge">detected</span> means automatic search already uses it.</p>
-        <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
+        <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{slug}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
         <h4>Also use world Item folders</h4>
         <div class="agm-checks">{{#each setup.folders}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
       </section>

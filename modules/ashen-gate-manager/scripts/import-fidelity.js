@@ -87,7 +87,7 @@ export function resolveRichText(html,index){
     const result=resolveUuid(index,id);
     if(result.status!=='resolved'){issues.push({level:'error',id,message:`AGREF ${id}: ${result.status}${result.uuids?' ('+result.uuids.join(', ')+')':''}.`});return token;}
     resolved.push(id);
-    return `@UUID[${result.uuid}]{${safeLinkLabel(label || result.name)}}`;
+    return `@UUID[${result.uuid}]{${safeLinkLabel(label && label!==id ? label : result.name)}}`;
   });
   if((html.match(/\[\[AGREF:/g)??[]).length!==[...html.matchAll(MARKER)].length)
     issues.push({level:'error',id:'AGREF',message:'Malformed AGREF marker remains.'});
@@ -116,13 +116,14 @@ export function resolveTypedRefs(refs,index,excludeIds=[],moduleRecord=null){
   }
   return {bindings,issues,moduleLinks};
 }
-export function appendReferenceBlock(html,bindings,alreadyIncluded=[]){
-  if(typeof html!=='string'||!bindings.length)return html;
-  const included=new Set(alreadyIncluded);
-  const missing=bindings.filter(b=>!included.has(b.target_id));
-  if(!missing.length)return html;
-  const entries=missing.map(b=>`<li><span>${safeHtml(b.relation)}:</span> @UUID[${b.uuid}]{${safeLinkLabel(b.target_id)}}</li>`).join('');
-  return `${html}\n<section class="ag-managed-links" data-ag-managed-links="1"><h4>References</h4><ul>${entries}</ul></section>`;
+/**
+ * 0.54.2: Manager no longer writes a "References" list into descriptions (it printed raw relation tokens and ids into
+ * player-readable text; the bindings live in flags.<module>.source.refs). Older imports left one behind: this removes
+ * exactly that section (the one marked data-ag-managed-links) and the line break before it. Idempotent.
+ */
+export function stripReferenceBlock(html){
+  if(typeof html!=='string'||!html.includes('data-ag-managed-links'))return html;
+  return html.replace(/\n?<section\b[^>]*\bdata-ag-managed-links="1"[^>]*>[\s\S]*?<\/section>/g,'');
 }
 
 /** Only explicit placeholders demand UUIDs; typed refs are checked in the final pass. */

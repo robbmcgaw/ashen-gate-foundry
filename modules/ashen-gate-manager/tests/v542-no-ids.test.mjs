@@ -2,12 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {assertNoIds, findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds, assertNoMachineText, findId} from '../../../scripts/test-helpers/no-ids.mjs';
 import {createBrowse, searchIndex} from '../scripts/browse.js';
 import {bodyHtml, DEFAULT_STATE} from '../scripts/browse-view.js';
 import {gmEntry, playerEntry, renderPlayerCodexHtml} from '../scripts/codex.js';
 import {buildImportReport} from '../scripts/import-result.js';
 import {summaryText} from '../scripts/world-export.js';
+import {inspectLibrary} from '../scripts/browser.js';
+import {relationLabel, tokenLabel} from '../scripts/labels.js';
 
 const M = 'ashen-gate-manager';
 const R = 'ashen-gate-factions';
@@ -92,4 +94,26 @@ test('manager.hbs: record ids appear only inside GM Details folds or as wiring a
   assert.equal(findId(readable), null);
   // Every Details fold has a Copy id button or sits next to one.
   assert.match(tpl, /data-ag-copy-id/);
+});
+
+test('machine tokens (relations, status, visibility, entity types) get readable labels', () => {
+  assert.equal(relationLabel('also_available_as_journal'), 'Also available as a journal');
+  assert.equal(tokenLabel('reveal_gated'), 'Revealed by the GM');
+  assert.equal(tokenLabel('HandoutItem'), 'Handout item');
+  const game = world();
+  const handout = doc('Item', 'i3', '[TEST] Notice', 'ITEM-HANDOUT-TEST-NOTICE', 'HandoutItem');
+  handout.flags[M].source.visibility = 'reveal_gated';
+  handout.flags[M].source.refs = [{target_id: 'ITEM-HANDOUT-TEST-JOURNAL', relation: 'also_available_as_journal', mode: 'optional'}];
+  game.items.contents.push(handout);
+  const svc = createBrowse({game});
+  const idx = svc.getIndex();
+  const entry = idx.find(e => e.id === 'ITEM-HANDOUT-TEST-NOTICE');
+  const strip = html => html.replace(/<details class="agm-tech" data-ag-technical>[\s\S]*?<\/details>/g, '');
+  const html = strip(bodyHtml({...DEFAULT_STATE, detailKey: entry.key}, svc.search({}), svc.detail(entry.key)));
+  assertNoMachineText(html, 'Browse results and detail');
+  assert.match(html, /Handout item/);
+  const row = {uuid: 'Item.x', sourceId: 'ITEM-HANDOUT-TEST-NOTICE', refs: handout.flags[M].source.refs, status: 'approved', visibility: 'reveal_gated', entityType: 'HandoutItem', name: 'n'};
+  const detail = inspectLibrary([row], 'Item.x');
+  assert.equal(detail.outgoing[0].relationLabel, 'Also available as a journal');
+  assert.equal(detail.outgoing[0].relation, 'also_available_as_journal', 'stored value is unchanged');
 });

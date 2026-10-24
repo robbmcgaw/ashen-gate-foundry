@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {compilePackage} from '../scripts/workflows.js';
 import {canonicalDefinition} from '../scripts/source-projection.mjs';
+import {assertNoMachineText} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const managerId='ashen-gate-manager';
 const fixturePath=fileURLToPath(new URL('../../../test-fixtures/professions/AG_WORK_0002_Material_Recipe_Item.json',import.meta.url));
@@ -144,4 +145,52 @@ test('AG-WORK-0002 pinned source survives Manager import and Ledger read-only lo
     assert.equal(result.status,'ok',`Ledger v0.6.1 lookup failed for ${id}: ${result.status}`);
     assert.deepEqual(result.definition,canonicalDefinition(sourceById.get(id)),`Ledger returned altered definition ${id}`);
   }
+});
+
+test('0.54.2: import writes no References list into descriptions; re-import removes a legacy one only from unedited documents',async()=>{
+  const sourcePackage=JSON.parse(fs.readFileSync(packagePath,'utf8'));
+  const runtime=installMockFoundry();
+  globalThis.foundry.utils.saveDataToFile=()=>{};
+  await import(`../scripts/main.js?ag-no-refs=${Date.now()}`);
+  runtime.callbacks.once.get('init')?.();
+  runtime.callbacks.once.get('ready')?.();
+  await runtime.managerModule.api.open();
+  const app=runtime.instances.at(-1);
+  await app._onRender({},{});
+  runtime.draftToggle.value='development';
+  await runtime.draftToggle.listeners.change({target:runtime.draftToggle});
+  const load=async()=>{
+    runtime.fileInput.files=[{name:path.basename(packagePath),size:Buffer.byteLength(JSON.stringify(sourcePackage)),text:async()=>JSON.stringify(sourcePackage)}];
+    await runtime.fileInput.listeners.change();
+    await runtime.actionElements.find(e=>e.dataset.agAction==='select').listeners.click({preventDefault(){}});
+    await new Promise(r=>setTimeout(r,25));
+  };
+  const apply=async n=>{
+    await runtime.actionElements.find(e=>e.dataset.agAction==='apply').listeners.click({preventDefault(){}});
+    await waitFor(()=>(runtime.settings.get('importHistory')?.length??0)>=n,'import did not finish');
+  };
+  await load();await apply(1);
+  const items=()=>runtime.collections.items.contents.filter(d=>d.getFlag(managerId,'source')&&d.get('system.description.value')!==undefined);
+  assert.ok(items().length>0);
+  for(const d of items()){
+    const html=d.get('system.description.value');
+    assert.ok(!/ag-managed-links/.test(html),`${d.name}: no References section is written`);
+    assertNoMachineText(html,`description of ${d.name}`);
+  }
+  // Simulate worlds imported before 0.54.2: a legacy section in an unedited document, and in an edited one.
+  const block='\n<section class="ag-managed-links" data-ag-managed-links="1"><h4>References</h4><ul><li><span>also_available_as_journal:</span> @UUID[Item.X]{ITEM-HANDOUT-A}</li></ul></section>';
+  const [clean,edited]=items();
+  for(const d of [clean,edited]){
+    const legacy=d.get('system.description.value')+block;
+    await d.update({'system.description.value':legacy});
+    const flag=d.getFlag(managerId,'source');
+    await d.setFlag(managerId,'source',{...flag,managedFields:{...flag.managedFields,'system.description.value':legacy}});
+  }
+  const editedText=edited.get('system.description.value')+'<p>GM note.</p>';
+  await edited.update({'system.description.value':editedText});
+  await load();await apply(2);
+  assert.ok(!/ag-managed-links/.test(clean.get('system.description.value')),'unedited document is cleaned');
+  assert.equal(edited.get('system.description.value'),editedText,'edited document is left alone');
+  await load();await apply(3);
+  assert.equal(edited.get('system.description.value'),editedText,'still untouched on a further re-import');
 });
