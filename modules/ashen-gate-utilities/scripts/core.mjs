@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.28.3';
+export const VERSION = '0.28.4';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -221,11 +221,20 @@ export function statusEntries(registry) {
   }
   return out;
 }
-/** 0.28.3: the name of the effect on `actor` that carries `statusId`, else the id itself. */
+/** 0.28.4: the name of the effect on `actor` that carries `statusId`, else the id itself. */
 export const unknownStatusLabel = (actor, statusId) => {
   const e = [...(actor?.effects ?? [])].find(x => (x?.statuses instanceof Set ? x.statuses.has(statusId) : Array.isArray(x?.statuses) && x.statuses.includes(statusId)) && typeof x.name === 'string' && x.name);
   return e ? e.name : statusId;
 };
+/**
+ * 0.28.4: the shared conditions list, from `statusEntries(...)` rows: not read-only, not exhaustion, with a label and an image,
+ * sorted by label. [{id, label, img}]
+ */
+export function sharedConditionChoices(entries, {label = e => e.name ?? e.id} = {}) {
+  return entries.filter(e => e.id !== 'exhaustion' && !isReadOnlyStatus(e.id))
+    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: typeof (e.img ?? e.icon) === 'string' ? (e.img ?? e.icon) : ''}))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 /** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
 export const STATUS_ALIASES = Object.freeze({blind: 'blinded', charm: 'charmed', deaf: 'deafened', fear: 'frightened', grapple: 'grappled', incapacitate: 'incapacitated', paralysis: 'paralyzed', petrify: 'petrified', poison: 'poisoned', restrain: 'restrained', stun: 'stunned', sleep: 'sleeping', fly: 'flying', burrow: 'burrowing', hover: 'hovering'});
 /** `id` when it is native, else its alias when that is native, else `id` unchanged (and refused as unknown later). */

@@ -1,3 +1,8 @@
+## 0.28.4 — 2026-10-24
+
+- **One conditions list.** The Conditions tracker's Apply list and the Character Hub's conditions strip now offer the same conditions (the Hub reads Utilities' list when Utilities is active): every native status by name, A to Z, without the read-only Strain chip and without Exhaustion (it has levels; use the pill beside HP in the Hub). Before, the two lists differed. New `api.conditions.choices()` returns it as `[{id, label, img}]`.
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.28.3 — 2026-10-24
 
 - **Condition buttons follow Player Access.** When the GM hides Utilities from players, the Character Hub's conditions strip no longer offers Apply or a chip's ✕ that then failed with "Utilities access is hidden"; Utilities' conditions API now says no up front (`canApply` / `canRemove`), as the tracker itself already does.
