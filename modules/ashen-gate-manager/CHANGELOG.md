@@ -1,3 +1,7 @@
+## 0.60.1 — 2026-10-24
+
+**Fix: the compact pause indicator was invisible.** With *Show the pause as a small indicator* on, the big banner was hidden but the small Paused label never appeared. Foundry forces anything marked hidden to stay hidden, and the label was marked that way. It is now hidden by the module's own style instead, so it shows at the top centre while the game is paused. Style only; no saved data changes.
+
 ## 0.60.0 — 2026-10-24
 
 **Pull from GitHub** (Import tab, GM only). Reads a content pack straight from a GitHub repository instead of downloading ZIP files, and hands it to Sync from package.

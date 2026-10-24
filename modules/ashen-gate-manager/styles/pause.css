@@ -5,7 +5,9 @@
  */
 html[data-ag-pause="compact"] #pause { display: none !important; }
 
-html[data-ag-pause="compact"] #ag-pause-pill { display: none; }
+/* Hidden by default by this rule, not by the hidden attribute: Foundry has [hidden] { display: none !important }, which
+   also beat the show rule below and left the indicator invisible (0.59.0). */
+#ag-pause-pill { display: none; }
 html[data-ag-pause="compact"][data-ag-paused="true"] #ag-pause-pill {
   display: inline-flex;
   align-items: center;
