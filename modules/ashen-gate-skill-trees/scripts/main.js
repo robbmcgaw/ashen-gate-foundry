@@ -12,7 +12,8 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
-import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton} from './ag-html.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
+import {SOURCE_KINDS,sourceRecords,missingSourceMessage} from './source-pick.mjs';
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
 import {treePicker,walletLine,professionGroups} from './groups.mjs';
@@ -21,7 +22,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.22.1';
+const VERSION='0.22.2';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -147,6 +148,18 @@ const input=async(title,content,label='Save',{render}={})=>{
     buttons:[{action:'cancel',label:'Cancel',callback:()=>null},{action:'ok',label,default:true,callback:(event,button)=>formValues(new FormData(button?.form??event?.currentTarget?.form))}]});
   return result&&typeof result==='object'?result:null;
 };
+/** The world documents a Profession or Mutation record can live on (Manager-bound). */
+const worldDefinitionDocs=()=>[...(game.items?.contents??[]),...(game.journal?.contents??[]),...(game.actors?.contents??[])];
+/** Create tree: show the picker for the chosen provider, and keep the form's sourceRef in step with it. */
+function wireSourcePickers(el){
+  if(!el?.querySelector)return;
+  const kind=el.querySelector('[name="kind"]'),out=el.querySelector('[name="sourceRef"]');
+  const show=()=>{for(const box of el.querySelectorAll('[data-agst-src]')){const on=box.dataset.agstSrc===kind?.value;box.hidden=!on;if(!on){const h=box.querySelector('.ag-picker__value');if(h)h.value='';}}
+    if(out)out.value=el.querySelector(`[data-agst-src="${kind?.value}"] .ag-picker__value`)?.value??'';};
+  kind?.addEventListener('change',show);
+  bindRefPickers(el,(value)=>{if(out)out.value=value;});
+  show();
+}
 const newKey=(prefix='LOCAL-NODE')=>`${prefix}-${foundry.utils.randomID(14)}`;
 const checked=v=>v===true||v==='on'||v==='true';
 // Perk text for the node: tags removed, and Manager [[AGREF:ID|label]] / Foundry @UUID[...]{label} links reduced to their label.
@@ -1159,10 +1172,12 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM)throw Error('GM only');
     const f=await input('Create tree',`<div class="ag-form-grid agst-dialog"><label class="ag-field">Name<input name="name" value="New Tree" maxlength="120" required></label>
       <label class="ag-field">Provider<select name="kind"><option value="generic_points">Generic points</option><option value="cinder_milestone">Cinder • ${CINDER_MAX_POINTS} milestones</option><option value="profession">Profession • Ledger read-only</option></select></label>
-      <label class="ag-field">Linked profession or mutation (optional)<input name="sourceRef" placeholder="Paste the source id from General Manager"></label>
+      ${['profession','cinder_milestone'].map(k=>{const recs=sourceRecords(worldDefinitionDocs(),k);return `<div data-agst-src="${k}" hidden>${refPicker({id:`agst-src-${k}`,label:`${SOURCE_KINDS[k].label} this tree is for`,options:pickerOptions(recs,{gm:true}),none:null,placeholder:'Search by name…',hint:recs.length?undefined:SOURCE_KINDS[k].none})}</div>`;}).join('')}
+      <input type="hidden" name="sourceRef" value="">
       <label class="ag-field">Generic point limit (1–999)<input type="number" name="maxPoints" value="10" min="1" max="999"></label>
-      <p>Created as a hidden draft. Only explicitly released nodes become player-visible.</p></div>`,'Create');
+      <p>Created as a hidden draft. Only explicitly released nodes become player-visible.</p></div>`,'Create',{render:(_event,dialog)=>wireSourcePickers(dialog.element)});
     if(!f)return;
+    if(SOURCE_KINDS[f.kind||'generic_points']&&!String(f.sourceRef??'').trim())throw Error(missingSourceMessage(f.kind));
     const kind=f.kind||'generic_points';const t={id:newKey('LOCAL-TREE'),name:String(f.name??'').trim(),description:'New draft tree.',sourceRef:String(f.sourceRef??'').trim()||null,
       provider:{kind,maxPoints:kind==='cinder_milestone'?CINDER_MAX_POINTS:kind==='profession'?null:Number(f.maxPoints)},status:'draft',visibility:'gm',nodes:[]};
     const v=validateTree(t);if(v.errors.length)throw Error(v.errors.join('; '));
