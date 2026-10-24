@@ -15,13 +15,13 @@ const group = (title, count, body, {open = false} = {}) => `<details class="ag-f
   <summary class="ag-fold__summary"><span class="ag-fold__title">${esc(title)}</span><span class="ag-fold__count">${count}</span></summary>
   <div class="ag-fold__body">${body}</div></details>`;
 const more = (shown, total) => total > shown ? `<p class="agmanager-tiny">and ${total - shown} more (Download preview lists every row).</p>` : '';
-const line = r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.kind)} · <code>${esc(r.id)}</code> — ${esc(r.reason)}</span></span></li>`;
+const line = r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.kind)} — ${esc(r.reason)}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`;
 
 function overwriteRow(r) {
   const edits = r.lost ? ` <span class="ag-badge ag-badge--warn">${plural(r.lost, 'GM edit')} replaced</span>` : '';
   if (!r.changes.length) return line(r);
   const rows = r.changes.map(c => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(c.from)}</td><td>${esc(c.to)}</td><td>${c.gmEdited ? 'GM edit replaced' : ''}</td></tr>`).join('');
-  return `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(r.name)}</strong> ${esc(r.kind)} · <code>${esc(r.id)}</code> · ${plural(r.changes.length, 'difference')}${edits}</summary>
+  return `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(r.name)}</strong> ${esc(r.kind)} · ${plural(r.changes.length, 'difference')}${edits}</summary>
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Now</th><th scope="col">Package</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
 }
 

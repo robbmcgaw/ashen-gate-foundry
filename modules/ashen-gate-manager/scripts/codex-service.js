@@ -31,8 +31,8 @@ export function createCodexService({game, moduleId}) {
     && !a.getFlag(moduleId, 'lifecycle')?.archived).map(npcOf);
   const find = id => {
     const hits = npcs().filter(n => n.def.id === id);
-    if (!hits.length) throw new Error(`No NPC ${id} in this world. Import its record first.`);
-    if (hits.length > 1) throw new Error(`Two Actors carry ${id}. Fix the duplicate in Items → Records first.`);
+    if (!hits.length) throw new Error('That NPC is not in this world. Import its record first.');
+    if (hits.length > 1) throw new Error('Two Actors carry this NPC record. Fix the duplicate in Items → Records first.');
     return hits[0];
   };
   /** Player characters a GM can reveal to: character Actors with a player owner. */
@@ -158,7 +158,7 @@ export function createCodexService({game, moduleId}) {
     async applyImport(plan) {
       requireGM(); let done = 0; const errors = [];
       for (const {id, state} of plan.apply) {
-        try { await write(find(id), state); done++; } catch (e) { errors.push(`${id}: ${e.message}`); }
+        try { await write(find(id), state); done++; } catch (e) { errors.push(`${npcs().find(n => n.def.id === id)?.name ?? 'An NPC'}: ${e.message}`); }
       }
       return {done, errors};
     },

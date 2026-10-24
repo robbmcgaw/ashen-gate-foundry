@@ -129,15 +129,15 @@
       </div>
       <div class="ag-table-wrap agm-scrollcap agm-preview-table">
       <table class="ag-table">
-        <thead><tr><th scope="col">Apply?</th><th scope="col">ID / Name</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Reason</th>{{#if hasIconRows}}<th scope="col">Icon</th>{{/if}}</tr></thead>
+        <thead><tr><th scope="col">Apply?</th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Reason</th>{{#if hasIconRows}}<th scope="col">Icon</th>{{/if}}</tr></thead>
         <tbody>
         {{#each rows}}
         <tr>
           <td><input type="checkbox" data-ag-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless canSelect}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Select {{name}}" /></td>
-          <td><strong>{{name}}</strong><code class="agm-id">{{id}}</code></td>
+          <td><strong>{{name}}</strong><details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></td>
           <td>{{kind}}{{#if detail}}<div class="agmanager-tiny">{{detail}}</div>{{/if}}{{#if folderNote}}<div class="agmanager-tiny">Folder: {{folderNote}}</div>{{/if}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
           <td><span class="ag-badge{{#if badgeTone}} ag-badge--{{badgeTone}}{{/if}}">{{badge}}</span></td>
-          <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}{{#if effId}} <code>{{effId}}</code>{{/if}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
+          <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
           {{#if @root.hasIconRows}}<td class="agm-icon-cell">{{#if icon}}<div class="agm-icon">
             {{#if icon.thumb}}<img class="agm-icon__thumb" src="{{icon.img}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}
             <div class="agm-icon__text"><span class="ag-badge{{#if icon.pending}} ag-badge--warn{{/if}}">{{icon.label}}</span> <code class="agm-icon__path">{{icon.img}}</code><div class="agmanager-tiny">{{icon.note}}</div></div>
@@ -171,7 +171,7 @@
         <summary><strong>{{packageId}}</strong> · v{{packageVersion}} · {{at}} · {{results.length}} record(s){{#if failed}} <span class="ag-badge ag-badge--danger">{{failed}} failed</span>{{/if}}</summary>
         <ul class="ag-rows agmanager-history-records">
         {{#each results}}
-          <li class="ag-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span><span class="ag-row__main"><span class="ag-row__title"><code>{{id}}</code> {{action}}</span>{{#if message}}<span class="ag-row__meta">{{message}}</span>{{/if}}</span></li>
+          <li class="ag-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span><span class="ag-row__main"><span class="ag-row__title">{{#if name}}{{name}}: {{/if}}{{action}}</span>{{#if message}}<span class="ag-row__meta">{{message}}</span>{{/if}}{{#if id}}<span class="ag-row__meta"><details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for this record"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></span>{{/if}}</span></li>
         {{/each}}
         </ul>
       </details>
@@ -238,7 +238,7 @@
             <input type="checkbox" data-ag-library-select="{{uuid}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" />
             <button type="button" class="aglib-row__main" data-ag-library-inspect="{{uuid}}" {{#if focused}}aria-current="true"{{/if}}{{{tooltip}}}>
               <span class="aglib-row__name">{{name}}</span>
-              <span class="aglib-row__meta"><code>{{sourceId}}</code><span class="ag-badge{{#if statusTone}} ag-badge--{{statusTone}}{{/if}}">{{status}}</span>{{#if archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if version}}<span class="ag-badge">v{{version}}</span>{{/if}}{{#if edited}}<span class="ag-badge ag-badge--warn">{{edited}} edit(s)</span>{{/if}}</span>
+              <span class="aglib-row__meta"><span class="ag-badge{{#if statusTone}} ag-badge--{{statusTone}}{{/if}}">{{statusLabel}}</span>{{#if archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if version}}<span class="ag-badge">v{{version}}</span>{{/if}}{{#if edited}}<span class="ag-badge ag-badge--warn">{{edited}} edit(s)</span>{{/if}}</span>
             </button>
           </div>{{/each}}
           {{else}}{{#if libraryTotal}}<div class="ag-empty aglib-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or filters.</p></div>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p class="ag-empty__title">No Ashen Gate records yet</p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab. Items from D&amp;D Beyond, Plutonium or compendiums are under Browse.</p></div>{{/if}}{{/each}}
@@ -272,7 +272,7 @@
         {{#if libraryHasDetail}}
         <div class="aglib-detail__head">
           <div class="aglib-detail__title"><h3>{{libraryDetail.name}}</h3>
-            <div class="aglib-row__meta"><code>{{libraryDetail.sourceId}}</code><span class="ag-badge{{#if libraryDetail.statusTone}} ag-badge--{{libraryDetail.statusTone}}{{/if}}">{{libraryDetail.status}}</span><span class="ag-badge">{{libraryDetail.kind}} · {{libraryDetail.entityType}}</span>{{#if libraryDetail.archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if libraryDetail.edited}}<span class="ag-badge ag-badge--warn">{{libraryDetail.edited}} local edit(s)</span>{{/if}}</div>
+            <div class="aglib-row__meta"><span class="ag-badge{{#if libraryDetail.statusTone}} ag-badge--{{libraryDetail.statusTone}}{{/if}}">{{libraryDetail.statusLabel}}</span><span class="ag-badge">{{libraryDetail.kind}} · {{libraryDetail.entityLabel}}</span>{{#if libraryDetail.archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if libraryDetail.edited}}<span class="ag-badge ag-badge--warn">{{libraryDetail.edited}} local edit(s)</span>{{/if}}</div>
           </div>
           <button type="button" class="ag-btn" data-ag-library-open="{{libraryDetail.uuid}}"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open sheet</button>
           <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="library-inspect-clear" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
@@ -282,22 +282,22 @@
           <dt>System</dt><dd>{{libraryDetail.systemLabel}}</dd>
           <dt>Version</dt><dd>{{libraryDetail.version}}</dd>
           <dt>Package</dt><dd>{{libraryDetail.packageId}}</dd>
-          <dt>Visibility</dt><dd>{{libraryDetail.visibility}}</dd>
-          <dt>Scope</dt><dd>{{libraryDetail.scope}}</dd>
+          <dt>Visibility</dt><dd>{{libraryDetail.visibilityLabel}}</dd>
+          <dt>Scope</dt><dd>{{libraryDetail.scopeLabel}}</dd>
           <dt>References</dt><dd>{{libraryDetail.refCount}} out · {{libraryDetail.inboundCount}} in</dd>
-          <dt>Foundry UUID</dt><dd><code>{{libraryDetail.uuid}}</code></dd>
+          <dt>Technical</dt><dd><details class="agm-tech" data-ag-technical><summary>Details</summary><div><span class="agmanager-tiny">Record id</span> <code class="agm-id">{{libraryDetail.sourceId}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{libraryDetail.sourceId}}" aria-label="Copy id for {{libraryDetail.name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></div><div><span class="agmanager-tiny">Foundry UUID</span> <code class="agm-id">{{libraryDetail.uuid}}</code></div></details></dd>
         </dl>
         <div class="aglib-refs">
           <div><h4>Uses <span class="aglib-num">({{libraryDetail.refCount}})</span></h4>
             {{#each libraryDetail.outgoing}}<div class="aglib-ref">
               {{#if uuid}}<button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="aglib-missing">Not in this world</span>{{/if}}
-              <code>{{targetId}}</code><span class="agmanager-tiny">{{relation}} · {{mode}}</span></div>
+              <span class="agmanager-tiny">{{relationLabel}} · {{modeLabel}}</span></div>
             {{else}}<p class="agmanager-tiny">No outgoing typed references.</p>{{/each}}
           </div>
           <div><h4>Used by <span class="aglib-num">({{libraryDetail.inboundCount}})</span></h4>
             {{#each libraryDetail.incoming}}<div class="aglib-ref"><button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>
-              <code>{{sourceId}}</code><span class="agmanager-tiny">{{relation}}</span></div>
-            {{else}}<p class="agmanager-tiny">No managed records link to this ID.</p>{{/each}}
+              <span class="agmanager-tiny">{{relationLabel}}</span></div>
+            {{else}}<p class="agmanager-tiny">No managed records link to this one.</p>{{/each}}
           </div>
         </div>
         {{#if libraryDetail.editedFields.length}}<div><h4>Local edits <span class="aglib-num">({{libraryDetail.edited}})</span></h4><p class="agmanager-tiny aglib-wrap">{{#each libraryDetail.editedFields}}<code>{{this}}</code> {{/each}}</p><p class="agmanager-tiny">Re-import keeps these. Replace from loaded JSON overwrites them.</p></div>{{/if}}
@@ -324,12 +324,12 @@
     <section class="ag-section aglib-section" aria-label="Housekeeping report">
       <div class="ag-section__head"><h3 class="ag-section__title">Housekeeping report</h3>
         <button type="button" class="ag-btn" data-ag-action="org-housekeeping"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> Run report</button></div>
-      <p class="agmanager-tiny">Read-only: Ashen Gate ids found more than once (world and all compendiums) and likely temporary records. Nothing is changed or deleted.</p>
+      <p class="agmanager-tiny">Read-only: Ashen Gate records found more than once (world and all compendiums) and likely temporary records. Nothing is changed or deleted.</p>
       {{#if housekeeping.report}}
-        <h4>Duplicate ids ({{housekeeping.report.duplicates.length}})</h4>
-        {{#if housekeeping.report.hasDuplicates}}<ul>{{#each housekeeping.report.duplicates}}<li><code>{{sourceId}}</code> ×{{count}}: {{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        <h4>Duplicate records ({{housekeeping.report.duplicates.length}})</h4>
+        {{#if housekeeping.report.hasDuplicates}}<ul>{{#each housekeeping.report.duplicates}}<li>{{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}} — {{count}} copies. <details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{sourceId}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{sourceId}}" aria-label="Copy id for these records"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
         <h4>Likely temporary ({{housekeeping.report.temporary.length}})</h4>
-        {{#if housekeeping.report.hasTemporary}}<ul>{{#each housekeeping.report.temporary}}<li>{{name}} {{#if sourceId}}<code>{{sourceId}}</code>{{/if}} — {{where}}, {{why}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        {{#if housekeeping.report.hasTemporary}}<ul>{{#each housekeeping.report.temporary}}<li>{{name}} — {{where}}, {{why}}{{#if sourceId}} <details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{sourceId}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{sourceId}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details>{{/if}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
         <p class="agmanager-tiny">Draft-status Ashen Gate records: {{housekeeping.report.draftCount}} (normal while content is in development).</p>
       {{/if}}
       {{#if housekeeping.message}}<p class="aglib-status" role="status">{{housekeeping.message}}</p>{{/if}}
@@ -406,7 +406,7 @@
           {{#if assets.multiSource}}<label class="ag-field--inline">Source <select data-ag-assets-source {{#if assets.uploading}}disabled{{/if}}>{{#each assets.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-refresh {{#if assets.uploading}}disabled{{/if}}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
         </div></div>
-      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Name a file after a record's permanent id (for example <code>NPC-OREN.webp</code>) and the link section below can set that record's image.</p>
+      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Name a file after a record's permanent id plus the file extension and the link section below can set that record's image.</p>
       <nav class="agassets-crumbs" aria-label="Folder path">
         {{#each assets.crumbs}}{{#if current}}<span class="agassets-crumb" aria-current="page"><strong>{{label}}</strong></span>{{else}}<button type="button" class="ag-link" data-ag-assets-open="{{target}}">{{label}}</button><span aria-hidden="true"> / </span>{{/if}}{{/each}}
       </nav>
@@ -715,7 +715,7 @@
             <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col"><span class="ag-sr-only">Link</span></th><th scope="col">Ashen Gate item</th><th scope="col">core_ref</th><th scope="col">Core match</th><th scope="col">Notes</th></tr></thead><tbody>
             {{#each rows}}<tr>
               <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
-              <td><strong>{{name}}</strong><code class="agm-id">{{sourceId}}</code></td>
+              <td><strong>{{name}}</strong><details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{sourceId}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{sourceId}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></td>
               <td>{{refText}}</td>
               <td>{{#if best}}<strong>{{best.name}}</strong> <span class="ag-badge">{{best.confidence}}</span><div class="agmanager-tiny">{{best.sourceLabel}} · matched on {{matchedOn}}</div>
                 {{#if hasOthers}}<details><summary class="agmanager-tiny">Other candidates ({{others.length}})</summary><ul>{{#each others}}<li>{{name}} — {{confidence}}, {{sourceLabel}}</li>{{/each}}</ul></details>{{/if}}{{else}}—{{/if}}</td>
@@ -751,7 +751,7 @@
   <div class="ag-split aglib-split agcodex">
     <section class="ag-split__list aglib-list" aria-label="NPCs">
       <div class="aglib-tools">
-        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-codex-search value="{{codex.search}}" placeholder="Search NPC name, role, ID" aria-label="Search NPCs" /></label>
+        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-codex-search value="{{codex.search}}" placeholder="Search NPC name or role" aria-label="Search NPCs" /></label>
         <div class="ag-chip-group" role="group" aria-label="Show">
           <button type="button" class="ag-chip" data-ag-codex-filter="all" aria-pressed="{{#if codex.filterAll}}true{{else}}false{{/if}}">All <span class="aglib-num">{{codex.total}}</span></button>
           <button type="button" class="ag-chip" data-ag-codex-filter="known" aria-pressed="{{#if codex.filterKnown}}true{{else}}false{{/if}}">Known to players <span class="aglib-num">{{codex.known}}</span></button>
@@ -783,7 +783,7 @@
       <div class="aglib-detail__head">
         {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
         <div class="aglib-detail__title"><h3>{{name}}</h3>
-          <div class="aglib-row__meta"><code>{{id}}</code>{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}</div></div>
+          <div class="aglib-row__meta">{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></div></div>
         <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
         <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="codex-close" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
@@ -803,7 +803,7 @@
       {{#each fields}}
       <div class="agcodex-field">
         <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
-          {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<button type="button" class="agcodex-link agcodex-link--{{kind}} is-open" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}{{#if named}} <code>{{id}}</code>{{/if}}</button>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids under Notes &amp; links or in the record's <code>codex.links</code>.</p>{{/if}}
+          {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<button type="button" class="agcodex-link agcodex-link--{{kind}} is-open" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}</button>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add links under Notes &amp; links.</p>{{/if}}
           {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
         </div>
         <div class="agcodex-control"><div class="agcodex-seg-wrap"><div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who knows: {{label}}" data-ag-codex-seg="{{key}}"><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" class="agcodex-seg__party" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Party</button></div>
@@ -882,7 +882,7 @@
     <div class="ag-card-grid agmanager-module-grid">
     {{#each moduleCards}}
       <article class="ag-card agmanager-module-card">
-        <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{id}}</code>
+        <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{slug}}</code>
           <p class="agmanager-module-card__badge"><span class="ag-badge{{#if badge.tone}} ag-badge--{{badge.tone}}{{/if}}">{{badge.label}}</span></p>
           <p class="agmanager-tiny">v{{version}} · {{state}}</p><p class="agmanager-tiny">{{role}}</p>
           {{#unless canToggle}}<p class="agmanager-tiny">{{accessReason}}</p>{{/unless}}</div>
@@ -1112,7 +1112,7 @@
         <p class="agmanager-tiny"><strong>On:</strong> world items imported by Plutonium or marked 2024, your world compendiums and the dnd5e 2024 compendiums. <strong>Off:</strong> only what you tick below.</p>
         <h4>Also use these compendiums</h4>
         <p class="agmanager-tiny"><span class="ag-badge">detected</span> means automatic search already uses it.</p>
-        <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
+        <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{slug}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
         <h4>Also use world Item folders</h4>
         <div class="agm-checks">{{#each setup.folders}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
       </section>
@@ -1129,7 +1129,7 @@
             <button type="button" class="ag-btn ag-btn--sm" data-ag-action="import-format-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download v0.2 Import JSON starter</button>
             <button type="button" class="ag-btn ag-btn--sm" data-ag-action="source-manifest-template"><i class="fa-solid fa-download" aria-hidden="true"></i> Download canonical source manifest</button>
           </div>
-          <p class="agmanager-tiny">Load example package puts the included demonstration on the Import tab for a dry run; nothing changes until you Import. Package templates (<code>templates</code> + <code>template_ref</code>) compile on load. Folder destinations use <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>); explicit links use <code>[[AGREF:MAT-EXAMPLE|Material]]</code>.</p>
+          <p class="agmanager-tiny">Load example package puts the included demonstration on the Import tab for a dry run; nothing changes until you Import. Package templates (<code>templates</code> + <code>template_ref</code>) compile on load. Folder destinations use <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>); explicit links use an <code>[[AGREF:…|Label]]</code> marker.</p>
         </section>
         <section class="ag-section agmanager-adopt" aria-label="Adopt and tag world Items">
           <div class="ag-section__head"><h3 class="ag-section__title">Adopt &amp; tag world Items for review</h3></div>
@@ -1149,14 +1149,14 @@
           </div>
           <div class="ag-table-wrap agm-scrollcap">
             <table class="ag-table">
-              <thead><tr><th scope="col">Select</th><th scope="col">Item / Foundry UUID</th><th scope="col">Item type</th><th scope="col">Capture status</th></tr></thead>
+              <thead><tr><th scope="col">Select</th><th scope="col">Item</th><th scope="col">Item type</th><th scope="col">Capture status</th></tr></thead>
               <tbody>
                 {{#each captureRows}}
                 <tr>
                   <td><input type="checkbox" data-ag-capture-select="{{id}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" /></td>
-                  <td><strong{{{tooltip}}}>{{name}}</strong><code class="agm-id">{{uuid}}</code></td>
+                  <td><strong{{{tooltip}}}>{{name}}</strong></td>
                   <td>{{type}}</td>
-                  <td>{{#if tagged}}<span class="ag-badge ag-badge--ok">Tagged</span> {{kindLabel}}<code class="agm-id">{{capture.captureId}}</code>{{else}}<span class="ag-badge">Not tagged</span>{{/if}}{{#if source}}<div class="agmanager-tiny">Imported binding: {{source.sourceId}}</div>{{/if}}</td>
+                  <td>{{#if tagged}}<span class="ag-badge ag-badge--ok">Tagged</span> {{kindLabel}}{{else}}<span class="ag-badge">Not tagged</span>{{/if}}{{#if source}}<div class="agmanager-tiny">Linked to an imported record.</div>{{/if}}</td>
                 </tr>
                 {{/each}}
               </tbody>
@@ -1206,7 +1206,7 @@
             {{#if where}}<p class="agmanager-tiny"><strong>Find it:</strong> {{where}}</p>{{/if}}
             <ul>
               {{#each lines}}
-              <li class="agmanager-result-line agmanager-line-{{outcome}}"><span class="ag-badge">{{label}}</span> {{#if name}}{{name}} {{/if}}{{#if id}}<code>{{id}}</code>{{/if}}{{#if message}} — {{message}}{{/if}}{{#if fix}}<br><strong>Fix:</strong> {{fix}}{{/if}}</li>
+              <li class="agmanager-result-line agmanager-line-{{outcome}}"><span class="ag-badge">{{label}}</span> {{#if name}}{{name}} {{/if}}{{#if id}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for this record"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details>{{/if}}{{#if message}} — {{message}}{{/if}}{{#if fix}}<br><strong>Fix:</strong> {{fix}}{{/if}}</li>
               {{/each}}
             </ul>
           </div>

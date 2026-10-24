@@ -75,3 +75,16 @@ Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, pa
 `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-manager/module.json`
 
 and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page (tag `ashen-gate-manager-v<version>`) for manual install or rollback. Change history is in [CHANGELOG.md](CHANGELOG.md).
+
+
+## Related-record cells in descriptions
+
+A description can show a linked record (for example a crafted item's recipe, or a material's profession) as a row in its own table. Mark the cell with `data-ag-ref` and put the target's plain display name inside:
+
+    <table><tr><th>Recipe</th><td data-ag-ref="created_by">Iron Caltrops</td></tr></table>
+
+- The attribute value is the `relation` of one of the record's typed `refs` (`created_by`, `gathered_by`, `crafted_by`, ...). If a record has several refs with that relation, the cell text is matched to the target's name; with exactly one, it is used.
+- On import, Sync from package and Update existing (one shared function), the cell becomes a world-local content link, `@UUID[...]{Iron Caltrops}`, when the target exists in the world and is player-visible (or the record itself is GM-only). Otherwise it stays plain text. A raw id or relation name is never shown; an id typed as the cell text is replaced by the target's name.
+- The marker stays in the stored HTML, so each import resolves it again from the source text; it is idempotent.
+- Refs without a marker add nothing to the description. Manager no longer appends a "References" list; an old one is removed on the next import or sync of the record.
+- A description that was edited in Foundry since the last import (it no longer equals what that import wrote) is left as it is.
