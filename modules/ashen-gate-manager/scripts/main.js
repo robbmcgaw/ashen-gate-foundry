@@ -258,7 +258,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
-  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences; the badge counts the GM-edited fields that will be lost), <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and the package wins: everything it defines is overwritten, your edits included. NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
+  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included. NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -312,7 +312,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.zipMedia = new Map();
     this.zipBundle = null;
     // 0.55.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
-    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
+    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
     this.uploadZipArtwork = true;
     this.packageSource = null;
     this.captureSelected = new Set();
@@ -2820,6 +2820,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       this.sync.on=Boolean(event.target.checked);
       this.focusAfterRender='[data-ag-sync-mode]';void this.render();
     });
+    root.querySelector('[data-ag-sync-edited]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.overwriteEdited=Boolean(event.target.checked);
+      this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
+      this.focusAfterRender='[data-ag-sync-edited]';void this.render();
+    });
     root.querySelector('[data-ag-sync-unscoped]')?.addEventListener('change',event=>{
       if(this.busy)return;
       this.sync.deleteUnscoped=Boolean(event.target.checked);
@@ -2844,7 +2850,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   #syncHtml() {
     const s=this.sync, joined=joinSyncInputs(s.inputs);
     return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
-      deleteUnscoped:s.deleteUnscoped,plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message});
+      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message});
   }
   #syncFileButton() {
     return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
@@ -2882,7 +2888,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
     }
     const handed=moduleRecordIndex(locApi,shpApi);
-    return {includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,
+    return {includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,
       retiredIds:new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),ledger:game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{},
       buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
       externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
@@ -2918,7 +2924,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     this.sync.plan=planSync(this.sync.set,this.#syncWorld(ctx),ctx);
     this.sync.phrase='';this.sync.result=null;
     const c=this.sync.plan.counts;
-    this.sync.message=this.sync.plan.ok?`Preview: ${c.create} to create, ${c.overwrite} to overwrite, ${c.delete} to delete, ${c.untouched} untouched. Nothing has changed yet.`:'Preview stopped: see the problems below. Nothing has changed.';
+    this.sync.message=this.sync.plan.ok?`Preview: ${c.create} to create, ${c.overwrite} to overwrite, ${c.keptEdited} kept (edited in your world), ${c.delete} to delete, ${c.untouched} untouched. Nothing has changed yet.`:'Preview stopped: see the problems below. Nothing has changed.';
     await this.render();
   }
   #syncPreviewFile() {
@@ -2947,7 +2953,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     if(!plan?.ok)return;
     if(!phraseOk(this.sync.phrase)) { toast(`Type "${SYNC_PHRASE}" to confirm.`,true); return; }
     const c=plan.counts;
-    const yes=await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} overwritten (${plan.lost} GM-edited field(s) lost) and ${c.delete} deleted${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
+    const yes=await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are`:''} and ${c.delete} deleted${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
       {title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel});
     if(!yes)return;
     const set=this.sync.set, controller=new AbortController();

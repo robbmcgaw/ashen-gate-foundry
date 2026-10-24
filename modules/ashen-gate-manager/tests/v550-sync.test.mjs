@@ -55,11 +55,11 @@ const npc = (id, name, over = {}) => rec(id, 'Actor', {name, type: 'npc', img: '
 const pkg = (packageId, version, records) => ({manifest: {schema_version: 'ag-foundry-import/0.1', package_id: packageId, version}, records});
 
 /** A mock world plus the adapter main.js supplies, so the same planner and executor run as in Foundry. */
-function makeWorld({docs = [], retired = [], ledger = {}, deleteUnscoped = false, includeDrafts = true, extra = {}} = {}) {
+function makeWorld({docs = [], retired = [], ledger = {}, deleteUnscoped = false, overwriteEdited = true, includeDrafts = true, extra = {}} = {}) {
   const world = {docs: [...docs], retired: new Set(retired), ledger: clone(ledger), saved: [], downloads: [], tokens: new Set(), hotbar: new Set(), protectedFolders: new Set(), apis: {}};
   const sourceOf = (record, manifest, available = new Set()) => ({...sourceMetadata(record, {manifest}, record.refs ?? []), managedFields: exportedFields(record),
     pagesDefinition: record.foundry.document_type === 'JournalEntry' ? record.foundry.data.pages ?? [] : []});
-  const ctx = () => ({includeDrafts, deleteUnscoped, retiredIds: world.retired, ledger: world.ledger, buildFlag: sourceOf, externalIds: new Set(),
+  const ctx = () => ({includeDrafts, deleteUnscoped, overwriteEdited, retiredIds: world.retired, ledger: world.ledger, buildFlag: sourceOf, externalIds: new Set(),
     sceneActorIds: world.tokens, hotbarMacroIds: world.hotbar, isProtectedFolder: id => world.protectedFolders.has(id),
     locationIds: world.apis.locations ? new Set(world.apis.locations.listLocations().map(l => l.id)) : null,
     routeIds: world.apis.routes?.listRoutes ? new Set(world.apis.routes.listRoutes().map(r => r.id)) : null, specialistApi: kind => world.apis.specialist?.[kind] ?? null, ...extra});
@@ -553,4 +553,43 @@ test('duplicates sharing an id are never deleted; "also delete" is ignored witho
   const qp = world.plan(onlyQuests);
   assert.equal(qp.counts.delete, 0);
   assert.ok(qp.notes.some(n => /ignored: this sync has no Manager package/.test(n)));
+});
+
+test('by default a record edited in your world is kept and listed; unedited ones update fully', async () => {
+  const unedited = flagged(item('MAT-A', 'A'), M1), edited = flagged(item('MAT-B', 'B'), M1), actor = flagged(npc('NPC-A', 'A'), M1), legacy = flagged(item('MAT-C', 'C'), M1);
+  edited.raw.system.price.value = 99; // GM edit to a field the package does NOT change
+  actor.raw.system.abilities.str.value = 8; // GM edit on an NPC
+  delete legacy.raw.flags[MODULE_ID].source.managedFields; // no record of the last import
+  const world = makeWorld({docs: [unedited, edited, actor, legacy], overwriteEdited: false});
+  const set = set1([item('MAT-A', 'A new'), item('MAT-B', 'B new'), npc('NPC-A', 'A', {system: {abilities: {str: {value: 16}}}}), item('MAT-C', 'C new')]);
+  const plan = world.plan(set);
+  assert.deepEqual([plan.counts.overwrite, plan.counts.keptEdited], [1, 3]);
+  const kept = plan.rows.filter(r => r.keptEdited);
+  assert.deepEqual(sorted(kept), ['MAT-B', 'MAT-C', 'NPC-A']);
+  assert.ok(kept.find(r => r.id === 'MAT-B').changes.some(c => c.path === 'name'), 'what would differ stays available');
+  assert.match(kept.find(r => r.id === 'MAT-C').reason, /no record of the last import/);
+  const out = await world.run(set);
+  assert.equal(out.counts.updated, 1);
+  assert.equal(unedited.raw.name, 'A new');
+  assert.deepEqual([edited.writes.length, actor.writes.length, legacy.writes.length], [0, 0, 0], 'edited records are not written at all');
+  assert.equal(edited.raw.name, 'B');
+  // The option lets the package win again, counting what is lost.
+  const wins = makeWorld({docs: [edited], overwriteEdited: true}).plan(set1([item('MAT-B', 'B new')]));
+  assert.deepEqual([wins.counts.overwrite, wins.counts.keptEdited], [1, 0]);
+  assert.ok(wins.lost >= 1);
+  // Re-running the default sync changes nothing more.
+  const again = world.plan(set);
+  assert.deepEqual([again.counts.create, again.counts.overwrite, again.counts.delete], [0, 0, 0]);
+});
+
+test('the window shows the kept group, the option (off) and no lost-fields badge until the option is on', () => {
+  const edited = flagged(item('MAT-B', 'B'), M1); edited.raw.system.price.value = 99;
+  const plan = makeWorld({docs: [edited], overwriteEdited: false}).plan(set1([item('MAT-B', 'B new')]));
+  const html = view(plan, {overwriteEdited: false});
+  assert.match(html, /Kept: edited in your world/);
+  assert.match(html, /data-ag-sync-edited(?![^>]*checked)/);
+  assert.match(html, /Also overwrite records I edited/);
+  assert.doesNotMatch(html, /will be lost/);
+  const on = makeWorld({docs: [edited], overwriteEdited: true}).plan(set1([item('MAT-B', 'B new')]));
+  assert.match(view(on, {overwriteEdited: true}), /GM-edited field.*will be lost/);
 });

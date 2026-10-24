@@ -4,7 +4,8 @@
  * makeSnapshot() builds, so the Node suite covers it; the writes are in sync-apply.js.
  *
  * Rules (Robb's decisions):
- *  - PACKAGE WINS. A record matches a world document by Manager's permanent source id, never by name. Everything the
+ *  - By default a record edited in this world since its import is KEPT (listed, with what would differ); with
+ *    "Also overwrite records I edited" the PACKAGE WINS. A record matches a world document by Manager's permanent source id, never by name. Everything the
  *    package defines is overwritten, GM edits included; play state (current HP, quantities, uses, ...) is kept.
  *  - A character sheet is NEVER touched: no Actor of type 'character', nothing embedded on one, no hotbar.
  *  - Delete only what Manager imported: documents carrying Manager's source flag whose package line (flag.packageId) is
@@ -15,7 +16,7 @@ import {MODULE_ID, BLOCKED_STATUSES, canonical, equal, flatten, getPath, isPlain
 import {canonicalDefinition} from './source-projection.mjs';
 import {itemKeys, ITEM_FLAG, ACTOR_ITEMS_FLAG, ITEM_PLAY_STATE, ITEM_SKIP, itemLeaves, keyOf} from './actor-update.js';
 import {effectDefinition, effectCreateData, effectFields, liveEffectValue, effectFlagOf} from './item-effects.js';
-import {wantsSmartIcon} from './smart-icons.js';
+import {wantsSmartIcon, plannerIcon} from './smart-icons.js';
 import {domainHandoff} from './delivery.js';
 import {contentHash} from './world-export.js';
 import {dependencyOrder} from './workflows.js';
@@ -325,6 +326,28 @@ function planActor(record, snap) {
   return {fields: patch, items, changes, notes, contentChange: changes.length > 0};
 }
 
+/**
+ * Fields of this world document changed since Manager last wrote it: the live value is neither the last import's value
+ * nor what the previous sync stored (a value Foundry normalised). Paths the package no longer defines, play state and the
+ * icon Manager picked itself are not edits. A document with no record of its last import cannot be judged, so it counts as
+ * edited (kept) rather than guessed at. Embedded changes (Actor items, Journal pages, effects) come from the plan itself.
+ */
+export function editedFields(record, snap, plannedChanges = []) {
+  const baseline = snap.flag?.managedFields;
+  if (!isPlainObject(baseline)) return ['(no record of the last import, so edits cannot be told apart)'];
+  const raw = snap.raw, memo = memoOf(snap), fields = incomingFields(record), out = [];
+  for (const [path, base] of Object.entries(baseline)) {
+    if (!own(fields, path) || emptyObject(base) || path === 'items') continue;
+    let live = getPath(raw, path);
+    if (path === 'img') live = plannerIcon(live, raw.flags?.[MODULE_ID], base);
+    if (same(live, base)) continue;
+    const m = memo[path];
+    if (m && m.live === contentHash(live ?? null)) continue;
+    out.push(path);
+  }
+  for (const c of plannedChanges) if (c.gmEdited && !out.includes(c.path)) out.push(c.path);
+  return out;
+}
 const PLANNERS = {Item: planItem, JournalEntry: planJournal, RollTable: planTable, Macro: planMacro, Actor: planActor};
 const META_KEYS = ['entityType', 'status', 'visibility', 'version', 'sourceVersion', 'provenance', 'scope', 'schemaVersion', 'ownerSystemId', 'objectiveKind', 'definition', 'packageId', 'packageVersion', 'ownedResourceIds'];
 const metaDiff = (flag, expected) => META_KEYS.filter(k => canonical(flag?.[k] ?? null) !== canonical(expected?.[k] ?? null));
@@ -367,7 +390,7 @@ export function planSync(set, world, ctx = {}) {
     for (const e of validatePackage(file.payload, knownIds)) errors.push(`${file.filename}: ${e}`);
   }
   if (!errors.length) errors.push(...(ctx.validateExtra?.([...set.records.values()].map(r => r.record)) ?? []));
-  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped)};
+  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited)};
   const lines = [...set.lines.values()];
   plan.scope = {
     files: set.files.map(f => ({filename: f.filename, origin: f.origin, kind: f.kind, records: f.records, packageId: f.packageId, version: f.version})),
@@ -420,13 +443,20 @@ export function planSync(set, world, ctx = {}) {
     const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
     if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
     const lost = lostOf(p.changes);
+    const edited = p.contentChange ? editedFields(record, snap, p.changes) : [];
+    if (edited.length && !ctx.overwriteEdited) {
+      // Edited in this world since the import: left alone, with what would differ available on expand.
+      rows.push(untouched(id, name, kind, `Kept: edited in your world (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to replace it with the package's version.`,
+        {...base, keptEdited: true, changes: p.changes, editedFields: edited, snap}));
+      have.add(id); continue;
+    }
     if (!p.contentChange) {
       rows.push({group: 'overwrite', metadataOnly: true, key: rowKey('overwrite', kind, id), id, name, kind, reason: `Content already matches; refreshes ${meta.join(', ')}.`, changes: [], lost: 0, snap, ops: p, ...base});
       plan.metadataRefreshes++; continue;
     }
     rows.push({group: 'overwrite', key: rowKey('overwrite', kind, id), id, name, kind, reason: `${p.changes.length} difference(s) from the package${lost ? `, ${lost} of them replace a GM edit` : ''}.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`,
-      changes: p.changes, lost, snap, ops: p, ...base});
-    kinds.overwrite++; plan.lost += lost;
+      changes: p.changes, lost: Math.max(lost, edited.length), snap, ops: p, ...base});
+    kinds.overwrite++; plan.lost += Math.max(lost, edited.length);
   }
 
   // 3. records other modules own: passed on in update mode, never deleted from here
@@ -516,12 +546,13 @@ function planModuleRows(set, ctx, rows, errors) {
 }
 
 function finish(plan) {
-  const c = {create: 0, overwrite: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0};
+  const c = {create: 0, overwrite: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
     c[r.group]++;
     if (r.group === 'untouched' && r.refused) c.refused++;
     if (r.notRemoved) c.notRemoved++;
+    if (r.keptEdited) c.keptEdited++;
   }
   c.untouched += plan.outOfScope?.records ?? 0;
   c.metadataRefreshes ??= 0;
