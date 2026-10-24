@@ -52,12 +52,15 @@ test('which marks a character may place comes only from dnd5e data: equipped wea
   assert.ok(m.MARKS.every(x => x.id && x.label && x.icon), 'one table, every line complete');
 });
 
-test('a mark is a real ActiveEffect with a status, no changes, and dnd5e\'s rules link only in the description', () => {
+test('a mark is a real ActiveEffect with a status; Vex carries the rule and dnd5e\'s own special duration; spell marks only track', () => {
   const {actor} = world();
   const d = m.markEffectData(m.markById('vex'), actor);
   assert.deepEqual(d.statuses, ['agch-vex']); assert.deepEqual(d.changes, []);
+  assert.deepEqual(d.duration, {expiry: 'sourceEnd'}, 'ends at the end of the attacker\'s next turn (dnd5e pseudo-expiry)');
   assert.equal(d.name, 'Vexed ([TEST] Hero)'); assert.equal(d.origin, actor.uuid);
-  assert.match(d.description, /Tracking only: nothing is automated/);
+  assert.match(d.description, /Advantage on your next attack roll against that creature before the end of your next turn/);
+  assert.equal(m.markEffectData(m.markById('hex'), actor).duration, undefined, 'spell marks have no duration');
+  assert.match(m.markEffectData(m.markById('hex'), actor).description, /Tracking only/);
   assert.match(d.description, /@UUID\[Compendium\.dnd5e\.content24\.JournalEntry\.x\.JournalEntryPage\.vex\]\{Vex rules\}/);
   assert.deepEqual(d.flags[MODULE_ID].mark, {id: 'vex', by: actor.uuid, user: 'owner'});
   assert.doesNotMatch(m.markEffectData(m.markById('hex'), actor).description, /@UUID/, 'no rules text invented for spells');
@@ -95,7 +98,9 @@ test('an enemy token goes through the coordinating GM client, which re-checks ev
   assert.deepEqual([receipt.type, receipt.ok, receipt.message], ['receipt', true, 'added']);
   game.user = playerUser;
   await m.onSocket(receipt);
-  assert.deepEqual(await pending, {ok: true, result: ['added']});
+  const done = await pending;
+  assert.deepEqual([done.ok, done.result], [true, ['added']]);
+  assert.match(done.notice, /^Slowed: .*Speed by 10 feet/, 'the Hub shows the rule when a timed effect goes on');
   // Forged or not allowed requests are refused by the GM client.
   game.user = {...users.gm, active: true};
   await m.onSocket({...msg, requestId: 'r2', markId: 'topple'}, 'owner');

@@ -1,3 +1,15 @@
+## 0.45.1 — 2026-10-24
+
+Weapon masteries now act as their rules say, instead of only labelling the target. Uses dnd5e's own effect durations; spell marks (Hunter's Mark, Hex, ...) still only track.
+
+- **Sap:** the target gets Disadvantage on its attack rolls (a real change dnd5e applies) until the start of your next turn, or until it makes its next attack roll.
+- **Slow:** takes 10 ft off each of the target's speeds until the start of your next turn. A second Slow replaces the first, so it never adds up past 10 ft.
+- **Vex:** marks the creature for your Advantage on your next attack roll against it (dnd5e cannot give you Advantage against one creature, so the Hub shows the rule when you place it). It ends at the end of your next turn, or after your next attack roll against it.
+- **Topple:** no lingering mark. Asks for the Constitution save (DC 8 + your attack ability modifier + Proficiency Bonus, shown) and puts the real Prone condition on a target that fails.
+- **Cleave, Graze, Nick, Push:** instant, so clicking shows the rule and puts nothing on anyone (no target needed).
+- Sap, Slow and Vex end by combat turn when a combat is running. With no combat, dnd5e ends them when game time next advances; the ✕ on the chip always takes them off early.
+- Help and tooltips updated. No change to saved data; marks already placed keep working (they have no duration, so remove them with the ✕).
+
 ## 0.44.3 — 2026-10-24
 
 Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)

@@ -20,10 +20,10 @@ const Hub = createHubSheetClass(FakeActorSheetV2);
 const narrow = CSS.split('@container (max-width: 900px) {').slice(1).map(b => b.slice(0, b.indexOf('\n}\n'))).join('\n');
 const rule = sel => { const at = narrow.indexOf(`  ${sel} {`); assert.ok(at >= 0, `narrow rule ${sel}`); return narrow.slice(at, narrow.indexOf('}', at)); };
 
-test('version is 0.44.3 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.44.3');
-  assert.equal(manifest.version, '0.44.3');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.44\.3\/ashen-gate-character-hub\.zip$/);
+test('version is 0.45.1 in the code, module.json and its download URL', () => {
+  assert.equal(VERSION, '0.45.1');
+  assert.equal(manifest.version, '0.45.1');
+  assert.match(manifest.download, /ashen-gate-character-hub-v0\.45\.1\/ashen-gate-character-hub\.zip$/);
 });
 
 test('a new Hub shows the whole character column: Hide character, no folded class', async () => {
