@@ -188,9 +188,9 @@ const utilitiesApi = (allow = true) => { const calls = []; return {calls, api: {
   canApply: (id, s) => { calls.push(['canApply', id, s]); return allow; }, apply: async (id, s) => { calls.push(['apply', id, s]); return 'ok'; },
   canRemove: (id, s) => { calls.push(['canRemove', id, s]); return allow; }, remove: async (id, s) => { calls.push(['remove', id, s]); return 'ok'; }}}; };
 
-test('F: only dnd5e conditions that are Foundry status effects are offered (no "turned"), exhaustion aside', () => {
+test('F: only dnd5e conditions that are Foundry status effects are offered (no "turned"), exhaustion is offered too (0.46.1)', () => {
   conditionWorld();
-  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['blinded', 'poisoned', 'prone']);
+  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['blinded', 'exhaustion', 'poisoned', 'prone']);
 });
 
 test('F: GM: Self puts it on the character, Target on every targeted token (linked or not), with Foundry\'s toggleStatusEffect', async () => {
@@ -229,7 +229,7 @@ test('F: a player with Utilities follows its condition rules (canApply / canRemo
   assert.deepEqual(u.calls, [['canApply', 'ally', 'prone'], ['apply', 'ally', 'prone']]);
   assert.equal(linked.calls.length, 0, 'Utilities makes the change (on the GM client), not the Hub');
   game.user.targets = new Set([token(unlinked)]);
-  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /Only the GM or a condition controller can change conditions on \[TEST\] gob/);
+  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /You can't put conditions on \[TEST\] gob: the GM decides that in Ashen Gate \| Utilities \(Player Access\)/);
   const no = utilitiesApi(false);
   conditionWorld({user: users.owner, utilities: no.api, actors: [me]});
   assert.match((await conds.applyCondition(me, 'self', 'prone')).error, /the GM decides that in Ashen Gate \| Utilities/, 'locked: refused even on your own character');
