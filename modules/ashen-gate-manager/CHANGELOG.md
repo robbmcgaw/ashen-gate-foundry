@@ -1,3 +1,15 @@
+## 0.60.13 — 2026-10-24
+
+Assets: every match now has three clear choices.
+
+- **Yes, No or Different…** on each row of *Link files to records*, replacing the tick box. Guesses start on Yes (images set in Foundry start on No and need your Yes; rows where several records or files fit start with nothing chosen until you pick). The Image now and New image columns follow your choice straight away ("Will change" or "Skipped, stays as it is").
+- **Different…** opens a list of every record this tab can link (NPCs first, then other Actors, Items, roll tables, macros, journals), with a box to type part of a name. Names and a kind label only. Picking one gives that row's file to that record instead; its own current images are shown. If that record's image was set in Foundry the row starts on No.
+- **One file per record.** If two rows would write to the same record, both say so and Link stays off until you set one to No or choose a different record.
+- **Bulk buttons:** *Yes to all matches* (leaves images set in Foundry and unresolved picks alone), *No to all*, *Reset to guesses*.
+- **Count line:** "N will be linked, M skipped." above Link; the Link button shows the same number.
+- Phone width stacks each row; every control is a labelled button, and focus stays on the control you used. Nothing is written until you press Link; the safeguards (changed since the preview is skipped, Actors write only portrait and token image) are unchanged.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.60.12 — 2026-10-24
 
 Sync from package and import now use Foundry V14's own data names, so the console no longer prints deprecation warnings and "could not compare" errors are gone.

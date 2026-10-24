@@ -266,8 +266,8 @@ function stateFor(doc) {
   return AUTO_TICK.has(state) && tokenSetApart(doc) ? 'edited' : state;
 }
 function noteFor(doc, state) {
-  if (state === 'edited' && tokenSetApart(doc) && AUTO_TICK.has(imageState(doc))) return 'This token has its own image. Tick to replace the portrait and the token image.';
-  return state === 'edited' ? 'This image was set in Foundry. Tick to replace it.' : state === 'imported' ? 'This record came with its own image. Tick to replace it.' : '';
+  if (state === 'edited' && tokenSetApart(doc) && AUTO_TICK.has(imageState(doc))) return 'This token has its own image. Choose Yes to replace the portrait and the token image.';
+  return state === 'edited' ? 'This image was set in Foundry. Choose Yes to replace it.' : state === 'imported' ? 'This record came with its own image. Choose Yes to replace it.' : '';
 }
 /** The fields of a row for one record and one file. */
 function rowFields(doc, file) {
@@ -365,6 +365,70 @@ export function resolvePick(row, value) {
   }
   Object.assign(row, pick.fields, {chosen: value});
   if (row.pickBy === 'file') row.name = pick.fields.name;
+  return row;
+}
+
+// ---------- Per-row choices (0.60.13): Yes, No, or a different record ----------
+const KIND_GROUP = {npc: 0, actor: 1, Item: 2, RollTable: 3, Macro: 4, JournalEntry: 5};
+const KIND_CHIP = {Item: 'Item', RollTable: 'Roll table', Macro: 'Macro', JournalEntry: 'Journal'};
+const groupOf = d => (d.documentName === 'Actor' ? (d.type === 'npc' ? KIND_GROUP.npc : KIND_GROUP.actor) : KIND_GROUP[d.documentName] ?? 9);
+const chipOf = d => (d.documentName === 'Actor' ? (d.type === 'npc' ? 'NPC' : 'Actor') : KIND_CHIP[d.documentName] ?? d.documentName);
+
+/** Every record this tab can link, for the "Different record" picker: NPCs, other Actors, Items, tables, macros, journals; by name. */
+export function linkableRecords(docs) {
+  return (docs ?? []).filter(d => d.sourceId && LINKABLE_KINDS.includes(d.documentName) && (d.documentName !== 'JournalEntry' || typeof d.img === 'string'))
+    .map(d => ({uuid: d.uuid, name: d.name, documentName: d.documentName, type: d.type ?? '', kindLabel: chipOf(d), group: groupOf(d)}))
+    .sort((a, b) => a.group - b.group || a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
+}
+/** Records whose name contains every word typed (case-insensitive). Empty search lists all. */
+export function filterRecords(records, query) {
+  const words = norm(query).toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length ? records.filter(r => words.every(w => `${r.name} ${r.kindLabel}`.toLowerCase().includes(w))) : records;
+}
+
+/** A row that can be written: a file, a record, and (if it was a pick) a pick made. */
+export const rowReady = r => Boolean(r?.to && r.uuid && !(r.needsPick && !r.chosen));
+/** Keys of ticked rows that name a record another ticked row also names (two files for one record). */
+export function linkConflicts(rows) {
+  const byRecord = new Map();
+  for (const r of rows ?? []) if (r.checked && rowReady(r)) (byRecord.get(r.uuid) ?? byRecord.set(r.uuid, []).get(r.uuid)).push(r.key);
+  return new Set([...byRecord.values()].filter(keys => keys.length > 1).flat());
+}
+/** {willLink, skipped, conflicts, undecided} for the count line. A conflicting row counts as skipped until one is chosen. */
+export function linkCounts(rows) {
+  const list = rows ?? [], conflicts = linkConflicts(list);
+  const willLink = list.filter(r => r.checked && rowReady(r) && !conflicts.has(r.key)).length;
+  return {willLink, skipped: list.length - willLink, conflicts: conflicts.size, undecided: list.filter(r => r.needsPick && !r.chosen).length};
+}
+/** Yes or No on one row. Yes needs a file and a record (a row still waiting for a pick stays unchosen). Returns whether it changed. */
+export function setRowChoice(row, choice) {
+  if (choice === 'yes') { if (!rowReady(row)) return false; row.checked = true; return true; }
+  if (choice === 'no') { row.checked = false; return true; }
+  return false;
+}
+/** Yes to every ready row except images set in Foundry (those need their own explicit Yes); No to all. Returns the number of rows changed. */
+export function setAllChoices(rows, choice) {
+  let n = 0;
+  for (const r of rows ?? []) {
+    if (choice === 'yes' && (!rowReady(r) || !AUTO_TICK.has(r.state))) continue;
+    const want = choice === 'yes';
+    if (r.checked !== want) { r.checked = want; n++; }
+  }
+  return n;
+}
+/**
+ * "Different record": gives this row's file to another record instead. The row takes that record's name, images and notes; it
+ * is Yes when that record's image is blank, a placeholder or ours, and No (needs an explicit Yes) when it was set in Foundry or
+ * already shows this file. Nothing is written. `doc` is a plain record as planAssetLinks takes. Returns the row, or null when it
+ * cannot be done (no file yet, or not a linkable record).
+ */
+export function assignRecord(row, doc) {
+  const path = row?.to || row?.filePath;
+  if (!row || !path || !doc || !LINKABLE_KINDS.includes(doc.documentName) || !doc.uuid) return null;
+  const fields = rowFields(doc, {name: row.fileName, path});
+  Object.assign(row, fields, {needsPick: false, pickBy: '', chosen: '', alsoFound: [], reassigned: true, filePath: path,
+    reason: 'You chose this record', matchKind: 'chosen'});
+  if (samePath(doc.img, path)) { row.checked = false; row.noteText = 'This record already shows this file.'; }
   return row;
 }
 
