@@ -1,3 +1,10 @@
+## 0.60.10 — 2026-10-24
+
+- **Fix: Preview sync no longer stops with "Cannot read properties of null (reading 'type')".** Sync read the type of embedded Items, effects, pages and table results (and of the item list saved at the last import) without allowing for an empty or missing entry, so one odd entry in one document stopped the whole preview. Those lists now skip empty entries.
+- **One document that cannot be compared no longer stops the preview.** It is listed under Untouched as "Could not compare this record" with the reason, left exactly as it is (never written, never deleted), and the rest of the preview carries on. If the preview itself still fails, the message now says which step (reading the files, reading your world, comparing) and the full error with its stack is in the browser console (F12).
+- Sync's safety rules are unchanged: it only deletes documents Manager imported, and never touches character sheets. Tested with mocked data only; not run in a live Foundry.
+- Saved data: no change; no migration.
+
 ## 0.60.9 — 2026-10-24
 
 - **Assets: matching images to records by name.** After you drop images on the Assets bar (or Choose files…), Manager now previews which records they fit, and **Find matching files** does the same for a folder. A file named after a record's permanent id still wins. Otherwise it guesses from the file name: the whole name, then first and last name, then a single first or last name (Actors only; at least 3 letters, not a very common word). Case, `_ - .`, sizes, trailing numbers and words like portrait, token, final, img and copy are ignored, as are titles (Mr, Dame, the) in the record name. Each row says why it fits, strongest first, NPCs first. Guesses start ticked unless the record's image was set in Foundry.

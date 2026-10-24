@@ -3424,9 +3424,22 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   async #syncPreview() {
     const joined=joinSyncInputs(this.sync.inputs);
     if(!joined.sources.length) { this.sync.message='Choose at least one package file first.'; return this.render(); }
-    this.sync.set=buildSyncSet(this.#syncSources(joined));
-    const ctx=this.#syncPlanContext();
-    this.sync.plan=planSync(this.sync.set,this.#syncWorld(ctx),ctx);
+    // 0.60.10: say which step failed and log the full stack, so an unexpected error is traceable (F12 > Console) instead of a bare toast.
+    let step='reading the files';
+    try {
+      this.sync.set=buildSyncSet(this.#syncSources(joined));
+      step='reading your world';
+      const ctx=this.#syncPlanContext();
+      const world=this.#syncWorld(ctx);
+      step='comparing the files with your world';
+      this.sync.plan=planSync(this.sync.set,world,ctx);
+    } catch(error) {
+      console.error(`[${MODULE_ID}] ${SYNC_NAME}: preview failed while ${step}`,error);
+      this.sync.plan=null;
+      this.sync.message=`Preview sync stopped while ${step}: ${String(error?.message??error)}. Nothing has changed. Open the browser console (F12) and send the red error with its stack lines.`;
+      return this.render();
+    }
+    for(const f of this.sync.plan.failures??[]) console.warn(`[${MODULE_ID}] ${SYNC_NAME}: could not compare ${f.id} (${f.step})`,f.stack??f.message);
     this.sync.phrase='';this.sync.result=null;
     const c=this.sync.plan.counts;
     this.sync.message=this.sync.plan.ok?`Preview: ${c.create} to create, ${c.overwrite} to overwrite, ${c.keptEdited} kept (edited in your world), ${c.delete} to delete, ${c.untouched} untouched. Nothing has changed yet.`:'Preview stopped: see the problems below. Nothing has changed.';

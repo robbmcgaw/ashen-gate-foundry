@@ -21,12 +21,13 @@ export const ITEM_SKIP = new Set(['_id', 'flags', 'effects', 'sort', 'folder', '
 export function itemKeys(defs = []) {
   const seen = new Map();
   return defs.map(def => {
-    const base = `${def.type}:${def.name}`;
+    const base = `${def?.type}:${def?.name}`;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     return n === 1 ? base : `${base}#${n}`;
   });
 }
+const isObjectLike = v => Boolean(v) && typeof v === 'object';
 export const keyOf = item => item?.flags?.[MODULE_ID]?.[ITEM_FLAG] ?? null;
 export const itemLeaves = def => flatten(Object.fromEntries(Object.entries(def).filter(([k]) => !ITEM_SKIP.has(k))));
 
@@ -73,12 +74,12 @@ export function planActor(record, raws, {updateExisting = false, includeDrafts =
     changes.push(`${path}: ${show(live)} → ${show(incoming)}${gmEdit ? ' (replaces a GM edit)' : ''}`);
   }
 
-  const defs = data.items ?? [], keys = itemKeys(defs);
-  const baseDefs = Array.isArray(baseline.items) ? baseline.items : [];
+  const defs = (Array.isArray(data.items) ? data.items : []).filter(isObjectLike), keys = itemKeys(defs);
+  const baseDefs = (Array.isArray(baseline.items) ? baseline.items : []).filter(isObjectLike);
   const baseByKey = new Map(itemKeys(baseDefs).map((k, i) => [k, baseDefs[i]]));
-  const liveItems = raw.items ?? [];
+  const liveItems = (Array.isArray(raw.items) ? raw.items : []).filter(item => item && typeof item === 'object');
   const marked = new Map(liveItems.filter(keyOf).map(item => [keyOf(item), item]));
-  const unmarked = (type, name) => liveItems.filter(item => !keyOf(item) && item.type === type && item.name === name);
+  const unmarked = (type, name) => liveItems.filter(item => !keyOf(item) && item?.type === type && item.name === name);
   const legacy = !raw.flags?.[MODULE_ID]?.[ACTOR_ITEMS_FLAG];
   const items = {create: [], update: [], adopt: []}, touched = [];
   defs.forEach((def, i) => {
