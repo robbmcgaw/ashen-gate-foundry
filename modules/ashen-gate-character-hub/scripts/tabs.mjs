@@ -14,6 +14,7 @@ import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filter
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
 import {coinIcon} from './coins.mjs';
+import {ADD_LABELS, addReason} from './item-add.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
@@ -32,6 +33,18 @@ export function masteryBadge(r) {
 }
 /** The band at the top of a tab that stays in view while its list scrolls (0.30.0). 0.33.0 (CH-07): one toolbar row (Magic adds its spell levels). */
 const stickyBand = html => `<div class="agch-sticky">${html}</div>`;
+
+/**
+ * The Add button at the right end of a tab's toolbar (0.45.0): "Add item…", "Add spell…", "Add feature…", "Add attack…".
+ * Disabled, with the reason as its tooltip, for anyone who can't add (item-add.mjs checks again when it runs).
+ */
+export function addButton(ctx, tab) {
+  const reason = addReason(ctx.actor, tab) || (ctx.editable ? '' : 'You can only add to a character you own.');
+  return btn('item-add', ADD_LABELS[tab].button, {kind: 'sm', icon: 'fa-solid fa-plus', data: {tab}, title: reason || `${ADD_LABELS[tab].button.replace('…', '')} from the compendiums, or create one`, disabled: !!reason, aria: ADD_LABELS[tab].button});
+}
+const addEnd = (ctx, tab) => `<div class="ag-toolbar__end">${addButton(ctx, tab)}</div>`;
+/** A list that takes dropped Items (0.45.0): the Hub's content drop handler reads data-item-drop. Not for observers. */
+export const dropZone = (ctx, tab, html) => `<div class="agch-itemzone"${ctx.editable && !addReason(ctx.actor, tab) ? ` data-item-drop="${tab}"` : ''}>${html}</div>`;
 
 /** Search box for a tab (filters rows by name without a re-render; the text is kept per tab). */
 const searchBox = (ctx, what) => `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-filter data-tab="${esc(ctx.tab ?? '')}" placeholder="Search ${esc(what)}" aria-label="Search ${esc(what)}" value="${esc(ctx.sheet?.filters?.[ctx.tab] ?? '')}" data-ag-always></label>`;
@@ -77,11 +90,11 @@ function combatTab(ctx) {
   const colsFor = g => group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols;
   const sections = groups.map(g => sectionHtml(sectionKey('combat', group, g.key), `${esc(g.label)} <span class="ag-badge">${g.items.length}</span>`, cardList(g.items, colsFor(g), {card, expanded, listKey: `combat-${group}-${g.key}`}))).join('');
   const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${filtersControl(ctx, 'combat', `${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}`)}
-    ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`;
+    <div class="ag-toolbar__end">${h.hp.value <= 0 ? btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off}) : ''}${addButton(ctx, 'combat')}</div></div>`;
   const body = sections || (d.rows.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No weapons or actions yet.', 'Weapons, and items or features you can use, show here.'));
-  return `${stickyBand(toolbar)}
+  return dropZone(ctx, 'combat', `${stickyBand(toolbar)}
     ${favouritesSection(actor, 'combat', shown, mixedCols, card, expanded)}${body}
-    <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left. Hide unequipped leaves out weapons and gear you carry but have not equipped.</p>`;
+    <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left. Hide unequipped leaves out weapons and gear you carry but have not equipped. Add attack… picks a weapon or an attack feature from the compendiums, or creates one; you can also drop an item here.</p>`);
 }
 
 // ---------- Inventory ----------
@@ -135,10 +148,11 @@ function inventoryShell(ctx) {
   const party = stash && (ctx.sheet?.invView === 'party' || !mine), d = party ? null : inventoryData(ctx.actor);
   const seg = (view, label, part) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always role="radio" aria-checked="${(view === 'party') === party}">${esc(label)}${hiddenBadge(part)}</button>`;
   const segs = mine && stash ? `<div class="ag-segmented agch-seg" role="radiogroup" aria-label="Whose items">${seg('character', 'Character', 'inventory')}${seg('party', 'Party stash', 'partyStash')}</div>` : '';
-  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${segs}
+  const html = `${stickyBand(`<div class="ag-toolbar agch-toolbar">${segs}
     ${searchBox(ctx, 'items')}
-    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>`)}
+    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}${d ? addEnd(ctx, 'inventory') : ''}</div>`)}
     ${d ? purseHtml(ctx, d) : ''}${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx, d)}`;
+  return party ? html : dropZone(ctx, 'inventory', html);
 }
 
 // ---------- Filters (Magic, Features) ----------
@@ -169,7 +183,7 @@ export function filtersControl(ctx, tab, chips) {
 // ---------- Magic ----------
 function magicTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = spellsData(actor), expanded = sheet?.expanded;
-  if (!d.levels.length && !d.pact) return empty('No spells yet.', 'Spells on this character show here.');
+  if (!d.levels.length && !d.pact) return dropZone(ctx, 'magic', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${addEnd(ctx, 'magic')}</div>`)}${empty('No spells yet.', 'Add a spell, or drop one here.')}`);
   const {group, sort} = listChoice('magic'), f = sheet?.listFilters?.magic ?? {};
   const prep = s => s.always ? '<span class="ag-badge" data-tooltip="Always prepared">Always</span>'
     : s.canPrepare ? btn('spell-prepare', s.prepared ? 'Prepared' : 'Prepare', {kind: s.prepared ? 'primary' : 'sm', data: {id: s.id}, title: s.prepared ? 'Unprepare' : 'Prepare', disabled: off}) : '';
@@ -194,9 +208,9 @@ function magicTab(ctx) {
     orderGroups(groups, group);
     sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
   }
-  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${filtersControl(ctx, 'magic', filterToggles('magic', f))}</div>${strip}`)}
+  return dropZone(ctx, 'magic', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${filtersControl(ctx, 'magic', filterToggles('magic', f))}${addEnd(ctx, 'magic')}</div>${strip}`)}
     ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded)}${sections || empty('Nothing matches.', 'Change the search or use Clear filters.')}
-    <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
+    <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. Add spell… picks a spell from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
 
 // ---------- Features ----------
@@ -211,9 +225,9 @@ function featuresTab(ctx) {
   const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
   // Action-type buttons for the dnd5e activation types these features have.
   const actBtns = actionChips('features', all, f);
-  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`)}</div>`)}
+  return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`)}${addEnd(ctx, 'features')}</div>`)}
     ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
-    <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
+    <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. Add feature… picks a feature from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
 
 export const ITEM_TABS = [

@@ -81,8 +81,8 @@ test('old tab ids open the matching sub-tab or tab (0.46.0); other tabs are unch
   assert.deepEqual(resolveTab('corelinks'), {tab: 'items', view: 'corelinks'});
   assert.deepEqual(resolveTab('items', {view: 'nonsense'}), {tab: 'items', view: 'all'});
   assert.deepEqual(resolveTab('scenes', {view: 'folders'}), {tab: 'scenes', view: 'folders'});
-  assert.deepEqual(ITEM_VIEWS.map(v => v.id), ['all', 'records', 'folders', 'corelinks', 'checks', 'export']);
-  assert.deepEqual(ITEM_VIEWS.map(v => v.label), ['Browse', 'Records', 'Folders', 'Core links', 'Checks', 'Export'], 'text sub-tab labels');
+  assert.deepEqual(ITEM_VIEWS.map(v => v.id), ['all', 'records', 'folders', 'corelinks', 'checks', 'assets', 'export']);
+  assert.deepEqual(ITEM_VIEWS.map(v => v.label), ['Browse', 'Records', 'Folders', 'Core links', 'Checks', 'Assets', 'Export'], 'text sub-tab labels');
   assert.deepEqual(ITEM_VIEWS.filter(v => v.filters).map(v => v.id), ['all', 'records', 'folders', 'corelinks'], 'the shared toolbar shows only where it applies');
 });
 

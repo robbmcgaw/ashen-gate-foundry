@@ -10,6 +10,12 @@ export const USER_SKIN_KEY = 'userSkin';
 export const SIZE_KEY = 'uiSize';
 export const SIZES = Object.freeze(['compact','comfortable']);
 export const DEFAULT_SIZE = 'compact';
+// Chat reskin (0.58.0), per device (client scope), on by default. html[data-ag-chat="on"] scopes styles/chat.css.
+export const CHAT_KEY = 'styleChat';
+export const DEFAULT_CHAT = true;
+// Compact pause (0.59.0), world scope, GM-only, off by default. html[data-ag-pause="compact"] scopes styles/pause.css.
+export const PAUSE_KEY = 'compactPause';
+export const DEFAULT_PAUSE = false;
 const SIZE_LABELS = Object.freeze({compact:'Compact',comfortable:'Comfortable'});
 const knownSize = value => SIZES.includes(value) ? value : DEFAULT_SIZE;
 /** Size options for a picker: [{id,label,selected}]. */
@@ -123,6 +129,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   const disposeSettings=subscribeSettings(emit);
   // Size is optional for older callers: a missing or unregistered setting reads as compact.
   function readSize(){try{return knownSize(read(SIZE_KEY));}catch{return DEFAULT_SIZE;}}
+  function readChat(){try{const v=read(CHAT_KEY);return v===undefined||v===null?DEFAULT_CHAT:Boolean(v);}catch{return DEFAULT_CHAT;}}
+  function readPause(){try{const v=read(PAUSE_KEY);return v===undefined||v===null?DEFAULT_PAUSE:Boolean(v);}catch{return DEFAULT_PAUSE;}}
   function user(){const u=currentUser();if(!u?.id)throw new Error('Appearance requires an authenticated Foundry user');return u;}
   function listSkins(){return SKINS.map(publicSkin);}
   function getState(){
@@ -134,7 +142,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
       invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
-      size:readSize()};
+      size:readSize(),chat:readChat(),compactPause:readPause()};
   }
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
@@ -147,6 +155,17 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     await setSetting(USER_SKIN_KEY,id??'');observed.set(USER_SKIN_KEY,id??'');emit();return getState();
   }
   /** Any signed-in user may set their own size; it is a client (per-device) setting. */
+  /** Any signed-in user may switch the chat reskin on or off for this device. */
+  async function setChat(value){
+    user();const on=Boolean(value);
+    await setSetting(CHAT_KEY,on);observed.set(CHAT_KEY,on);emit();return getState();
+  }
+  /** GM only (rejected here, not just hidden): show the pause as a small indicator instead of Foundry's large banner, for everyone. */
+  async function setCompactPause(value){
+    if(!user().isGM)throw new Error('Only GMs may change how the pause is shown');
+    const on=Boolean(value);
+    await setSetting(PAUSE_KEY,on);observed.set(PAUSE_KEY,on);emit();return getState();
+  }
   async function setSize(value){
     user();
     if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
@@ -166,6 +185,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
       else observed.delete(key);
       emit();return;
     }
+    if(key===CHAT_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===PAUSE_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if([WORLD_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();
   }
   function applyTo(root){
@@ -176,6 +197,10 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
       root.dataset.agSkin=skin.id;
       // html[data-ag-size="comfortable"] switches the kit's size tokens; compact is the default, so no attribute.
       if(state.size===DEFAULT_SIZE)delete root.dataset.agSize;else root.dataset.agSize=state.size;
+      // html[data-ag-chat="on"] turns on styles/chat.css (the chat sidebar and messages); absent when the user switches it off.
+      if(state.chat)root.dataset.agChat='on';else delete root.dataset.agChat;
+      // html[data-ag-pause="compact"] turns on styles/pause.css (small Paused indicator instead of the big banner); absent when off.
+      if(state.compactPause)root.dataset.agPause='compact';else delete root.dataset.agPause;
     }
     return state;
   }
@@ -183,7 +208,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    listSizes:()=>listSizes(getState().size),setSize,applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
@@ -201,6 +226,15 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
     name:'Ashen Gate size',hint:'Comfortable makes text and controls larger on this device only.',
     scope:'client',config:false,type:String,choices:{compact:'Compact',comfortable:'Comfortable'},
     default:DEFAULT_SIZE,onChange:value=>onSettingChange(SIZE_KEY,value)
+  });
+  game.settings.register(namespace,CHAT_KEY,{
+    name:'Style chat with the Ashen Gate skin',
+    scope:'client',config:false,type:Boolean,default:DEFAULT_CHAT,onChange:value=>onSettingChange(CHAT_KEY,value)
+  });
+  // Set in GM Setup, not Game Settings. restricted: Foundry itself also refuses a non-GM write.
+  game.settings.register(namespace,PAUSE_KEY,{
+    name:'Show the pause as a small indicator',hint:'Hides the large Game Paused banner for everyone and shows a small Paused indicator at the top centre instead.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_PAUSE,onChange:value=>onSettingChange(PAUSE_KEY,value)
   });
 }
 export function makeFoundryAppearanceController({game,namespace}){

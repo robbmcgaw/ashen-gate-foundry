@@ -12,10 +12,10 @@ export const ITEM_FLAG = 'packageItem';      // on embedded Items Manager owns: 
 export const ACTOR_ITEMS_FLAG = 'actorItems'; // on Actors whose package Items are all marked
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 // Embedded Item values that are play state, never definition.
-const ITEM_PLAY_STATE = new Set(['system.quantity', 'system.equipped', 'system.attuned', 'system.identified',
+export const ITEM_PLAY_STATE = new Set(['system.quantity', 'system.equipped', 'system.attuned', 'system.identified',
   'system.prepared', 'system.preparation.prepared', 'system.uses.spent', 'system.uses.value',
   'system.recharge.charged', 'system.hp.value', 'system.container']);
-const ITEM_SKIP = new Set(['_id', 'flags', 'effects', 'sort', 'folder', 'ownership', '_stats']);
+export const ITEM_SKIP = new Set(['_id', 'flags', 'effects', 'sort', 'folder', 'ownership', '_stats']);
 
 /** Stable key per package Item: type and name, with #2, #3… for repeats. */
 export function itemKeys(defs = []) {
@@ -27,8 +27,8 @@ export function itemKeys(defs = []) {
     return n === 1 ? base : `${base}#${n}`;
   });
 }
-const keyOf = item => item?.flags?.[MODULE_ID]?.[ITEM_FLAG] ?? null;
-const itemLeaves = def => flatten(Object.fromEntries(Object.entries(def).filter(([k]) => !ITEM_SKIP.has(k))));
+export const keyOf = item => item?.flags?.[MODULE_ID]?.[ITEM_FLAG] ?? null;
+export const itemLeaves = def => flatten(Object.fromEntries(Object.entries(def).filter(([k]) => !ITEM_SKIP.has(k))));
 
 /** Package-owned Actor leaf paths. */
 export function ownedActorFields(data) {
