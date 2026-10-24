@@ -329,3 +329,4 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 .agassets-tile{display:flex;flex-direction:column;align-items:stretch;gap:var(--ag-space-2);padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
 .agassets-tile__img{width:100%;aspect-ratio:1;object-fit:contain;border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken)}
 .agassets-tile__name{overflow-wrap:anywhere;font-size:var(--ag-text-sm)}
+.agm-secret{-webkit-text-security:disc;text-security:disc;font-family:var(--font-mono,monospace)}
