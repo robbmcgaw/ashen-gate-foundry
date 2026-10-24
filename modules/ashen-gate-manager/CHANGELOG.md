@@ -1,3 +1,12 @@
+## 0.55.0 — 2026-10-24
+
+Fix: after an import, every gathering node material, recipe and similar record showed **Unreleased** in Profession Ledger. Manager created every imported world document hidden from players (default ownership None), even when the record is approved and player-visible, and the Ledger rightly treated a record players cannot read as not released.
+
+- **Imports are readable by players when the record says so.** An Item, Journal entry or Actor whose record is `approved` with `player` visibility is now created with default ownership Observer. GM-only (`gm`), `reveal_gated` and not-approved records stay None, and Tables and Macros are unchanged. A re-import raises a None default to Observer under the same rule; it never lowers anything, never touches per-user ownership, and leaves alone a default you lowered on purpose after Manager released the record.
+- **Worlds imported before 0.55.0 need a one-time release.** Open **Items → Checks → Release player-visible records…**, press *Find hidden player-visible records*, read the counts and examples, then *Release*. It sets only the default ownership to Observer for approved, player-visible records, in chunks with a progress bar and Cancel, and running it again does nothing. Records that were not imported by Manager are not touched.
+- **Pre-session check** has a new *Player visibility* line (WARN while approved, player-visible records are still hidden, with the id list and where to fix it).
+- Help and README explain the rule. Saved data: only `ownership.default` and a small `ownershipBaseline` flag on documents you release or import; nothing else changes. Tests are mocked; please check in Forge (see the PR).
+
 ## 0.54.1 — 2026-10-23
 
 Fix: when one player saved My Appearance, every other client changed to that skin too. Foundry tells every client when any user's per-user setting changes, and Manager adopted the value it was handed as its own. Now a per-user skin is taken only from your own changes, and another user's change is ignored. The world default and your own Size are unchanged. Saved data is untouched. (Tests are mocked; please check with two accounts in Forge.)
