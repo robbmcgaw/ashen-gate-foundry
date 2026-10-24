@@ -1,3 +1,14 @@
+## 0.29.2 — 2026-10-24
+
+Who may change conditions, as the GM decided: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character.** The GM can change everything.
+
+- **Players:** your own character, and any monster, NPC or creature, whether it is linked to a character or an unlinked token. Another player's character is refused with "... is another player's character: only the GM can change its conditions." Player Access still gates all of it.
+- **No more locks.** The per-character *Unlock for Owner* / *Locked* control and the GM Setup switch *Players apply and remove conditions on their own characters* are gone from the screens: owners always manage their own character now. Their saved values are kept and harmless (nothing reads them; `api.conditions.setUnlocked` / `ownersManage` still exist).
+- **Condition controllers** keep one meaning: a controller can also change other players' characters, like the GM. Help and GM Setup say so.
+- **Exhaustion is back on the shared list** (the tracker's Apply list and the Character Hub's), applied and removed as before.
+- New for partners: `api.conditions.canChangeActor(actor, statusId, apply, userId)` answers the same question for any Actor document (the Hub uses it for unlinked tokens), and `api.conditions.isPlayerCharacter(actor)`. The tracker's Apply, Remove and the API calls all use this one rule.
+- No saved data is deleted or rewritten.
+
 ## 0.29.1 — 2026-10-24
 
 - **One conditions list.** The Conditions tracker's Apply list and the Character Hub's conditions strip now offer the same conditions (the Hub reads Utilities' list when Utilities is active): every native status by name, A to Z, without the read-only Strain chip and without Exhaustion (it has levels; use the pill beside HP in the Hub). Before, the two lists differed. New `api.conditions.choices()` returns it as `[{id, label, img}]`.
