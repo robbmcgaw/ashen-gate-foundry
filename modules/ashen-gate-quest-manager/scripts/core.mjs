@@ -20,6 +20,8 @@ export function isPlayerCharacter(actor,users=[]){
  if(actor.type!==undefined&&actor.type!=='character')return false;
  return [...users].some(u=>u&&!u.isGM&&actor.testUserPermission?.(u,'OWNER'));
 }
+/** A reward's display name; an item that cannot be found has only its id for a name, so it reads as a neutral label. */
+export const rewardLabel=(row,fallback='an item')=>{const n=typeof row?.name==='string'?row.name.trim():'';return n&&n!==row?.itemId&&!/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(n)?n:fallback;};
 export function assertGM(user) {if (!user?.isGM) throw new Error('GM permission required.');}
 export function assertUI(user, enabled) {if (!user?.isGM && !enabled) throw new Error('Quest Log is hidden by the GM.');}
 export function cleanText(s) {return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

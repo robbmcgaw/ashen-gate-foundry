@@ -65,7 +65,7 @@ test('no typed giver: the source text is the card\'s Source line, searchable and
   [[long,['QUEST-T-SRC','QUEST-T-SRC2']],['Test Dova',['QUEST-T-REF']],['No giver',['QUEST-T-NONE']]]);
 });
 test('group by status, type, location (by name) and giver, with "No location" / "No giver" last; sort by location and recent change',()=>{
- assert.deepEqual(groupRows(rows,'location').map(g=>[g.label,g.rows.length]),[['[TEST] Old Mill',1],['LOC-TEST-PIER',1],['No location',6]]);
+ assert.deepEqual(groupRows(rows,'location').map(g=>[g.label,g.rows.length]),[['[TEST] Old Mill',1],['Unnamed location',1],['No location',6]]);
  assert.deepEqual(groupRows(rows,'giver').map(g=>g.label),['Test Dova','Test Post','No giver']);
  assert.deepEqual(groupRows(rows,'type').map(g=>g.label),['Quest','Order','Contract']);
  assert.deepEqual(sortRows(rows,'changed').slice(0,3).map(r=>r.id),['QUEST-T-AVAIL','QUEST-T-ACT','QUEST-T-HID'],'newest first, never-changed last');
@@ -79,7 +79,7 @@ test('remembered view: sub-view, sort, group and section open state, with safe d
  assert.equal(v.nav,'orders');assert.equal(v.sort,'changed');assert.equal(v.group,'giver');
  assert.equal(v.sections.rewards,true);assert.equal(v.sections.basics,false);assert.equal('bogus' in v.sections,false);assert.equal('search' in v,false);
  assert.deepEqual(gmViewState({nav:'x',sort:1,group:[]}),gmViewState({}));
- assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Audience','Objectives','Rewards','Campaign status and reveal','GM notes','Advanced: source JSON','Assignments (saved separately)']);
+ assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Audience','Objectives','Rewards','Campaign status and reveal','GM notes','Details (IDs)','Advanced: source JSON','Assignments (saved separately)']);
  // 0.17.0 QL-02: only Basics, Audience and Objectives start open; a flag saved before 0.17.0 keeps its choices and the new
  // sections take their defaults.
  assert.deepEqual(EDITOR_SECTIONS.filter(s=>s[2]).map(s=>s[0]),['basics','audience','objectives']);
@@ -110,7 +110,7 @@ test('quest card: type badge, status chip, location, giver, audience character, 
  assert.match(html,/>2\/3</);assert.match(html,/Rewards: <\/span>\[TEST\] 25 gp on delivery/);assert.match(html,/Changed 2 min ago/);
  const hidden=questCard(questRow(entry(src('QUEST-T-H','[TEST] H',{status:'draft'})),ctx));
  assert.match(hidden,/fa-eye-slash" aria-hidden="true"><\/i>Draft/);assert.match(hidden,/GM only/);assert.doesNotMatch(hidden,/Visible to players|Changed/);
- assert.match(questCard(questRow(entry(src('QUEST-T-I','[TEST] I'),{scope:'individual',actorId:'ghost'}),{})),/Individual: ghost/,'an unknown actor shows its id, not nothing');
+ assert.match(questCard(questRow(entry(src('QUEST-T-I','[TEST] I'),{scope:'individual',actorId:'ghost'}),{})),/Individual: Unknown character/,'an unknown actor is said so, without its id');
 });
 test('cards never clip actionable text: wrapping styles, no ellipsis anywhere in the Quest Log stylesheet',()=>{
  const css=fs.readFileSync(new URL('../styles/quest.css',import.meta.url),'utf8');
@@ -234,7 +234,7 @@ test('window: sub-views with counts; picking one is remembered for this GM and c
 test('editor: collapsible sections remember open/closed; one sticky save bar shows a clear unsaved state',async()=>{
  reset();const app=lastApp;app.tab='quests';app.gmId='QUEST-TEST-B';app.unsavedSource=false;await draw(app);
  const secs=content.querySelectorAll('details[data-section]');
- assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['audience',true],['objectives',true],['rewards',false],['status',false],['gmnotes',false],['json',false],['assignments',false]]);
+ assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['audience',true],['objectives',true],['rewards',false],['status',false],['gmnotes',false],['details',false],['json',false],['assignments',false]]);
  const rewards=content.querySelector('[data-section="rewards"]');rewards.open=true;rewards.fire('toggle');
  assert.equal(gm.flags.gmView.sections.rewards,true);
  await draw(app);assert.equal(content.querySelector('[data-section="rewards"]').open,true,'kept open after a redraw');

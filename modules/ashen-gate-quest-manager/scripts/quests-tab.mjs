@@ -1,6 +1,9 @@
 // Quests tab (GM-only) logic: rows, sub-views, filter, sort, group. No Foundry globals.
 import {STATUSES,publicView,associatedLocationIds,rewardRows,WORK_ORDER_DOMAINS} from './core.mjs';
 export const CHIPS=Object.freeze(['Draft',...STATUSES]);
+// Neutral labels for a record with no readable name: ids never stand in for a name.
+export const UNTITLED='Untitled quest';
+export const UNKNOWN_LOCATION='Unnamed location';
 export const KIND_LABELS=Object.freeze({quest:'Quest',work_order:'Order',contract:'Contract'});
 // 0.15.0 Sub-views inside the Quests tab, each with a count. `test` picks the rows the view shows.
 export const SUBVIEWS=Object.freeze([
@@ -12,7 +15,7 @@ export const SUBVIEWS=Object.freeze([
  {key:'orders',label:'Orders',hint:'Work orders (crafting, production or creative)',test:r=>r.kind==='work_order'},
  {key:'contracts',label:'Contracts',hint:'Contracts',test:r=>r.kind==='contract'},
 ]);
-export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['location','Location'],['changed','Recently changed'],['type','Type'],['level','Level'],['id','ID']]);
+export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['location','Location'],['changed','Recently changed'],['type','Type'],['level','Level']]);
 export const GROUPS=Object.freeze([['none','No grouping'],['status','Status'],['location','Location'],['type','Type'],['level','Level'],['region','Region'],['giver','Giver']]);
 // Draft is derived, not stored: a definition still marked draft/proposed that was never taken out of Hidden.
 export function statusChip(source,state){
@@ -53,7 +56,7 @@ export const questTags=source=>Array.isArray(source.tags)?source.tags.filter(t=>
 /** GM reward summary: item rows not taken out (name from the row or itemName(itemId)), plus the suggested-rewards text. */
 export function rewardSummary(source,state,itemName=()=>null){
  let rows=[];try{rows=rewardRows(source,state);}catch{}
- const items=rows.filter(r=>!r.removed&&!r.gone).map(r=>({name:(r.origin==='gm'?r.ref?.name:itemName(r.itemId))||r.itemId||'Item',quantity:r.quantity}));
+ const items=rows.filter(r=>!r.removed&&!r.gone).map(r=>({name:(r.origin==='gm'?r.ref?.name:itemName(r.itemId))||'Item',quantity:r.quantity}));
  return {items,text:String(source.outcomes?.description??'').trim()};
 }
 /**
@@ -62,12 +65,12 @@ export function rewardSummary(source,state,itemName=()=>null){
  */
 export function questRow({source,state,changed=null},ctx={}){
  const locations=[...new Set([...associatedLocationIds(source),...(state.publicLocationIds||[])])];
- const locName=id=>ctx.locationName?.(id)||id;
- return {id:source.id,name:source.name||source.id,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
+ const locName=id=>ctx.locationName?.(id)||UNKNOWN_LOCATION;
+ return {id:source.id,name:source.name||UNTITLED,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
   detail:questDetail(source),level:questLevel(source),regions:[...new Set(locations.map(id=>ctx.locationRegion?.(id)).filter(x=>typeof x==='string'&&x.trim()))].sort((a,b)=>a.localeCompare(b)),
   chip:statusChip(source,state),visible:isPlayerVisible(source,state),
   locations,locationNames:locations.map(locName),givers:questGivers(source).map(giverLabel),giverIds:questGivers(source),sourceText:questSource(source),tags:questTags(source),
-  audience:state.scope==='individual'?{scope:'individual',actorId:state.actorId,name:(state.actorId&&ctx.actorName?.(state.actorId))||state.actorId||'No character chosen'}:{scope:'party'},
+  audience:state.scope==='individual'?{scope:'individual',actorId:state.actorId,name:(state.actorId&&ctx.actorName?.(state.actorId))||(state.actorId?'Unknown character':'No character chosen')}:{scope:'party'},
   rewards:rewardSummary(source,state,ctx.itemName),changed:Number.isFinite(changed)?changed:null,
   summary:String(source.public_summary||''),
   total:(source.objectives||[]).length,done:(source.objectives||[]).filter(o=>state.progress?.[o.key]==='complete').length};
@@ -76,7 +79,7 @@ export const DEFAULT_VIEW=Object.freeze({search:'',nav:'all',type:'all',status:'
 /** How many of the filters behind Filters (n) are set (type, location, visible). */
 export const filterCount=v=>['type','location','level','region','giver','visible'].filter(k=>(v?.[k]??'all')!=='all').length;
 export function locationOptions(rows){
- const names=new Map();for(const r of rows)r.locations.forEach((id,i)=>names.set(id,r.locationNames?.[i]||id));
+ const names=new Map();for(const r of rows)r.locations.forEach((id,i)=>names.set(id,r.locationNames?.[i]||UNKNOWN_LOCATION));
  return [...names].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
 }
 export const levelOptions=rows=>[...new Set(rows.map(r=>r.level).filter(n=>n!==null))].sort((a,b)=>a-b).map(n=>[String(n),`Level ${n}`]);
@@ -97,7 +100,7 @@ export function keepSelected(options,value,label=value){
 export const regionOptions=rows=>[...new Set(rows.flatMap(r=>r.regions||[]))].sort((a,b)=>a.localeCompare(b)).map(x=>[x,x]);
 const subview=key=>SUBVIEWS.find(v=>v.key===key)||SUBVIEWS[0];
 export function navCounts(rows){return Object.fromEntries(SUBVIEWS.map(v=>[v.key,rows.filter(v.test).length]));}
-/** Search matches title, id, location (id or name), giver or source text, tags, audience character, type, status and summary. */
+/** Search matches title, the permanent id (matched, never shown), location (id or name), giver or source text, tags, audience character, type, status and summary. */
 export function matchesSearch(r,search){
  const q=String(search??'').trim().toLowerCase();if(!q)return true;
  return [r.name,r.id,r.summary,r.kindLabel,r.chip,...r.locations,...(r.locationNames||[]),...(r.givers||[]),...(r.giverIds||[]),r.detail,r.level!=null?`level ${r.level}`:null,...(r.regions||[]),r.sourceText,...(r.tags||[]),r.audience?.name]
@@ -161,7 +164,7 @@ export function changedLabel(ms,now=Date.now()){
 // 0.15.0 The GM's last Quests view and editor sections, kept per user (User flag `gmView`). Search is not kept.
 // 0.17.0 Campaign status starts closed too; delegated assignments get their own section (saved on their own), and the
 // source JSON its own (it was a fold inside GM notes). A section missing from a stored flag takes its default here.
-export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',false],['gmnotes','GM notes',false],['json','Advanced: source JSON',false],['assignments','Assignments (saved separately)',false]]);
+export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',false],['gmnotes','GM notes',false],['details','Details (IDs)',false],['json','Advanced: source JSON',false],['assignments','Assignments (saved separately)',false]]);
 export function gmViewState(raw){
  const r=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
  const pick=(v,list,d)=>list.includes(v)?v:d;
@@ -172,3 +175,10 @@ export function gmViewState(raw){
 export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
 // GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
 export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup']);
+/** Text for the GM with permanent ids swapped for what they stand for: quests by name, anything else by a neutral phrase.
+    Used on import messages, which are built from the file's ids. `known` is [{id,name}]. */
+export function hideIds(text,known=[]){
+ let s=String(text??'');
+ for(const {id,name} of [...known].sort((a,b)=>String(b.id).length-String(a.id).length))if(id)s=s.split(id).join(name||UNTITLED);
+ return s.replace(/item reward [A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+/g,'an item reward').replace(/\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b/g,'an entry');
+}

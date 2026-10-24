@@ -4,6 +4,7 @@ import {MOD,validState,rewardRows,publicView,emptyRewards} from '../scripts/core
 import {saveRecord,getPrivate} from '../scripts/store.mjs';
 import {listRewards,addFromDrop,updateReward,removeReward,HOLDING_FOLDER} from '../scripts/rewards.mjs';
 import {rewardsSection,playerRewardsSection} from '../scripts/rewards-ui.mjs';
+import {assertNoIds} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const source=(extra={})=>({id:'QUEST-TEST-REWARDS',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',provenance:{sources:['synthetic']},
  visibility:'player',refs:[],name:'[TEST] Rewards',source:{},public_summary:'[TEST]',objectives:[{key:'one',goal:'One'}],locations:[],parameters:{},outcomes:{},...extra});
@@ -186,7 +187,7 @@ test('editor markup: kit table, labelled icon Remove, tooltips not title, empty 
  assert.match(html,/<h3 class="ag-section__title">Item rewards<\/h3><span class="ag-badge">Applies now<\/span>/);
  assert.equal((html.match(/data-reward-key=/g)||[]).length,3,'removed rows are hidden');
  assert.ok(html.includes('&lt;Blade&gt;')&&!html.includes('<Blade>'));
- assert.match(html,/class="agq-mono">ITEM-TEST-BLADE</);
+ assertNoIds(html,'GM rewards table');assert.match(html,/Item not found/,'an item that cannot be found reads neutrally, not by id');
  assert.match(html,/<span class="ag-badge" data-tooltip="No permanent id[^"]*" data-tooltip-class="ag-tooltip">No permanent id<\/span>/);
  assert.match(html,/<span class="ag-badge ag-badge--danger" data-tooltip="Gone"[^>]*>Missing<\/span>/);
  assert.match(html,/<input type="number" class="agq-reward__qty" data-reward-field="quantity" min="1" step="1" value="2"/);
