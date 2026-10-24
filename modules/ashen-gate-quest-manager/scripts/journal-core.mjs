@@ -151,7 +151,7 @@ export function htmlToText(html){
 
 /* ---- Markdown export (GM) ---- */
 /** Stored HTML as Markdown: headings, bold, italics, lists, quotes. Underline and highlight have no Markdown form; their text is kept. */
-export function htmlToMarkdown(html){
+export function htmlToMarkdown(html,{shift=0}={}){
  const s=sanitizeHtml(html);
  const lists=[],lines=[];let line='',prefix='';
  const flush=()=>{const text=decode(line).replace(/[ \t]+$/g,'');if(text.trim()||prefix)lines.push(prefix+text);line='';prefix='';};
@@ -160,7 +160,7 @@ export function htmlToMarkdown(html){
  for(const m of s.matchAll(/<(\/?)([a-z0-9]+)>/g)){
   line+=s.slice(last,m.index);last=m.index+m[0].length;
   const [,close,tag]=m;
-  if(/^h[1-4]$/.test(tag)){if(close)flush();else{flush();gap();prefix='#'.repeat(Number(tag[1]))+' ';}continue;}
+  if(/^h[1-4]$/.test(tag)){if(close)flush();else{flush();gap();prefix='#'.repeat(Math.min(6,Number(tag[1])+shift))+' ';}continue;}
   if(tag==='p'||tag==='blockquote'){if(close){flush();if(!lists.length)lines.push('');}else{flush();if(!lists.length)gap();if(tag==='blockquote')prefix='> ';}continue;}
   if(tag==='ul'||tag==='ol'){flush();if(close){lists.pop();if(!lists.length)lines.push('');}else{if(!lists.length)gap();lists.push({tag,n:0});}continue;}
   if(tag==='li'){if(close)flush();else{flush();const l=lists.at(-1)??{tag:'ul',n:0};l.n++;prefix='  '.repeat(Math.max(0,lists.length-1))+(l.tag==='ol'?`${l.n}. `:'- ');}continue;}
@@ -173,9 +173,34 @@ export function htmlToMarkdown(html){
 }
 /** One session as a Markdown document: the party journal, then each personal journal ({label, html}). */
 export function sessionMarkdown(session,pages){
- const head=[`# ${session.name}`];if(session.subtitle)head.push(`*${session.subtitle}*`);
- head.push(`${session.id} · ${session.date?`dated ${session.date}`:`started ${session.createdAt?session.createdAt.slice(0,10):'unknown date'}`}`);
+ const head=[`# ${session.name}`,...sessionMeta(session)];
  return [head.join('\n\n'),...pages.map(p=>`## ${p.label}\n\n${htmlToMarkdown(p.html)||'*(empty)*'}`)].join('\n\n')+'\n';
+}
+/** The italic subtitle and the "SESSION-001 · started/dated ..." line every session heading carries. */
+function sessionMeta(session,{note=''}={}){
+ const out=[];if(session.subtitle)out.push(`*${session.subtitle}*`);
+ out.push(`${session.id} · ${session.date?`dated ${session.date}`:`started ${session.createdAt?session.createdAt.slice(0,10):'unknown date'}`}${note}`);
+ return out;
+}
+
+/* ---- One journal across every session (0.21.0) ---- */
+export const EXPORT_KINDS=Object.freeze(['player','group','gm']);
+/** Who may export a kind: a player journal and the group journal are as readable as the pages themselves (the store
+    checks each page again); the GM-only notes are the GM's alone. */
+export const canExportKind=(user,kind)=>!!user&&EXPORT_KINDS.includes(kind)&&(kind!=='gm'||!!user.isGM);
+/** Every session's page of one journal in one document, in session order. sections: [{session, html}] already limited to
+    what the viewer may read. Same body format as sessionMarkdown; a page's own headings sit two levels down. */
+export function journalMarkdown(title,sections,{note=''}={}){
+ const head=[`# ${title}`];if(note)head.push(note);
+ const body=sections.map(({session,html})=>[`## ${sessionHeading(session)}`,...sessionMeta(session,{note:session.archived?' · archived':''}),htmlToMarkdown(html,{shift:2})||'*(empty)*'].join('\n\n'));
+ return [head.join('\n\n'),...body].join('\n\n')+'\n';
+}
+/** "<world>-<kind>-journal-YYYY-MM-DD.md", safe on every file system. who: a player's name, added to a player journal's kind. */
+export function journalFilename(world,kind,{who='',date=new Date()}={}){
+ const clean=t=>String(t??'').normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+ const day=date instanceof Date&&!Number.isNaN(+date)?date.toISOString().slice(0,10):'';
+ const k=kind==='group'?'group':kind==='gm'?'gm':clean(who)?`player-${clean(who).toLowerCase()}`:'player';
+ return [clean(world)||'world',k,'journal',day].filter(Boolean).join('-')+'.md';
 }
 
 /* ---- Search across what the viewer may read ---- */

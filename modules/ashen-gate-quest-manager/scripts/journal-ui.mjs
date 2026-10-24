@@ -6,7 +6,7 @@
 // the book (its own page, never sent to players).
 import {cleanText as E} from './core.mjs';
 import {emptyState} from './gm-panels.mjs';
-import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml} from './journal-core.mjs';
+import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename} from './journal-core.mjs';
 
 const KINDS={primary:'ag-btn ag-btn--primary',secondary:'ag-btn',danger:'ag-btn ag-btn--danger',ghost:'ag-btn ag-btn--ghost'};
 const tip=t=>t?` data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`:'';
@@ -69,7 +69,9 @@ export function buildJournalModel(store,jv,me){
  // The GM's own section under the party journal. The store refuses it to anyone else, so a player's model never has it.
  if(session&&me.isGM&&jv.target==='party')try{gm=store.read(session.id,GM_TARGET);}catch{}
  const hits=jv.query.trim()?store.search(jv.query):null;
- return {isGM:!!me.isGM,sessions,session,pages,page,gm,error,hits,query:jv.query,showArchived:jv.showArchived,renaming:jv.renaming,target:jv.target,stale:jv.stale,dirty:anyDirty(jv)};
+ // Export Journal needs a player's journal on screen: a player's own, or (GM) the one picked in Whose journal.
+ const exportPage=me.isGM?pages.find(p=>p.target===jv.target&&p.target!=='party'):jv.target==='me'?{target:me.id,label:'My journal'}:null;
+ return {isGM:!!me.isGM,exportUserId:exportPage?.target??null,exportUserName:exportPage?.label??'',sessions,session,pages,page,gm,error,hits,query:jv.query,showArchived:jv.showArchived,renaming:jv.renaming,target:jv.target,stale:jv.stale,dirty:anyDirty(jv)};
 }
 
 function sessionRow(s,m){
@@ -112,7 +114,12 @@ export function journalDetailHTML(m){
  const s=m.session;
  if(!s)return `<section class="ag-split__detail agq-jdetail">${emptyState('No session open','Pick a session on the left, or start one with New session.',{iconName:'fa-book-open'})}</section>`;
  const p=m.page,canWrite=!!p?.canWrite;
- const gmTools=m.isGM?`${jbtn('Export Markdown','export',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',title:'Download this session (party journal and every player journal) as a Markdown file'})}${s.archived?`${jbtn('Restore session','restore',{sm:true,icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',sm:true,icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}):''}`:jbtn('Archive session','archive',{kind:'danger',sm:true,icon:'fa-box-archive'})}`:'';
+ const gmTools=m.isGM?`${jbtn('Export This Session','export',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'})}${s.archived?`${jbtn('Restore session','restore',{sm:true,icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',sm:true,icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}):''}`:jbtn('Archive session','archive',{kind:'danger',sm:true,icon:'fa-box-archive'})}`:'';
+ // 0.21.0 One journal across every session. Export Journal waits for a player's journal; Export GM Journal is never drawn for a player.
+ const whyNoPlayer=m.isGM?"Pick a player's journal under Whose journal to export it.":'Switch to My journal to export it.';
+ const exportTools=`<div class="ag-btn-group agq-jactions agq-jexport" role="group" aria-label="Export journals">${jbtn('Export Journal','export-player',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',disabled:!m.exportUserId,
+  title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer})}${jbtn('Export Group Journal','export-group',{kind:'ghost',sm:true,icon:'fa-users',
+  title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'})}${m.isGM?jbtn('Export GM Journal','export-gm',{kind:'ghost',sm:true,icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):''}</div>${m.exportUserId?'':`<p class="ag-field__hint agq-jexport-hint">Export Journal is off: ${E(whyNoPlayer)}</p>`}`;
  const notes=[
   s.archived?notice('warn','fa-box-archive','This session is archived: players no longer see it and its pages are read only. Restore it to write again.'):'',
   m.error?notice('warn','fa-triangle-exclamation',m.error):'',
@@ -131,7 +138,7 @@ export function journalDetailHTML(m){
  const footer=canEdit?`<footer class="ag-footer agq-footer agq-jfooter">${jbtn('Discard changes','discard',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-journal-status>${m.dirty?'Unsaved changes':'Saved'}</span>${jbtn('Save','save',{kind:'primary',icon:'fa-floppy-disk'})}</footer>`:'';
  return `<section class="ag-split__detail agq-jdetail" data-ag-scroll="journal-page:${E(s.id)}:${E(m.target)}">
   <header class="agq-jhead"><div class="agq-jhead__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${s.subtitle?`<p class="agq-jhead__sub">${E(s.subtitle)}</p>`:''}${day(s)?`<p class="agq-jhead__date">${E(day(s))}</p>`:''}</div>
-  <div class="agq-jhead__tools">${whichJournal(m)}</div></header>${gmTools?`<div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">${gmTools}</div>`:''}${notes}${tools}${book}${gmBlock}${footer}</section>`;
+  <div class="agq-jhead__tools">${whichJournal(m)}</div></header>${gmTools?`<div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">${gmTools}</div>`:''}${exportTools}${notes}${tools}${book}${gmBlock}${footer}</section>`;
 }
 export function journalPaneHTML(m){return `<div class="ag-split agq-split agq-journal">${journalSidebarHTML(m)}${journalDetailHTML(m)}</div>`;}
 
@@ -301,6 +308,17 @@ export function installJournal(App,ctx){
     // 0.20.0 The new session opens on its own page; the name form no longer pops open at the top of the list by itself.
     const sid=await store.create({});jv.sessionId=sid;jv.query='';jv.renaming=null;jv.target=game.user?.isGM?'party':'me';
     ctx.info('New session started. Use the pencil beside it in the list to give it a name.');return void await this.render();
+   }
+   if(action==='export-player'||action==='export-group'||action==='export-gm'){
+    const kind=action.slice(7),isGM=!!game.user?.isGM;
+    // The save above covers typed text; what is exported is what is saved. The store refuses anything this user cannot read.
+    const target=kind==='player'?(isGM?jv.target:game.user?.id):null;
+    const who=kind==='player'?(isGM?(store.pages(jv.sessionId).find(p=>p.target===jv.target)?.label??'this player'):'your journal'):kind==='group'?'the party journal':'your GM-only notes';
+    const scope=isGM?'every session, archived ones included':'every session you can see';
+    const name=kind==='player'?'Export Journal':kind==='group'?'Export Group Journal':'Export GM Journal';
+    if(!await ctx.confirm(`This downloads ${who} from ${scope}, oldest first, as one Markdown file.`,{title:`${name}?`,yes:name}))return;
+    const out=store.exportJournal(kind,{userId:target});
+    return ctx.download(journalFilename(ctx.worldName?.()??'',kind,{who:out.who}),out.markdown,'text/markdown');
    }
    const s=jv.sessionId?store.get(jv.sessionId):null;if(!s)return;
    if(action==='export')return ctx.download(`${s.id} ${s.name}.md`.replace(/[\\/:*?"<>|]+/g,'-'),store.exportMarkdown(s.id),'text/markdown');

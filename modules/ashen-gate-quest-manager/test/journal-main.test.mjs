@@ -105,6 +105,38 @@ test('a player New session asks the GM over the Quest Log socket and settles on 
  assert.equal(await p,'SESSION-002');
 });
 
+test('0.21.0 export buttons: confirm first (naming the scope), then one file named for the world and kind; a player cannot reach the GM journal',async()=>{
+ const files=[];const prevDoc=globalThis.document,prevURL=URL.createObjectURL;
+ let blobs=[];URL.createObjectURL=b=>{blobs.push(b);return 'blob:x';};URL.revokeObjectURL=()=>{};
+ globalThis.document={querySelectorAll:()=>[],body:{append:()=>{}},createElement:()=>({click(){files.push(this.download);},remove(){}})};
+ game.world={title:'Fosstryn Test'};
+ try{
+  game.user=gm;await module.api.journal.write('SESSION-001','gm-notes','<p>GM-ONLY-TEXT</p>',{base:''});
+  app.tab='journal';app.jv=null;await app.render();const root=rootWith('');
+  dialogs.length=0;answer='cancel';
+  await app.journalAction('export-gm',{dataset:{}},root);
+  assert.equal(files.length,0,'Cancel downloads nothing');assert.equal(dialogs.at(-1).window.title,'Export GM Journal?');
+  assert.match(dialogs.at(-1).content,/every session, archived ones included/);
+  answer='confirm';await app.journalAction('export-gm',{dataset:{}},root);
+  assert.equal(files.length,1);assert.match(files[0],/^Fosstryn-Test-gm-journal-\d{4}-\d{2}-\d{2}\.md$/);
+  assert.match(await blobs.at(-1).text(),/GM-ONLY-TEXT/);
+  app.jv.target='alice';await app.render();
+  await app.journalAction('export-player',{dataset:{}},root);
+  assert.match(files.at(-1),/^Fosstryn-Test-player-alice-journal-/);assert.match(dialogs.at(-1).content,/Alice&#39;s journal/);
+  await app.journalAction('export-group',{dataset:{}},root);assert.match(files.at(-1),/^Fosstryn-Test-group-journal-/);
+  // A player: Export Journal on My journal, the group journal, and the GM journal is refused (even if a modified client sends the action).
+  game.user=alice;app.jv=null;app.tab='journal';const ph=await app.render();
+  assert.doesNotMatch(ph,/Export GM Journal|export-gm/);assert.match(ph,/data-jaction="export-player"/);
+  const before=files.length;
+  await app.journalAction('export-player',{dataset:{}},root);assert.match(files.at(-1),/^Fosstryn-Test-player-alice-journal-/);
+  await assert.rejects(app.journalAction('export-gm',{dataset:{}},root),/GM permission/);
+  assert.equal(files.length,before+1,'nothing downloaded for the refused GM export');
+  assert.throws(()=>module.api.journal.exportJournal('gm'),/GM permission/);
+  assert.ok(!JSON.stringify(emitted).includes('GM-ONLY-TEXT'),'no socket message carries it');
+  assert.ok(!(await blobs.at(-1).text()).includes('GM-ONLY-TEXT'));
+ }finally{globalThis.document=prevDoc;URL.createObjectURL=prevURL;game.user=gm;delete game.world;}
+});
+
 test('module.json asks Foundry for the module socket',async()=>{
  const fs=await import('node:fs');const m=JSON.parse(fs.readFileSync(new URL('../module.json',import.meta.url),'utf8'));
  assert.equal(m.socket,true);
