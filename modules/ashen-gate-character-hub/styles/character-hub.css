@@ -528,7 +528,7 @@
 .agch-app .agch-sock__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ag-space-1); }
 .agch-app .agch-sock.is-drop { outline: 2px solid var(--ag-focus); outline-offset: -2px; background: var(--ag-accent-soft); }
 /* Items that fit: chips to drag onto a socket row. */
-.agch-app .agch-fits { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2) var(--ag-space-3); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius); }
+.agch-app .agch-fits { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2) var(--ag-space-3); border: thin dashed var(--ag-border-strong); border-radius: var(--ag-radius); }
 .agch-app .agch-fits__row { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
 .agch-app .agch-fit { cursor: grab; }
 
@@ -625,7 +625,7 @@
 .agch-app .agch-journey__field--text { flex: 1 1 100%; min-width: 0; }
 .agch-app .agch-journey__field textarea { width: 100%; min-height: calc(var(--ag-control-h) * 1.6); resize: vertical; font: inherit; color: var(--ag-text); }
 .agch-app .agch-journey__form input[type="date"] { width: auto; }
-.agch-app .agch-journey__add { margin-bottom: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius-lg); }
+.agch-app .agch-journey__add { margin-bottom: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3); border: thin dashed var(--ag-border-strong); border-radius: var(--ag-radius-lg); }
 .agch-app .agch-journey__formbtns { display: flex; justify-content: space-between; gap: var(--ag-space-2); margin-left: auto; }
 .agch-app .agch-journey__hide { display: inline-flex; gap: var(--ag-space-1); align-items: center; font-size: var(--ag-text-sm); color: var(--ag-muted); }
 
@@ -778,3 +778,32 @@
 .agch-app .agch-bio__none, .agch-app .agch-bio__start { margin: 0; font-size: var(--ag-text-sm); }
 .agch-app .agch-bio__chars.ag-kv { padding: var(--ag-space-2) var(--ag-space-3); border: thin solid var(--ag-border); border-radius: var(--ag-radius); }
 .agch-app .agch-bio__footer { position: sticky; bottom: 0; z-index: 2; margin: var(--ag-space-2) 0 0; background: var(--ag-surface); border-top: thin solid var(--ag-border); }
+
+/* Companions (0.47.0): a larger Mount box and a smaller Pet box; they wrap (mount first) in a narrow window. */
+.agch-app .agch-cboxes { display: flex; flex-wrap: wrap; gap: var(--ag-space-3); align-items: flex-start; margin-bottom: var(--ag-space-3); }
+.agch-app .agch-cbox { display: grid; gap: var(--ag-space-2); min-width: 0; margin: 0; }
+.agch-app .agch-cbox--mount { flex: 3 1 24rem; }
+.agch-app .agch-cbox--pet { flex: 2 1 16rem; }
+.agch-app .agch-cbox__who { display: grid; grid-template-columns: var(--ag-portrait) minmax(0, 1fr); gap: var(--ag-space-3); align-items: center; }
+.agch-app .agch-companion__art--small { width: var(--ag-portrait); }
+.agch-app .agch-companion__fallback { display: grid; place-items: center; width: 100%; height: 100%; color: var(--ag-muted); font-size: var(--ag-text-lg); }
+.agch-app .agch-cbox__name { margin: 0; font-size: var(--ag-text-lg); font-weight: 600; overflow-wrap: anywhere; }
+.agch-app .agch-cbox__stats { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-3); margin: 0; font-size: var(--ag-text-sm); }
+.agch-app .agch-cbox__buttons { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
+.agch-app .agch-cbox__pick { display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-cbox__pick select, .agch-app .agch-cbox__link select, .agch-app .agch-cbox__link input { width: 100%; }
+.agch-app .agch-cbox__link { display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-sockets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-socketbox { display: grid; grid-template-columns: 5rem minmax(0, 1fr) auto; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-1) var(--ag-space-2); border: thin dashed var(--ag-border-strong); border-radius: var(--ag-radius); }
+.agch-app .agch-socketbox.is-filled { border-style: solid; }
+.agch-app .agch-socketbox__label { font-size: var(--ag-text-sm); font-weight: 600; }
+.agch-app .agch-socketbox__item { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
+.agch-app .agch-socketbox__item img { flex: none; width: 2rem; height: 2rem; border: 0; object-fit: cover; border-radius: var(--ag-radius); }
+.agch-app .agch-socketbox__text { display: grid; min-width: 0; overflow-wrap: anywhere; font-size: var(--ag-text-sm); }
+.agch-app .agch-socketbox__empty { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.agch-app .agch-socketbox.is-empty select { grid-column: 2 / -1; width: 100%; }
+.agch-app .agch-socketbox.is-empty .agch-socketbox__empty { grid-column: 2; }
+.agch-app .agch-socketbox.is-empty:has(select) .agch-socketbox__empty { display: none; }
+.agch-app .agch-older { margin: 0; padding-left: var(--ag-space-4); }
+.agch-app .agch-root--compact .agch-socketbox { grid-template-columns: 4rem minmax(0, 1fr) auto; }
+.agch-app .agch-root--compact .agch-cbox--mount, .agch-app .agch-root--compact .agch-cbox--pet { flex: 1 1 100%; }

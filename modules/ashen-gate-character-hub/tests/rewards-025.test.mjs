@@ -98,20 +98,19 @@ function dropWorld(actor, docs) {
 const cleanup = () => { delete globalThis.Item; delete globalThis.Actor; delete globalThis.fromUuid; };
 const worldItem = (id, extra = {}) => ({...makeItem({id, name: `[TEST] ${id}`, type: 'loot', ...extra}, null), uuid: `Item.${id}`, toObject() { return {_id: id, name: `[TEST] ${id}`, type: 'loot', system: {...(extra.system ?? {})}, flags: {}}; }});
 
-test('companion drop: an Item on a pet slot is copied and listed as before; an Actor on the mount slot links as before', async () => {
+test('companion drop: an Actor on the pet box links and activates it; an Item on a socket is copied and socketed', async () => {
   const actor = makeActor();
   const wolf = worldItem('wolf', {system: {quantity: 1}});
   const steed = {documentName: 'Actor', id: 'steed', uuid: 'Actor.steed', name: '[TEST] Steed', testUserPermission: () => true};
   dropWorld(actor, {'Item.wolf': wolf, 'Actor.steed': steed});
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor});
-  assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'pet'}}, {type: 'Item', uuid: 'Item.wolf'}))).ok, true);
+  assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'box', kind: 'pet'}}, {type: 'Actor', uuid: 'Actor.steed'}))).ok, true);
+  assert.equal(actor.flags[MODULE_ID].companionSlots.activePet, 'Actor.steed');
+  assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'socket', kind: 'pet', socket: 'body'}}, {type: 'Item', uuid: 'Item.wolf'}))).ok, true);
   const create = actor.calls.find(x => x[0] === 'createEmbedded');
   assert.equal(create[2].length, 1); assert.notEqual(create[2][0]._id, 'wolf', 'a fresh id');
-  const listed = actor.flags[MODULE_ID].companions;
-  assert.equal(listed[0].itemId, create[2][0]._id);
+  assert.equal(actor.flags[MODULE_ID].companionSlots.gear.steed.body, create[2][0]._id);
   assert.equal(wolf.calls.length, 0, 'the source is never changed');
-  assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'mount'}}, {type: 'Actor', uuid: 'Actor.steed'}))).ok, true);
-  assert.equal(actor.flags[MODULE_ID].companions.at(-1).actorUuid, 'Actor.steed');
   cleanup();
 });
 
@@ -119,9 +118,9 @@ test('companion drop: a folder, a non-Item and a missing item each show the shar
   const actor = makeActor();
   const notes = dropWorld(actor, {});
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor});
-  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'mount'}}, {type: 'Folder', uuid: 'Folder.f1'}));
-  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'pet'}}, {type: 'Item', uuid: 'Item.gone'}));
-  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'perk', entry: 'x'}}, {type: 'JournalEntry', uuid: 'JournalEntry.j'}));
+  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'box', kind: 'mount'}}, {type: 'Folder', uuid: 'Folder.f1'}));
+  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'box', kind: 'pet'}}, {type: 'Item', uuid: 'Item.gone'}));
+  await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'box', kind: 'pet'}}, {type: 'JournalEntry', uuid: 'JournalEntry.j'}));
   assert.deepEqual(notes, [['warn', 'Drop items one at a time.'], ['warn', "That item no longer exists or you can't see it."], ['warn', 'Drop an item.']]);
   assert.equal(actor.calls.length, 0);
   cleanup();
@@ -135,12 +134,15 @@ test('companion drop: a container brings its contents in one create with keepId;
   dropWorld(actor, {'Item.bag': bag});
   game.items = {contents: [bag, rope]};
   const opts = [], create = actor.createEmbeddedDocuments; actor.createEmbeddedDocuments = (t, rows, o) => { opts.push(o); return create(t, rows, o); };
-  const r = await c.addDroppedCompanion(actor, bag, 'pet');
+  const steed = {documentName: 'Actor', id: 'steed', uuid: 'Actor.steed', name: '[TEST] Steed', testUserPermission: () => true};
+  assert.equal((await c.addActorCompanion(actor, steed, 'pet')).ok, true);
+  actor.calls.length = 0;
+  const r = await c.socketDroppedGear(actor, 'pet', 'head', bag);
   assert.equal(r.ok, true);
   const creates = actor.calls.filter(x => x[0] === 'createEmbedded');
   assert.equal(creates.length, 1); assert.deepEqual(opts, [{keepId: true}]);
   const [root, inside] = creates[0][2];
   assert.equal(root.system.container, null); assert.equal(inside.system.container, root._id); assert.equal(inside.system.quantity, 3);
-  assert.equal(actor.flags[MODULE_ID].companions[0].itemId, root._id);
+  assert.equal(actor.flags[MODULE_ID].companionSlots.gear.steed.head, root._id);
   cleanup();
 });

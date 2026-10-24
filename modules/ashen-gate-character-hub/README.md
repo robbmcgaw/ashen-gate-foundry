@@ -30,12 +30,8 @@ Layout: the character on the left, the chosen section in the middle (only it scr
 - Features: Favourites first. **Group** by feature type, action type, source (the granting item, dnd5e advancement origin), uses or none; **Sort** by name, type, has-uses first or action type. Filters: action type, has uses, uses left. Class, subclass, species and background are chips in the character's name row (0.34.0).
 - Favourites (Magic, Features): the star is dnd5e's own character favourite (`system.favorites`, the same list as the standard sheet's Favorites); starred items also show in a Favourites group at the top. Owner or GM only; no star on a dnd5e version without favourites. Group/sort choices are remembered per user on that computer (client setting `listSort`).
 - Ashen Gate: sub-tabs (kit `.ag-tabs--sub`, arrow keys) Professions, Skill Trees, Cinders, Renown, Quest Log, Locations, Headquarters (0.33.0: the same names as the quick bar; they were Perks, Quests and Base). Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
-- Companions (0.12.0):
-  - One mount and GM-limited pets. Each is a world Actor (dropped from the Actors sidebar, linked by UUID) or an Item on the character.
-  - The mount card has art, the player's name and description, a stats box and gear/perk rows. The stats box shows what gear and perks give, from their own Active Effects and armour value; it's display only and nothing is applied.
-  - Pets have three clothing slots and perks.
-  - What an item is for comes from its id prefix or a Hub flag: see `docs/companion-items-schema.md`.
-- GM Setup (GM only): Player visibility (which parts players see), default pet limit and per-character limits.
+- Companions (0.47.0): a Mount box (larger) and a Pet box. See the Companions section below.
+- GM Setup (GM only): Player visibility (which parts players see) and the look. (The pet limit was retired in 0.47.0.)
 
 ## Biography (0.38.0)
 **Journey → Biography** (kit sub-tabs Journey | Biography; the choice is remembered per user in the browser, kit `uiState` key `journeyView`) mirrors the dnd5e character sheet's Biography page and reads and writes the Actor's own dnd5e 6.0.6 fields: `system.details.biography.value` and `.public` (HTML), `trait`, `ideal`, `bond`, `flaw`, `appearance` (plain text) and `age`, `height`, `weight`, `eyes`, `skin`, `hair`, `gender`, `faith`, `alignment` (plain text). A field shows only when the Actor's data has it.
@@ -136,16 +132,26 @@ Under hit points (with hit dice, rests and exhaustion), from Ashen Gate | Cinder
 
 ## Saved data
 - `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves or swaps it to another equipment slot. It changes only where the item shows.
-- `flags.ashen-gate-character-hub.companions` on a character: the ordered companion list `[{id, kind: 'mount'|'pet', itemId, perkItemIds}]`. The Items themselves are ordinary Items on the character.
+- `flags.ashen-gate-character-hub.companionSlots` on a character (0.47.0): `{version: 1, activePet, activeMount, pets: [actorUuid], mounts: [actorUuid], gear: {actorId: {socket: itemId}}, perks: {actorId: [itemId]}}`. Built from the old list by a safe, repeatable migration; reading prefers it.
+- `flags.ashen-gate-character-hub.companions` on a character: the pre-0.47.0 ordered list. Kept as it is (never deleted or rewritten), read only by the migration and the Older companions fold.
 - World setting `playerVisibility` (`{partKey: boolean}`, default `{}` = everything shown), GM only. See Player visibility.
-- World settings `petCap` (default 0) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
+- World settings `petCap` and `petCapOverrides`: retired in 0.47.0. Still registered (hidden) so saved values stay; nothing reads them.
 - Client setting `compactOpacity` (60-100, default 100): Compact-only window background opacity.
 - Client setting `compactMode` (default false): this user's Compact / Full choice (0.29.0), used when a Hub opens. The old `windowOpacity` client setting (0.10.0-0.28.x) is no longer registered or read.
 
 ## Companions
-One mount per character; pets up to the GM's limit (world default 0, so no pets until the GM raises it; per-character override). A world that already saved a limit keeps it. Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
+Two boxes: **Mount** (larger, first) and **Pet**. In a narrow window they stack, mount first.
 
-**Drops (0.25.0)** follow the shared item-drop standard (`scripts/ag-item-drop.mjs`, `docs/item-drop-standard.md`). An Item from the sidebar, a compendium or another sheet is copied onto the character (the source never changes), and a container brings its contents. Mount and pet slots still take a world Actor, dropped or (0.42.2, for keyboard users) picked from the **or link a world Actor…** list: Actors you can observe, from a folder named Companions when the world has one. A **Find an Actor by name…** box links any Actor you can observe by name (Enter), beyond the list's 150-Actor cap. An Actor that was linked and is no longer shared with the player stays listed (removable) but shows nothing from it. A folder ("Drop items one at a time."), something that isn't an Item ("Drop an item.") or an item that no longer exists shows a warning. The quick bar reads drops the same way; its rules are unchanged.
+- **A pet or mount is a world Actor** (an NPC with stats, so it can be used in battle). Link it by dropping it from the Actors sidebar onto its box, by typing part of its name in **Find an Actor by name…** and pressing Enter, or from **or link a world Actor…**. Players need at least Observer permission on it (the GM must share it first), compendium Actors must be imported first, and an Actor that was linked and is no longer shared stays listed (removable) but shows nothing from it.
+- **Many linked, one active.** A character may link many pets and many mounts. Each box's dropdown lists the character's linked ones and swaps the active one; only one pet and one mount is active at a time. **Open sheet** opens the active Actor's sheet if you may observe it. Each box shows a small portrait (neutral icon without art), the name, and a one-line strip of the Actor's own AC, HP and speed when present.
+- **Sockets.** The Pet has 2 (Head, Body); the Mount has 5 (Saddle, Other 1 to 4). A socket holds one Item and an Item sits in one socket of one companion at a time. Gear is an ordinary Item on the character with the existing roles `pet-clothing` / `mount-gear` (or unmarked non-feature loot and equipment). Drop it on a socket, or on the box for the first free socket (items from elsewhere are copied onto the character, following the shared item-drop standard, `scripts/ag-item-drop.mjs` and `docs/item-drop-standard.md`); an empty socket's **Add gear…** list is the keyboard route. **Remove** takes the item out of the socket and leaves it on the character.
+- **Which gear fits which socket.** The item data (docs/companion-items-schema.md) carries no slot, so the Hub does not invent one: any gear item of the right kind fits any socket of that companion, including Saddle, Head and Body. If an item's data later says its slot, fit can be enforced then.
+- **Gear stays with its companion.** Sockets and perks are stored per companion Actor, so switching the active pet or mount hides that gear and switching back shows it again. Removing a companion from the character forgets its sockets (the Items stay).
+- **Bonuses.** Each socket row lists everything the item gives and the box's stats area totals gear and perks from the items' own Active Effects and armour value. Display only: the Hub applies nothing to the character or the Actor. Perk Items (`mount-perk` / `pet-perk`) are listed for the active companion as before. A tier (`flags.ashen-gate-character-hub.companion.tier`, display only) shows beside the name when an item has one.
+- **Pet limit retired.** The GM's pet limit is not used; its saved settings are kept untouched. The API `petCapFor` reports unlimited.
+- **Older companions.** Pets and mounts saved as Items before 0.47.0 are kept and listed read-only in a fold; they are not deleted or converted. Actor links from before 0.47.0 are carried over by the migration (the old `companions` list itself is never changed).
+
+Permissions are checked in the data layer: the character's owner or the GM may change companions, and players are refused while the GM hides the Companions part. A level backup copy is never a target.
 
 ## Permissions
 Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name. Parts the GM hides from players are refused to players in the Hub's actions too (see Player visibility).
@@ -154,8 +160,8 @@ Owners and the GM can change and roll. Observers can look only (the actions refu
 `game.modules.get('ashen-gate-character-hub')?.api`
 - `open(actor)` → opens the Hub for a character (`{ok, error?}`).
 - `openNativeSheet(actor)` → opens dnd5e's standard character sheet.
-- `companions(actor)` → `{mount, pets, petCap}` (read only); `petCapFor(actor)`.
-- `registerPetSlotSource(id, fn)` / `unregisterPetSlotSource(id)`: reserved for a later companion skill tree. `fn(actor)` returns extra pet slots added to the GM's limit ('No pets' and 'Unlimited' overrides still win). Nothing registers one yet.
+- `companions(actor)` → `{mount, pets, petCap}` (read only). `mount` is the active mount (or null); `pets` lists every linked pet; each is `{itemId: null, actorUuid, name, active, perkItemIds, gearItemIds}`. `petCap` is `null` (unlimited). `petCapFor(actor)` always returns `Infinity`.
+- `registerPetSlotSource(id, fn)` / `unregisterPetSlotSource(id)`: kept so partners do not break; since 0.47.0 they do nothing (there is no pet limit).
 - `playerVisibility` (0.9.0):
   - `parts()` → `[{key, label, partner}]` (`partner` is the backing module id or null); `presets()` → `[{id, label}]` (`everything`, `core`).
   - `get()` → the stored switches as `{partKey: boolean}` (every part, missing = true).

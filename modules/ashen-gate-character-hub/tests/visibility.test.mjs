@@ -115,7 +115,7 @@ test('enforced in the action layer: companions, slot overrides, rests and stash 
   const hidden = {companions: false, equipment: false, rest: false, partyStash: false};
   installGlobals({user: users.owner, modules: partners(), settings: {playerVisibility: hidden, petCap: 2}});
   const actor = makeActor({items: ITEMS()});
-  for (const r of [await c.addCompanion(actor, 'horse', 'mount'), await ia.rest(actor, 'long'), await ia.setSlot(actor, 'sword', 'offhand'),
+  for (const r of [await c.activateCompanion(actor, 'mount', 'Actor.steed'), await ia.rest(actor, 'long'), await ia.setSlot(actor, 'sword', 'offhand'),
     await ia.swapSlots(actor, 'sword', 'mainhand', 'shield', 'offhand'), await ia.equipItem(actor, 'sword', {slot: 'mainhand'}),
     await depositToParty(actor, 'sword', canEdit)]) assert.match(r.error, /The GM hasn't shared/);
   assert.deepEqual(actor.calls, [], 'nothing written, no rest taken');
@@ -127,7 +127,7 @@ test('enforced in the action layer: companions, slot overrides, rests and stash 
   assert.match((await depositToParty(actor, 'sword', canEdit)).error, /The GM hasn't shared/);
   // The GM is never blocked.
   installGlobals({user: users.gm, modules: partners(), settings: {playerVisibility: hidden, petCap: 2}});
-  assert.equal((await c.addCompanion(actor, 'horse', 'mount')).ok, true);
+  assert.equal((await c.addActorCompanion(actor, {documentName: 'Actor', id: 'steed', uuid: 'Actor.steed', name: '[TEST] Steed', testUserPermission: () => true}, 'mount')).ok, true);
   assert.equal((await ia.rest(actor, 'short')).ok, true);
   assert.equal((await ia.setSlot(actor, 'sword', 'offhand')).ok, true);
 });

@@ -42,16 +42,16 @@ test('matrix: 3 bands x {no max change, +6, -6} x {no temp, +5 temp} at max 30: 
 
 test('companion Remove asks first ("Remove <name>?", danger, Cancel is the default) and Cancel changes nothing', async () => {
   installGlobals({user: users.owner});
-  const actor = makeActor({items: [{id: 'horse', name: '[TEST] Horse', type: 'equipment'}]});
-  actor.flags['ashen-gate-character-hub'] = {companions: [{id: 'c1', kind: 'mount', itemId: 'horse', name: '[TEST] Bramble'}]};
-  actor.getFlag = (s, k) => actor.flags[s]?.[k];
-  actor.setFlag = async (s, k, v) => { actor.calls.push(['setFlag', s, k, v]); actor.flags[s][k] = v; return actor; };
+  const actor = makeActor();
+  const horse = {documentName: 'Actor', id: 'horse', uuid: 'Actor.horse', name: '[TEST] Bramble', testUserPermission: () => true};
+  globalThis.fromUuidSync = u => u === 'Actor.horse' ? horse : null;
+  actor.flags['ashen-gate-character-hub'] = {companionSlots: {version: 1, activePet: null, activeMount: 'Actor.horse', pets: [], mounts: ['Actor.horse'], gear: {}, perks: {}}};
   const asked = [];
-  const r = await removeCompanionAsk({document: actor}, 'c1', async (msg, opts) => { asked.push([msg, opts]); return false; });
+  const r = await removeCompanionAsk({document: actor}, 'mount', 'Actor.horse', async (msg, opts) => { asked.push([msg, opts]); return false; });
   assert.deepEqual(r, {ok: true, result: null});
-  assert.deepEqual(asked, [["[TEST] Bramble is taken off [TEST] Hero's companions and their notes are deleted. The Actor or Item itself is kept.", {title: 'Remove [TEST] Bramble?', yes: 'Remove companion', danger: true}]]);
+  assert.deepEqual(asked, [["[TEST] Bramble is taken off [TEST] Hero's mounts and the gear in its sockets is put away (the items stay on the character). The Actor itself is kept.", {title: 'Remove [TEST] Bramble?', yes: 'Remove companion', danger: true}]]);
   assert.equal(actor.calls.length, 0, 'Cancel: nothing written');
-  assert.equal((await removeCompanionAsk({document: actor}, 'gone', async () => true)).ok, false);
+  assert.equal((await removeCompanionAsk({document: actor}, 'mount', 'Actor.gone', async () => true)).ok, false);
 });
 
 test('Push and Help use the shared dialog: "Push [power]?" with Cancel and Push; Help has one Close button', async () => {

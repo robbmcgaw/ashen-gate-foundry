@@ -61,8 +61,8 @@ test('every item element in the Hub gets the rich tooltip: list rows, slots, Oth
 test('companion gear and pet clothing get it too; observers get the same dnd5e tooltip (dnd5e decides what they see)', async () => {
   withDnd5e();
   const actor = makeActor({items: ITEMS});
-  await c.addCompanion(actor, 'cat', 'pet');
-  await c.attachExtra(actor, c.storedCompanions(actor)[0].id, 'hat');
+  await c.addActorCompanion(actor, {documentName: 'Actor', id: 'cat1', uuid: 'Actor.cat1', name: '[TEST] Cat', testUserPermission: () => true}, 'pet');
+  await c.socketGear(actor, 'pet', 'head', 'hat');
   let html = await render('companions', actor);
   assert.match(html, new RegExp(`data-action="item-sheet" data-id="hat" data-ag-always ${tip('Actor.actor1.Item.hat')}`), 'pet clothing slot');
   withDnd5e(users.observer);

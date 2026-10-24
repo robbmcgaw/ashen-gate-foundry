@@ -15,28 +15,18 @@ function world() {
   return {hero, backup};
 }
 
-test('the Companions GM table lists the character but not its level backup', () => {
-  const {hero, backup} = world();
+test('GM Setup no longer has a pet-limit table; the old petCap settings are untouched', () => {
+  const {hero} = world();
+  game.settings.store.petCap = 3; game.settings.store.petCapOverrides = {actor1: 'none'};
   const html = gmSetupTab();
-  assert.match(html, new RegExp(`data-actor="${hero.id}"`));
-  assert.doesNotMatch(html, new RegExp(`data-actor="${backup.id}"`));
-  assert.doesNotMatch(html, /level 3/);
-  assert.doesNotMatch(companionsTab({actor: backup, editable: true}), /pet-cap-override/, 'no GM pet-limit control on a backup copy');
-  assert.match(companionsTab({actor: hero, editable: true}), /pet-cap-override/, 'still there on the character');
-});
-
-test('a backup is refused as a pet-cap override target; the character is unaffected', async () => {
-  const {hero, backup} = world();
-  const r = await c.setPetCapOverride(backup.id, '2');
-  assert.equal(r.ok, false); assert.equal(r.error, REFUSAL);
-  assert.equal(game.settings.store.petCapOverrides, undefined, 'nothing written');
-  assert.deepEqual(await c.setPetCapOverride(hero.id, '2'), {ok: true, result: 2});
-  assert.equal(c.petCapFor(hero), 2);
+  assert.doesNotMatch(html, /pet-cap|data-actor=/);
+  assert.doesNotMatch(companionsTab({actor: hero, editable: true}), /pet-cap-override/);
+  assert.equal(c.petCapFor(hero), Infinity);
+  assert.deepEqual([game.settings.store.petCap, game.settings.store.petCapOverrides], [3, {actor1: 'none'}], 'saved values kept');
 });
 
 test('a backup is refused as a companion, and its own companions cannot be changed', async () => {
   const {hero, backup} = world();
-  await c.setPetCapOverride(hero.id, 'unlimited');
   const linked = await c.addActorCompanion(hero, backup, 'pet');
   assert.equal(linked.ok, false); assert.equal(linked.error, REFUSAL);
   const onBackup = await c.addActorCompanion(backup, makeActor(), 'mount');
