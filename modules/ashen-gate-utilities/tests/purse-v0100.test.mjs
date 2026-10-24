@@ -217,7 +217,7 @@ test('Party Fund tab: purse strip with five labelled counters (electrum on); Ite
   const head=html.match(/<thead><tr>(.*?)<\/tr><\/thead>/)[1],row=html.match(/<tr class="agu-stash-row"[^>]*>(.*?)<\/tr>/)[1];
   const cols=s=>[...s.matchAll(/class="(agu-col-\w+)/g)].map(m=>m[1]);
   assert.deepEqual(cols(head),cols(row));assert.deepEqual(cols(head),['agu-col-icon','agu-col-item','agu-col-qty','agu-col-weight','agu-col-value','agu-col-type','agu-col-action']);
-  assert.deepEqual([...head.matchAll(/<th[^>]*>(?:<span class="ag-sr-only">)?([^<]*)/g)].map(m=>m[1]),['Picture','Item','Qty','Weight (each)','Value (each)','Type','Action']);
+  assert.deepEqual([...head.matchAll(/<th[^>]*>(?:<span class="ag-sr-only">)?([^<]*)/g)].map(m=>m[1]),['Picture','Item','Qty','Weight','Value','Type','Action']);
   assert.match(row,/Consumable/);assert.match(row,/data-action="stash-take"/);
  }finally{game.user=gm;}
  const gmApp=await api.stash.open();gmApp.stashTab='fund';const gmHtml=await gmApp._renderHTML();assert.match(gmHtml,/data-action="purse-adjust"/);

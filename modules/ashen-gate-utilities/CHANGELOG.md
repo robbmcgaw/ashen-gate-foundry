@@ -1,3 +1,9 @@
+## 0.30.4 — 2026-10-24
+
+- **Bigger pictures in the Party stash.** Item pictures in the stash table (the Utilities window and the Party stash view in the Character Hub's Inventory tab) are about twice as large, show the whole icon, and the rows stay aligned. Compact density gets a proportionally smaller size.
+- The table headers now read *Weight* and *Value* (hover shows *Weight per item* / *Value per item*). The amounts are still per item.
+- Saved data: no change; no migration.
+
 ## 0.30.3 — 2026-10-24
 
 - **No place ids on screen.** A shop, service or merchant list whose place was deleted in Locations now reads *Missing: a place that no longer exists* (in the Shops list heading, the place line and the *Settlement* choice, where you can pick another settlement or None). With Locations switched off the list heading reads *Place name unavailable*. These used to print the place's id.
