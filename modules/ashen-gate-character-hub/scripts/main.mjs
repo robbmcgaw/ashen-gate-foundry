@@ -15,6 +15,7 @@ import {registerListSortSetting} from './organize.mjs';
 import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket, registerMarkHooks} from './marks.mjs';
+import {registerConditionSettings} from './conditions.mjs';
 import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
 import {backupsFor, restoreBackup} from './level-restore.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
@@ -130,6 +131,8 @@ if (globalThis.Hooks) {
     game.settings.register(MODULE_ID, COMPACT_SETTING, {scope: 'client', config: false, type: Boolean, default: false});
     // Per user: Compact-only background opacity (experimental, compact-opacity.mjs). 100 = opaque.
     game.settings.register(MODULE_ID, COMPACT_OPACITY_SETTING, {scope: 'client', config: false, type: Number, default: 100});
+    // Per user (client scope): the last conditions put on, for the conditions strip's one-click chips (0.45.2).
+    registerConditionSettings(game.settings);
     // Per user (client scope): which Hub sections and inventory containers are collapsed.
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.
@@ -182,6 +185,11 @@ if (globalThis.Hooks) {
   Hooks.on('updateSetting', setting => { if (String(setting?.key ?? '').startsWith(`${MODULE_ID}.`) && !globalThis.game?.user?.isGM && hotbarLink.linked && !canSee('hotbars')) hotbarLink.unlink(); });
   // Utilities' "Use electrum" changed: redraw so the coin boxes follow it.
   Hooks.on('ashen-gate-utilities.electrumChanged', () => renderAllHubs());
+  // 0.45.2: conditions on a creature you target changed (someone else applied or removed one): redraw the chips.
+  for (const hook of ['createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) Hooks.on(hook, effect => {
+    const actor = effect?.parent;
+    if (actor?.documentName === 'Actor' && [...(game.user?.targets ?? [])].some(t => (t.actor ?? t.document?.actor) === actor)) renderAllHubs(100);
+  });
   // The marks bar shows how many tokens you target.
   Hooks.on('targetToken', user => { if (user === game.user) renderAllHubs(100); });
   // Foundry re-renders the sheet for its own Actor changes too; these cover embedded Items/Effects and bursts.
