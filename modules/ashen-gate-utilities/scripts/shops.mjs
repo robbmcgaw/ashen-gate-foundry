@@ -135,7 +135,7 @@ async function create(data={}){
   const all=readAll(),meta=readMeta(),taken=all.map(s=>s.id);
   if(data.id!==undefined&&data.id!==null&&data.id!==''){
    if(!validId(data.id,'SHOP'))throw Error('Shop id must be SHOP- and upper-case letters, digits and single hyphens.');
-   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error(`The shop id ${data.id} is already used.`);
+   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error('That shop id is already used.');
   }
   const id=data.id||shopIdFromName(data.name,taken,'SHOP',meta.retiredIds),now=Date.now();
   const purse=data.purse??null;

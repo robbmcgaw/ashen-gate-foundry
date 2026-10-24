@@ -1,3 +1,8 @@
+## 0.28.4 — 2026-10-24
+
+- **No raw ids on screen.** A deleted shop or service on a merchant list now reads "Deleted shop or service" instead of its `SHOP-…` / `SVC-…` id. The Import JSON preview no longer lists `ITEM-…` / `REC-…` ids or shop ids: missing items show as "Item line 1…", and a new **Copy missing item ids** button puts the ids on your clipboard for importing with General Manager. Warnings and errors (a skipped import record, merchant-list "Not opened", "id is already used", unknown list entries on import, export notes) name the shop or just count entries. Search still finds a shop by its id.
+- No change to saved data, settings, ids, exports or the API shape; nothing to migrate.
+
 ## 0.28.3 — 2026-10-24
 
 - **Condition buttons follow Player Access.** When the GM hides Utilities from players, the Character Hub's conditions strip no longer offers Apply or a chip's ✕ that then failed with "Utilities access is hidden"; Utilities' conditions API now says no up front (`canApply` / `canRemove`), as the tracker itself already does.
