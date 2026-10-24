@@ -1,4 +1,4 @@
-# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+; Cinder art: Cinders 0.6.0+, default art on the definition: Cinders 0.9.0+, signature ability and passive: Cinders 0.10.0+)
+# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+; Cinder art: Cinders 0.6.0+, default art on the definition: Cinders 0.9.0+, art stages: Cinders 0.12.0+, signature ability and passive: Cinders 0.10.0+)
 
 This is the reference for writing Cinder content. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. The campaign's Cinder names, powers, Backfire tables and Strain band names are written from this schema and kept in the private content repo.
 
@@ -36,6 +36,7 @@ An ordinary Manager record (usually `foundry.document_type: "Item"`, `type: "fea
 | `cinder.schema` | string | yes | `"ag-cinder/0.2"` (Cinders 0.10.0+) or `"ag-cinder/0.1"`. 0.1 files stay valid; `bearer_items` needs 0.2. |
 | `cinder.backfire_categories` | list of `BF-*` ids | recommended | The Backfire categories for this Cinder's powers. A power or Push mode can override the list. |
 | `cinder.art` | string | no | Cinders 0.9.0+. Default orb image for every Cinder of this kind: an Assets Library or module path (e.g. `ashen-gate/cinders/test-ember.webp`) or an http(s) address, up to 1024 characters, no quotes, angle brackets or backslashes, no other `scheme:`. Best as a square transparent PNG/WebP. See Cinder art below. |
+| `cinder.artStages` | list | no | Cinders 0.12.0+. 2 to 5 stage images that change as the bearer advances: `[{"art": "…", "at": 0}, {"art": "…", "at": 3}, …]`. `art` follows the same rule as `cinder.art`. `at` is "Unlocks needed": a whole number from 0 to 999 of Skill Tree nodes unlocked on this Cinder's tree. The first stage must have `at: 0` (it applies from the bind) and every later `at` must be higher than the one before. Only `art` and `at` are allowed. Suggested thresholds: 0, 3, 6, 10, 14. `cinder.art` stays the fallback (and the image for Cinders without stages). Each error names the stage (e.g. `cinder.artStages[2].at: stage 3 needs more unlocks than stage 2 (3)`). See Art stages below. |
 | `cinder.bearer_items` | object | no | Cinders 0.10.0+, `ag-cinder/0.2` only. `{"active": "POWER-…", "passive": "POWER-…"}` (either can be left out; no other keys; two different ids). The bearer's signature ability (a `signature_active` Power) and always-on passive (a `signature_passive` Power). See Signature ability and passive below. |
 
 A `Mutation` record without a `cinder` block is not checked by Cinders. The tree for this Cinder is the `cinder_milestone` tree whose `sourceRef` is this `MUT-*` id (see the tree file below).
@@ -135,7 +136,7 @@ The Cinders window shows each Cinder as an orb. The definition Item's image is n
 - **Per kind (0.9.0+):** `cinder.art` on the `MUT-*` record. `api.cinder.create(definitionId)` copies it to the new Cinder's own `art` (`create(definitionId, {art})` with another path or `null` overrides it). A Cinder with no art of its own (made before 0.9.0, or after **Reset to default orb**) draws its definition's art. The definition art is also copied to the bearer's pointer as `defaultArt` (left out when there is none), so a player who cannot open the `MUT-*` record still sees it; Manage → Check / Repair cover that copy. Changing `cinder.art` on reimport does not change Cinders that already have their own art.
 - **Glow:** when art is shown, the Strain-toned orb (calm, warm, ember, hot) stays as a soft glow behind the image and the image gets a halo in the same tone; the whole image shows (no cropping), so transparent art keeps its shape.
 - **Per Cinder:** the GM can give one Cinder instance its own image: double-click the orb (Forge file picker; keep the files in the Assets Library under `ashen-gate/cinders/`), or **Reset to default orb**. It is saved as `art` (an image path or `null`) on that Cinder's record in the GM Records Journal and copied to the bearer's Cinder pointer (`flags.ashen-gate-cinders.cinders[].art`) so the bearer's owner can see it. It moves with the Cinder on a transfer.
-- Order: the Cinder's own `art`, then its definition's `cinder.art`, then the default orb. Records saved before read as no art of their own; nothing is migrated.
+- Order: the Cinder's own `art`, then (0.12.0) the art stage in use, then its definition's `cinder.art`, then the default orb. Records saved before read as no art of their own; nothing is migrated.
 - API: `game.modules.get('ashen-gate-cinders').api.cinder.setArt(instanceId, path | null)`, GM only (rejected for players in the API); `null` means "use the default" (definition art, then the default orb). It fires `ashenGateCinder.changed` with `{kind: 'art', instanceId, definitionId, actorId, art}`. `api.cinder.list(actor)` returns for each Cinder `art` (what to draw, already resolved; `null` = default orb), `ownArt`, `defaultArt` and `artSource` (`'cinder'`, `'definition'` or `null`).
 - Importing never sets or clears a Cinder's own art.
 
@@ -145,6 +146,15 @@ The Cinders window shows each Cinder as an orb. The definition Item's image is n
  "cinder": {"schema": "ag-cinder/0.1", "backfire_categories": ["BF-TEST-BODY"], "art": "ashen-gate/cinders/test-ember.webp"},
  "foundry": {"document_type": "Item", "folder_path": "Ashen Gate/Test/Cinders", "data": {"name": "[TEST] Ember Cinder", "type": "feat"}}}
 ```
+
+### Art stages (Cinders 0.12.0+)
+
+- **Which stage:** the highest stage whose `at` is at most the number of nodes the bearer has unlocked on the Cinder's tree (`unlocks` of the Cinder's account). Stage 1 applies from the bind. The orb updates when the bearer unlocks or loses a node, in the Cinders tab and the Character Hub.
+- **Per Cinder:** the GM can give one Cinder its own stages (**Stages…** in the Binding card, saved as `artStages` on the Cinder's record); they replace the definition's for that Cinder. **Hold this stage**, **Set stage…** and **Auto again** set `stageHold` (a stage number, or `null` for automatic).
+- **Precedence on the orb:** a picture the GM chose with **Change art…** (pinned), then the stage in use, then `cinder.art`, then the default orb.
+- **Players** see only the current stage. The bearer's pointer copy (`flags.ashen-gate-cinders.cinders[]`) gets `stageArt` (the image in use), `stage` (its number) and `stageHeld`; the other stages and their numbers stay in the GM-only records. `api.cinder.list(actor)` returns `art` already resolved, plus `stage: {number, held}` or `null`.
+- **API (GM only, refused for everyone else in the data layer):** `api.cinder.stages(instanceId)` → `{own, definition, stages, unlocked, hold, state}`; `api.cinder.setArtStages(instanceId, stages | null)` (`null` = use the definition's); `api.cinder.setStageHold(instanceId, stage | null)`. They fire `ashenGateCinder.changed` with `kind: 'stages'` or `'stage'`.
+- Importing never changes a Cinder's own stages or hold; re-importing changes the definition's stages for Cinders that have none of their own. Manage → Check / Repair update the bearer copies.
 
 ## Backfire table — `BF-*`, `entity_type: "BackfireTable"`
 

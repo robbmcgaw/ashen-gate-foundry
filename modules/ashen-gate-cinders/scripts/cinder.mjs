@@ -3,6 +3,7 @@
 import {applyChange,chanceFor,strainEffectBonus} from './strain.mjs';
 import {normalizeSockets,emptied} from './sockets.mjs';
 import {cleanArt} from './orb.mjs';
+import {stageProblems, cleanStages, cleanHold} from './stages.mjs';
 
 export const CINDER_CONTRACT = 'ag-cinder/1';
 export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
@@ -161,6 +162,8 @@ export function validateDefinition(record) {
       }
       // 0.9.0: optional default art for every Cinder of this kind (same rule as the GM's per-Cinder art).
       if (c.art != null && !cleanArt(c.art)) errors.push(`${id}: cinder.art must be an image path (Assets Library or module path) or an http(s) address, up to 1024 characters, without quotes or angle brackets`);
+      // 0.12.0: optional art stages (2 to 5 images that change as the bearer unlocks nodes on the Cinder's tree).
+      if (c.artStages != null) errors.push(...stageProblems(c.artStages, `${id}: cinder.artStages`));
     }
   }
   if (type === 'Power' && record.power != null) {
@@ -327,7 +330,9 @@ export function normalizeInstance(raw) {
     // 0.3.0. Records saved before sockets have none: that reads as no item attached, default count, unlocked.
     sockets: normalizeSockets(r.sockets),
     // 0.6.0. The GM's image for this Cinder's orb; records saved before read as none (the default orb).
-    art: cleanArt(r.art)
+    art: cleanArt(r.art),
+    // 0.12.0. This Cinder's own art stages (null = the definition's) and the GM's hold (a stage number; null = automatic).
+    artStages: cleanStages(r.artStages), stageHold: cleanHold(r.stageHold)
   };
 }
 export function normalizeRegistry(raw) {
@@ -346,6 +351,8 @@ const replace = (registry, next) => ({...registry, instances: registry.instances
 
 /** The default art a MUT-* record gives its Cinders (0.9.0), or null. */
 export const definitionArt = record => cleanArt(plain(record?.cinder) ? record.cinder.art : null);
+/** The art stages a MUT-* record gives its Cinders (0.12.0), or null. */
+export const definitionStages = record => cleanStages(plain(record?.cinder) ? record.cinder.artStages : null);
 /** art: the new Cinder's own image (0.9.0: the definition's art unless the GM chose another), or null for none. */
 export function createInstance(registry, definitionId, {instanceId, at = 0, art = null}) {
   if (!REF.test(String(definitionId ?? '')) || !String(definitionId).startsWith('MUT-')) throw Error('A Cinder is made from a MUT-* definition');
