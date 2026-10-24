@@ -13,7 +13,7 @@
  * `store` is {get(name), set(name, value)} over client-scope settings; `fetch` defaults to the browser's.
  */
 import {
-  validateConfig, encodePath, isSha, baseOf, readManifest, looksLikeManifest, mapGithubError, isTooLarge, maskToken, tokenProblem, scrub
+  validateConfig, encodePath, isSha, baseOf, dirOf, readManifest, readableName, folderFiles, FOLDER_PREFIX, looksLikeManifest, mapGithubError, isTooLarge, maskToken, tokenProblem, cleanToken, scrub
 } from './github-paths.js';
 
 export const GITHUB_API = 'https://api.github.com';
@@ -67,12 +67,44 @@ export function tokenStatus(user, {store} = {}) {
   return {ok: true, saved: Boolean(token), masked: maskToken(token)};
 }
 
-export async function saveToken(user, {store, token} = {}) {
+/**
+ * Checks a token against the chosen repository WITHOUT saving it: a plain-language reason it was refused, or ok.
+ * "The text is not a token" (tokenProblem) and "GitHub says no" are told apart, and the token is never echoed.
+ */
+export async function verifyToken(user, {fetch, signal, token, config} = {}) {
   if (!isGM(user)) return denied();
   const problem = tokenProblem(token);
-  if (problem) return {ok: false, message: problem};
-  await store.set(GITHUB_SETTINGS.token, String(token).trim());
-  return {ok: true, message: 'Token saved on this device only.', ...tokenStatus(user, {store})};
+  if (problem) return {ok: false, kind: 'text', message: problem};
+  const input = checkInput(config);
+  if (!input.ok) return input;
+  const ctx = {token: cleanToken(token), fetch: fetch ?? globalThis.fetch?.bind(globalThis), signal};
+  try {
+    await request(ctx, `/repos/${input.repo.owner}/${input.repo.name}`, JSON_ACCEPT, input.config.repo);
+    return {ok: true};
+  } catch (error) {
+    if (!(error instanceof PullError)) return {ok: false, kind: 'other', message: 'The token could not be checked, so it was not saved.'};
+    const tail = ' The token was not saved.';
+    if (error.status === 401) return {ok: false, kind: 'token', message: `GitHub rejected the token (401): it is expired, revoked or was not copied completely.${tail}`};
+    if (error.status === 404) return {ok: false, kind: 'access', message: `The text is a well-formed token, but GitHub cannot see ${input.config.repo} with it (404). Check the repository name, and that the token was made for this repository with Contents set to read-only.${tail}`};
+    if (error.kind === 'cancelled') return {ok: false, kind: 'cancelled', message: `Cancelled.${tail}`};
+    return {ok: false, kind: error.kind, message: `${error.message}${tail}`};
+  }
+}
+
+/**
+ * Stores the token on this device. The text is cleaned and checked first; when `config` is given it is also checked against
+ * GitHub, and "saved" is reported only when GitHub accepted it.
+ */
+export async function saveToken(user, {store, token, config, fetch, signal} = {}) {
+  if (!isGM(user)) return denied();
+  const problem = tokenProblem(token);
+  if (problem) return {ok: false, kind: 'text', message: problem};
+  if (config) {
+    const checked = await verifyToken(user, {fetch, signal, token, config});
+    if (!checked.ok) return checked;
+  }
+  await store.set(GITHUB_SETTINGS.token, cleanToken(token));
+  return {ok: true, message: config ? 'GitHub accepted the token. It is kept on this device only.' : 'Token saved on this device only.', ...tokenStatus(user, {store})};
 }
 
 export async function removeToken(user, {store} = {}) {
@@ -153,39 +185,58 @@ async function pool(items, limit, worker, signal) {
   await Promise.all(Array.from({length: Math.min(limit, items.length)}, run));
 }
 
-/** The configured paths → manifest candidates in the tree. A path ending .json is a manifest; any other is a folder to search. */
-function candidateManifests(entries, paths) {
-  const found = [], problems = [];
+/** What resolveEntry needs to know about the repository: does a path exist, and which files of that bare name sit under a folder. */
+function existence(entries) {
+  const exists = path => entries.has(path);
+  exists.under = (dir, name) => [...entries.keys()].filter(p => p.startsWith(dir ? `${dir}/` : '') && baseOf(p) === name);
+  return exists;
+}
+
+/** The configured paths → manifest candidates and folder candidates in the tree. A path ending .json is a manifest; any other is a folder to search. */
+function candidates(entries, paths) {
+  const manifests = [], folders = [], problems = [];
   for (const path of paths) {
     if (/\.json$/i.test(path)) {
-      if (entries.has(path)) found.push(path); else problems.push(`${path} was not found on that branch.`);
+      if (entries.has(path)) manifests.push(path); else problems.push(`${baseOf(path)} was not found on that branch.`);
       continue;
     }
     const prefix = `${path}/`;
     const inside = [...entries.keys()].filter(p => p.startsWith(prefix));
     if (!inside.length) { problems.push(`The folder ${path} was not found on that branch.`); continue; }
-    const manifests = inside.filter(looksLikeManifest).sort();
-    if (!manifests.length) problems.push(`No manifest file (a .json with "manifest" in its name) was found in ${path}.`);
-    found.push(...manifests);
+    manifests.push(...inside.filter(looksLikeManifest).sort());
+    folders.push(...new Set(inside.filter(p => /\.json$/i.test(p)).map(dirOf)));
   }
-  return {found: [...new Set(found)], problems};
+  return {manifests: [...new Set(manifests)], folders: [...new Set(folders)].sort(), problems};
 }
 
-/** Reads each candidate and keeps the real pack manifests, with their files and blob SHAs. */
-async function resolvePacks(ctx, repo, commit, entries, manifests, onlyPaths) {
-  const packs = [], notes = [];
-  const wanted = onlyPaths ? manifests.filter(p => onlyPaths.includes(p)) : manifests;
-  const bodies = new Map();
-  await pool(wanted.slice(0, MAX_MANIFESTS), CONCURRENCY, async path => {
+/** A folder with no manifest as a pack: its .json files in name order, gathering node files left for the Ledger. */
+function folderPack(entries, dir) {
+  const {files, ledger} = folderFiles(entries.keys(), dir);
+  return {id: `${FOLDER_PREFIX}${dir}`, kind: 'folder', manifestPath: null, manifestSha: null, label: readableName(dir), folder: baseOf(dir),
+    files: files.map(path => ({path, sha: entries.get(path).sha, size: entries.get(path).size, missing: false})), ledgerFiles: ledger, invalid: 0};
+}
+
+/** Reads each manifest (and builds each folder pack) among `ids`, keeping the order of `ids`. */
+async function resolvePacks(ctx, repo, commit, entries, ids) {
+  const notes = [], exists = existence(entries), manifests = ids.filter(id => !id.startsWith(FOLDER_PREFIX)), bodies = new Map();
+  await pool(manifests.slice(0, MAX_MANIFESTS), CONCURRENCY, async path => {
     bodies.set(path, await fileText(ctx, repo, commit, path, entries.get(path)));
   }, ctx.signal);
   if (ctx.signal?.aborted) throw cancelled();
-  for (const path of wanted.slice(0, MAX_MANIFESTS)) {
-    const manifest = readManifest(bodies.get(path), path);
-    if (!manifest.ok) { notes.push(`${path} ${manifest.message}`); continue; }
-    const files = manifest.files.map(p => ({path: p, sha: entries.get(p)?.sha ?? null, size: entries.get(p)?.size ?? 0, missing: !entries.has(p)}));
-    if (manifest.invalid.length) notes.push(`${path} lists ${manifest.invalid.length} entr${manifest.invalid.length === 1 ? 'y' : 'ies'} that are not paths inside the repository (${manifest.invalid.slice(0, 3).join(', ')}).`);
-    packs.push({id: path, manifestPath: path, manifestSha: entries.get(path).sha, label: manifest.label, files, invalid: manifest.invalid.length});
+  const packs = [];
+  for (const id of ids) {
+    if (id.startsWith(FOLDER_PREFIX)) {
+      const dir = id.slice(FOLDER_PREFIX.length);
+      const pack = folderPack(entries, dir);
+      if (pack.files.length) packs.push(pack); else notes.push(`${readableName(dir)} has no JSON files to pull.`);
+      continue;
+    }
+    if (!bodies.has(id)) continue;
+    const manifest = readManifest(bodies.get(id), id, exists);
+    if (!manifest.ok) { notes.push(`${baseOf(id)} ${manifest.message}`); continue; }
+    const files = manifest.files.map(f => ({path: f.path, sha: entries.get(f.path)?.sha ?? null, size: entries.get(f.path)?.size ?? 0, missing: !f.found}));
+    if (manifest.invalid.length) notes.push(`${baseOf(id)} lists ${manifest.invalid.length} entr${manifest.invalid.length === 1 ? 'y' : 'ies'} that are not paths inside the repository (${manifest.invalid.slice(0, 3).join(', ')}).`);
+    packs.push({id, kind: 'manifest', manifestPath: id, manifestSha: entries.get(id).sha, label: manifest.label, files, ledgerFiles: [], invalid: manifest.invalid.length});
   }
   if (manifests.length > MAX_MANIFESTS) notes.push(`Only the first ${MAX_MANIFESTS} manifests are read. Narrow the path to see the others.`);
   return {packs, notes};
@@ -214,8 +265,19 @@ export async function findPacks(user, {store, fetch, signal, config} = {}) {
     const ctx = makeContext(user, {store, fetch, signal});
     const commit = await branchCommit(ctx, input.repo, input.config.branch);
     const entries = await commitTree(ctx, input.repo, commit);
-    const {found, problems} = candidateManifests(entries, input.config.paths);
-    const {packs, notes} = await resolvePacks(ctx, input.repo, commit, entries, found);
+    const found = candidates(entries, input.config.paths), problems = found.problems;
+    const read = await resolvePacks(ctx, input.repo, commit, entries, found.manifests);
+    const notes = [...read.notes];
+    // A folder becomes a pack of its own only when no manifest lists its files and it has none of its own.
+    const listed = new Set(read.packs.flatMap(p => p.files.map(f => f.path)));
+    const folderIds = found.folders.filter(dir => {
+      if ([...entries.keys()].some(p => dirOf(p) === dir && looksLikeManifest(p))) return false;
+      const own = folderFiles(entries.keys(), dir);
+      return own.files.length > 0 && !own.files.some(f => listed.has(f));
+    }).map(dir => `${FOLDER_PREFIX}${dir}`);
+    const extra = await resolvePacks(ctx, input.repo, commit, entries, folderIds);
+    const packs = [...read.packs, ...extra.packs];
+    notes.push(...extra.notes);
     const all = [...problems, ...notes];
     if (!packs.length) return {ok: false, message: all[0] ?? 'No pack manifest was found.', notes: all, commit, packs: []};
     return {ok: true, commit, packs, notes: all};
@@ -241,9 +303,9 @@ export async function pullPacks(user, {store, fetch, signal, config, manifestPat
     const ctx = makeContext(user, {store, fetch, signal: controller.signal});
     const commit = await branchCommit(ctx, input.repo, input.config.branch);
     const entries = await commitTree(ctx, input.repo, commit);
-    const {packs, notes} = await resolvePacks(ctx, input.repo, commit, entries, manifestPaths.filter(p => entries.has(p)), manifestPaths);
+    const {packs, notes} = await resolvePacks(ctx, input.repo, commit, entries, manifestPaths.filter(p => (p.startsWith(FOLDER_PREFIX) ? true : entries.has(p))));
     const missingPacks = manifestPaths.filter(p => !packs.some(pk => pk.id === p));
-    if (missingPacks.length) return {ok: false, message: notes[0] ?? `${missingPacks[0]} is no longer a pack manifest on that branch. Find packs again.`, notes, files: [], failed: []};
+    if (missingPacks.length) return {ok: false, message: notes[0] ?? `${missingPacks[0].replace(FOLDER_PREFIX, '')} is no longer a pack on that branch. Find packs again.`, notes, files: [], failed: []};
 
     const jobs = [], seen = new Set(), failed = [];
     for (const pack of packs) for (const f of pack.files) {
@@ -289,7 +351,8 @@ export async function pullPacks(user, {store, fetch, signal, config, manifestPat
     const state = {commit, at: new Date().toISOString(), packs: Object.fromEntries(packs.map(p => [p.id, {
       label: p.label, manifestSha: p.manifestSha, files: Object.fromEntries(p.files.filter(f => f.sha).map(f => [f.path, f.sha]))
     }]))};
-    const result = {commit, files, failed, notes: [...notes, ...(skipped.length ? [`${skipped.length} listed file${skipped.length === 1 ? ' is' : 's are'} not JSON and ${skipped.length === 1 ? 'was' : 'were'} skipped.`] : [])], state, skipped};
+    const ledgerListed = packs.flatMap(p => p.ledgerFiles ?? []);
+    const result = {commit, files, failed, ledgerListed, notes: [...notes, ...(skipped.length ? [`${skipped.length} listed file${skipped.length === 1 ? ' is' : 's are'} not JSON and ${skipped.length === 1 ? 'was' : 'were'} skipped.`] : [])], state, skipped};
     if (failed.length) return {ok: false, message: `${failed.length} file${failed.length === 1 ? '' : 's'} could not be read, so nothing was sent to Sync. A pack that is only partly read could delete records.`, ...result, files: []};
     return {ok: true, ...result};
   } catch (error) { return {...fail(error), files: [], failed: []}; }
@@ -348,19 +411,21 @@ export async function checkForUpdates(user, {store, fetch, signal, config} = {})
     const entries = await commitTree(ctx, input.repo, commit);
     const packs = [];
     for (const [id, was] of Object.entries(last.packs)) {
-      if (!entries.has(id)) { packs.push({id, label: was.label, changed: Object.keys(was.files).length, added: 0, removed: Object.keys(was.files).length, upToDate: false, gone: true}); continue; }
+      const isFolder = id.startsWith(FOLDER_PREFIX);
+      if (!isFolder && !entries.has(id)) { packs.push({id, label: was.label, changed: Object.keys(was.files).length, added: 0, removed: Object.keys(was.files).length, upToDate: false, gone: true}); continue; }
       let paths = Object.keys(was.files);
+      if (isFolder) paths = folderFiles(entries.keys(), id.slice(FOLDER_PREFIX.length)).files;
       // The manifest itself changed: its list of files may have too, so read it again.
-      if (entries.get(id).sha !== was.manifestSha) {
-        const read = readManifest(await fileText(ctx, input.repo, commit, id, entries.get(id)), id);
-        if (read.ok) paths = read.files;
+      else if (entries.get(id).sha !== was.manifestSha) {
+        const read = readManifest(await fileText(ctx, input.repo, commit, id, entries.get(id)), id, existence(entries));
+        if (read.ok) paths = read.files.map(f => f.path);
       }
       const wasPaths = Object.keys(was.files);
       const changed = paths.filter(p => wasPaths.includes(p) && entries.get(p)?.sha !== was.files[p]).length;
       const added = paths.filter(p => !wasPaths.includes(p)).length;
       const removed = wasPaths.filter(p => !paths.includes(p)).length;
       // The manifest file is part of the pack: a change to it alone counts as one changed file.
-      const manifestOnly = entries.get(id).sha !== was.manifestSha && changed + added + removed === 0 ? 1 : 0;
+      const manifestOnly = !isFolder && entries.get(id).sha !== was.manifestSha && changed + added + removed === 0 ? 1 : 0;
       packs.push({id, label: was.label, changed: changed + manifestOnly, added, removed, upToDate: changed + added + removed + manifestOnly === 0});
     }
     const total = packs.reduce((sum, p) => sum + p.changed + p.added + p.removed, 0);

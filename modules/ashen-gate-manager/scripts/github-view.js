@@ -15,18 +15,19 @@ export const TOKEN_HINT = 'Make a fine-grained personal access token on GitHub f
 export const LEDGER_NOTE = 'Gathering node files are imported by the Profession Ledger’s own import. They are read, listed as handled by the Ledger and not sent to Sync.';
 
 const STATUS = {waiting: 'Waiting', reading: 'Reading…', done: 'Read', failed: 'Failed', ledger: 'Handled by the Ledger', skipped: 'Skipped (not a JSON file)'};
+const fileName = path => String(path).slice(String(path).lastIndexOf('/') + 1);
 const TONE = {done: 'ok', failed: 'danger', ledger: 'warn', skipped: 'warn'};
 
-const input = (id, label, field, value, {placeholder = '', hint = '', type = 'text', disabled = false} = {}) =>
+const input = (id, label, field, value, {placeholder = '', hint = '', secret = false, disabled = false} = {}) =>
   `<div class="ag-field"><label for="${id}">${esc(label)}</label>
-    <input type="${type}" id="${id}" data-ag-gh-field="${field}" value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off" spellcheck="false" ${disabled ? 'disabled' : ''}>
+    <input type="text" id="${id}" ${secret ? 'name="agm-gh-secret-field" class="agm-secret" autocomplete="off" autocapitalize="off" autocorrect="off" data-lpignore="true" data-1p-ignore data-form-type="other" data-bwignore' : 'autocomplete="off"'} data-ag-gh-field="${field}" value="${esc(value)}" placeholder="${esc(placeholder)}" spellcheck="false" ${disabled ? 'disabled' : ''}>
     ${hint ? `<span class="ag-field__hint">${esc(hint)}</span>` : ''}</div>`;
 
 /** The progress table, on its own so the running pull can repaint it without rendering the whole window. */
 export function rowsTable(rows) {
   const shown = rows.slice(0, SHOWN_ROWS);
   return `<table class="ag-table"><thead><tr><th scope="col">File</th><th scope="col">Status</th></tr></thead><tbody>${shown.map(r =>
-    `<tr><td><code>${esc(r.path)}</code></td><td><span class="ag-badge${TONE[r.status] ? ` ag-badge--${TONE[r.status]}` : ''}">${esc(STATUS[r.status] ?? r.status)}</span></td></tr>`).join('')}</tbody></table>${rows.length > shown.length ? `<p class="agmanager-tiny">and ${rows.length - shown.length} more.</p>` : ''}`;
+    `<tr><td><code>${esc(fileName(r.path))}</code></td><td><span class="ag-badge${TONE[r.status] ? ` ag-badge--${TONE[r.status]}` : ''}">${esc(STATUS[r.status] ?? r.status)}</span></td></tr>`).join('')}</tbody></table>${rows.length > shown.length ? `<p class="agmanager-tiny">and ${rows.length - shown.length} more.</p>` : ''}`;
 }
 
 /**
@@ -49,8 +50,8 @@ export function githubView(state) {
           <div class="ag-cluster" role="group" aria-labelledby="agm-gh-token-label"><span class="ag-badge ag-badge--ok">Saved on this device</span> <code>${esc(state.token.masked)}</code>
           <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-action="gh-token-remove" ${busy ? 'disabled' : ''}><i class="fa-solid fa-key" aria-hidden="true"></i> Remove token…</button></div>
           <span class="ag-field__hint">${esc(TOKEN_HINT)}</span></div>
-        ${input('agm-gh-token', 'Replace the token (optional)', 'token', d.token, {type: 'password', placeholder: 'Paste a new token to replace it', disabled: busy})}`
-      : input('agm-gh-token', 'Token', 'token', d.token, {type: 'password', placeholder: 'Paste a read-only token', hint: TOKEN_HINT, disabled: busy})}
+        ${input('agm-gh-token', 'Replace the token (optional)', 'token', d.token, {secret: true, placeholder: 'Paste a new token to replace it', disabled: busy})}`
+      : input('agm-gh-token', 'Token', 'token', d.token, {secret: true, placeholder: 'Paste a read-only token', hint: TOKEN_HINT, disabled: busy})}
   </div>`);
 
   parts.push(`<div class="ag-cluster">
@@ -66,7 +67,7 @@ export function githubView(state) {
     const rows = state.packs.map((p, i) => {
       const id = `agm-gh-pack-${i}`, picked = (state.selected ?? []).includes(p.id);
       return `<li class="ag-row"><label class="ag-row__main agmanager-toggle" for="${id}"><input type="checkbox" id="${id}" data-ag-gh-pack="${esc(p.id)}" ${picked ? 'checked' : ''} ${busy ? 'disabled' : ''}>
-        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.id)} · ${plural(p.fileCount, 'file')}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span></span></label></li>`;
+        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.source)} · ${plural(p.fileCount, 'file')}${p.ledgerCount ? ` · ${plural(p.ledgerCount, 'gathering node file')} left for the Ledger` : ''}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span></span></label></li>`;
     }).join('');
     parts.push(`<ul class="ag-rows" aria-label="Packs found">${rows}</ul>`);
   }

@@ -84,20 +84,64 @@ export function resolveRelative(dir, entry) {
   return out.length ? out.join('/') : null;
 }
 
-/** A manifest body → {ok, files:[repo paths in order], invalid:[entries that could not be resolved], label}. */
-export function readManifest(body, manifestPath) {
+/**
+ * One manifest entry → the repository path to read. A manifest may list repo-root paths (as a pack built in the repository
+ * does), paths relative to its own folder, or bare file names (as in a ZIP). With the repository's file list the entry is
+ * tried root-relative first, then manifest-folder-relative, then (for a bare name) as the one file of that name under the
+ * manifest's folder. With no file list it is manifest-relative. Never climbs out of the repository. → {path, found} or null.
+ */
+export function resolveEntry(dir, entry, exists) {
+  const rootPath = resolveRelative('', typeof entry === 'string' ? entry.replace(/^\/+/, '') : entry);
+  const folderPath = resolveRelative(dir, entry);
+  if (!rootPath && !folderPath) return null;
+  if (typeof exists !== 'function') return {path: folderPath ?? rootPath, found: true};
+  for (const path of [rootPath, folderPath]) if (path && exists(path)) return {path, found: true};
+  const raw = typeof entry === 'string' ? entry : entry?.path;
+  if (typeof raw === 'string' && !raw.includes('/') && typeof exists.under === 'function') {
+    const hits = exists.under(dir, raw);
+    if (hits.length === 1) return {path: hits[0], found: true};
+  }
+  // Not in the repository: report the reading that matches how the manifest wrote it (root-style when it starts with its own folder).
+  return {path: rootPath && dir && (rootPath === dir || rootPath.startsWith(`${dir}/`)) ? rootPath : (folderPath ?? rootPath), found: false};
+}
+
+const stripDate = text => text.replace(/[-_ ]?\d{4}[-_]\d{2}[-_]\d{2}(?:[-_]\d{2}[-_]?\d{2})?/g, '');
+/** "ALPHA_IMPORT_MANIFEST_2026-10-22.json" → "Alpha import"; "sandbox-v0.1.0" → "Sandbox v0.1.0". */
+export function readableName(fileOrFolder) {
+  let text = baseOf(String(fileOrFolder ?? '')).replace(/\.(?:json|md|txt)$/i, '');
+  text = stripDate(text).replace(/[_]+/g, ' ').replace(/(^|[ -])manifest(?=$|[ -])/gi, ' ').replace(/(?<![\d.v])-+(?![\d])/g, ' ').replace(/\s+/g, ' ').trim();
+  text = text || baseOf(String(fileOrFolder ?? ''));
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase().replace(/\bv(\d)/g, 'v$1');
+}
+
+/** A manifest body → {ok, files:[{path, found}] in order, invalid:[entries that could not be resolved], label}. */
+export function readManifest(body, manifestPath, exists) {
   let data;
   try { data = JSON.parse(body); } catch { return {ok: false, message: 'is not valid JSON.'}; }
   if (!data || typeof data !== 'object' || Array.isArray(data) || !/^ag-[a-z-]*manifest\//.test(String(data.schema ?? '')) || !Array.isArray(data.ordered_files))
     return {ok: false, message: 'is not a pack manifest (it has no list of ordered files).'};
   const dir = dirOf(manifestPath), files = [], invalid = [];
   for (const entry of data.ordered_files) {
-    const path = resolveRelative(dir, entry);
-    if (!path) invalid.push(String(typeof entry === 'string' ? entry : entry?.path ?? '').slice(0, 80));
-    else if (!files.includes(path)) files.push(path);
+    const hit = resolveEntry(dir, entry, exists);
+    if (!hit) invalid.push(String(typeof entry === 'string' ? entry : entry?.path ?? '').slice(0, 80));
+    else if (!files.some(f => f.path === hit.path)) files.push(hit);
   }
-  const named = [data.name, data.title, data.package_id, data.pack_id].find(v => typeof v === 'string' && v.trim());
-  return {ok: true, files, invalid, label: (named ?? dir ?? manifestPath).toString().trim().slice(0, 80) || manifestPath};
+  const text = key => (typeof data[key] === 'string' && data[key].trim() ? data[key].trim() : '');
+  const named = ['title', 'name', 'pack_name', 'package_name', 'description'].map(text).find(Boolean);
+  const version = text('version') || text('pack_version');
+  const base = (named && named.length <= 70 ? named : named ? `${named.slice(0, 67)}\u2026` : readableName(manifestPath));
+  return {ok: true, files, invalid, label: version && !base.includes(version) ? `${base} v${version.replace(/^v/i, '')}` : base};
+}
+
+/** Gathering node files (the Profession Ledger imports them) are named like S01.gathering-nodes.json. */
+export const isGatheringNodeFile = path => /gathering[-_ ]?nodes[^/]*\.json$/i.test(path);
+export const FOLDER_PREFIX = 'folder:';
+/** The .json files directly in a folder, in plain name order, without gathering node files: a pack that has no manifest. */
+export function folderFiles(paths, dir) {
+  const prefix = dir ? `${dir}/` : '';
+  const direct = [...paths].filter(p => p.startsWith(prefix) && !p.slice(prefix.length).includes('/') && /\.json$/i.test(p) && !looksLikeManifest(p));
+  const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  return {files: direct.filter(p => !isGatheringNodeFile(p)).sort(byCode), ledger: direct.filter(isGatheringNodeFile).sort(byCode)};
 }
 
 /** Pack manifests are named like pack-manifest.json or manifest_v0.1.json. */
@@ -133,11 +177,27 @@ export function maskToken(token) {
   return value.length >= 20 ? `••••••••${value.slice(-4)}` : '••••••••';
 }
 
-/** A fine-grained or classic personal access token is letters, digits, "_" and "-" only. */
+/**
+ * What a paste of a token really holds: invisible and whitespace characters (a trailing newline, a zero-width space from a
+ * web page), wrapping quotes or backticks and a leading "Bearer " are removed before anything is checked or saved.
+ */
+export function cleanToken(text) {
+  let value = String(text ?? '').replace(/[\u200b-\u200f\u2060\ufeff\u00a0]/g, '').trim();
+  value = value.replace(/^(?:authorization:\s*)?(?:bearer|token)\s+/i, '');
+  value = value.replace(/^["'`\u2018\u2019\u201c\u201d<]+|["'`\u2018\u2019\u201c\u201d>;,]+$/g, '');
+  return value.replace(/\s+/g, '');
+}
+
+/**
+ * Why pasted text cannot be a token, in words that say what was wrong with the TEXT (as opposed to GitHub refusing a real
+ * token). Empty string when it looks like one. Never repeats the text.
+ */
 export function tokenProblem(text) {
-  const value = String(text ?? '').trim();
-  if (!value) return 'Paste the token first.';
-  if (value.length < 20 || value.length > 255 || !/^[A-Za-z0-9_-]+$/.test(value)) return 'That does not look like a GitHub token. Paste it exactly as GitHub showed it, with no spaces.';
+  const value = cleanToken(text);
+  if (!value) return 'The token box is empty. Paste the token exactly as GitHub showed it.';
+  if (/[^A-Za-z0-9_-]/.test(value)) return 'The pasted text does not look like a token: it contains characters a GitHub token never has (such as \u2022, a dot or a slash). The box may hold a masked value, a saved password or the wrong text. Clear it and paste the token again.';
+  if (value.length < 20) return `The pasted text does not look like a token: it is only ${value.length} characters long and a GitHub token is longer (a fine-grained token is about 90). It may be a password or a cut-off copy. Clear the box and paste the token again.`;
+  if (value.length > 255) return 'The pasted text does not look like a token: it is too long. Paste only the token.';
   return '';
 }
 
