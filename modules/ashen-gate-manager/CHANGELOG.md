@@ -1,3 +1,10 @@
+## 0.59.0 — 2026-10-24
+
+**Compact pause.** New GM setting **Show the pause as a small indicator** in **GM Setup → General → Game pause** (saved with Save Changes). Off by default, which leaves Foundry's large Game Paused banner exactly as it is.
+- **On:** for everyone in the world the big banner is hidden and a small **Paused** label (pause icon plus the word) sits at the top centre of the screen. It does not take clicks, uses the skin's colours and has no animation.
+- It follows Foundry's real paused state, including when you load the world already paused and after a reconnect. Pausing and resuming (the Pause button, the spacebar hotkey, other modules) are not touched; only the banner's look is replaced.
+- Saved data: one new world setting, `compactPause`, read as off when absent. No migration. New `styles/pause.css`. Tests are mocked: how it looks in Forge has not been seen.
+
 ## 0.58.0 — 2026-10-24
 
 **Chat reskin.** The chat sidebar and its messages follow your Ashen Gate skin. Presentation only: Foundry's and dnd5e's own messages, buttons, roll privacy and message menu are the real ones, just restyled. Stacked on 0.57.0.

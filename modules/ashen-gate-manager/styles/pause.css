@@ -1,0 +1,33 @@
+/*
+ * Ashen Gate compact pause (Manager 0.59.0). Presentation only. Every rule is scoped to html[data-ag-pause="compact"],
+ * which Manager writes when the GM turns on "Show the pause as a small indicator" (world setting, off by default).
+ * html[data-ag-paused="true"] mirrors Foundry's real paused state. Colours come from the base --ag-* skin tokens.
+ */
+html[data-ag-pause="compact"] #pause { display: none !important; }
+
+html[data-ag-pause="compact"] #ag-pause-pill { display: none; }
+html[data-ag-pause="compact"][data-ag-paused="true"] #ag-pause-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ag-space-2);
+  position: fixed;
+  top: var(--ag-space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: calc(100vw - 2 * var(--ag-space-5));
+  padding: var(--ag-space-1) var(--ag-space-4);
+  border: 1px solid var(--ag-border);
+  border-radius: 999px;
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  font-family: var(--ag-font-body);
+  font-size: var(--ag-text-xs);
+  font-weight: 600;
+  letter-spacing: .04em;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+html[data-ag-pause="compact"] #ag-pause-pill i { color: var(--ag-accent); font-size: var(--ag-text-xs); }

@@ -2,6 +2,7 @@ import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
 import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
 import {collapseItemDescriptions} from "./chat-style.js";
+import {installPauseMirror} from "./pause-indicator.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -756,6 +757,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       setup: this.tab === "setup" ? this.#setupSources() : null,
       setupMessage: this.setupMessage,
       setupSkins,
+      compactPause: this.tab === "setup" ? Boolean(this.setupDraft?.compactPause ?? appearanceController?.getState?.()?.compactPause) : false,
       codexPlayerAccess: Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -3600,6 +3602,8 @@ Hooks.once("ready",()=>{
   }catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
   applyDocumentSkin();
   appearanceController.subscribe(applyDocumentSkin);
+  // Compact pause: mirror Foundry's paused state to html[data-ag-paused]; styles/pause.css only acts when the GM setting is on.
+  try{installPauseMirror({game,hooks:Hooks,doc:document});}catch(error){console.warn(`[${MODULE_ID}] Pause indicator not installed`,error);}
   // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
   if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
   game.modules.get(MODULE_ID).api = {
