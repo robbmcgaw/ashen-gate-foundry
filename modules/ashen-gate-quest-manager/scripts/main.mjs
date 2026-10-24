@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.19.2';
+const VERSION='0.21.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -333,7 +333,7 @@ class QuestLogApplication extends Base {
   const gm=hasGM();
   return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p>
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
-  <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). The GM and whoever started a session can rename it (pencil).${gm?' <em>Export Markdown</em> and <em>Archive session</em> sit under the session title.':''}</p>
+  <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). <em>Export Journal</em> (on a player journal) and <em>Export Group Journal</em> download every session of that journal as one Markdown file. The GM and whoever started a session can rename it (pencil); the GM can also set its date. The toolbar has bold, italic, underline, strikethrough, highlight, headings, lists, quote and divider; <em>Auto format…</em> shows what it would tidy (spaces, blank lines, bullet and numbered lines, punctuation spacing) and <em>Undo auto format</em> puts the text back.${gm?' Under the party journal, <em>GM-only notes</em> is a section players cannot see. <em>Export GM Journal</em>, <em>Export This Session</em>, <em>Archive session</em> and, for an archived session, <em>Delete session…</em> sit under the session title.':''}</p>
   ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
@@ -579,7 +579,7 @@ class QuestLogApplication extends Base {
   }catch(err){notifyError(err);}
  }
 }
-installJournal(QuestLogApplication,{store:journalStore,danger:confirmDanger,notify:notifyError,info:m=>ui.notifications?.info(m),download:dialogDownload});
+installJournal(QuestLogApplication,{store:journalStore,danger:confirmDanger,confirm:confirmDialog,notify:notifyError,info:m=>ui.notifications?.info(m),download:dialogDownload,worldName:()=>game.world?.title||game.world?.id||''});
 // Per-user preferences only. Never store the authoritative progress, private source or player projection.
 function trackedIds(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).ids;}
 function trackerVisible(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).visible;}
@@ -791,8 +791,8 @@ Hooks.once('ready',()=>{
   // Game Journal (ag-quest-journal/1): every call checks the caller (journal-core.mjs rules) before reading or writing.
   journal:Object.freeze({contract:journalStore.contract,isAvailable:()=>journalAllowed(),list:o=>journalStore.list(o),get:id=>journalStore.get(id),
    pages:id=>journalStore.pages(id),read:(id,target)=>journalStore.read(id,target),write:(id,target,html,o)=>journalStore.write(id,target,html,o),
-   create:o=>journalStore.create(o),rename:(id,o)=>journalStore.rename(id,o),archive:id=>journalStore.archive(id),restore:id=>journalStore.restore(id),
-   search:q=>journalStore.search(q),exportMarkdown:id=>journalStore.exportMarkdown(id)}),
+   create:o=>journalStore.create(o),rename:(id,o)=>journalStore.rename(id,o),archive:id=>journalStore.archive(id),restore:id=>journalStore.restore(id),remove:id=>journalStore.remove(id),
+   search:q=>journalStore.search(q),exportMarkdown:(id,o)=>journalStore.exportMarkdown(id,o),exportJournal:(kind,o)=>journalStore.exportJournal(kind,o)}),
   playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:MOD,audience:'player',playerAccessEnabled:game.settings.get(MOD,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{assertGM(game.user);if(typeof enabled!=='boolean')throw new Error('Boolean required.');await game.settings.set(MOD,'playerAccessEnabled',enabled);return module.api.playerAccess.getState();}}
  };
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();

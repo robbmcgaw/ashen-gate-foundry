@@ -1,6 +1,71 @@
-## 0.44.4 — 2026-10-24
+## 0.46.3 — 2026-10-24
 
 Ashen Gate ids no longer show in the Hub. Where a partner module gave a profession, skill tree or perk no name, the Hub used to fall back to its id (PROF-, tree or perk ids) in the Professions and Skill Trees tabs and the Overview's Professions box; it now shows a neutral word ("Profession", "Skill tree", "a perk"). Machine wording (snake_case kinds such as a quest's "side_quest" in the Journey) is shown as plain words too; the Hub prints no relation, status or entity-type tokens. Nothing else in the Hub displayed ids. Saved data, flags and APIs are untouched. (Mocked tests; please check the Professions and Skill Trees tabs in Forge.)
+
+## 0.46.2 — 2026-10-24
+
+Pop-out dialogs no longer pull in windows from the main window, and the roll dialogs follow the Hub.
+
+- **Side effect fixed.** Hosting a Hub dialog in a popped-out Hub's window is now on only while a Hub action is waiting for its next window. While a hosted dialog is open (for example Help), a confirm, an actor delete or another actor's rest opened from the main window stays in the main window. It switches back on when that dialog closes only if the action still has more steps (picker, then config window; Use, then usage dialog, then roll dialogs), and off for good when the action ends, the Hub closes, or you Pop in/out.
+- **Roll dialogs.** dnd5e's roll configuration dialogs (damage, attack, ability/skill/tool and the base roll dialog) opened by Cast Spell, Use and attack rolls from the Hub now open in the popped-out Hub's window too.
+- Hub dialogs report their real class (DialogV2) again.
+- Not popped out: nothing changes. No change to saved data. Mocked tests only; please check in Forge with a popped-out Hub.
+
+## 0.46.1 — 2026-10-24
+
+Conditions follow the GM's rule: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character; the GM can change everything.** (Needs Ashen Gate | Utilities 0.29.2 for anything a player does to a monster; Player Access still gates it.)
+
+- **Monsters, NPCs, creatures:** with Target on, any player can put conditions on and take them off a targeted token, linked to a character or not. For an unlinked token the GM's client makes the change after asking Utilities' rule again for the player who asked (the earlier "condition controllers only" rule is gone).
+- **Another player's character:** refused with "... is another player's character, so only the GM can change its conditions." (A condition controller named in Utilities still can.)
+- **Player Access off:** refused with a message that names Player Access.
+- **Exhaustion** is offered in the conditions list like the other conditions (the same list Utilities' tracker uses), and its chip shows the level. Put on and off exactly as Utilities does. Change levels with the − / + beside HP.
+- No change to saved data.
+
+## 0.46.0 — 2026-10-24
+
+Inventory: the resurrection diamond reminder is now a medium-light red when the character has no diamond and a medium-light green when they have one (the skin's own danger and ok colours, so they stay readable in every skin).
+
+Header navigation (Robb, after Session 0). Compact, Appearance, Pop out / Pop in and Level up are now icon buttons side by side at the top right (each has a name and a tooltip; Level up keeps its "why not" reason; Pop out is still hidden where Foundry can't detach; a popped-out Hub keeps Pop in; the group wraps in a narrow window instead of clipping). The ⋯ menu is now only Configure…, NPC Codex (when General Manager offers it) and Open native sheet, plus Restore backup… for the GM when there are level backups. "Edit name and title" is gone from the menu: the pencil beside the name stays. The Foundry hotbar link has no option any more: the Hub is always linked, the "Link quick bar to Foundry's hotbar" menu item and its setting are gone, and an old stored "off" value is ignored (nothing is rewritten; hotbar slots are untouched). Help and README updated.
+
+Pop-out follow-through for the new windows: with the Hub popped out, dnd5e's compendium browser (Browse compendiums… under Add…) and its advancement window (after an Add or a drop) now open in the Hub's own window too, and a drop on a list is hosted like a button click. Level up from its header button already opens its class picker there. Not popped out, nothing changes. Mocked tests only; please check in Forge with a popped-out Hub.
+
+## 0.45.2 — 2026-10-24
+
+Conditions, fewer clicks and clearer feedback (builds on 0.45.1).
+
+- **Feedback.** Apply and ✕ now say what happened: "Prone put on Goblin 1." / "Goblin 1 already has Prone." / "Prone taken off Goblin 1."
+- **One click for the usual ones.** The last four conditions you put on show as buttons in the strip; click one to put it on Self or your targets (whichever the Self / Target switch is on). Remembered per browser.
+- **One shared list.** With Ashen Gate | Utilities active, the strip offers the same conditions as the Utilities tracker (Utilities 0.29.1).
+- **Monsters and other unlinked tokens.** A condition controller (Utilities → GM Setup) can now put conditions on and take them off a targeted token that is not linked to a character: the GM's client makes the change after checking again who asked, like marks. The GM can always; other players still see "Only the GM or a condition controller can change conditions on ...".
+- **Fresh chips.** When someone else changes a condition on a creature you are targeting, your Hub's chips update.
+- No change to saved data. One new per-browser setting remembers the recent conditions.
+
+## 0.45.1 — 2026-10-24
+
+Weapon masteries now act as their rules say, instead of only labelling the target. Uses dnd5e's own effect durations; spell marks (Hunter's Mark, Hex, ...) still only track.
+
+- **Sap:** the target gets Disadvantage on its attack rolls (a real change dnd5e applies) until the start of your next turn, or until it makes its next attack roll.
+- **Slow:** takes 10 ft off each of the target's speeds until the start of your next turn. A second Slow replaces the first, so it never adds up past 10 ft.
+- **Vex:** marks the creature for your Advantage on your next attack roll against it (dnd5e cannot give you Advantage against one creature, so the Hub shows the rule when you place it). It ends at the end of your next turn, or after your next attack roll against it.
+- **Topple:** no lingering mark. Asks for the Constitution save (DC 8 + your attack ability modifier + Proficiency Bonus, shown) and puts the real Prone condition on a target that fails.
+- **Cleave, Graze, Nick, Push:** instant, so clicking shows the rule and puts nothing on anyone (no target needed).
+- Sap, Slow and Vex end by combat turn when a combat is running. With no combat, dnd5e ends them when game time next advances; the ✕ on the chip always takes them off early.
+- Help and tooltips updated. No change to saved data; marks already placed keep working (they have no duration, so remove them with the ✕).
+
+## 0.45.0 — 2026-10-24
+
+Add attacks, items, spells and features from the Hub (Robb: only the native dnd5e sheet could). Tests use mocked Foundry and dnd5e and cannot judge the real compendium browser or advancement window; please check each tab in Forge as a player and as the GM.
+
+- **An Add button on four tabs**, at the right end of the toolbar: **Add attack…** (Combat), **Add item…** (Inventory, character view), **Add spell…** (Magic, also when the character has no spells yet) and **Add feature…** (Features). It asks **Browse compendiums…** or **Create new…**. Owner or GM only: anyone else sees it disabled with the reason, and the action refuses them too. A tab the GM has hidden from players refuses players as before.
+- **Browse compendiums…** opens dnd5e's own compendium browser locked to the right types: Inventory weapon, equipment, consumable, tool, loot and container; Magic spell; Features feat; Combat weapon and feat (a feat with no attack activity is refused with a pointer to Features, as the browser cannot filter on activities). The pick is added as dnd5e's own drop does: Foundry's `fromCompendium`, dnd5e's per-type `onDropCreate` (spell method and preparation), and dnd5e's advancement window when the item has advancement. A container brings what is inside it.
+- **Create new…** asks for a name (and a type where the tab has several), creates a blank item and opens its sheet beside the Hub, in the Hub's own window when it is popped out.
+- **Drag and drop**: drop an Item from the sidebar, a compendium or another character onto the Combat, Inventory, Magic or Features list and it is added the same way (Inventory's Party stash view is not a drop target). Classes, subclasses, species and backgrounds are refused with a pointer to Level up (⋯ menu) or the native sheet; level-up itself is unchanged. The quick bar's slot drops work exactly as before.
+- A quiet note says what was added; a refusal or failure says why. Focus returns to the Add button.
+- Help and the README describe it. Saved data: nothing migrates; items are added to the character like any other.
+
+## 0.44.4 — 2026-10-24
+
+Fix: with the Hub popped out into its own browser window, the other windows a Hub button opens still appeared in the main Foundry window. These now open in the Hub's own window too: the Configure a stat picker, the Level up class picker, Restore backup and confirmation dialogs, Help, the spell / item Use dialog, the Short Rest and Long Rest dialogs, and the portrait / token art file picker. Not popped out, nothing changes. Saved data is untouched. (Mocked tests only; please check each in Forge with a popped-out Hub.)
 
 ## 0.44.3 — 2026-10-24
 

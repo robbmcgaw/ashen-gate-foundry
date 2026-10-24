@@ -118,6 +118,6 @@ export function lookSetupCard() {
   const w = worldLook(), a = managerAppearance();
   const sel = (field, label, list) => `<label class="ag-field">${esc(label)}<select data-edit="look-default" data-field="${field}">${list.map(([k, l]) => `<option value="${k}"${w[field] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
   return `<section class="ag-card agch-looksetup"><h3>Hub appearance (default)</h3>
-    ${a ? '<p class="agch-muted">General Manager\'s appearance is active: the world default skin is set in General Manager → Appearance. Each player picks their own in the Hub\'s <strong>⋯ → Appearance…</strong> menu. The choices below apply only when General Manager is not active.</p>' : '<p class="agch-muted">The look every user starts from. Each player can still pick their own in the Hub\'s <strong>⋯ → Appearance…</strong> menu.</p>'}
+    ${a ? '<p class="agch-muted">General Manager\'s appearance is active: the world default skin is set in General Manager → Appearance. Each player picks their own in the Hub\'s <strong>Appearance</strong> button (the palette, top right). The choices below apply only when General Manager is not active.</p>' : '<p class="agch-muted">The look every user starts from. Each player can still pick their own in the Hub\'s <strong>⋯ → Appearance…</strong> menu.</p>'}
     <div class="agch-looksetup__row">${sel('theme', 'Theme', THEMES)}${sel('density', 'Size', DENSITIES)}</div></section>`;
 }
