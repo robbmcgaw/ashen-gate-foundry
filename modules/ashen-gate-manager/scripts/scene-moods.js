@@ -26,6 +26,8 @@ export const MOODS_SETTING = 'sceneMoods';
 export const LAYERS_SETTING = 'sceneLayers';
 export const FLAG_STACK = 'moodStack';
 export const FLAG_FAVOURITES = 'moodFavourites';
+/** 0.61.0: a world switch. While on, presets marked `flashing` (lightning, strobes) refuse to apply and never come up in Random weather. */
+export const CALM_SETTING = 'sceneCalm';
 /** 0.22.0–0.34.x flags, read once and converted into a one-entry stack. */
 export const FLAG_BASE = 'moodBase';
 export const FLAG_MOOD = 'mood';
@@ -82,7 +84,19 @@ export const DEFAULT_LAYERS = Object.freeze([
   {id:'blood-moon', label:'Blood moon', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.dark.hue':0, 'environment.dark.intensity':0.6, 'environment.dark.saturation':0.3}},
   {id:'hearth-glow', label:'Hearth glow', kind:'layer', isDefault:true, set:{'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ffd9a0', 'environment.globalLight.luminosity':0.2}},
   {id:'pitch-black', label:'Pitch black', kind:'layer', isDefault:true, set:{[DARKNESS]:1, 'environment.globalLight.enabled':false}},
-  {id:'bright-moon', label:'Bright moon', kind:'layer', isDefault:true, set:{[DARKNESS]:0.65, 'environment.dark.luminosity':0}}
+  {id:'bright-moon', label:'Bright moon', kind:'layer', isDefault:true, set:{[DARKNESS]:0.65, 'environment.dark.luminosity':0}},
+  // 0.61.0 Blight and atmosphere layers. Colour and weather only, nothing animated by Manager. Hue 0.28 is a sickly green, 0.05 an ember orange.
+  {id:'ash-fall', label:'Ash fall', kind:'layer', isDefault:true, set:{'weather':'snow', 'environment.base.hue':0.08, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.5}},
+  {id:'blight-haze', label:'Blight haze', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.base.hue':0.28, 'environment.base.intensity':0.35, 'environment.base.saturation':-0.2,
+    'environment.dark.hue':0.3, 'environment.dark.intensity':0.4, 'fog.colors.unexplored':'#1f2a14', 'fog.colors.explored':'#3a4a22'}},
+  {id:'ember-glow', label:'Ember glow', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.dark.hue':0.05, 'environment.dark.intensity':0.5, 'environment.dark.saturation':0.4,
+    'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ff7a33', 'environment.globalLight.luminosity':0.15}},
+  {id:'heat-shimmer', label:'Heat shimmer', kind:'layer', isDefault:true, set:{'environment.base.hue':0.1, 'environment.base.intensity':0.25, 'environment.base.saturation':0.3, 'environment.base.luminosity':0.1}},
+  {id:'fog-bank', label:'Fog bank', kind:'layer', isDefault:true, set:{'weather':'fog', 'environment.base.saturation':-0.3, 'fog.colors.unexplored':'#2b2f33', 'fog.colors.explored':'#4a4f55'}},
+  {id:'candlelit-interior', label:'Candlelit interior', kind:'layer', isDefault:true, set:{[DARKNESS]:0.55, 'weather':NO_WEATHER, 'environment.cycle':true, 'environment.dark.hue':0.08, 'environment.dark.intensity':0.3,
+    'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ffcf8a', 'environment.globalLight.luminosity':0.25}},
+  {id:'underwater-murk', label:'Underwater murk', kind:'layer', isDefault:true, set:{[DARKNESS]:0.4, 'environment.cycle':true, 'environment.base.hue':0.5, 'environment.base.intensity':0.45, 'environment.base.saturation':-0.1,
+    'environment.dark.hue':0.52, 'environment.dark.intensity':0.5, 'fog.colors.unexplored':'#0d2a33', 'fog.colors.explored':'#1c4a55'}}
 ].map(freezePreset));
 const DEFAULTS = {mood:DEFAULT_MOODS, layer:DEFAULT_LAYERS};
 /** 0.35.0 default sets that lacked `environment.cycle`; a stored, unedited copy is read as the current default. */
@@ -140,6 +154,7 @@ export function validatePreset(preset) {
   if(!/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(preset.id ?? ''))) problems.push('Id must be 1–40 lowercase letters, digits or dashes.');
   if(!String(preset.label ?? '').trim()) problems.push('Label is required.');
   if(preset.kind !== undefined && !KINDS.includes(preset.kind)) problems.push('Kind must be mood or layer.');
+  if(preset.flashing !== undefined && typeof preset.flashing !== 'boolean') problems.push('Flashing must be on or off.');
   if(preset.transitionMs !== undefined && !(Number.isInteger(preset.transitionMs) && preset.transitionMs >= 0 && preset.transitionMs <= MAX_TRANSITION_MS))
     problems.push(`Transition must be whole milliseconds from 0 to ${MAX_TRANSITION_MS}.`);
   const set = preset.set;
@@ -179,6 +194,7 @@ export function readField(scene, path) {
 const tidyPreset = p => {
   const out = {id:p.id, label:String(p.label).trim(), kind:kindOf(p), isDefault:Boolean(p.isDefault), set:{...p.set}};
   if(p.transitionMs > 0) out.transitionMs = p.transitionMs;
+  if(p.flashing === true) out.flashing = true;
   return out;
 };
 
@@ -226,6 +242,15 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
     return clone(Array.isArray(stored) && stored.length ? stored : DEFAULTS[kind]).map(p => ({...(kind === 'layer' ? upgradeStoredPreset(p) : p), kind}));
   };
   const find = (kind, id) => list(kind).find(p => p.id === id);
+  const calmOn = () => { try { return game.settings.get(MODULE_ID, CALM_SETTING) === true; } catch { return false; } };
+  const CALM_MESSAGE = preset => `${preset.label} is marked as flashing and "No flashing" is on, so it was not applied. Nothing changed.`;
+  /** Shipped moods and layers this world does not have (only meaningful once the GM has saved their own list). */
+  const missingDefaults = kind => {
+    const stored = game.settings.get(MODULE_ID, SETTING[kind]);
+    if(!Array.isArray(stored) || !stored.length) return [];
+    const have = new Set(stored.map(p => p?.id));
+    return DEFAULTS[kind].filter(p => !have.has(p.id));
+  };
   /** The viewed scene, else the active one, unless a scene id is given. */
   const resolveScene = sceneId => sceneId ? game.scenes?.get?.(sceneId) ?? null : getCanvas()?.scene ?? game.scenes?.active ?? null;
   const flag = (scene, key) => scene?.getFlag?.(MODULE_ID, key) ?? null;
@@ -361,7 +386,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       seen.add(key);
       if(issues.length) return {kind:p.kind, id:String(p.id ?? ''), label:String(p.label ?? p.id ?? 'Preset'), status:'invalid', problems:issues};
       const mine = find(p.kind, p.id);
-      const same = mine && mine.label === String(p.label).trim() && JSON.stringify(Object.entries(mine.set).sort()) === JSON.stringify(Object.entries(p.set).sort()) && (mine.transitionMs ?? 0) === (p.transitionMs ?? 0);
+      const same = mine && mine.label === String(p.label).trim() && JSON.stringify(Object.entries(mine.set).sort()) === JSON.stringify(Object.entries(p.set).sort()) && (mine.transitionMs ?? 0) === (p.transitionMs ?? 0) && Boolean(mine.flashing) === Boolean(p.flashing);
       return {kind:p.kind, id:p.id, label:String(p.label).trim(), status:!mine ? 'new' : same ? 'same' : 'conflict', problems:[],
         unavailable:p.set.weather && !known.has(p.set.weather) ? p.set.weather : null};
     });
@@ -373,7 +398,47 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
     groups:FIELD_GROUPS,
     listMoods() {
       if(!isGM()) return fail(GM_ONLY);
-      return {ok:true, presets:list('mood'), layers:list('layer'), weatherIds:weatherIds()};
+      return {ok:true, presets:list('mood'), layers:list('layer'), weatherIds:weatherIds(),
+        newDefaults:{moods:missingDefaults('mood').map(p => p.label), layers:missingDefaults('layer').map(p => p.label)}, calm:calmOn()};
+    },
+    /** 0.61.0: the "No flashing" switch (world setting). */
+    getCalm() { return isGM() ? {ok:true, calm:calmOn()} : fail(GM_ONLY); },
+    async setCalm(on) {
+      if(!isGM()) return fail(GM_ONLY);
+      await game.settings.set(MODULE_ID, CALM_SETTING, Boolean(on));
+      return {ok:true, calm:Boolean(on), message:on ? 'No flashing is on: presets marked as flashing will not apply.' : 'No flashing is off.'};
+    },
+    /**
+     * 0.61.0 dry run for previews: can this mood or layer be applied to the scene right now? Writes nothing.
+     * Returns {ok, label, alreadyOn} or {ok:false, message}.
+     */
+    planPreset(kind, id, {sceneId} = {}) {
+      if(!isGM()) return fail(GM_ONLY);
+      const scene = sceneOrFail(sceneId);
+      if(!scene) return fail(NO_SCENE);
+      const preset = find(kind, id);
+      if(!preset) return fail(`${kind === 'layer' ? 'Layer' : 'Mood'} "${id}" does not exist.`);
+      const problems = validatePreset(preset);
+      if(problems.length) return fail(`${preset.label}: ${problems.join(' ')}`);
+      const blocked = checkSet(scene, preset.set, preset.label);
+      if(blocked) return fail(blocked.replace(' Nothing changed.', ''));
+      if(preset.flashing && calmOn()) return fail(CALM_MESSAGE(preset).replace(' Nothing changed.', ''));
+      const {entries} = readStack(scene);
+      return {ok:true, label:preset.label, alreadyOn:entries.some(e => e.kind === kind && e.id === id)};
+    },
+    /** 0.61.0: adds shipped moods and layers the world's saved list lacks. Existing presets are never touched. */
+    async addNewDefaults() {
+      if(!isGM()) return fail(GM_ONLY);
+      let added = 0;
+      for(const kind of KINDS) {
+        const missing = missingDefaults(kind);
+        if(!missing.length) continue;
+        const next = [...list(kind), ...missing.map(p => ({...clone(p), kind}))];
+        const out = await savePresets(kind, next);
+        if(!out.ok) return out;
+        added += missing.length;
+      }
+      return {ok:true, added, message:added ? `Added ${added} shipped preset${added === 1 ? '' : 's'}. Your own and edited presets were not changed.` : 'You already have every shipped mood and layer.'};
     },
     getState(sceneId) {
       if(!isGM()) return fail(GM_ONLY);
@@ -402,6 +467,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       if(problems.length) return fail(`${preset.label}: ${problems.join(' ')}`);
       const blocked = checkSet(scene, preset.set, preset.label);
       if(blocked) return fail(blocked);
+      if(preset.flashing && calmOn()) return fail(CALM_MESSAGE(preset));
       const {entries, original, legacy} = readStack(scene);
       const current = currentMap(scene), writes = new Map(), kept = [];
       const old = entries.findIndex(e => e.kind === 'mood');
@@ -424,6 +490,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       if(problems.length) return fail(`${preset.label}: ${problems.join(' ')}`);
       const blocked = checkSet(scene, preset.set, preset.label);
       if(blocked) return fail(blocked);
+      if(preset.flashing && calmOn()) return fail(CALM_MESSAGE(preset));
       const {entries, original, legacy} = readStack(scene);
       if(entries.some(e => e.kind === 'layer' && e.id === preset.id)) return fail(`${preset.label} is already on ${scene.name}. Remove it first to apply it again.`);
       const replaced = entries.filter(e => e.fields.some(f => f.path in preset.set && !entries.slice(entries.indexOf(e) + 1).some(h => h.fields.some(x => x.path === f.path))));
@@ -532,6 +599,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       const presets = [...(moods ? list('mood') : []), ...(layers ? list('layer') : [])].map(p => {
         const out = {id:p.id, label:p.label, kind:p.kind, set:{...p.set}};
         if(p.transitionMs > 0) out.transitionMs = p.transitionMs;
+        if(p.flashing === true) out.flashing = true;
         return out;
       });
       if(!presets.length) return fail('Choose moods, layers or both to export.');

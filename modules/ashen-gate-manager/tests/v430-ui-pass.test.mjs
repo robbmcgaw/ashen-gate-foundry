@@ -153,8 +153,8 @@ test('one gold primary per form; Cancel is ghost bottom-left; Delete or Remove n
 
 test('danger buttons all ask first with a danger confirm, and Cancel changes nothing', async () => {
   const danger = [...tpl.matchAll(/<button\b[^>]*ag-btn--danger[^>]*data-ag-action="([a-z-]+)"/g)].map(m => m[1]).sort();
-  assert.deepEqual(danger, ['capture-untag', 'codex-hide-all', 'mood-remove', 'mood-reset', 'org-schema-reset']);
-  for (const title of ['Remove recovery tags?', 'Hide this NPC from players?', 'Remove this scene ${noun}?', 'Reset scene moods and layers?', 'Reset organize rules?']) {
+  assert.deepEqual(danger, ['capture-untag', 'codex-hide-all', 'look-remove', 'mood-remove', 'mood-reset', 'org-schema-reset']);
+  for (const title of ['Remove recovery tags?', 'Hide this NPC from players?', 'Remove this look?', 'Remove this scene ${noun}?', 'Reset scene moods and layers?', 'Reset organize rules?']) {
     const at = main.indexOf(`title:${title.includes('${') ? '`' : "'"}${title}`);
     assert.ok(at > 0, title);
     const call = main.lastIndexOf('confirm', at);

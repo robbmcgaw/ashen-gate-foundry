@@ -922,6 +922,7 @@
               {{#if moods.regions.darkness}}<span class="ag-badge" data-tooltip="Core Adjust Darkness Level region behaviours change darkness inside those areas" data-tooltip-class="ag-tooltip">{{moods.regions.darkness}} region(s) adjust darkness</span>{{/if}}
               {{#if moods.darknessLock}}<span class="ag-badge ag-badge--warn">Darkness locked</span>{{/if}}
               <label class="agmanager-tiny">Transition <select data-ag-mood-transition>{{#each moods.transitions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+              <label class="agmanager-tiny" data-tooltip="Blocks any mood or layer marked as flashing, and keeps it out of Random weather. None of the shipped ones flash." data-tooltip-class="ag-tooltip"><input type="checkbox" data-ag-calm {{#if moods.calm}}checked{{/if}}> No flashing <span class="ag-badge">Applies now</span></label>
             </div>
           </div>
           <h4 class="agscenes-sect">Base mood</h4>
@@ -939,9 +940,35 @@
           </div>
         </section>
 
+        <section class="ag-section" aria-label="Random weather">
+          <div class="ag-section__head agmanager-moods-head"><h4 class="agscenes-sect">Random weather</h4><span class="agmanager-tiny">A proposal first. Same seed, same result.</span></div>
+          <div class="ag-cluster">
+            <label class="ag-field--inline">Seed <input type="text" data-ag-roll-seed value="{{moods.roll.seed}}" maxlength="24" size="10" placeholder="e.g. 1234" autocomplete="off"></label>
+            <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-roll-keep {{#if moods.roll.keepMood}}checked{{/if}}> Keep the current mood</label>
+            <button type="button" class="ag-btn" data-ag-action="roll-preview" {{#unless moods.hasScene}}disabled{{/unless}}><i class="fa-solid fa-dice" aria-hidden="true"></i> Roll</button>
+            <button type="button" class="ag-btn" data-ag-action="roll-next" {{#unless moods.hasScene}}disabled{{/unless}}>Next seed</button>
+          </div>
+          {{#if moods.roll.plan}}
+          <p class="agscenes-status" role="status">{{moods.roll.plan.text}}</p>
+          <footer class="ag-footer">
+            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="roll-cancel">Discard</button>
+            <button type="button" class="ag-btn ag-btn--primary" data-ag-action="roll-apply" {{#if moods.roll.plan.empty}}disabled{{/if}}><i class="fa-solid fa-check" aria-hidden="true"></i> Apply this roll</button>
+          </footer>
+          {{else}}<p class="agmanager-tiny">It only adds layers (one weather and up to two others, Blight ones a little more often) and never removes what is on the scene. Leave the seed empty for a new one.</p>{{/if}}
+        </section>
+
         <section class="ag-section" aria-label="Fine-tune this scene">
           <div class="ag-section__head agmanager-moods-head"><h4 class="agscenes-sect">Fine-tune this scene</h4><span class="agmanager-tiny">Draft only. Nothing changes for players until Apply.</span></div>
           {{#if moods.hasScene}}
+          <fieldset class="agscenes-grp" aria-label="Time of day blend">
+            <legend>Time of day blend</legend>
+            <div class="ag-cluster">
+              <label class="ag-field--inline">From <select data-ag-blend-from>{{#each moods.blend.from}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+              <label class="ag-field--inline">To <select data-ag-blend-to>{{#each moods.blend.to}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+              <label class="ag-field--inline">Blend <input type="range" min="0" max="100" step="5" value="{{moods.blend.percent}}" data-ag-blend-t aria-label="Blend from the first mood to the second"> <output data-ag-blend-out>{{moods.blend.percent}}%</output></label>
+            </div>
+            <p class="agmanager-tiny">Release the slider to fill the controls below with the blend. It stays a draft until Apply to scene; Cancel drops it.</p>
+          </fieldset>
           <div class="agscenes-tune">
             {{#each moods.draftGroups}}
             <fieldset class="agscenes-grp"><legend>{{label}}</legend>
@@ -992,6 +1019,7 @@
         <label class="ag-field">Label <input type="text" data-ag-mood-label value="{{moods.edit.label}}"></label>
         <label class="ag-field">Transition <select data-ag-mood-edit-transition>{{#each moods.edit.transitions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
       </div>
+      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-mood-flashing {{#if moods.edit.flashing}}checked{{/if}}> Flashing or strobing (blocked while No flashing is on)</label>
       <p class="agmanager-tiny">Tick the fields this {{moods.edit.noun}} sets. Unticked fields are left as the scene has them.</p>
       {{#each moods.edit.groups}}
       <fieldset class="agscenes-grp"><legend>{{label}}</legend>
@@ -1039,8 +1067,79 @@
       </div>
       {{/each}}
       {{#unless moods.hasWeather}}<p class="agmanager-tiny"><strong>No weather effects found</strong> in this Foundry (CONFIG.weatherEffects is empty); presets that set weather will refuse to apply.</p>{{/unless}}
+      {{#if moods.newDefaultsCount}}<p class="agscenes-status" role="status">{{moods.newDefaultsCount}} shipped preset(s) are not in your list yet: {{moods.newDefaultsText}}. <button type="button" class="ag-btn ag-btn--sm" data-ag-action="defaults-add">Add shipped presets</button> Your own and edited presets stay as they are.</p>{{/if}}
       <p class="agmanager-tiny">Defaults are a starting point; editing one makes it yours. Remove is inside Edit.</p>
       <p><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-reset">Reset moods and layers to defaults…</button></p>
+    </section>
+    {{/if}}
+    {{/if}}
+
+    {{#if moods.looks}}
+    <section class="ag-section" aria-label="Saved looks">
+      <div class="ag-section__head agmanager-moods-head"><h3 class="ag-section__title">Looks</h3><span class="agmanager-tiny">A base mood plus layers, saved under a name.</span></div>
+      <div class="ag-cluster">
+        {{#if moods.lookData.hasLooks}}
+        <label class="ag-field--inline">Look <select data-ag-look-pick>{{#each moods.lookData.items}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="look-remove"><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove look…</button>
+        {{/if}}
+      </div>
+      {{#if moods.lookData.selected}}<p class="agmanager-tiny">{{moods.lookData.selected.summary}}</p>{{else}}
+      <div class="ag-empty"><p class="ag-empty__title">No looks yet</p><p class="ag-empty__text">Set up a scene on Live (a mood and some layers), then save it here.</p></div>{{/if}}
+      <h4 class="agscenes-sect">Save {{moods.sceneName}} as a look</h4>
+      <div class="ag-cluster">
+        {{#if moods.lookData.hasPlaylists}}
+        <label class="ag-field--inline">Playlist <select data-ag-look-save-playlist>{{#each moods.lookData.savePlaylists}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field--inline agmanager-toggle"><input type="radio" name="agm-look-playlist" value="start" data-ag-look-save-action {{#if moods.lookData.saveStart}}checked{{/if}}> Start it</label>
+        <label class="ag-field--inline agmanager-toggle"><input type="radio" name="agm-look-playlist" value="stop" data-ag-look-save-action {{#if moods.lookData.saveStop}}checked{{/if}}> Stop it</label>
+        {{/if}}
+        <button type="button" class="ag-btn" data-ag-action="look-save" {{#unless moods.lookData.canSave}}disabled{{/unless}}><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save as a look…</button>
+      </div>
+      <p class="agmanager-tiny">Saving only stores the names of the mood and layers. A playlist never plays unless you tick it when you apply.</p>
+    </section>
+
+    {{#if moods.lookData.hasLooks}}
+    <section class="ag-section" aria-label="Apply a look to scenes">
+      <div class="ag-section__head agmanager-moods-head"><h3 class="ag-section__title">Apply to scenes</h3><span class="agmanager-tiny">Preview first. Nothing changes until Apply look.</span></div>
+      <div class="ag-cluster" role="radiogroup" aria-label="Which scenes">
+        <label class="ag-field--inline agmanager-toggle"><input type="radio" name="agm-look-mode" value="scenes" data-ag-look-mode {{#if moods.lookData.modeScenes}}checked{{/if}}> Chosen scenes</label>
+        <label class="ag-field--inline agmanager-toggle"><input type="radio" name="agm-look-mode" value="folder" data-ag-look-mode {{#if moods.lookData.modeFolder}}checked{{/if}}> Every scene in a folder</label>
+      </div>
+      {{#if moods.lookData.modeFolder}}
+        {{#if moods.lookData.hasFolders}}
+        <label class="ag-field--inline">Folder <select data-ag-look-folder><option value="" {{#unless moods.lookData.folderChosen}}selected{{/unless}}>Choose a folder</option>{{#each moods.lookData.folders}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
+        {{else}}<p class="agmanager-tiny">No scene is in a folder.</p>{{/if}}
+      {{else}}
+      <fieldset class="agscenes-grp agscenes-picklist"><legend>Scenes</legend>
+        {{#each moods.lookData.scenes}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-look-scene="{{id}}" {{#if checked}}checked{{/if}}> {{label}}</label>{{/each}}
+      </fieldset>
+      <p><button type="button" class="ag-btn ag-btn--sm" data-ag-action="look-scenes-all">Tick all</button> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="look-scenes-none">Clear ticks</button></p>
+      {{/if}}
+      {{#if moods.lookData.hasRows}}
+      <h4 class="agscenes-sect">Preview: {{moods.lookData.targetCount}} scene(s), {{moods.lookData.willChange}} will change</h4>
+      <div class="ag-rows agmanager-mood-list">
+        {{#each moods.lookData.rows}}
+        <div class="ag-row agmanager-mood-row">
+          <div class="ag-row__main"><span class="ag-row__title">{{name}} {{#if willChange}}<span class="ag-badge ag-badge--ok">Will change</span>{{/if}}{{#if nothing}}<span class="ag-badge">Nothing to change</span>{{/if}}{{#if blocked}}<span class="ag-badge ag-badge--warn">Cannot apply</span>{{/if}}</span><span class="ag-row__meta">{{detail}}</span></div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}<p class="agmanager-tiny">Choose {{#if moods.lookData.modeFolder}}a folder{{else}}one or more scenes{{/if}} to see what would change.</p>{{/if}}
+      {{#if moods.lookData.playlistChoice}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-look-playlist {{#if moods.lookData.playlistChoice.checked}}checked{{/if}}> Also {{moods.lookData.playlistChoice.label}}. Players will hear it.</label>{{/if}}
+      <div class="ag-cluster">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="look-undo" {{#unless moods.lookData.undo}}disabled{{/unless}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last batch{{#if moods.lookData.undo}} ({{moods.lookData.undo.count}}){{/if}}</button>
+        <button type="button" class="ag-btn ag-btn--primary agm-push-end" data-ag-action="look-apply" {{#unless moods.lookData.canApply}}disabled{{/unless}}><i class="fa-solid fa-check" aria-hidden="true"></i> Apply look</button>
+      </div>
+      {{#if moods.lookData.undo}}<p class="agmanager-tiny">Last batch: {{moods.lookData.undo.label}} on {{moods.lookData.undo.names}}. It can be undone until Foundry reloads.</p>{{/if}}
+      <p class="agmanager-tiny agscenes-status" role="status">{{moods.message}}</p>
+    </section>
+
+    <section class="ag-section" aria-label="Default look for a scene">
+      <div class="ag-section__head agmanager-moods-head"><h3 class="ag-section__title">Default look</h3><span class="agmanager-tiny">Applies now</span></div>
+      {{#if moods.lookData.hasDefaultScene}}
+      <label class="ag-field--inline">Default look for {{moods.lookData.defaultSceneName}} <select data-ag-look-default>{{#each moods.lookData.defaultOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      {{else}}<p class="agmanager-tiny">View or activate a scene first.</p>{{/if}}
+      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-look-auto {{#if moods.lookData.auto}}checked{{/if}}> Restore default looks when a scene is activated</label>
+      <p class="agmanager-tiny">Off by default. When on, activating a scene that has a default look applies it (no music, no fade, and only if it is not already showing). Pick the scene on Live to set its default.</p>
     </section>
     {{/if}}
     {{/if}}

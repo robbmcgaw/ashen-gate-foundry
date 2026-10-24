@@ -52,8 +52,9 @@ import {buildImportReport, buildBlockedReport, pushReport} from './import-result
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename, sortBundleFiles} from './zip-import.js';
 import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
-import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue, presetIdFromLabel} from './scene-moods.js';
-const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
+import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, CALM_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue, presetIdFromLabel} from './scene-moods.js';
+import {createSceneLooks, LOOKS_SETTING, AUTO_LOOK_SETTING, blendSets, rollWeather} from './scene-looks.js';
+const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'looks',label:'Looks',icon:'fa-solid fa-clone'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 /** Sub-tab rows (kit 2.2, 0.46.0): one level under a top-level tab; remembered per user with uiState. */
 const IMPORT_TABS=[{id:'package',label:'Load and preview'},{id:'history',label:'Import history'}];
 const SETUP_TABS=[{id:'general',label:'General'},{id:'sources',label:'Core sources'},{id:'developer',label:'Developer Tools'}];
@@ -278,7 +279,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
-  '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
+  '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
   '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order, but starts unticked: tick it only if you want it. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
   '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
@@ -376,6 +377,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.moodFilter = "all";
     this.moodImport = null;
     this.moodExport = {moods:true, layers:true};
+    // 0.61.0: blend slider, random weather, looks. Kept only while the window is open.
+    this.moodBlend = {from:'day', to:'night', t:0};
+    this.moodRoll = {seed:'', keepMood:true, plan:null};
+    this.lookId = ''; this.lookMode = 'scenes'; this.lookScenes = new Set(); this.lookFolder = ''; this.lookPlaylist = false;
+    this.lookSave = {playlistId:'', action:'start'};
     this.browseState = {...DEFAULT_STATE, filters:{}};
     this.browseUnsub = null;
     this.moodMessage = "Pick a mood, then add layers on top. Each removes only its own changes; Back to normal puts the scene's original values back, fine-tune included.";
@@ -472,7 +478,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       checked:value===true,isNone:f.kind==='color'&&!value,colorValue:f.kind==='color'&&value?value:'#ffffff',
       display:typeof value==='number'?value.toFixed(2):'',weatherOptions:f.kind==='weather'?weatherOptions(value,extra.used??true):[],...extra});
     const transitions=selected=>MOOD_TRANSITIONS.map(t=>({...t,selected:String(t.value)===String(selected)}));
-    const ctx={tabsHtml:subTabs({group:'agm-scenes',label:'Scenes sections',tabs:MOOD_VIEWS,selected:this.moodView}),panelAttrs:tabPanelAttrs('agm-scenes',this.moodView),live:this.moodView==='live',library:this.moodView==='library',share:this.moodView==='share',
+    const ctx={tabsHtml:subTabs({group:'agm-scenes',label:'Scenes sections',tabs:MOOD_VIEWS,selected:this.moodView}),panelAttrs:tabPanelAttrs('agm-scenes',this.moodView),live:this.moodView==='live',library:this.moodView==='library',looks:this.moodView==='looks',share:this.moodView==='share',
       sceneName:state.scene?.name??'No scene viewed or active',hasScene:Boolean(state.scene),hasBase:state.hasBase,darknessLock:state.scene?.darknessLock,
       regions:state.scene?.regions??{weather:0,darkness:0},scenes:(game.scenes?.contents??[]).map(s=>({id:s.id,name:s.name,selected:s.id===this.moodSceneId})),
       currentSelected:!this.moodSceneId,message:this.moodMessage,hasWeather:weatherIds.length>0,transitions:transitions(this.moodTransition),
@@ -491,8 +497,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       ctx.draftGroups=FIELD_GROUPS.map(g=>({...g,fields:MOOD_FIELDS.filter(f=>f.group===g.id&&Object.hasOwn(values,f.path))
         .map(f=>fieldView(f,draft.values[f.path],{touched:draft.touched.includes(f.path)}))})).filter(g=>g.fields.length);
       ctx.missingFields=state.scene?MOOD_FIELDS.filter(f=>!Object.hasOwn(values,f.path)).map(f=>f.label).join(', '):'';
+      const moodOptions=selected=>moods.map(m=>({id:m.id,label:m.label,selected:m.id===selected}));
+      ctx.blend={from:moodOptions(this.moodBlend.from),to:moodOptions(this.moodBlend.to),percent:Math.round(this.moodBlend.t*100)};
+      ctx.calm=Boolean(list.calm);
+      ctx.roll={seed:this.moodRoll.seed,keepMood:this.moodRoll.keepMood,plan:this.moodRoll.plan};
     }
     if(ctx.library){
+      const fresh=[...(list.newDefaults?.moods??[]),...(list.newDefaults?.layers??[])];
+      ctx.newDefaultsCount=fresh.length;ctx.newDefaultsText=fresh.join(', ');
       const q=this.moodSearch.trim().toLowerCase();
       const match=p=>!q||p.label.toLowerCase().includes(q)||p.id.includes(q)||p.summary.toLowerCase().includes(q);
       ctx.search=this.moodSearch;
@@ -506,12 +518,116 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           return fieldView(f,value,{used});
         })}))};
     }
+    if(ctx.looks)Object.assign(ctx,this.#looksContext(state,moods,layers));
     if(ctx.share&&this.moodImport) ctx.import={filename:this.moodImport.filename,items:this.moodImport.items.map(i=>{
       const choice=this.moodImport.choices[`${i.kind}:${i.id}`]??'keep';
       return {...i,isNew:i.status==='new',isSame:i.status==='same',isConflict:i.status==='conflict',isInvalid:i.status==='invalid',
         problems:(i.problems??[]).join(' '),keep:choice==='keep',replace:choice==='replace',both:choice==='both'};
     })};
     return ctx;
+  }
+  /** Looks sub-tab (0.61.0): saved looks, the scenes to apply to, the preview list and the default look. */
+  #looksContext(state,moods,layers) {
+    const lk=sceneLooks();
+    const looks=lk.listLooks().looks??[];
+    if(!looks.some(l=>l.id===this.lookId))this.lookId=looks[0]?.id??'';
+    const playlists=lk.listPlaylists().playlists??[];
+    const playlistName=id=>playlists.find(p=>p.id===id)?.name??'a playlist that is no longer in this world';
+    const moodLabel=id=>moods.find(m=>m.id===id)?.label??id, layerLabel=id=>layers.find(l=>l.id===id)?.label??id;
+    const describe=l=>[l.moodId?`Mood: ${moodLabel(l.moodId)}`:'Keeps the scene\'s mood',l.layerIds.length?`Layers: ${l.layerIds.map(layerLabel).join(', ')}`:'No layers',
+      ...(l.playlist?[`${l.playlist.action==='start'?'Starts':'Stops'} ${playlistName(l.playlist.id)} (only if you tick it)`]:[])].join(' · ');
+    const look=looks.find(l=>l.id===this.lookId)??null;
+    const sc=lk.listScenes();
+    const scenes=(sc.scenes??[]).map(s=>({...s,checked:this.lookScenes.has(s.id),label:s.folder?`${s.name} (${s.folder})`:s.name}));
+    const folders=(sc.folders??[]).map(f=>({...f,selected:f.id===this.lookFolder}));
+    const targets=this.lookMode==='folder'?(this.lookFolder?lk.sceneIdsInFolder(this.lookFolder).sceneIds:[]):scenes.filter(s=>s.checked).map(s=>s.id);
+    const pv=look&&targets.length?lk.previewLook(look.id,targets):null;
+    const rows=(pv?.rows??[]).map(r=>{
+      const blocked=r.problems.length>0;
+      const parts=[r.setsMood?(r.setsMood.alreadyOn?`${r.setsMood.label} already set`:`sets ${r.setsMood.label}`):'',r.adds.length?`adds ${r.adds.join(', ')}`:'',r.already.length?`${r.already.join(', ')} already on`:''].filter(Boolean);
+      return {name:r.name,blocked,willChange:!blocked&&r.changes,nothing:!blocked&&!r.changes,
+        detail:blocked?r.problems.join(' '):(parts.join(' · ')||'Nothing to change')};
+    });
+    const undo=lk.describeUndo();
+    const dl=state.scene?lk.getDefaultLook(state.scene.id):null;
+    return {lookData:{
+      hasLooks:looks.length>0,items:looks.map(l=>({...l,selected:l.id===this.lookId,summary:describe(l)})),selected:look?{...look,summary:describe(look)}:null,
+      playlistChoice:look?.playlist?{label:`${look.playlist.action==='start'?'Start':'Stop'} playlist ${playlistName(look.playlist.id)}`,checked:this.lookPlaylist}:null,
+      modeScenes:this.lookMode==='scenes',modeFolder:this.lookMode==='folder',scenes,folders,hasFolders:folders.length>0,folderChosen:Boolean(this.lookFolder),
+      targetCount:targets.length,rows,hasRows:rows.length>0,willChange:pv?.willChange??0,canApply:Boolean(look)&&(pv?.willChange??0)>0,
+      undo:undo?{label:undo.label,count:undo.scenes.length,names:undo.scenes.join(', ')}:null,
+      savePlaylists:[{id:'',label:'No playlist',selected:!this.lookSave.playlistId},...playlists.map(p=>({id:p.id,label:p.name,selected:p.id===this.lookSave.playlistId}))],
+      saveStart:this.lookSave.action==='start',saveStop:this.lookSave.action==='stop',hasPlaylists:playlists.length>0,
+      canSave:Boolean(state.scene&&(state.mood||state.layers?.length)),
+      defaultOptions:[{id:'',label:'No default look',selected:!dl?.lookId},...looks.map(l=>({id:l.id,label:l.label,selected:l.id===dl?.lookId}))],
+      defaultSceneName:state.scene?.name??'',hasDefaultScene:Boolean(state.scene),auto:Boolean(dl?.auto)}};
+  }
+  async #looksAction(name) {
+    const lk=sceneLooks();
+    if(name==='look-save'){
+      const base=lk.lookFromScene(this.moodSceneId||undefined);
+      if(!base.ok){toast(base.message,true);this.moodMessage=base.message;return this.render();}
+      const label=await promptText('Save this look',`Name for the look on ${base.sceneName}`,'',{ok:'Save look'});
+      if(!label||!String(label).trim())return;
+      const playlist=this.lookSave.playlistId?{id:this.lookSave.playlistId,action:this.lookSave.action}:null;
+      const trial=lk.listLooks().looks.find(l=>l.label.toLowerCase()===String(label).trim().toLowerCase());
+      if(trial&&!await confirmDialog(`A look called "${trial.label}" already exists. Replace it with this scene's current mood and layers? Scenes are not changed.`,{title:'Replace this look?',yes:'Replace look'}))return;
+      const out=await lk.saveLook({label,moodId:base.moodId,layerIds:base.layerIds,playlist});
+      if(out.ok)this.lookId=out.look.id;
+      return this.#moodResult(Promise.resolve(out));
+    }
+    if(name==='look-remove'){
+      const look=lk.listLooks().looks.find(l=>l.id===this.lookId);
+      if(!look)return;
+      const yes=await confirmDanger(`Remove the look "${look.label}"? Scenes that already show it keep their look.`,{title:'Remove this look?',yes:'Remove look'});
+      if(yes)await this.#moodResult(lk.removeLook(look.id));
+      return;
+    }
+    if(name==='look-apply'){
+      const pv=this.#lookTargets();
+      const look=lk.listLooks().looks.find(l=>l.id===this.lookId);
+      if(!look||!pv.length)return;
+      const n=lk.previewLook(look.id,pv).willChange;
+      const yes=await confirmDialog(`Apply "${look.label}" to ${n} scene${n===1?'':'s'}? Everyone on those scenes sees the change. Undo last batch puts them back.`,{title:'Apply this look?',yes:'Apply look'});
+      if(!yes)return;
+      await this.#moodResult(lk.applyLook(look.id,pv,{animate:this.#moodAnimate(true),startPlaylist:this.lookPlaylist}));
+      this.lookPlaylist=false;return;
+    }
+    if(name==='look-undo'){
+      await this.#moodResult(lk.undoLastBatch());return;
+    }
+    if(name==='look-scenes-all'){this.lookScenes=new Set((lk.listScenes().scenes??[]).map(s=>s.id));return this.render();}
+    if(name==='look-scenes-none'){this.lookScenes=new Set();return this.render();}
+  }
+  #lookTargets() {
+    const lk=sceneLooks();
+    if(this.lookMode==='folder')return this.lookFolder?lk.sceneIdsInFolder(this.lookFolder).sceneIds:[];
+    return [...this.lookScenes];
+  }
+  /** Time of day blend: fills the fine-tune draft (still a draft until Apply to scene). */
+  async #blendChange() {
+    const b=this.moodBlend, list=sceneMoods().listMoods();
+    const from=list.presets.find(m=>m.id===b.from), to=list.presets.find(m=>m.id===b.to);
+    if(!from||!to||!this.moodDraft)return this.render();
+    const set=blendSets(from.set,to.set,b.t);
+    const known=sceneMoods().getState(this.moodSceneId||undefined).values??{};
+    for(const [path,value] of Object.entries(set)){
+      if(!Object.hasOwn(known,path))continue;
+      this.moodDraft.values[path]=value;
+      if(!this.moodDraft.touched.includes(path))this.moodDraft.touched.push(path);
+    }
+    this.moodMessage=`Blend of ${from.label} and ${to.label} at ${Math.round(b.t*100)}% is in the fine-tune draft below. Nothing changes for players until Apply to scene.`;
+    await this.render();
+  }
+  #rollNow() {
+    const api=sceneMoods(), list=api.listMoods(), state=api.getState(this.moodSceneId||undefined);
+    const r=this.moodRoll;
+    let seed=String(r.seed).trim();
+    if(!seed){seed=String(Math.floor(Math.random()*9000)+1000);r.seed=seed;}
+    const plan=rollWeather({seed,moods:list.presets,layers:list.layers,onIds:(state.layers??[]).map(l=>l.id),keepMood:r.keepMood,calm:Boolean(list.calm)});
+    const moodLabel=plan.moodId?list.presets.find(m=>m.id===plan.moodId)?.label:null;
+    const layerLabels=plan.layerIds.map(id=>list.layers.find(l=>l.id===id)?.label??id);
+    r.plan={...plan,text:`Seed ${seed}: ${moodLabel?`mood ${moodLabel}`:'keeps the current mood'}${layerLabels.length?`, adds ${layerLabels.join(', ')}`:', adds no layers'}.`,empty:!plan.moodId&&!plan.layerIds.length};
   }
   /** Live transition picker: '' = each preset's own transition (Apply), 0 for restore/remove/fine-tune. */
   #moodAnimate(forPreset=false) {
@@ -543,8 +659,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const [kind,id]=ref.split(':');
     const preset=this.#findPreset(kind,id);
     if(!preset)return toast(`${kind==='layer'?'Layer':'Mood'} ${id} not found.`,true);
-    this.moodEdit=duplicate?{isNew:true,kind,id:'',label:`${preset.label} (copy)`,set:{...preset.set},transitionMs:preset.transitionMs??0}
-      :{isNew:false,kind,id:preset.id,label:preset.label,set:{...preset.set},transitionMs:preset.transitionMs??0};
+    this.moodEdit=duplicate?{isNew:true,kind,id:'',label:`${preset.label} (copy)`,set:{...preset.set},transitionMs:preset.transitionMs??0,flashing:Boolean(preset.flashing)}
+      :{isNew:false,kind,id:preset.id,label:preset.label,set:{...preset.set},transitionMs:preset.transitionMs??0,flashing:Boolean(preset.flashing)};
     await this.render();
   }
   async #saveMood() {
@@ -564,8 +680,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         :f.kind==='color'?(root.querySelector(`[data-ag-mood-none="${f.path}"]`)?.checked?null:String(input?.value??'').toLowerCase()):String(input?.value??'');
     }
     if(edit.isNew&&this.#findPreset(edit.kind,id))return toast(`The id you set is already used by another ${edit.kind}. Clear it to make one from the label.`,true);
-    this.moodEdit={...edit,id,label,set,transitionMs};
-    const out=await this.#moodResult(sceneMoods().savePreset({id,label,kind:edit.kind,set,...(transitionMs?{transitionMs}:{})}),`${edit.kind==='layer'?'Layer':'Mood'} "${label}" saved.`);
+    const flashing=Boolean(root.querySelector('[data-ag-mood-flashing]')?.checked);
+    this.moodEdit={...edit,id,label,set,transitionMs,flashing};
+    const out=await this.#moodResult(sceneMoods().savePreset({id,label,kind:edit.kind,set,...(transitionMs?{transitionMs}:{}),...(flashing?{flashing:true}:{})}),`${edit.kind==='layer'?'Layer':'Mood'} "${label}" saved.`);
     if(out.ok){this.moodEdit=null;await this.render();}
   }
   async #removeMood() {
@@ -1018,6 +1135,32 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     moodClick('[data-ag-mood-edit]',d=>this.#editMood(d.agMoodEdit));
     moodClick('[data-ag-mood-duplicate]',d=>this.#editMood(d.agMoodDuplicate,{duplicate:true}));
     moodClick('[data-ag-mood-favourite]',d=>this.#moodResult(sceneMoods().toggleFavourite(d.agMoodFavourite,{sceneId:this.moodSceneId||undefined})));
+    root.querySelector('[data-ag-blend-from]')?.addEventListener('change',event=>{this.moodBlend.from=event.target.value;});
+    root.querySelector('[data-ag-blend-to]')?.addEventListener('change',event=>{this.moodBlend.to=event.target.value;});
+    root.querySelector('[data-ag-blend-t]')?.addEventListener('input',event=>{
+      const out=root.querySelector('[data-ag-blend-out]');if(out)out.textContent=`${event.target.value}%`;
+    });
+    root.querySelector('[data-ag-blend-t]')?.addEventListener('change',event=>{this.moodBlend.t=Number(event.target.value)/100;void this.#blendChange();});
+    root.querySelector('[data-ag-roll-seed]')?.addEventListener('change',event=>{this.moodRoll.seed=event.target.value;this.moodRoll.plan=null;});
+    root.querySelector('[data-ag-roll-keep]')?.addEventListener('change',event=>{this.moodRoll.keepMood=event.target.checked;this.moodRoll.plan=null;});
+    root.querySelector('[data-ag-calm]')?.addEventListener('change',event=>{
+      void sceneMoods().setCalm(event.target.checked).then(out=>{this.moodMessage=out.message;toast(out.message,!out.ok);return this.render();}).catch(err=>this.#fail(err));
+    });
+    root.querySelector('[data-ag-look-pick]')?.addEventListener('change',event=>{this.lookId=event.target.value;this.lookPlaylist=false;void this.render();});
+    root.querySelectorAll('[data-ag-look-mode]').forEach(el=>el.addEventListener('change',()=>{this.lookMode=el.value;void this.render();}));
+    root.querySelector('[data-ag-look-folder]')?.addEventListener('change',event=>{this.lookFolder=event.target.value;void this.render();});
+    root.querySelectorAll('[data-ag-look-scene]').forEach(el=>el.addEventListener('change',()=>{
+      if(el.checked)this.lookScenes.add(el.dataset.agLookScene);else this.lookScenes.delete(el.dataset.agLookScene);void this.render();}));
+    root.querySelector('[data-ag-look-playlist]')?.addEventListener('change',event=>{this.lookPlaylist=event.target.checked;});
+    root.querySelector('[data-ag-look-save-playlist]')?.addEventListener('change',event=>{this.lookSave.playlistId=event.target.value;});
+    root.querySelectorAll('[data-ag-look-save-action]').forEach(el=>el.addEventListener('change',()=>{this.lookSave.action=el.value;}));
+    root.querySelector('[data-ag-look-default]')?.addEventListener('change',event=>{
+      const sceneId=sceneMoods().getState(this.moodSceneId||undefined).scene?.id;
+      void this.#moodResult(sceneLooks().setDefaultLook(sceneId,event.target.value||null)).catch(err=>this.#fail(err));
+    });
+    root.querySelector('[data-ag-look-auto]')?.addEventListener('change',event=>{
+      void this.#moodResult(sceneLooks().setAutoLook(event.target.checked)).catch(err=>this.#fail(err));
+    });
     moodClick('[data-ag-mood-filter]',d=>{this.moodFilter=d.agMoodFilter;return this.render();});
     root.querySelector('[data-ag-mood-scene]')?.addEventListener('change',event=>{this.moodSceneId=event.target.value;this.moodDraft=null;void this.render();});
     root.querySelector('[data-ag-mood-transition]')?.addEventListener('change',event=>{this.moodTransition=event.target.value;});
@@ -1187,6 +1330,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "presession-run": case "presession-clear": case "presession-copy": case "presession-download": await this.#preSession(name); break;
       // Back to normal also drops the fine-tune draft, so the panel shows the restored scene.
       case "mood-restore": this.moodDraft=null; await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()})); break;
+      case "roll-next": this.moodRoll.seed=String((Number.parseInt(this.moodRoll.seed,10)||0)+1); this.#rollNow(); await this.render(); break;
+      case "roll-preview": this.#rollNow(); await this.render(); break;
+      case "roll-cancel": this.moodRoll.plan=null; await this.render(); break;
+      case "roll-apply": {
+        const plan=this.moodRoll.plan;
+        if(!plan||plan.empty)break;
+        const sceneId=sceneMoods().getState(this.moodSceneId||undefined).scene?.id;
+        const out=await this.#moodResult(sceneLooks().applyRoll(plan,sceneId,{animate:this.#moodAnimate(true)}));
+        if(out.ok)this.moodRoll.plan=null;
+        await this.render(); break;
+      }
+      case "look-save": case "look-remove": case "look-apply": case "look-undo": case "look-scenes-all": case "look-scenes-none": await this.#looksAction(name); break;
+      case "defaults-add": await this.#moodResult(sceneMoods().addNewDefaults()); break;
       case "mood-new": case "layer-new": this.moodEdit={isNew:true,kind:name==='layer-new'?'layer':'mood',id:'',label:'',set:name==='layer-new'?{weather:NO_WEATHER}:{'environment.darknessLevel':0,weather:NO_WEATHER},transitionMs:0}; await this.render(); break;
       case "mood-cancel": this.moodEdit=null; await this.render(); break;
       case "mood-save": await this.#saveMood(); break;
@@ -3774,6 +3930,8 @@ const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(glob
   // Items → All items → Open on an NPC Codex row: Items → NPC Codex with that NPC selected (GM-only; Browse checks the GM first).
   openCodex:id=>{activeApp??=new AshenGateManager();return activeApp.openCodexAt(id);}});
 const sceneMoods=()=>sceneMoodsApi??=createSceneMoods({game});
+let sceneLooksApi=null;
+const sceneLooks=()=>sceneLooksApi??=createSceneLooks({game,moods:sceneMoods()});
 let organizerApi=null;
 let coreLinksApi=null;
 const coreLinks=()=>coreLinksApi??=createCoreLinks({game});
@@ -3805,6 +3963,10 @@ Hooks.once("init",()=>{
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.
   game.settings.register(MODULE_ID,MOODS_SETTING,{name:"Scene mood presets",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,LAYERS_SETTING,{name:"Scene layer presets",scope:"world",config:false,type:Array,default:[]});
+  // 0.61.0: saved looks, the opt-in "restore default looks on activation" switch, and "No flashing" (all off/empty by default).
+  game.settings.register(MODULE_ID,LOOKS_SETTING,{name:"Scene looks",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,AUTO_LOOK_SETTING,{name:"Restore default looks when a scene is activated",scope:"world",config:false,type:Boolean,default:false});
+  game.settings.register(MODULE_ID,CALM_SETTING,{name:"No flashing scene effects",scope:"world",config:false,type:Boolean,default:false});
   // Organize folders (0.25.0). Empty schema means "use the shipped default rules"; history holds the last runs' previous folder ids for Undo.
   game.settings.register(MODULE_ID,SCHEMA_SETTING,{name:"Organize rules",scope:"world",config:false,type:Array,default:[]});
   // Core links (0.26.0): which packs/folders count as 2024 core sources (auto-detect on by default) and the last runs for Undo.
@@ -3918,7 +4080,18 @@ Hooks.once("ready",()=>{
     organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply}))(organizer()),
     // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
     browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
-    scenes:(({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets})=>({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets}))(sceneMoods()),
+    // 0.61.0 adds getCalm/setCalm/planPreset/addNewDefaults and the looks API: apply("Name") applies a look, mood or layer by name.
+    scenes:(({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets,getCalm,setCalm,planPreset,addNewDefaults})=>({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets,getCalm,setCalm,planPreset,addNewDefaults,
+      apply:(name,opts)=>sceneLooks().applyByName(name,opts),
+      names:()=>sceneLooks().namesForApply(),
+      listLooks:()=>sceneLooks().listLooks(),
+      saveLook:look=>sceneLooks().saveLook(look),
+      removeLook:id=>sceneLooks().removeLook(id),
+      previewLook:(id,sceneIds)=>sceneLooks().previewLook(id,sceneIds),
+      applyLook:(id,sceneIds,opts)=>sceneLooks().applyLook(id,sceneIds,opts),
+      undoLastBatch:()=>sceneLooks().undoLastBatch(),
+      setDefaultLook:(sceneId,lookId)=>sceneLooks().setDefaultLook(sceneId,lookId),
+      setAutoLook:on=>sceneLooks().setAutoLook(on)}))(sceneMoods()),
     resolverBridge:{
       contract:'ag-definition-resolver/0.1-prototype-adapter',
       // Requires a caller-supplied source-reviewed resolver; no invented global provider.
@@ -3982,6 +4155,10 @@ if(typeof Hooks.on==='function') Hooks.on('renderItemDirectory',addManagerSideba
 if(typeof Hooks.on==='function') Hooks.on('renderSidebarTab',(app,html)=>{
   const tab=app?.tabName??app?.id??'';
   if(String(tab)==='items')addManagerSidebarButton(app,html);
+});
+// 0.61.0: opt-in default look when a scene becomes active (only the active GM acts; off unless switched on in Scenes > Looks).
+if(typeof Hooks.on==='function') Hooks.on('updateScene',(scene,changes)=>{
+  if(changes?.active===true) void sceneLooks().onSceneActivated(scene);
 });
 // Keep the Scenes tab's "current mood" in step when the viewed scene changes or is updated elsewhere.
 if(typeof Hooks.on==='function') for(const hook of ['canvasReady','updateScene']) Hooks.on(hook,()=>{
