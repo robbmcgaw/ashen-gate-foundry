@@ -3,7 +3,8 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mj
 import {facilitiesPanel,facilityRow,listFacilitiesTab,plural,SUB_TABS,DEFAULT_VIEW as FAC_VIEW} from './facilities-tab.mjs';
 import {rosterGroups,stationLabels,employmentLabel,perkStatus,historyEvent,localDate,STATUS_FILTERS,DEPARTURE_REASONS,DEFAULT_VIEW as HIRE_VIEW} from './hirelings-tab.mjs';
 import {SETUP_FORM,setupChanges} from './setup-form.mjs';
-import {windowSize,uiState,bindTablist,fold,bindFolds,fileButton,bindFileButtons} from './ag-html.mjs';
+import {windowSize,uiState,bindTablist,fold,bindFolds,fileButton,bindFileButtons,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
+import {guildhallRecords,locationPickRecords,defaultCampaignKey} from './activation-links.mjs';
 import {idDetails,plainToken} from './id-details.mjs';
 import {ACCESS_CONTRACT,accessStatus,canOpenPlayerInterface,requireGMToSetAccess,requireInterfaceAccess} from './access.mjs';
 import {createPlayerIntentBridge,REQUEST_PATH,RECEIPT_FLAG,checkIntent} from './player-intent-bridge.mjs';
@@ -53,6 +54,10 @@ const pending=new Map();
 let windowApp;
 let sequence=Promise.resolve();
 const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+/** Partner lists for activation, feature-detected; null when the module is off or cannot list. */
+const partnerApi = id => { const m = game.modules?.get?.(id); return m?.active ? m.api ?? null : null; };
+const managerDefinitions = () => { try { const f = partnerApi('ashen-gate-manager')?.definitions?.list; return typeof f === 'function' ? f({}) : null; } catch { return null; } };
+const locationsApi = () => { try { const f = partnerApi('ashen-gate-locations')?.listLocations; return typeof f === 'function' ? f() : null; } catch { return null; } };
 const TIP='data-tooltip-class="ag-tooltip"';
 const icon=name=>`<i class="fa-solid ${name}" aria-hidden="true"></i>`;
 /** Shared window header: brand title on the left, version and Help on the right (no subtitle). */
@@ -226,7 +231,7 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
   const node=this.element?.querySelector('[data-aghq-content]');if(!node)return;
   node.innerHTML=this.page(read());this.bind(node);
   // Kit 2.2: tab keys (top tabs, room strip, Facilities sub-tabs), remembered folds, keyboard-reachable file picker.
-  bindTablist(node);bindFolds(node,this.ui);bindFileButtons(node,async([file])=>this.importFile(file));
+  bindTablist(node);bindFolds(node,this.ui);bindRefPickers(node);bindFileButtons(node,async([file])=>this.importFile(file));
   if(this.tab==='manage')this.setupGuard.markClean(); // the form was just rebuilt from the saved state
    if(['manage','facilities'].includes(this.tab)){
      const scroll=this.element?.querySelector('.aghq-body');
@@ -263,11 +268,14 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
  }
  activation(s,gm){
   if(!gm)return empty('The Guildhall is not open yet.','Your GM opens it from this window.','fa-building');
-  // Empty fields with example placeholders: the GM types the campaign's real ids (no one-click demo activation).
-  const field=(label,name,example,hint='')=>`<label class="ag-field">${label}<input name="${name}" placeholder="${example}" required>${hint?`<span class="ag-field__hint">${hint}</span>`:''}</label>`;
+  // The GM picks the Guildhall and Location records by name (no one-click demo activation, and no ids to find or paste).
+  const field=(label,name,value,hint='')=>`<label class="ag-field">${label}<input name="${name}" value="${esc(value)}" required>${hint?`<span class="ag-field__hint">${hint}</span>`:''}</label>`;
+  const hq=guildhallRecords(managerDefinitions()),locs=locationPickRecords(locationsApi());
+  const picker=(id,label,records,off,empty)=>records===null?`<div class="ag-field"><span>${label}</span><span class="ag-field__hint">${off}</span></div>`
+   :refPicker({id,label,options:pickerOptions(records,{gm:true}),none:null,placeholder:'Search by name…',hint:records.length?undefined:empty});
   const library=s.catalog.length?`<ul class="ag-rows">${s.catalog.map(d=>`<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${esc(d.name)}</span></div>${idDetails(d.id)}</li>`).join('')}</ul>`
    :empty('No facility definitions yet.','Import a facilities file in Ashen Gate | General Manager.');
-  return `<div class="aghq-pane aghq-activation"><section class="ag-card"><h3 class="ag-card__title">Guildhall not activated</h3><p>Link the Guildhall to an existing Guildhall record and Location from your campaign's source records before players can enter.</p><form data-aghq-form="activate"><div class="ag-form-grid">${field('Guildhall record','hq_ref','Paste the Guildhall reference')}${field('Location record','location_ref','Paste the Location reference')}${field('Campaign key','campaign_key','my-campaign')}${field('Guild key','guild_key','primary','Lowercase letters, digits, - or _.')}</div><p class="aghq-hint">Copy both references from your campaign's source records. Activating does not create a Location.</p><div class="ag-card__actions"><button type="submit" class="ag-btn ag-btn--primary">Activate Guildhall</button></div></form></section><section class="ag-section" data-hq-section="library"><div class="ag-section__head"><h3 class="ag-section__title">Facility library (${s.catalog.length})</h3></div><p class="aghq-hint">Imported facility definitions. Nothing is unlocked or acquired until the Guildhall is activated (then the Facilities tab).</p>${library}</section></div>`;
+  return `<div class="aghq-pane aghq-activation"><section class="ag-card"><h3 class="ag-card__title">Guildhall not activated</h3><p>Link the Guildhall to an existing Guildhall record and Location from your campaign's source records before players can enter.</p><form data-aghq-form="activate"><div class="ag-form-grid">${picker('aghq-hq-ref','Guildhall record',hq,'Ashen Gate | General Manager is not active, so Guildhall records cannot be listed.','No Guildhall record found. Import your Guildhall record in General Manager first.')}${picker('aghq-location-ref','Location',locs,'Ashen Gate | Locations is not active, so locations cannot be listed.','No locations yet. Add the Guildhall place in Locations first.')}</div>${fold({key:'activation-keys',title:'Advanced: keys',hint:'Filled in for you',body:`<div class="ag-form-grid">${field('Campaign key','campaign_key',defaultCampaignKey(game.world),'Names this campaign in saved data.')}${field('Guild key','guild_key','primary','Lowercase letters, digits, - or _.')}</div>`})}<p class="aghq-hint">Pick the records by name. Activating does not create a Location.</p><div class="ag-card__actions"><button type="submit" class="ag-btn ag-btn--primary">Activate Guildhall</button></div></form></section><section class="ag-section" data-hq-section="library"><div class="ag-section__head"><h3 class="ag-section__title">Facility library (${s.catalog.length})</h3></div><p class="aghq-hint">Imported facility definitions. Nothing is unlocked or acquired until the Guildhall is activated (then the Facilities tab).</p>${library}</section></div>`;
  }
  /** Help, grouped by topic in the names the window uses. GM-only topics are shown to the GM only. */
  help(){const gm=game.user?.isGM===true;
@@ -570,7 +578,7 @@ ${gm?`<h4>Hirelings (GM)</h4><p>Add hirelings imported in General Manager to the
   await request('add_decoration',this.withRevision(s,room_key,{room_key,key,art,x:0,y:0,width:2,height:2}));
  }
  async submit(event){const form=event.target.closest('form[data-aghq-form]');if(!form)return;event.preventDefault();if(!canView())return allowedOpsError('Player Access is hidden by the GM.');const data=new FormData(form);if(form.dataset.aghqForm===SETUP_FORM){await this.saveSetup(data);return;}let op,payload;
- if(form.dataset.aghqForm==='activate'){op='activate';payload=Object.fromEntries(data.entries());}
+ if(form.dataset.aghqForm==='activate'){op='activate';payload={...Object.fromEntries(data.entries()),hq_ref:form.querySelector('#aghq-hq-ref')?.value??'',location_ref:form.querySelector('#aghq-location-ref')?.value??''};}
  else if(form.dataset.aghqForm==='add-hireling'){
     if(!game.user.isGM)return allowedOpsError('GM only.');
     const id=String(data.get('hireling_ref')||'');
