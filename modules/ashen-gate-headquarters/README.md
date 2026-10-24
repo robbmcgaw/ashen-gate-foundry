@@ -13,6 +13,16 @@ Module ID `ashen-gate-headquarters` · Foundry V14 · dnd5e. A shared Guildhall:
 
 State is kept in a GM-only Journal; players see filtered views.
 
+## If the private vault Journal is lost (GM only)
+
+Private state (hirelings and their notes, private layouts) lives in a Journal named *Ashen Gate | Headquarters — Private Campaign State*, with no player access. If it is deleted (for example while cleaning up Journals) or can't be found, Headquarters stays locked for the GM and one window opens, on load and again each time the GM opens Headquarters. It never acts by itself and never deletes anything:
+
+- **Look again** re-checks; if the Journal is back, or exactly one vault Journal exists, Headquarters reconnects to it.
+- **Pick a vault journal…** reconnects to the one vault Journal found (shown by number and folder, never by id).
+- **Start a new private vault…**, offered only when no vault Journal exists, asks you to type `NEW VAULT`, then creates a new GM-only Journal (default permission none) from the public Guildhall copy, points Headquarters at it and raises the save revision by one. **Hirelings, staffing, notes, history and other private-only details are gone for good and can't be rebuilt from the public copy.** If you can restore the old Journal from a backup or export, do that and choose Look again instead.
+- With two or more vault Journals, or an empty or unreadable one, the window explains and offers only **Look again**: tidy or restore the Journals in Foundry first.
+- Cancel leaves everything as it was. The "not ready" warning shows once per session. Players never see any of this.
+
 ## Relation to other modules
 
 Independent. General Manager hands facility files to `api.previewFacilityImport` / `api.importFacilities` (GM only): new facilities are added and existing ids are kept. Importing never unlocks or acquires anything.

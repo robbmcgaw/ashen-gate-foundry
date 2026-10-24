@@ -39,7 +39,7 @@ globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).p
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:m=>infos.push(m),error:m=>warnings.push(m)}};
 globalThis.document={querySelectorAll:()=>[]};
 let menu;
-const mod={id:'ashen-gate-headquarters',version:'0.13.4'};
+const mod={id:'ashen-gate-headquarters',version:'0.14.0'};
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm],['p1',player]]),{activeGM:gm}),modules:{get:()=>mod},
   settings:{register:()=>{},registerMenu:(_m,_k,o)=>{menu=o;},get:(m,k)=>structuredClone(settings.get(`${m}.${k}`)),set:async(m,k,v)=>{writes.push({[k]:v});settings.set(`${m}.${k}`,v);}},
   keybindings:{register:()=>{}},journal:{contents:[],get:()=>null},items:{contents:[hire('HIRE-TEST-ADA','[TEST] Ada'),hire('HIRE-TEST-BEN','[TEST] Ben'),hire('HIRE-TEST-CAL','[TEST] Cal')]},actors:{contents:[]}};
@@ -220,7 +220,7 @@ test('HQ-06: players have no Hirelings tab and cannot switch to it',async()=>{
   finally{game.user=gm;}
 });
 
-test('HQ-08 (0.13.4): activation picks the Guildhall and Location by name; the keys are filled in under Advanced',()=>{
+test('HQ-08 (0.14.0): activation picks the Guildhall and Location by name; the keys are filled in under Advanced',()=>{
   const realGet=game.modules.get;
   const partners={'ashen-gate-manager':{active:true,api:{definitions:{list:()=>[{id:'HQ-TEST-HALL',entityType:'Headquarters',title:'[TEST] Ash Hall'},{id:'FAC-TEST-FORGE',entityType:'Facility',title:'[TEST] Forge'}]}}},
     'ashen-gate-locations':{active:true,api:{listLocations:()=>[{id:'LOC-TEST-ASH',name:'[TEST] Ashford',region:'[TEST] Marches',type:'Town'}]}}};
@@ -234,7 +234,7 @@ test('HQ-08 (0.13.4): activation picks the Guildhall and Location by name; the k
     assertNoIds(html,'the activation form');
   }finally{game.modules.get=realGet;}
 });
-test('HQ-08 (0.13.4): activation says why a list is empty when General Manager or Locations is off, and shows no ids',()=>{
+test('HQ-08 (0.14.0): activation says why a list is empty when General Manager or Locations is off, and shows no ids',()=>{
   const html=app().activation(emptyState(),true);
   assert.match(html,/General Manager is not active/);assert.match(html,/Locations is not active/);assert.ok(!/ag-picker/.test(html));
   assertNoIds(html,'the activation form without partners');

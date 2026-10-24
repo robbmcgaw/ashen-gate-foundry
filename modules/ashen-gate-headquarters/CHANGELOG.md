@@ -1,3 +1,15 @@
+## 0.14.0 — 2026-10-24
+
+- **Recover a lost private vault (GM only).** If Headquarters' private Journal (*Ashen Gate | Headquarters — Private Campaign State*) was deleted or can't be found, the red error and the repeated yellow warnings are replaced by one plain window with the choices. Nothing happens automatically and nothing is ever deleted.
+  - **Look again** checks again, and reconnects when exactly one vault Journal exists.
+  - **Pick a vault journal…** lets you choose it from the vault Journals found (shown by number and folder, no ids).
+  - **Start a new private vault…** (only when no vault Journal exists at all) builds a new GM-only Journal (no player access, like the first-time setup) from the public Guildhall copy, after you type `NEW VAULT`. The save revision goes up by one. **Private-only details cannot be recovered this way**: the hireling roster, staffing, their notes and history, and private layout details. Hirelings need adding again.
+  - Two or more vault Journals, or an empty or unreadable one, explain what to do and offer **Look again** only; Headquarters never chooses between copies or overwrites one.
+  - Players never see the window and their view is unchanged.
+- The "Private Headquarters state is not ready" warning now shows once per session instead of on every open; opening Headquarters again re-offers the recovery window.
+- Help has a GM topic for this.
+- Saved data: no change to the format; no migration. Recovery only runs when the GM chooses it.
+
 ## 0.13.4 — 2026-10-24
 
 - **Activation: pick the Guildhall and Location by name.** *Guildhall record* lists the Guildhall records General Manager has imported, and *Location* lists Locations' places, each as a searchable list. Nothing to find or paste. If General Manager or Locations is off, the form says so.
