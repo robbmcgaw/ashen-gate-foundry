@@ -26,6 +26,7 @@
     <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-mode {{#if syncOn}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Sync from package</strong></label>
     <p class="ag-field__hint">Off by default. Replaces content Manager imported earlier with the files you choose: matching records you have not edited are updated (edited ones are kept, and not deleted, unless you tick Also overwrite records I edited), records the files no longer carry are deleted, and a backup and a full preview come first. While it is on, the normal import below is paused. Not the same as <em>Update existing actors</em> or <em>Also apply updates</em>, which keep your edits.</p>
   </section>
+  {{{githubHtml}}}
   {{#if syncOn}}{{{syncHtml}}}{{else}}
   <section class="ag-section agm-import" aria-label="Import a package">
     <div class="ag-toolbar agm-import-bar">

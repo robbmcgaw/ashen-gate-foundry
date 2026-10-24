@@ -41,11 +41,14 @@ import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, bu
 import {executeSync, buildSyncBackup} from './sync-apply.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
 import {syncView} from './sync-view.js';
+import * as github from './github-pull.js';
+import {updateSummary} from './github-paths.js';
+import {githubView, rowsTable} from './github-view.js';
 import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
-import {mediaFilename} from './zip-import.js';
+import {mediaFilename, sortBundleFiles} from './zip-import.js';
 import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
 import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue} from './scene-moods.js';
 const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
@@ -271,6 +274,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
+  '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
   '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -329,6 +333,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.zipBundle = null;
     // 0.56.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
     this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
+    // 0.59.0 Pull from GitHub: the form draft, the packs found and the last pull. The token is never kept here beyond what is typed.
+    this.gh = {draft:null, dirty:false, packs:[], selected:[], rows:[], progress:null, message:null, update:null, pulled:null, abort:null, stopping:false};
     this.uploadZipArtwork = true;
     this.packageSource = null;
     this.captureSelected = new Set();
@@ -684,6 +690,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       importPanelAttrs: tabPanelAttrs('agm-import',this.importView),
       importPackage: this.importView==='package', importHistory: this.importView==='history',
       syncOn: this.sync.on, syncHtml: this.sync.on&&this.tab==='import'?this.#syncHtml():'',
+      githubHtml: this.tab==='import'&&this.importView==='package'?this.#githubHtml():'',
       itemsTabsHtml: items?tabRow('agm-items','Items sections',ITEM_VIEWS,view):'',
       itemsPanelAttrs: tabPanelAttrs('agm-items',view),
       itemsFilters: items&&Boolean(ITEM_VIEWS.find(v=>v.id===view)?.filters), itemFiltersOpen:this.itemFiltersOpen,
@@ -1016,6 +1023,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       void this.render();
     }));
     this.#bindSync(root);
+    this.#bindGithub(root);
     root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
       if (this.busy) return;
       this.updateExisting = event.target.checked;
@@ -1229,6 +1237,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!response.ok) throw new Error(`Import template unavailable (${response.status}).`);
         downloadJson(file,await response.json());break;
       }
+      case "gh-save": await this.#ghSave(); break;
+      case "gh-find": await this.#ghFind(); break;
+      case "gh-check": await this.#ghCheck(); break;
+      case "gh-pull": await this.#ghPull(); break;
+      case "gh-token-remove": await this.#ghRemoveToken(); break;
+      case "gh-send-sync": await this.#ghSendSync(); break;
+      case "gh-send-import": await this.#ghSendImport(); break;
       case "sync-preview": await this.#syncPreview(); break;
       case "sync-reset": this.sync.inputs=[]; this.#syncDrop('Files cleared. Nothing in your world changed.'); await this.render(); break;
       case "sync-cancel": this.#syncDrop('Sync cancelled. Nothing in your world changed.'); await this.render(); break;
@@ -3078,6 +3093,175 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
     toast(this.codexMessage,out.errors.length>0);await this.render();
   }
+  // ---------- Pull from GitHub (0.59.0) ----------
+  // The token lives in a client-scope setting and is read only inside github-pull.js; this window never holds it beyond what the GM types.
+  #ghStore() { return {get:name=>game.settings.get(MODULE_ID,name),set:(name,value)=>game.settings.set(MODULE_ID,name,value)}; }
+  #ghDraft() {
+    if(!this.gh.draft) {
+      const saved=github.loadConfig(game.user,{store:this.#ghStore()}).config??{};
+      this.gh.draft={repo:saved.repo??'',branch:saved.branch??'main',paths:(saved.paths??[]).join('\n'),token:''};
+    }
+    return this.gh.draft;
+  }
+  #ghHtml_state() {
+    const g=this.gh, status=github.tokenStatus(game.user,{store:this.#ghStore()});
+    return {draft:this.#ghDraft(),dirty:g.dirty,token:{saved:status.saved,masked:status.masked},packs:g.packs,selected:g.selected,busy:this.busy,stopping:g.stopping,
+      rows:g.rows,progress:g.progress,message:g.message,update:g.update,pulled:g.pulled,syncOn:this.sync.on};
+  }
+  #githubHtml() {
+    if(!game.user?.isGM)return '';
+    return githubView(this.#ghHtml_state());
+  }
+  #bindGithub(root) {
+    root.querySelectorAll('[data-ag-gh-field]').forEach(el=>el.addEventListener('input',()=>{
+      this.#ghDraft()[el.dataset.agGhField]=el.value;
+      if(!this.gh.dirty) { this.gh.dirty=true;void this.#ghDirtyPaint(root); }
+    }));
+    root.querySelectorAll('[data-ag-gh-pack]').forEach(el=>el.addEventListener('change',()=>{
+      const set=new Set(this.gh.selected);
+      if(el.checked)set.add(el.dataset.agGhPack);else set.delete(el.dataset.agGhPack);
+      this.gh.selected=[...set];
+      const pull=root.querySelector('[data-ag-action="gh-pull"]');if(pull)pull.disabled=this.busy||!this.gh.selected.length;
+    }));
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while files are being read.
+    root.querySelector('[data-ag-gh-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.gh.abort)return;
+      this.gh.abort.abort();this.gh.stopping=true;event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-gh-status]');if(el)el.textContent='Stopping…';
+    });
+  }
+  /** Typing never re-renders (focus stays in the box); only the Save button and its "Unsaved changes" note appear. */
+  async #ghDirtyPaint(root) {
+    const save=root.querySelector('[data-ag-action="gh-save"]');
+    if(save) { save.disabled=this.busy;
+      if(!save.parentElement.querySelector('[data-ag-gh-dirty]')) save.insertAdjacentHTML('afterend','<span class="agmanager-tiny" role="status" data-ag-gh-dirty>Unsaved changes</span>'); }
+  }
+  /** Saves the form (settings and, when typed, the token). Changing the repository, branch or paths forgets the packs found for the old ones. */
+  async #ghCommit() {
+    const d=this.#ghDraft(), store=this.#ghStore(), before=github.loadConfig(game.user,{store}).config;
+    const saved=await github.saveConfig(game.user,{store,input:{repo:d.repo,branch:d.branch,paths:d.paths}});
+    if(!saved.ok)return saved;
+    if(String(d.token??'').trim()) {
+      const t=await github.saveToken(game.user,{store,token:d.token});
+      if(!t.ok)return t;
+      d.token='';
+    }
+    d.repo=saved.config.repo;d.branch=saved.config.branch;d.paths=saved.config.paths.join('\n');
+    if(JSON.stringify(before)!==JSON.stringify(saved.config)) Object.assign(this.gh,{packs:[],selected:[],rows:[],pulled:null,update:null});
+    this.gh.dirty=false;
+    return {ok:true,config:saved.config};
+  }
+  async #ghSave() {
+    const r=await this.#ghCommit();
+    this.gh.message=r.ok?{tone:'info',text:'Settings saved. The token, if you entered one, is kept on this device only.'}:{tone:'danger',text:r.message};
+    await this.render();
+  }
+  async #ghRemoveToken() {
+    const yes=await confirmDanger('Remove the GitHub token from this device? Pulling from GitHub stops working here until you save a token again. The token itself stays valid on GitHub: delete it there too if you no longer want it to exist.',{title:'Remove token?',yes:'Remove token'});
+    if(!yes)return;
+    const r=await github.removeToken(game.user,{store:this.#ghStore()});
+    this.gh.message={tone:r.ok?'info':'danger',text:r.message};
+    await this.render();
+  }
+  /** Runs one network job with the window locked and a Cancel button; the job gets the abort signal. */
+  async #ghWork(job) {
+    const committed=await this.#ghCommit();
+    if(!committed.ok) { this.gh.message={tone:'danger',text:committed.message};await this.render();return; }
+    if(!github.tokenStatus(game.user,{store:this.#ghStore()}).saved) { this.gh.message={tone:'danger',text:'Paste a GitHub token first (see Token above).'};await this.render();return; }
+    const controller=new AbortController();
+    Object.assign(this.gh,{abort:controller,stopping:false,message:null});
+    this.busy=true;await this.render();
+    try { await job(controller.signal,committed.config); }
+    finally { this.busy=false;Object.assign(this.gh,{abort:null,stopping:false,progress:null});await this.render(); }
+  }
+  async #ghFind() {
+    await this.#ghWork(async (signal,config)=>{
+      this.gh.update=null;
+      const r=await github.findPacks(game.user,{store:this.#ghStore(),signal,config});
+      const notes=(r.notes??[]).slice(0,4).join(' ');
+      if(!r.ok) { this.gh.packs=[];this.gh.selected=[];this.gh.message={tone:r.cancelled?'info':'danger',text:r.message}; return; }
+      this.gh.packs=r.packs.map(p=>({id:p.id,label:p.label,fileCount:p.files.length,missing:p.files.filter(f=>f.missing).length,files:p.files.map(f=>f.path)}));
+      this.gh.selected=this.gh.packs.map(p=>p.id);
+      this.gh.pulled=null;this.gh.rows=[];
+      this.gh.message={tone:'info',text:`Found ${r.packs.length===1?'1 pack':`${r.packs.length} packs`} on ${config.branch}. Tick the ones to pull.${notes?` ${notes}`:''}`};
+    });
+  }
+  async #ghCheck() {
+    await this.#ghWork(async (signal,config)=>{
+      const r=await github.checkForUpdates(game.user,{store:this.#ghStore(),signal,config});
+      this.gh.update=r.ok?{tone:r.upToDate?'info':'warn',text:updateSummary(r)}:{tone:r.cancelled?'info':'danger',text:r.message};
+    });
+  }
+  async #ghPull() {
+    await this.#ghWork(async (signal,config)=>{
+      const wanted=this.gh.selected.filter(id=>this.gh.packs.some(p=>p.id===id));
+      const rows=new Map();
+      for(const pack of this.gh.packs.filter(p=>wanted.includes(p.id))) for(const path of pack.files) rows.set(path,{path,status:'waiting'});
+      this.gh.rows=[...rows.values()];this.gh.pulled=null;this.gh.update=null;
+      this.gh.progress={done:0,total:rows.size};
+      await this.render();
+      let lastPaint=0;
+      const paint=({path,status,done,total})=>{
+        const row=rows.get(path)??{path,status};rows.set(path,row);row.status=status;
+        this.gh.progress={done,total};
+        const now=Date.now();
+        if(now-lastPaint<120&&status!=='failed')return;
+        lastPaint=now;
+        const bar=this.element?.querySelector('[data-ag-gh-bar]');if(bar)bar.value=total?Math.min(1,done/total):0;
+        const label=this.element?.querySelector('[data-ag-gh-status]');if(label&&!this.gh.stopping)label.textContent=`${done} of ${total} file${total===1?'':'s'} read`;
+        const table=this.element?.querySelector('[data-ag-gh-rows]');if(table)table.innerHTML=rowsTable([...rows.values()]);
+      };
+      const r=await github.pullPacks(game.user,{store:this.#ghStore(),signal,config,manifestPaths:wanted,onProgress:paint});
+      this.gh.rows=[...rows.values()];
+      if(!r.ok) {
+        const detail=(r.failed??[]).slice(0,3).map(f=>f.message).join(' ');
+        this.gh.message={tone:r.cancelled?'info':'danger',text:`${r.message}${detail&&!r.cancelled&&!r.message.includes(detail)?` ${detail}`:''}`};
+        return;
+      }
+      await github.recordPull(game.user,{store:this.#ghStore(),config,state:r.state});
+      const usable=r.files.filter(f=>!f.ledger);
+      this.gh.pulled={files:r.files,count:usable.length,ledger:r.files.filter(f=>f.ledger).map(f=>f.path),commit:r.commit};
+      this.gh.message={tone:'ok',text:`Read ${r.files.length} file${r.files.length===1?'':'s'} from GitHub. Nothing in your world has changed.${r.notes?.length?` ${r.notes.join(' ')}`:''}`};
+    });
+  }
+  /** The pulled files through Sync's own input stage; if any one is refused none is added (a half-read pack would look like deletions). */
+  async #ghSyncInputs() {
+    const made=github.syncFiles(game.user,{files:this.gh.pulled?.files});
+    if(!made.ok||!made.files.length)return {problems:[made.message??'There are no JSON files to send. The pack lists only gathering node files or files that are not JSON.'],inputs:[]};
+    const inputs=[],problems=[];
+    for(const file of made.files) {
+      try { const input=await this.#syncRead(file);input.github=true;inputs.push(input); }
+      catch(error) { problems.push(String(error?.message??error)); }
+    }
+    return {problems,inputs};
+  }
+  async #ghSendSync() {
+    if(!this.gh.pulled)return;
+    const {problems,inputs}=await this.#ghSyncInputs();
+    if(problems.length) { this.gh.message={tone:'danger',text:`Nothing was sent to Sync. ${problems.slice(0,3).join(' ')}`};await this.render();return; }
+    // An earlier pull's files are replaced as a set, so a file the manifest dropped does not linger; files you chose by hand stay.
+    this.sync.inputs=[...this.sync.inputs.filter(i=>!i.github),...inputs];
+    this.sync.on=true;
+    this.#syncDrop('Files pulled from GitHub. Review the preview below; nothing in your world changes until you confirm.');
+    this.gh.message={tone:'info',text:`${inputs.length} file${inputs.length===1?'':'s'} sent to Sync from package.`};
+    await this.#syncPreview();
+  }
+  /** Normal import instead of Sync: the files become a ZIP-style list (Manager packages first), each previewed and applied in turn. */
+  async #ghSendImport() {
+    if(!this.gh.pulled)return;
+    const {problems,inputs}=await this.#ghSyncInputs();
+    if(problems.length) { this.gh.message={tone:'danger',text:`Nothing was loaded. ${problems.slice(0,3).join(' ')}`};await this.render();return; }
+    const files=inputs.flatMap(i=>i.sources.map(src=>({filename:src.filename,kind:src.kind,label:src.label,count:src.records,payload:src.payload,status:'ok',notice:'',duplicateIds:[]})));
+    sortBundleFiles(files,files.map(f=>f.filename.split('/').at(-1)));
+    this.#clearLoaded('');
+    this.zipMedia=new Map();
+    this.zipBundle={source:'GitHub',files,skipped:inputs.flatMap(i=>i.skipped),assets:new Map(),duplicateArt:[],picked:new Set(files.map(f=>f.filename)),queue:null,current:null,outcome:new Map(),
+      auto:false,autoUpdates:false,autoRunning:false,stopRequested:false,paused:null,summary:new Map()};
+    this.message=`GitHub: ${bundleSummary(this.zipBundle)} Tick the files to import, then press Import selected files. Nothing in your world has changed.`;
+    this.gh.message={tone:'info',text:'The files are listed under ZIP contents in the normal import.'};
+    this.tab='import';await this.render();
+  }
+
   // ---------- Sync from package (0.56.0) ----------
   /** The mode switch and the Sync section. Off by default; while it is on the normal import is paused, never mixed in. */
   #bindSync(root) {
@@ -3124,14 +3308,19 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   #syncFileButton() {
     return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
   }
+  /** One chosen file through Sync's own input stage, with the counts the file table shows. */
+  async #syncRead(file) {
+    const input=await readSyncInput(file);
+    input.sources=input.sources.map(src=>({...src,records:src.kind==='manager'?src.payload.records.length:SPECIALIST_COUNT(src),packageId:src.kind==='manager'?src.payload.manifest?.package_id??null:null}));
+    return input;
+  }
   /** Reads every chosen file (JSON or ZIP) without touching the world; files already chosen stay, a file picked again replaces its earlier copy. */
   async #syncPick(files) {
     if(this.busy)return;
     const problems=[];
     for(const file of files) {
       try {
-        const input=await readSyncInput(file);
-        input.sources=input.sources.map(src=>({...src,records:src.kind==='manager'?src.payload.records.length:SPECIALIST_COUNT(src),packageId:src.kind==='manager'?src.payload.manifest?.package_id??null:null}));
+        const input=await this.#syncRead(file);
         this.sync.inputs=[...this.sync.inputs.filter(i=>i.name!==file.name),input];
       } catch(error) { problems.push(String(error?.message??error)); }
     }
@@ -3557,6 +3746,11 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false,onChange:value=>syncCodexMenu(value)});
   // 0.45.0: one-time folder renames already run in this world ({cinderPowers:true}).
   // 0.45.0: Import tab folds and message drawer, per device (presentation only).
+  // 0.59.0 Pull from GitHub. All three are CLIENT scope on purpose: a world setting is readable by every connected player,
+  // and the token (and the name of a private repository) must stay in this browser.
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.token,{name:"GitHub token (this device only)",scope:"client",config:false,type:String,default:""});
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.config,{name:"GitHub pull settings",scope:"client",config:false,type:Object,default:{}});
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.state,{name:"GitHub last pull",scope:"client",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,LAYOUT_SETTING,{name:"Import tab layout",scope:"client",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,FOLDER_RENAMES_SETTING,{name:"Folder renames",scope:"world",config:false,type:Object,default:{}});
   // 0.47.0: Items → Checks → Improve icons keeps its last run here for one-step Undo ({at, applied:[{uuid, before, after}]}).

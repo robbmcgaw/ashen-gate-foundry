@@ -1,3 +1,16 @@
+## 0.60.0 — 2026-10-24
+
+**Pull from GitHub** (Import tab, GM only). Reads a content pack straight from a GitHub repository instead of downloading ZIP files, and hands it to Sync from package.
+- **Settings you enter:** repository (owner/name), branch (main unless you change it), and the folder or manifest file of each pack (one per line). Nothing is prefilled.
+- **Token:** a fine-grained, read-only personal access token (Contents: read) for that one repository. It is stored on this device only (a client setting, never a world setting, so players can never read it), is sent only to api.github.com, is never logged or put in a message, and is shown back masked. **Remove token…** deletes it (confirmation, Cancel is the default).
+- **Find packs** lists the manifests under your paths (a main pack and a sandbox pack are separate lines); tick the ones to pull. **Pull selected packs** reads every file the manifest lists, in order and relative to the manifest folder, at one commit, four at a time, with a progress list and Cancel. Files over 1 MB are read through the git blobs API.
+- **Plain-language errors** for an expired or rejected token, no access to the repository, a missing file or branch, rate limits and being offline.
+- **Nothing partial reaches Sync:** if any file cannot be read, nothing is sent (a half-read pack would look like deletions to Sync).
+- **Check for updates** (only when you press it; nothing runs at startup) compares each file's blob SHA with your last pull and says "Up to date" or how many files changed, per pack line.
+- **Apply:** **Preview in Sync from package** puts the files through Sync's existing input stage and preview, so nothing changes before you confirm, edited records are kept by default and character sheets are never touched. **Use the normal import instead** lists them as the normal import's multi-file list.
+- **Gathering node files** are imported by the Profession Ledger's own import; they are read, listed as handled by the Ledger and not sent to Sync.
+- Saved data: three new client settings (token, pull settings, last-pull SHAs). No world data changes, no migration. Tests use a mocked fetch: the real GitHub round trip has not been tried.
+
 ## 0.59.0 — 2026-10-24
 
 **Compact pause.** New GM setting **Show the pause as a small indicator** in **GM Setup → General → Game pause** (saved with Save Changes). Off by default, which leaves Foundry's large Game Paused banner exactly as it is.
