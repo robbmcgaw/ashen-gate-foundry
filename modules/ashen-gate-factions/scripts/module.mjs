@@ -2,12 +2,12 @@
 import {MODULE_ID,SCHEMA_VERSION,TEST_FACTIONS_DEMO,UNKNOWN_FACTION,OTHER_FOLDER,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS,liveFolderKey,newFolderKey,removeFolder,deleteFolderText} from './core.mjs';
 import {confirmDialog,confirmDanger,guardDirty,formDialog,promptText,infoDialog,esc,checklistDialog} from './ag-dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind} from './objective-refs.mjs';
+import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind,objectiveRecords,objectiveName} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent} from './standing-view.mjs';
-import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -78,6 +78,15 @@ const linkedItem=r=>r?.kind==='uuid'&&(r?.document_type==='Item'||String(r?.uuid
 const groupLabel=()=>game.settings.get(MODULE_ID,'groupNameEnabled')&&game.settings.get(MODULE_ID,'groupName')?.trim()?`${game.settings.get(MODULE_ID,'groupName').trim()} Renown`:'Group Renown';
 const moduleVersion=()=>game.modules?.get?.(MODULE_ID)?.version??'';
 const notifyError=e=>{console.error(`[${MODULE_ID}]`,e);ui.notifications?.error(`Renown: ${e.message??e}`);};
+/** The quests Quest Log lists to a GM, as picker records; null when Quest Log is off or cannot list them. */
+function questRecords(){
+  try{const m=game.modules.get('ashen-gate-quest-manager');if(!m?.active||typeof m.api?.listQuests!=='function')return null;return objectiveRecords(m.api.listQuests());}catch{return null;}
+}
+function objectivePickerHtml(){
+  const records=questRecords();
+  if(records===null)return '<p class="agf-hint">Ashen Gate | Quest Log is not active, so quests cannot be listed here. Turn it on to add a reference.</p>';
+  return refPicker({id:'agf-objective-id',label:'Quest, work order or contract',options:pickerOptions(records,{gm:true}),none:null,placeholder:'Search quests by name…'});
+}
 const nameValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'').trim();
 const selectedValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'');
 const jsonDownload=(data,file)=>{const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=file;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);};
@@ -485,7 +494,8 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue,gmDiscovery,
       foldersForSelect:[{key:'',name:OTHER_FOLDER,selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),pantheonDamping:pantheonDamping(),pantheonDampingMax:DAMPING_MAX,playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),
       gmKnown:editingFaction?{...gf,tags:(gf.tags??[]).join(', ')}:gf,gmEntries:editingFaction?entryRows(gf.entries,this.#actor,actorName,'Renown'):[],
-      gmObjectiveRefs:editingFaction?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')).map(r=>({...r,kindLabel:objectiveKind(r.target_id),label:objectiveLabel(r.relation,r.mode),status:objectiveStatusLabel(r.status)})):[],
+      gmObjectiveRefs:editingFaction?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')).map(r=>({...r,kindLabel:objectiveKind(r.target_id),name:objectiveName(r.target_id,questRecords()),label:objectiveLabel(r.relation,r.mode),status:objectiveStatusLabel(r.status)})):[],
+      objectivePicker:editingFaction?objectivePickerHtml():'',
       gmGroupLevels:editingFaction?editorLevels(gf.renown_track,gf.rewards,'group',looks,groupLevelChoices).map(m=>({...m,groupTitle:`Group: ${m.name}`})):[],gmPersonalLevels:editingFaction?editorLevels(gf.individual_track,gf.rewards,'individual',looks,personalChoices).map(m=>({...m,personalTitle:`Individual: ${m.name}`})):[],
       serviceRewards:editingFaction?gf.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,resetLabel:r.audience==='group'?`Reset group uses of ${r.name}…`:`Reset uses of ${r.name} for ${actorName}…`})):[],
       shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:editingFaction?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],
@@ -566,7 +576,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     this.#guard.markClean();
     for(const form of root?.querySelectorAll?.('[data-agf-draft]')??[])this.#guard.watch(form);
     for(const list of root?.querySelectorAll?.('.ag-tabs')??[])bindTablist(list);
-    bindFolds(root,this.#ui);
+    bindFolds(root,this.#ui);bindRefPickers(root);
     bindFileButtons(root,([file])=>this.importFile(file));
     if(root.dataset.agfBound)return;root.dataset.agfBound='yes';
     // V14 manages [data-tab] controls itself. Use a unique attribute and a DOM click
@@ -737,7 +747,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async addObjective(){try{
     assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Choose a faction first.');
     const f=loadDef(doc),root=this.element;
-    const ref={relation:selectedValue(root,'objective-relation'),target_id:nameValue(root,'objective-id'),mode:selectedValue(root,'objective-mode')};
+    const ref={relation:selectedValue(root,'objective-relation'),target_id:String(root.querySelector('#agf-objective-id')?.value??'').trim(),mode:selectedValue(root,'objective-mode')};
     const next=addObjectiveRef(f,ref);
     await saveChange(doc,next);await this.render({force:true});
     ui.notifications.info('Objective reference saved. Quest visibility and progress were not changed.');

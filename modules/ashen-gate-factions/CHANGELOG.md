@@ -1,3 +1,8 @@
+## 0.16.3 — 2026-10-24
+
+- **Related quests and contracts: pick the quest by name.** *Quest, work order or contract* is a searchable list (grouped Quest, Work order, Contract) instead of a box to paste an id into. Saved references now read as the quest's name; one whose quest has been deleted reads *Missing* (Remove still works). If Quest Log is off, the list says so and saved references show their kind. The id stays in the *Details* disclosure of each saved reference.
+- Saved data: no change; references already stored keep working. No migration.
+
 ## 0.16.2 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

@@ -9,10 +9,21 @@ export function validateObjectiveRef(input){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new TypeError('Objective reference must be an object.');
   const {relation,target_id,mode}=input;
   if(!OBJECTIVE_RELATIONS.includes(relation))throw new Error('Unsupported Objective relation.');
-  if(typeof target_id!=='string'||!OBJECTIVE_ID.test(target_id))throw new Error('Enter the id of a quest, work order or contract (copy it from Quest Log).');
+  if(typeof target_id!=='string'||!OBJECTIVE_ID.test(target_id))throw new Error('Choose a quest, work order or contract from the list.');
   if(!OBJECTIVE_MODES.includes(mode))throw new Error('Objective reference mode must be required or optional.');
   return {relation,target_id,mode};
 }
+/** Picker records for the quests Quest Log lists to a GM (api.listQuests): [{id, name, kind, status}]. */
+export const OBJECTIVE_KIND_LABEL=Object.freeze({quest:'Quest',work_order:'Work order',contract:'Contract'});
+export const objectiveRecords=list=>(list??[]).filter(q=>q&&OBJECTIVE_ID.test(q.id??'')&&String(q.name??'').trim())
+  .map(q=>({value:q.id,label:q.name,kind:q.kind,group:OBJECTIVE_KIND_LABEL[q.kind]??'Quest',hint:q.status??''}));
+/** What a saved reference is called in the list: the quest's name, or a plain "Missing" when Quest Log lists quests but not this one. Never the id. */
+export function objectiveName(targetId,records){
+  if(records===null)return `${objectiveKindWord(targetId)} (name unavailable)`;
+  const hit=records.find(r=>r.value===targetId);
+  return hit?hit.label:`Missing: a ${objectiveKindWord(targetId).toLowerCase()} that no longer exists`;
+}
+const objectiveKindWord=id=>/^QUEST-/.test(id??'')?'Quest':/^ORDER-/.test(id??'')?'Work order':/^CONTRACT-/.test(id??'')?'Contract':'Objective';
 /** Plain-language kind of an Objective id, for display instead of the id. */
 export const objectiveKind=id=>/^QUEST-/.test(id??'')?'Quest':/^ORDER-/.test(id??'')?'Work order':/^CONTRACT-/.test(id??'')?'Contract':'Objective';
 export function objectiveRefs(faction){return (faction?.refs??[]).filter(r=>OBJECTIVE_RELATIONS.includes(r?.relation));}
