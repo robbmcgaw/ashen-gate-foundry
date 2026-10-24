@@ -228,7 +228,7 @@ test('F: a player with Utilities follows its condition rules (canApply / canRemo
   assert.deepEqual(u.calls, [['canApply', 'ally', 'prone'], ['apply', 'ally', 'prone']]);
   assert.equal(linked.calls.length, 0, 'Utilities makes the change (on the GM client), not the Hub');
   game.user.targets = new Set([token(unlinked)]);
-  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /Only the GM can change conditions on \[TEST\] gob/);
+  assert.match((await conds.applyCondition(me, 'target', 'prone')).error, /Only the GM or a condition controller can change conditions on \[TEST\] gob/);
   const no = utilitiesApi(false);
   conditionWorld({user: users.owner, utilities: no.api, actors: [me]});
   assert.match((await conds.applyCondition(me, 'self', 'prone')).error, /the GM decides that in Ashen Gate \| Utilities/, 'locked: refused even on your own character');

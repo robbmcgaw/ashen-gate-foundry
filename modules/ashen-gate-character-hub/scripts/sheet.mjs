@@ -60,6 +60,9 @@ const socketUi = {pick: socketPick, confirm: askFor};
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
+/** A conditions action finished: say what happened (a refusal is shown by report), redraw. */
+const condDone = (s, r) => { if (r?.ok) { if (r.notice) globalThis.ui?.notifications?.info?.(r.notice); s.render(); } return r; };
+
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
   'hub-tab': async (s, t) => { if (t.dataset.tab !== s.tab && !(await leaveBiography(s))) return null; s.tab = t.dataset.tab; s.menu = null; return s.render(); },
@@ -124,8 +127,10 @@ export const ACTIONS = {
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   // 0.34.0: the Conditions strip (conditions.mjs checks who may change what, again, at the click).
   'cond-mode': (s, t) => { s.condMode = conds.cleanMode(t.dataset.mode); return s.render(); },
-  'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; const r = await conds.applyCondition(s.document, s.condMode, s.condPick); if (r.ok) s.render(); return r; },
-  'cond-remove': async (s, t) => { const r = await conds.removeCondition(s.document, t.dataset.uuid, t.dataset.status); if (r.ok) s.render(); return r; },
+  'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; return condDone(s, await conds.applyCondition(s.document, s.condMode, s.condPick)); },
+  // 0.45.2: a recent condition, one click (the Self / Target switch decides who gets it).
+  'cond-quick': async (s, t) => condDone(s, await conds.applyCondition(s.document, s.condMode, t.dataset.status)),
+  'cond-remove': async (s, t) => condDone(s, await conds.removeCondition(s.document, t.dataset.uuid, t.dataset.status)),
   // 0.34.0: the quick bar drawer under the bottom bar; the window grows by its height while it is open (fitDrawer).
   'quick-toggle': async s => { s.quickOpen = !s.quickOpen; await s.render(); return s.fitDrawer(); },
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),

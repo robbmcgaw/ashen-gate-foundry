@@ -1,3 +1,14 @@
+## 0.45.2 — 2026-10-24
+
+Conditions, fewer clicks and clearer feedback (builds on 0.45.1).
+
+- **Feedback.** Apply and ✕ now say what happened: "Prone put on Goblin 1." / "Goblin 1 already has Prone." / "Prone taken off Goblin 1."
+- **One click for the usual ones.** The last four conditions you put on show as buttons in the strip; click one to put it on Self or your targets (whichever the Self / Target switch is on). Remembered per browser.
+- **One shared list.** With Ashen Gate | Utilities active, the strip offers the same conditions as the Utilities tracker (Utilities 0.28.4).
+- **Monsters and other unlinked tokens.** A condition controller (Utilities → GM Setup) can now put conditions on and take them off a targeted token that is not linked to a character: the GM's client makes the change after checking again who asked, like marks. The GM can always; other players still see "Only the GM or a condition controller can change conditions on ...".
+- **Fresh chips.** When someone else changes a condition on a creature you are targeting, your Hub's chips update.
+- No change to saved data. One new per-browser setting remembers the recent conditions.
+
 ## 0.45.1 — 2026-10-24
 
 Weapon masteries now act as their rules say, instead of only labelling the target. Uses dnd5e's own effect durations; spell marks (Hunter's Mark, Hex, ...) still only track.

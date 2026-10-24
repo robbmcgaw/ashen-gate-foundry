@@ -683,6 +683,8 @@
    condition list and Apply sit in the right corner with the title. */
 .agch-app .agch-conds__end { flex-wrap: wrap; justify-content: flex-end; row-gap: var(--ag-space-1); }
 .agch-app .agch-conds__mode > button { min-height: 0; }
+.agch-app .agch-conds__recent { display: inline-flex; flex-wrap: wrap; gap: 0.25em; }
+.agch-app .agch-conds__quick img { width: 1em; height: 1em; object-fit: contain; }
 .agch-app .agch-conds__pick { width: auto; min-width: 7rem; max-width: 12rem; height: var(--ag-control-h-sm); padding-block: 0; font-size: var(--ag-text-sm); }
 .agch-app .agch-placed > li.is-self { border-color: var(--ag-warn); background: var(--ag-warn-soft); }
 .agch-app .agch-hotbars > .agch-hotbar + .agch-hotbar { padding-top: var(--ag-space-1); border-top: 1px dashed var(--ag-border); }

@@ -23,7 +23,7 @@ import {MODULE_ID, esc} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {requirePart} from './visibility.mjs';
 import {confirmDialog} from './ag-dialogs.mjs';
-import {applyStatusTo} from './conditions.mjs';
+import {applyStatusTo, conditionToggleOnGM} from './conditions.mjs';
 
 /**
  * Every mark the Hub knows, one line each, so the list is easy to edit. `kind`:
@@ -275,6 +275,7 @@ export function requestGM(type, data, timeout = 15000) {
  * hotbars are shown to them, the mark is one their character may place) before changing anything.
  */
 export const GM_HANDLERS = {
+  'condition-toggle': (msg, user) => conditionToggleOnGM(msg, user),
   'mark-toggle': async (msg, user) => {
     const g = globalThis.game;
     if (!user.isGM && requirePart('hotbars', user)) throw new Error('The GM has hidden the hotbars from players.');
