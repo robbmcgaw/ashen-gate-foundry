@@ -69,7 +69,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
-import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
+import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -326,7 +326,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Items → Checks → Improve icons.
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
-    this.assets = {source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
+    this.assets = {pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
       scan:null, linkFiles:[], links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
@@ -1935,11 +1935,25 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const onForge=sources.some(s=>s.id==='forgevtt');
     const links=a.links;
     const kindOf=name=>capitalize(name==='RollTable'?'roll table':name==='JournalEntry'?'journal':name);
-    const linkRows=(links?.rows??[]).slice(0,300).map(r=>({...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:r.to?this.#assetUrl(r.to):'',
-      kindLabel:r.documentName?kindOf(r.documentName):'',stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn',
-      pickByFile:r.needsPick&&r.pickBy==='file',pickByRecord:r.needsPick&&r.pickBy==='record',canTick:!r.needsPick||Boolean(r.chosen),
-      hasFromToken:Boolean(r.fromToken)&&r.documentName==='Actor',fromTokenUrl:r.fromToken?this.#assetUrl(r.fromToken):'',isActor:r.documentName==='Actor',
-      options:(r.candidates??[]).map(c=>({value:c.value,label:c.label,selected:c.value===r.chosen}))}));
+    const allRows=links?.rows??[], counts=linkCounts(allRows), conflicts=linkConflicts(allRows);
+    const pickerRow=a.pickerKey?allRows.find(r=>r.key===a.pickerKey):null;
+    const records=pickerRow?linkableRecords(this.#assetDocs()):[];
+    const suggested=new Set((pickerRow?.candidates??[]).map(c=>c.value));
+    const takenBy=new Map(allRows.filter(r=>r.checked&&rowReady(r)&&r.key!==pickerRow?.key).map(r=>[r.uuid,r.fileName]));
+    const pickerRecords=records.map(r=>({...r,search:`${r.name} ${r.kindLabel}`.toLowerCase(),suggested:suggested.has(r.uuid),current:r.uuid===pickerRow.uuid,takenBy:takenBy.get(r.uuid)??''}))
+      .sort((x,y)=>Number(y.suggested)-Number(x.suggested));
+    const linkRows=allRows.slice(0,300).map(r=>{
+      const ready=rowReady(r), waiting=r.needsPick&&!r.chosen, yes=ready&&r.checked, conflict=conflicts.has(r.key);
+      return {...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:r.to?this.#assetUrl(r.to):'',
+        kindLabel:r.documentName?kindOf(r.documentName):'',stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn',
+        pickByFile:r.needsPick&&r.pickBy==='file',pickByRecord:r.needsPick&&r.pickBy==='record',
+        hasFromToken:Boolean(r.fromToken)&&r.documentName==='Actor',fromTokenUrl:r.fromToken?this.#assetUrl(r.fromToken):'',isActor:r.documentName==='Actor',
+        options:(r.candidates??[]).map(c=>({value:c.value,label:c.label,selected:c.value===r.chosen})),
+        canYes:ready,isYes:yes,isNo:!waiting&&!r.checked,isWaiting:waiting,conflict,yesTab:!(!waiting&&!r.checked),noTab:!yes,
+        canDifferent:Boolean(r.to||r.filePath),pickerOpen:Boolean(pickerRow&&pickerRow.key===r.key),
+        summary:waiting?'Pick one first':conflict?'Needs a choice':yes?'Will be linked':'Skipped',
+        willChange:yes&&!conflict,picker:pickerRow&&pickerRow.key===r.key?{records:pickerRecords,count:pickerRecords.length}:null};
+    });
     const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
     const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
     const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
@@ -1954,7 +1968,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       uploadMessage:a.uploadMessage,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
       scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,
-      linkTicked:(links?.rows??[]).filter(r=>r.checked&&r.to).length,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
+      linkTicked:counts.willLink,linkSkipped:counts.skipped,linkConflicts:counts.conflicts,linkUndecided:counts.undecided,
+      linkCountLine:`${counts.willLink} will be linked, ${counts.skipped} skipped.`,linkCanApply:counts.willLink>0&&!counts.conflicts,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
       scanSummary:!links?'':links.fromUpload?`Checked the ${a.linkFiles.length} file(s) you just added. ${links.unmatchedFiles} of them fit no record.`
         :`Looked through ${links.folders} folder(s) and ${a.linkFiles.length} image file(s)${a.scan?.complete===false?' (the scan stopped early; open a deeper folder to narrow it)':''}. ${links.unmatched} record(s) have no file that fits and ${links.unmatchedFiles} file(s) fit no record.`,
       missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
@@ -1992,13 +2007,15 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         }finally{a.scanning=false;}
         break;
       }
-      case 'assets-link-cancel': a.links=null;a.linkFiles=[];a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
+      case 'assets-link-cancel': a.pickerKey=null;a.links=null;a.linkFiles=[];a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
       case 'assets-link-apply': {
-        const rows=(a.links?.rows??[]).filter(r=>r.checked&&r.to);
-        if(!rows.length)return say('Tick at least one record first.',true);
+        const all=a.links?.rows??[], blocked=linkConflicts(all);
+        if(blocked.size)return say('Two files are set to go to the same record. Choose one of them (or pick a different record) first.',true);
+        const rows=all.filter(r=>r.checked&&rowReady(r));
+        if(!rows.length)return say('Choose Yes on at least one match first.',true);
         const actorRows=rows.filter(r=>r.documentName==='Actor').length;
         const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
-        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file named after each?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
+        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file shown on each row?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
           {title:'Link images to records?',yes:`Link ${rows.length} image(s)`});
         if(!yes)return;
         const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
@@ -2006,7 +2023,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.busy=true;
         try{
           const out=await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
-          a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
+          a.pickerKey=null;a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
           a.linkMessage=out.message;say(out.message,!out.ok);
         }finally{this.busy=false;}
         break;
@@ -2093,11 +2110,51 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.#assetsUpload([...(event.dataTransfer?.files??[])]).catch(err=>this.#fail(err));
       });
     }
-    pane.querySelectorAll('[data-ag-assets-tick]').forEach(el=>el.addEventListener('change',event=>{
-      const row=a.links?.rows.find(r=>r.key===el.dataset.agAssetsTick);if(row)row.checked=event.target.checked;
-      const n=(a.links?.rows??[]).filter(r=>r.checked&&r.to).length;
-      pane.querySelectorAll('[data-ag-assets-ticked]').forEach(x=>{x.textContent=String(n);});
-      pane.querySelectorAll('[data-ag-assets-needs-ticks]').forEach(x=>{x.disabled=!n;});
+    // Per-row choice (0.60.13): Yes / No, "Different record…" with a searchable picker, and the bulk buttons.
+    // Every one re-renders and puts focus back on the control used; nothing here writes to the world.
+    const rowOf=key=>a.links?.rows.find(r=>r.key===key);
+    const choose=(key,value)=>{
+      const row=rowOf(key);if(!row||!setRowChoice(row,value))return;
+      this.focusAfterRender=`[data-ag-assets-choice="${CSS.escape(key)}"][data-value="${value}"]`;void this.render();
+    };
+    pane.querySelectorAll('[data-ag-assets-choice]').forEach(el=>{
+      el.addEventListener('click',event=>{event.preventDefault();choose(el.dataset.agAssetsChoice,el.dataset.value);});
+      el.addEventListener('keydown',event=>{
+        if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+        event.preventDefault();choose(el.dataset.agAssetsChoice,el.dataset.value==='yes'?'no':'yes');
+      });
+    });
+    pane.querySelectorAll('[data-ag-assets-different]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const key=el.dataset.agAssetsDifferent;
+      a.pickerKey=a.pickerKey===key?null:key;
+      this.focusAfterRender=a.pickerKey?`[data-ag-assets-picker-q="${CSS.escape(key)}"]`:`[data-ag-assets-different="${CSS.escape(key)}"]`;void this.render();
+    }));
+    pane.querySelectorAll('[data-ag-assets-picker-close]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const key=el.dataset.agAssetsPickerClose;a.pickerKey=null;
+      this.focusAfterRender=`[data-ag-assets-different="${CSS.escape(key)}"]`;void this.render();
+    }));
+    pane.querySelectorAll('[data-ag-assets-picker]').forEach(box=>{
+      const key=box.dataset.agAssetsPicker, input=box.querySelector('[data-ag-assets-picker-q]'), status=box.querySelector('[data-ag-assets-picker-status]');
+      const items=[...box.querySelectorAll('[data-ag-assets-record]')];
+      const filter=()=>{
+        const words=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);let n=0;
+        for(const li of items){const hit=words.every(w=>li.dataset.search.includes(w));li.closest('li').hidden=!hit;if(hit)n++;}
+        if(status)status.textContent=n?`${n} record(s) shown.`:'No record matches. Try fewer letters.';
+      };
+      input?.addEventListener('input',filter);
+      box.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();a.pickerKey=null;this.focusAfterRender=`[data-ag-assets-different="${CSS.escape(key)}"]`;void this.render();}});
+      items.forEach(el=>el.addEventListener('click',event=>{
+        event.preventDefault();const row=rowOf(key);if(!row)return;
+        const doc=this.#assetDocs().find(d=>d.uuid===el.dataset.agAssetsRecord);
+        if(!doc||!assignRecord(row,doc)){toast('That record cannot be linked here.',true);return;}
+        a.pickerKey=null;this.focusAfterRender=`[data-ag-assets-different="${CSS.escape(key)}"]`;void this.render();
+      }));
+    });
+    pane.querySelectorAll('[data-ag-assets-bulk]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const kind=el.dataset.agAssetsBulk;a.pickerKey=null;
+      if(kind==='reset')a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
+      else setAllChoices(a.links?.rows??[],kind);
+      this.focusAfterRender=`[data-ag-assets-bulk="${kind}"]`;void this.render();
     }));
     pane.querySelectorAll('[data-ag-assets-pick]').forEach(el=>el.addEventListener('change',event=>{
       const row=a.links?.rows.find(r=>r.key===el.dataset.agAssetsPick);if(!row)return;

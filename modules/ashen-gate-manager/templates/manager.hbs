@@ -453,29 +453,53 @@
     <details class="ag-fold" data-ag-fold-key="assets-link" {{#if assets.hasLinks}}open{{/if}}>
       <summary class="ag-fold__summary"><span class="ag-fold__title">Link files to records</span><span class="ag-fold__hint">Set a record's image from a file that fits it</span></summary>
       <div class="ag-fold__body">
-        <p class="agmanager-tiny">Looks in the folder you are viewing and the folders under it (and runs by itself on files you have just added), then shows what would change. A file named exactly after a record's permanent id comes first. After that Manager guesses by name: the whole name, then first and last name, then just a first or last name for Actors. Words like portrait, token, final and sizes are ignored. A file that fits two records, or a record that fits two files, is never chosen for you: pick from the list. Nothing is written until you press Link. Images you set in Foundry start unticked. For an existing Actor only the portrait and the token image change, and there is no undo, so the old images are listed here.</p>
+        <p class="agmanager-tiny">Looks in the folder you are viewing and the folders under it (and runs by itself on files you have just added), then shows what would change. A file named exactly after a record's permanent id comes first. After that Manager guesses by name: the whole name, then first and last name, then just a first or last name for Actors. Words like portrait, token, final and sizes are ignored. A file that fits two records, or a record that fits two files, is never chosen for you: pick from the list. Every row has Yes (use this match), No (skip it) and Different… (give the file to another record, found by typing part of its name). Nothing is written until you press Link. Images you set in Foundry start on No and need your Yes. For an existing Actor only the portrait and the token image change, and there is no undo, so the old images are listed here.</p>
         <div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="assets-scan" {{#if assets.scanning}}disabled{{/if}}{{#unless assets.ok}} disabled{{/unless}}><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find matching files</button></div>
         <p class="agmanager-tiny" role="status">{{assets.linkMessage}}</p>
         {{#if assets.hasLinks}}
         {{#if assets.scanSummary}}<p class="agmanager-tiny">{{assets.scanSummary}}</p>{{/if}}
         {{#if assets.linkRows.length}}
-        <div class="ag-cluster"><span class="ag-badge">Can be linked: {{assets.linkCount}}</span><span class="ag-badge">Ticked: <span data-ag-assets-ticked>{{assets.linkTicked}}</span></span></div>
-        <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Link</th><th scope="col">Record</th><th scope="col">File</th><th scope="col">Why it fits</th><th scope="col">Image now</th><th scope="col">New image</th></tr></thead><tbody>
-        {{#each assets.linkRows}}<tr>
-          <td><input type="checkbox" data-ag-assets-tick="{{key}}" {{#if checked}}checked{{/if}} {{#unless canTick}}disabled{{/unless}} aria-label="Link {{#if fileName}}{{fileName}}{{else}}the file{{/if}} to {{name}}"></td>
-          <td>{{#if pickByFile}}<label class="ag-field--inline">Record <select data-ag-assets-pick="{{key}}" aria-label="Which record is {{fileName}} for?"><option value="">Pick a record…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-            {{else}}<strong>{{name}}</strong><div class="agmanager-tiny">{{kindLabel}}</div>{{/if}}</td>
-          <td>{{#if pickByRecord}}<label class="ag-field--inline">File <select data-ag-assets-pick="{{key}}" aria-label="Which file is for {{name}}?"><option value="">Pick a file…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <div class="ag-cluster aglink-bulk" role="group" aria-label="Set every match at once">
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-bulk="yes">Yes to all matches</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-bulk="no">No to all</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-bulk="reset">Reset to guesses</button>
+        </div>
+        <p class="agmanager-tiny">Yes to all matches skips images you set in Foundry and anything still waiting for a pick; say Yes to those one at a time.</p>
+        <p class="aglink-count" role="status" aria-live="polite"><strong>{{assets.linkCountLine}}</strong>{{#if assets.linkUndecided}} {{assets.linkUndecided}} still need your pick.{{/if}}{{#if assets.linkConflicts}} {{assets.linkConflicts}} rows want the same record: fix them before you can link.{{/if}}</p>
+        <div class="ag-table-wrap agm-scrollcap"><table class="ag-table aglink"><thead><tr><th scope="col">Use this match?</th><th scope="col">Record</th><th scope="col">File</th><th scope="col">Why it fits</th><th scope="col">Image now</th><th scope="col">New image</th></tr></thead><tbody>
+        {{#each assets.linkRows}}<tr class="aglink-row{{#if willChange}} is-yes{{/if}}">
+          <td data-label="Use this match?">
+            <div class="aglink-choice">
+              <div class="ag-segmented" role="radiogroup" aria-label="Use {{#if fileName}}{{fileName}}{{else}}this file{{/if}} for {{name}}?">
+                <button type="button" role="radio" aria-checked="{{isYes}}" tabindex="{{#if yesTab}}0{{else}}-1{{/if}}" data-ag-assets-choice="{{key}}" data-value="yes" {{#unless canYes}}disabled{{/unless}}>Yes</button>
+                <button type="button" role="radio" aria-checked="{{isNo}}" tabindex="{{#if noTab}}0{{else}}-1{{/if}}" data-ag-assets-choice="{{key}}" data-value="no">No</button>
+              </div>
+              <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-different="{{key}}" aria-expanded="{{#if pickerOpen}}true{{else}}false{{/if}}" {{#unless canDifferent}}disabled aria-describedby="aglink-diff-{{@index}}"{{/unless}}>Different…</button>
+            </div>
+            <div class="agmanager-tiny" {{#unless canDifferent}}id="aglink-diff-{{@index}}"{{/unless}}>{{summary}}{{#unless canDifferent}}. Pick a file first to choose a different record.{{/unless}}</div>
+            {{#if conflict}}<div class="aglink-warn"><span class="ag-badge ag-badge--warn">Same record</span> Another file is also set for {{name}}. Set one to No or choose a different record.</div>{{/if}}
+          </td>
+          <td data-label="Record">{{#if pickByFile}}<label class="ag-field--inline">Record <select data-ag-assets-pick="{{key}}" aria-label="Which record is {{fileName}} for?"><option value="">Pick a record…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+            {{else}}<strong>{{name}}</strong><div class="agmanager-tiny">{{kindLabel}}</div>{{/if}}
+            {{#if picker}}<div class="aglink-picker" data-ag-assets-picker="{{key}}" role="group" aria-label="Pick the record for {{fileName}}">
+              <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-assets-picker-q="{{key}}" placeholder="Type to filter by name" aria-label="Filter records by name" autocomplete="off"></label>
+              <p class="agmanager-tiny" role="status" data-ag-assets-picker-status>{{picker.count}} record(s) shown.</p>
+              <ul class="aglink-picker__list">{{#each picker.records}}<li><button type="button" class="ag-btn ag-btn--sm aglink-rec" data-ag-assets-record="{{uuid}}" data-search="{{search}}"><span class="aglink-rec__name">{{name}}</span> <span class="ag-badge">{{kindLabel}}</span>{{#if suggested}} <span class="agmanager-tiny">Suggested</span>{{/if}}{{#if current}} <span class="agmanager-tiny">Current</span>{{/if}}{{#if takenBy}} <span class="agmanager-tiny">Already has {{takenBy}} in this list</span>{{/if}}</button></li>{{/each}}</ul>
+              <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-assets-picker-close="{{key}}">Close the list</button>
+            </div>{{/if}}</td>
+          <td data-label="File">{{#if pickByRecord}}<label class="ag-field--inline">File <select data-ag-assets-pick="{{key}}" aria-label="Which file is for {{name}}?"><option value="">Pick a file…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
             {{else}}<span class="agm-icon__path">{{fileName}}</span>{{/if}}{{#if alsoFound.length}}<div class="agmanager-tiny">Other files with this name: {{#each alsoFound}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}</td>
-          <td><span class="agmanager-tiny">{{reason}}</span></td>
-          <td>{{#if to}}<div class="agm-icon">{{#if fromUrl}}<img class="agm-icon__thumb" src="{{fromUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}<div class="agm-icon__text"><span class="ag-badge ag-badge--{{stateTone}}">{{stateLabel}}</span>{{#if from}}<div class="agmanager-tiny agm-icon__path">{{from}}</div>{{/if}}{{#if hasFromToken}}<div class="agmanager-tiny">Token: <span class="agm-icon__path">{{fromToken}}</span></div>{{/if}}{{#if noteText}}<div class="agmanager-tiny">{{noteText}}</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
-          <td>{{#if to}}<div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="agm-icon__path">{{fileName}}</span>{{#if isActor}}<div class="agmanager-tiny">Portrait and token image</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
+          <td data-label="Why it fits"><span class="agmanager-tiny">{{reason}}</span></td>
+          <td data-label="Image now">{{#if to}}<div class="agm-icon">{{#if fromUrl}}<img class="agm-icon__thumb" src="{{fromUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}<div class="agm-icon__text"><span class="ag-badge ag-badge--{{stateTone}}">{{stateLabel}}</span>{{#if from}}<div class="agmanager-tiny agm-icon__path">{{from}}</div>{{/if}}{{#if hasFromToken}}<div class="agmanager-tiny">Token: <span class="agm-icon__path">{{fromToken}}</span></div>{{/if}}{{#if noteText}}<div class="agmanager-tiny">{{noteText}}</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
+          <td data-label="New image">{{#if to}}{{#if willChange}}<div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="ag-badge ag-badge--ok">Will change</span><div class="agm-icon__path">{{fileName}}</div>{{#if isActor}}<div class="agmanager-tiny">Portrait and token image</div>{{/if}}</div></div>
+            {{else if conflict}}<span class="agmanager-tiny">Waiting for you to choose between the rows</span>
+            {{else}}<span class="ag-badge">Skipped</span> <span class="agmanager-tiny">Stays as it is</span>{{/if}}{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
         </tr>{{/each}}
         </tbody></table></div>
         {{#if assets.linkOverflow}}<p class="agmanager-tiny">Showing the first 300 of {{assets.linkCount}}. Open a deeper folder to link the rest.</p>{{/if}}
         <footer class="ag-footer">
           <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="assets-link-cancel">Cancel</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="assets-link-apply" data-ag-assets-needs-ticks {{#unless assets.linkTicked}}disabled{{/unless}}><i class="fa-solid fa-link" aria-hidden="true"></i> Link (<span data-ag-assets-ticked>{{assets.linkTicked}}</span>)…</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="assets-link-apply" {{#unless assets.linkCanApply}}disabled{{/unless}}><i class="fa-solid fa-link" aria-hidden="true"></i> Link {{assets.linkTicked}}…</button>
         </footer>
         {{/if}}
         {{/if}}
