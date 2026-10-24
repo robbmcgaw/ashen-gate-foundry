@@ -362,9 +362,11 @@ function merchantFields(d){
  * shop and service editors and the merchant-list editor. `attr` is the data attribute the editor listens on. Null
  * without Locations.
  */
+/** The Settlement select's label for a saved place that is not in the settlement list: its name, or Missing when Locations no longer has it. Never the id. */
+export const settlementOptionLabel=loc=>loc&&String(loc.name??'').trim()?`${String(loc.name).trim()} (not a settlement)`:'Missing: a place that no longer exists (choose another or None)';
 export function settlementSelect(d,{attr='data-shop-field',hint}={}){
  if(!locationsApi())return null;
- const towns=settlements(),all=locationMap(),cur=d.locationId&&!towns.some(l=>l.id===d.locationId)?opt(d.locationId,`${all.get(d.locationId)?.name??d.locationId} (not a settlement)`,d.locationId):'';
+ const towns=settlements(),all=locationMap(),cur=d.locationId&&!towns.some(l=>l.id===d.locationId)?opt(d.locationId,settlementOptionLabel(all.get(d.locationId)),d.locationId):'';
  const words=SETTLEMENT_WORDS.map(w=>w[0].toUpperCase()+w.slice(1)).join(', ');
  return `<label class="ag-field">Settlement<select ${attr}="locationId"><option value="">None</option>${towns.map(l=>opt(l.id,l.name,d.locationId)).join('')}${cur}</select><span class="ag-field__hint">${towns.length?E(hint??'Settlements from Locations. Players see the name only once it is revealed in Locations.'):`No settlements in Locations yet. A location counts when its Type names one (${E(words)}).`}</span></label>`;
 }
