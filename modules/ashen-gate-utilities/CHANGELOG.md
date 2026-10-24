@@ -1,3 +1,11 @@
+## 0.29.0 — 2026-10-24
+
+- **Party stash: Delete…** Every item row in *Party Inventory → Items* (and in the Character Hub's *Inventory → Party stash*, which shows the same list) now has a **Delete…** button next to Take. For a stack it first asks how many (the full number deletes the whole stack), then shows "Delete <item>?" saying it cannot be undone and that Take is the way to keep it; **Cancel is the default**. A container is deleted whole, and the confirmation says that everything inside goes with it.
+- **Who can delete:** the GM, and any player who can take from the stash (Player Access and the stash on, and a character they own). It is checked on the GM client, not only by hiding the button. There is no party vote for a delete.
+- **Recorded:** each delete is a *Deleted* entry in the stash History (who, what, how many, and how many were left), visible to everyone who can see the History. Take and Add to stash are unchanged.
+- API: `api.stash.deleteItem(itemId, quantity?)` (additive; the stash contract id is unchanged).
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.28.3 — 2026-10-24
 
 - **Condition buttons follow Player Access.** When the GM hides Utilities from players, the Character Hub's conditions strip no longer offers Apply or a chip's ✕ that then failed with "Utilities access is hidden"; Utilities' conditions API now says no up front (`canApply` / `canRemove`), as the tracker itself already does.
