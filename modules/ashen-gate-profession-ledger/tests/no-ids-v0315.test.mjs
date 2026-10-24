@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {assertNoIds,findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,findId} from '../../../scripts/test-helpers/no-ids.mjs';
 import {materialProblem,nodeBlocker,startBlocker} from '../scripts/gathering.mjs';
 import {canLearnRecipe,nextProgress} from '../scripts/progression.mjs';
 import {saveTemplate,checkTemplate,parseNodeFile} from '../scripts/nodes.mjs';
@@ -32,11 +32,13 @@ const world=[
   worldDoc('wsalveitem','[TEST] Salve',src('ITEM-TEST-SALVE','Item',{definition:def('ITEM-TEST-SALVE','Item',{name:'[TEST] Salve'})})),
   worldDoc('wsalve','Recipe: [TEST] Field Salve',src('REC-ALCHEMY-FIELD-MEDIC-S-SALVE','Recipe',{definition:def('REC-ALCHEMY-FIELD-MEDIC-S-SALVE','Recipe',{name:'[TEST] Field Salve',profession_id:'PROF-TEST-ALCHEMY',result_item_id:'ITEM-TEST-SALVE',tier:'apprentice',effort:'short',starting:true,ingredients:[{material_id:'MAT-TEST-HERB',quantity:1}]})})),
   worldDoc('wnores','Recipe: [TEST] Lost Elixir',src('REC-ALCHEMY-FIELD-01','Recipe',{definition:def('REC-ALCHEMY-FIELD-01','Recipe',{name:'[TEST] Lost Elixir',profession_id:'PROF-TEST-ALCHEMY',result_item_id:'ITEM-TEST-GONE',tier:'apprentice',effort:'short',ingredients:[{material_id:'MAT-TEST-GONE',quantity:2}]})})),
+  worldDoc('wgated','Recipe: [TEST] Gated Tonic',src('REC-TEST-GATED','Recipe',{visibility:'reveal_gated',definition:def('REC-TEST-GATED','Recipe',{name:'[TEST] Gated Tonic',profession_id:'PROF-TEST-ALCHEMY',tier:'apprentice',refs:[{relation:'also_available_as_journal',target_id:'HANDOUT-TEST-X',mode:'optional'}]})})),
+  worldDoc('wsecret','Recipe: [TEST] Secret Tonic',src('REC-TEST-SECRET','Recipe',{visibility:'gm',status:'draft',definition:def('REC-TEST-SECRET','Recipe',{name:'[TEST] Secret Tonic',profession_id:'PROF-TEST-ALCHEMY',tier:'apprentice',refs:[{relation:'starting_recipe',target_id:'REC-TEST-GATED',mode:'required'}]})})),
   worldDoc('wbal','Recipe: [TEST] Ballad',src('REC-TEST-BALLAD','Recipe',{definition:def('REC-TEST-BALLAD','Recipe',{name:'[TEST] Ballad',kind:'activity',profession_id:'PROF-TEST-ALCHEMY',tier:'apprentice',effort:'short'})}))];
 const held=(id,name,flags,type='loot',qty=1)=>({id,name,type,system:{quantity:qty,description:{value:''}},flags,toObject(){return {_id:this.id,name:this.name,type:this.type,system:structuredClone(this.system),flags:structuredClone(this.flags)};}});
 const items=[held('hp','[TEST] Alchemy — Profession',src('PROF-TEST-ALCHEMY','Profession'),'feat'),held('hh','[TEST] Herb',src('MAT-TEST-HERB','Material'),'loot',3),
   held('hr','Recipe: [TEST] Lost Elixir',src('REC-ALCHEMY-FIELD-01','Recipe'))];items.get=i=>items.find(x=>x.id===i);
-const actor={id:'bard',name:'[TEST] Bard',type:'character',hasPlayerOwner:true,items,flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-ALCHEMY-FIELD-MEDIC-S-SALVE','REC-TEST-BALLAD']}},
+const actor={id:'bard',name:'[TEST] Bard',type:'character',hasPlayerOwner:true,items,flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-ALCHEMY-FIELD-MEDIC-S-SALVE','REC-TEST-BALLAD','REC-TEST-GATED','REC-TEST-SECRET']}},
   testUserPermission:()=>true,setFlag:async()=>{},system:{skills:{},tools:{},abilities:{}}};
 const nodeTemplate={id:'NODE-TEST-REEDS',name:'[TEST] River Reeds',activity:'herbalism',tier:{min:1,max:2},materials:{common:[{materialId:'MAT-TEST-HERB',quantity:1}],rare:[],exotic:[{materialId:'MAT-TEST-MOSS',mode:'discovery'}]}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
@@ -56,7 +58,7 @@ const VIEWS=['individual','party','catalog','gathering','assign','gm'];
 
 test('player views show no ids (recipe list rows included)',async()=>{
   game.user=player;app.actorId='bard';
-  for(const view of VIEWS){assertNoIds(await html(view),`player ${view} view`);}
+  for(const view of VIEWS){assertNoMachineText(await html(view),`player ${view} view`);}
   const row=(await html('individual'));
   assert.match(row,/\[TEST\] Field Salve/);
   assert.doesNotMatch(row,/REC-ALCHEMY-FIELD-MEDIC-S-SALVE<|agl-id/,'the id line under a recipe row is gone');
@@ -64,7 +66,7 @@ test('player views show no ids (recipe list rows included)',async()=>{
 
 test('GM views show no ids outside the Details fold',async()=>{
   game.user=gm;app.actorId='bard';
-  for(const view of [...VIEWS,'nodes']){assertNoIds(withoutDetails(await html(view)),`GM ${view} view`);}
+  for(const view of [...VIEWS,'nodes']){assertNoMachineText(withoutDetails(await html(view)),`GM ${view} view`);}
   const h=await html('catalog');
   assert.match(h,/<details class="agl-details agl-id-details"><summary>Details<\/summary>/,'the GM still reaches the id from a recipe row');
   assert.doesNotMatch(h,/<small class="agl-id">/);
@@ -74,24 +76,24 @@ test('GM node editor, node list and import preview show no ids',async()=>{
   game.user=gm;
   const list=await html('nodes');
   assert.match(list,/\[TEST\] River Reeds/);
-  assertNoIds(list,'GM node list');
+  assertNoMachineText(list,'GM node list');
   app.nodeDraft=null;
   await app._click('node-edit','NODE-TEST-REEDS').catch(()=>{});
   assert.ok(app.nodeDraft,'the editor opened');
   const editor=await html('nodes');
   assert.match(editor,/Edit \[TEST\] River Reeds/);
   assert.match(editor,/<summary[^>]*>[\s\S]*?Details/,'the id field sits in a Details fold');
-  assertNoIds(editor,'GM node editor');
+  assertNoMachineText(editor,'GM node editor');
   app.nodeDraft=null;
   const plan=api.gathering.templates.preview({schema:'ag-gathering-nodes/1',nodes:[{...nodeTemplate,id:'NODE-TEST-NEW',name:'[TEST] New Spot'}]});
   app.nodeImport={fileName:'spots.nodes.json',data:{},plan};
-  assertNoIds(await html('nodes'),'GM node import preview');
+  assertNoMachineText(await html('nodes'),'GM node import preview');
   app.nodeImport=null;
 });
 
 test('messages name the thing, not its id',()=>{
   for(const state of ['missing','draft','gm-only','not-visible','duplicate','retired','other'])
-    assertNoIds(materialProblem('MAT-TEST-HERB',state,{name:'[TEST] Herb'}),`material problem ${state}`);
+    assertNoMachineText(materialProblem('MAT-TEST-HERB',state,{name:'[TEST] Herb'}),`material problem ${state}`);
   assert.match(materialProblem('MAT-TEST-HERB','missing',{name:'[TEST] Herb'}),/Material “\[TEST\] Herb” is not imported/);
   assert.match(materialProblem('MAT-TEST-HERB','missing'),/^This material is not imported/,'no name known: a neutral label');
   const node={id:'n',missingTemplate:'NODE-TEST-GONE',available:true,dc:10};
@@ -113,7 +115,7 @@ test('Assign previews and the Gathering start form show no ids',async()=>{
   for(const action of ['grant-preview','assign-preview','signature-preview'])await app._click(action).catch(()=>{});
   const h=await html('assign');
   assert.match(h,/\[TEST\] Field Salve/,'the starting-recipe preview lists the recipe by name');
-  assertNoIds(h,'GM Assign tab');
+  assertNoMachineText(h,'GM Assign tab');
   app.gather.source='adhoc';app.gather.adhoc={...app.gather.adhoc,materialId:'MAT-TEST-MOSS',rareMaterialId:'MAT-TEST-GONE'};
-  assertNoIds(await html('gathering'),'GM ad-hoc Gathering form with a draft and a missing material');
+  assertNoMachineText(await html('gathering'),'GM ad-hoc Gathering form with a draft and a missing material');
 });

@@ -1,6 +1,7 @@
 ## 0.31.5 — 2026-10-24
 
 - **Fix: ids are no longer shown anywhere in the Ledger.** The GM's recipe rows showed the raw recipe id (for example `REC-ALCHEMY-FIELD-01`) under each recipe, and several GM screens and messages named materials, nodes and results by id. Rows, node cards, the node editor heading, the node import preview, the Node test list, option lists, notifications, confirmation text and error messages now use the item's name (or a neutral label such as "This material"). Search still finds things by id; it just doesn't display it.
+- **No machine text either.** The Ledger does not print refs or relation names (such as `also_available_as_journal`), entity type names or raw status/visibility values; GM badges already use plain labels ("GM-only source", "Reveal gated"), and a test now checks every main view for this.
 - **Where the GM can still reach an id:** a closed **Details** fold on each recipe row, and a **Details** fold in the gathering node editor (the id field, editable only while creating a node).
 - **Saved data:** none changed; ids, flags, APIs and export formats are as before.
 
