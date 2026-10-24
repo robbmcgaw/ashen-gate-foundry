@@ -1,5 +1,7 @@
 ## 0.46.0 — 2026-10-24
 
+Inventory: the resurrection diamond reminder is now a medium-light red when the character has no diamond and a medium-light green when they have one (the skin's own danger and ok colours, so they stay readable in every skin).
+
 Header navigation (Robb, after Session 0). Compact, Appearance, Pop out / Pop in and Level up are now icon buttons side by side at the top right (each has a name and a tooltip; Level up keeps its "why not" reason; Pop out is still hidden where Foundry can't detach; a popped-out Hub keeps Pop in; the group wraps in a narrow window instead of clipping). The ⋯ menu is now only Configure…, NPC Codex (when General Manager offers it) and Open native sheet, plus Restore backup… for the GM when there are level backups. "Edit name and title" is gone from the menu: the pencil beside the name stays. The Foundry hotbar link has no option any more: the Hub is always linked, the "Link quick bar to Foundry's hotbar" menu item and its setting are gone, and an old stored "off" value is ignored (nothing is rewritten; hotbar slots are untouched). Help and README updated.
 
 Pop-out follow-through for the new windows: with the Hub popped out, dnd5e's compendium browser (Browse compendiums… under Add…) and its advancement window (after an Add or a drop) now open in the Hub's own window too, and a drop on a list is hosted like a button click. Level up from its header button already opens its class picker there. Not popped out, nothing changes. Mocked tests only; please check in Forge with a popped-out Hub.

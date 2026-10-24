@@ -455,8 +455,9 @@
 .agch-app .agch-coinchip .agch-coin__icon { width: calc(var(--ag-icon) * 1.2); height: calc(var(--ag-icon) * 1.2); box-shadow: none; }
 .agch-app .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }
 .agch-app .agch-diamond { margin: 0 0 var(--ag-space-2); text-align: center; font-family: var(--ag-font-display); font-size: var(--ag-text-lg); font-style: italic; letter-spacing: .04em; }
-.agch-app .agch-diamond.is-present { color: color-mix(in srgb, var(--ag-accent) 75%, var(--ag-ok)); }
-.agch-app .agch-diamond.is-absent { color: var(--ag-muted); }
+/* 0.46.0 (Robb): medium-light green with a diamond, medium-light red without. The skin's own ok / danger colours, so they stay readable in light and dark skins. */
+.agch-app .agch-diamond.is-present { color: var(--ag-ok); }
+.agch-app .agch-diamond.is-absent { color: var(--ag-danger); }
 
 /* Ashen Gate panels. 0.33.0: kit sub-tabs above the panel */
 .agch-app .agch-agtabs { flex-wrap: wrap; padding: 0; margin: 0 0 var(--ag-space-2); }
