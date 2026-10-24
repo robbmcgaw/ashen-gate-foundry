@@ -1,0 +1,56 @@
+/*
+ * Ashen Gate compact pause: no screen effect (Manager 0.60.8). Presentation only.
+ * While the game is paused AND the GM has "Show the pause as a small indicator" on, Foundry's own pause screen effect (a
+ * coloured glow around the screen edges, dimmed side panels) is switched off so only the small Paused label remains.
+ * The exact source is not confirmed in a live Foundry, so this neutralises the usual ways such an effect is drawn
+ * (box-shadow, filter, backdrop-filter, animation and ::before/::after overlays) on the full-screen layers only.
+ * Every rule needs BOTH attributes below, so with the setting off, or the game running, nothing here applies.
+ * It never hides an element (no display:none) and never touches the label (#ag-pause-pill) or window/sheet content.
+ * See the README ("Pause glow") for how to find the real source if this misses.
+ */
+html[data-ag-pause="compact"][data-ag-paused="true"],
+html[data-ag-pause="compact"][data-ag-paused="true"] body,
+html[data-ag-pause="compact"][data-ag-paused="true"] #interface,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-left,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-middle,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-right,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-top,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-bottom,
+html[data-ag-pause="compact"][data-ag-paused="true"] #board,
+html[data-ag-pause="compact"][data-ag-paused="true"] #hud {
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+}
+
+/* Overlay pseudo-elements on the same layers (a vignette or glow is often a ::before/::after with a shadow or gradient). */
+html[data-ag-pause="compact"][data-ag-paused="true"]::before,
+html[data-ag-pause="compact"][data-ag-paused="true"]::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] body::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] body::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #interface::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #interface::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-left::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-left::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-middle::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-middle::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-right::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-right::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-top::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-top::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-bottom::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #ui-bottom::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #board::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #board::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #hud::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #hud::after,
+html[data-ag-pause="compact"][data-ag-paused="true"] #pause::before,
+html[data-ag-pause="compact"][data-ag-paused="true"] #pause::after {
+  content: none !important;
+  box-shadow: none !important;
+  background: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+}

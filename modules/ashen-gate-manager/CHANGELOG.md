@@ -1,3 +1,8 @@
+## 0.60.8 — 2026-10-24
+
+- **Small pause indicator also removes Foundry's pause screen effect.** With *Show the pause as a small indicator* on, the teal glow around the screen edges (and the dimmed side panels) is switched off while the game is paused, so only the small Paused label remains. With the setting off, or the game running, nothing changes. The effect's exact source could not be checked in a live Foundry, so this targets the usual layers; if a glow remains, the README (Pause glow) says how to find it, and a GM can run `game.modules.get('ashen-gate-manager').api.pauseGlowReport()` while paused.
+- Saved data: no change; no migration.
+
 ## 0.60.7 — 2026-10-24
 
 - **Pull from GitHub: folders without a manifest start unticked.** After Find packs, packs with a manifest are still ticked. A folder with no manifest (for example an old or archive folder) now starts unticked and says "No manifest: files import in name order. Tick only if you want this folder." Tick it yourself to pull it. Import order and everything else about pulling is unchanged.
