@@ -194,3 +194,54 @@ test('0.54.2: import writes no References list into descriptions; re-import remo
   await load();await apply(3);
   assert.equal(edited.get('system.description.value'),editedText,'still untouched on a further re-import');
 });
+
+test('0.60.3: a data-ag-ref cell becomes a content link, re-import is idempotent, unmarked refs append nothing, edits are kept', async () => {
+  const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const rec = id => pkg.records.find(r => r.id === id);
+  const add = (id, html) => { rec(id).foundry.data.system.description.value += html; };
+  add('ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE', '<table><tr><th>Recipe</th><td data-ag-ref="created_by">Field Medic\'s Salve recipe</td></tr></table>');
+  add('MAT-HERBALISM-APPRENTICE-COMMON', '<table><tr><th>Gathered by</th><td data-ag-ref="gathered_by">Herbalism</td></tr></table>');
+  const runtime = installMockFoundry();
+  globalThis.foundry.utils.saveDataToFile = () => {};
+  await import(`../scripts/main.js?ag-ref-cells=${Date.now()}`);
+  runtime.callbacks.once.get('init')?.();
+  runtime.callbacks.once.get('ready')?.();
+  await runtime.managerModule.api.open();
+  const app = runtime.instances.at(-1);
+  await app._onRender({}, {});
+  runtime.draftToggle.value = 'development';
+  await runtime.draftToggle.listeners.change({ target: runtime.draftToggle });
+  const load = async () => {
+    runtime.fileInput.files = [{ name: 'p.json', size: 1, text: async () => JSON.stringify(pkg) }];
+    await runtime.fileInput.listeners.change();
+    await runtime.actionElements.find(e => e.dataset.agAction === 'select').listeners.click({ preventDefault() {} });
+    await new Promise(r => setTimeout(r, 25));
+  };
+  const apply = async n => {
+    await runtime.actionElements.find(e => e.dataset.agAction === 'apply').listeners.click({ preventDefault() {} });
+    await waitFor(() => (runtime.settings.get('importHistory')?.length ?? 0) >= n, 'import did not finish');
+  };
+  const byId = id => runtime.collections.items.contents.find(d => d.getFlag(managerId, 'source')?.sourceId === id);
+  const desc = id => byId(id).get('system.description.value');
+  await load(); await apply(1);
+  const recipe = byId('REC-ALCHEMY-FIELD-MEDIC-S-SALVE'), prof = byId('PROF-HERBALISM');
+  assert.ok(desc('ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE').includes(`<td data-ag-ref="created_by">@UUID[${recipe.uuid}]{Field Medic's Salve recipe}</td>`));
+  assert.ok(desc('MAT-HERBALISM-APPRENTICE-COMMON').includes(`<td data-ag-ref="gathered_by">@UUID[${prof.uuid}]{Herbalism}</td>`));
+  // A record with refs but no marker gets nothing appended.
+  assert.ok(!desc('ITEM-ALCHEMY-VEILSMOKE-PHIAL').includes('data-ag-ref'));
+  for (const id of ['ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE', 'MAT-HERBALISM-APPRENTICE-COMMON', 'ITEM-ALCHEMY-VEILSMOKE-PHIAL']) {
+    assert.ok(!/ag-managed-links/.test(desc(id)));
+    assertNoMachineText(desc(id).replace(/@UUID\[[^\]]*\]/g, ''), `description of ${id}`);
+  }
+  // Idempotent: the same description after another import.
+  const first = desc('ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE');
+  await load(); await apply(2);
+  assert.equal(desc('ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE'), first);
+  assert.equal((desc('ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE').match(/@UUID/g) ?? []).length, (first.match(/@UUID/g) ?? []).length);
+  // An edited description is not touched.
+  const item = byId('MAT-HERBALISM-APPRENTICE-COMMON');
+  const edited = desc('MAT-HERBALISM-APPRENTICE-COMMON') + '<p>GM note.</p>';
+  await item.update({ 'system.description.value': edited });
+  await load(); await apply(3);
+  assert.equal(desc('MAT-HERBALISM-APPRENTICE-COMMON'), edited);
+});

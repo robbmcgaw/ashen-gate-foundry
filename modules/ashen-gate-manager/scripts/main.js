@@ -1,6 +1,8 @@
 import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
-import {confirmDialog, confirmDanger, guardDirty, infoDialog} from "./ag-dialogs.mjs";
+import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
+import {collapseItemDescriptions} from "./chat-style.js";
+import {installPauseMirror} from "./pause-indicator.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -14,12 +16,13 @@ import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces, CODEX_SURFACE} from "./player-access.js";
 import {followHubVisibility} from "./hub-visibility.js";
+import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG} from "./release.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
 import {tokenLabel} from "./labels.js";
-import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock} from "./import-fidelity.js";
+import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES, NO_CONFIDENT_MATCH} from './smart-icons.js';
 import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
@@ -34,12 +37,19 @@ import {cinderDefinitionChecks} from './cinder-definitions.js';
 import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
-import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
+import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
+import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, phraseOk, ledgerKey} from './sync.js';
+import {executeSync, buildSyncBackup} from './sync-apply.js';
+import {readSyncInput, joinSyncInputs} from './sync-load.js';
+import {syncView} from './sync-view.js';
+import * as github from './github-pull.js';
+import {updateSummary} from './github-paths.js';
+import {githubView, rowsTable} from './github-view.js';
 import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
-import {mediaFilename} from './zip-import.js';
+import {mediaFilename, sortBundleFiles} from './zip-import.js';
 import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
 import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue} from './scene-moods.js';
 const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
@@ -56,6 +66,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
+import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -169,10 +180,13 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     data.img=icon.img;
     if(icon.source!=='authored') report({id:record.id,action:icon.source==='smart'?'icon-smart':'icon-fallback',status:'ok',icon:icon.img,reason:icon.reason,original:icon.original??null});
   }
-  data.ownership = {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE};
+  // 0.55.0: approved + player-visible Items, Journals and Actors start readable by players (Observer); everything else stays None.
+  const ownershipLevel=initialOwnership({status:record.status,visibility:record.visibility},kind,CONST.DOCUMENT_OWNERSHIP_LEVELS);
+  data.ownership = {default: ownershipLevel};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
   // Items keep only allow-listed flags (0.37.0); Manager's own namespace is always written from the record.
   data.flags = {...(kind==='Actor'?data.flags??{}:kind==='Item'?allowedItemFlags(data.flags):{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds),
+    [BASELINE_FLAG]:ownershipLevel,
     ...(icon?{iconSource:icon.source,iconPath:icon.img}:{})}};
   if(kind==='Item') {
     if(Array.isArray(data.effects)&&data.effects.length) data.effects=record.foundry.data.effects.map(effectCreateData);
@@ -188,7 +202,10 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
 }
 async function updateRecord(record, pkg, doc, patch, availableIds) {
   const update = {...patch};
-  update[`flags.${MODULE_ID}.source`] = sourceMetadata(record, pkg, availableIds);
+  const source=sourceMetadata(record, pkg, availableIds);
+  update[`flags.${MODULE_ID}.source`] = source;
+  // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
+  if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
   await doc.update(update);
   return doc;
 }
@@ -243,6 +260,7 @@ const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\
 const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',icon:'ok',blocked:'danger',conflict:'danger'};
 /** Preview thumbnails (0.47.0): the first ones only, and lazy, so a big file stays quick. */
 const ICON_THUMBS=200;
+const ASSET_PAGE=96;
 const ICON_CONFIDENCE={high:'good match',medium:'likely match',low:'loose match'};
 /** Items toolbar (0.43.0): one Load compendiums button and one Clear filters count for the shared filters and the All items facets. */
 const packsLabel=status=>status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
@@ -253,12 +271,16 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
+  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
+  '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
+  '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
+  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -299,6 +321,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconOverrides = new Map();
     // Items → Checks → Improve icons.
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
+    // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
+    this.assets = {source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
+      scan:null, links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -311,6 +336,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
     this.zipBundle = null;
+    // 0.56.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
+    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
+    // 0.59.0 Pull from GitHub: the form draft, the packs found and the last pull. The token is never kept here beyond what is typed.
+    this.gh = {draft:null, dirty:false, packs:[], selected:[], rows:[], progress:null, message:null, update:null, pulled:null, abort:null, stopping:false};
     this.uploadZipArtwork = true;
     this.packageSource = null;
     this.captureSelected = new Set();
@@ -361,6 +390,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.cleanPreview = null;
     this.cleanUnticked = new Set();
     this.cleanStatus = "";
+    this.releasePreview = null;
+    this.releaseMessage = "";
+    this.releaseAbort = null;
+    this.releasePct = 0;
     this.clPreview = null;
     this.clTicked = new Set();
     this.clLinkOnly = new Set();
@@ -664,6 +697,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       importTabsHtml: this.tab==='import'?tabRow('agm-import','Import sections',IMPORT_TABS,this.importView):'',
       importPanelAttrs: tabPanelAttrs('agm-import',this.importView),
       importPackage: this.importView==='package', importHistory: this.importView==='history',
+      syncOn: this.sync.on, syncHtml: this.sync.on&&this.tab==='import'?this.#syncHtml():'',
+      githubHtml: this.tab==='import'&&this.importView==='package'?this.#githubHtml():'',
       itemsTabsHtml: items?tabRow('agm-items','Items sections',ITEM_VIEWS,view):'',
       itemsPanelAttrs: tabPanelAttrs('agm-items',view),
       itemsFilters: items&&Boolean(ITEM_VIEWS.find(v=>v.id===view)?.filters), itemFiltersOpen:this.itemFiltersOpen,
@@ -737,6 +772,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       setup: this.tab === "setup" ? this.#setupSources() : null,
       setupMessage: this.setupMessage,
       setupSkins,
+      compactPause: this.tab === "setup" ? Boolean(this.setupDraft?.compactPause ?? appearanceController?.getState?.()?.compactPause) : false,
       codexPlayerAccess: Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -771,6 +807,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       smartIcons: this.smartIcons, repickIcons: this.repickIcons, iconStatus: this.#iconStatusText(),
       hasIconRows: this.preview.some(row=>row.icon),
       icons: items&&view==='checks'?this.#iconScanContext():null,
+      release: items&&view==='checks'?this.#releaseContext():null,
+      assetsActive: items&&view==='assets',
+      assets: items&&view==='assets'?this.#assetsContext():null,
       audit: this.auditEntries.map(entry=>({...entry,tone:entry.level==='error'?'danger':entry.level==='warning'?'warn':''})),
       hasAudit: this.auditEntries.length > 0,
       history: [...history].reverse().map(run=>{const results=(run.results??[]).map(r=>({...r,tone:RESULT_TONE(r.status)}));
@@ -784,8 +823,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#bindNavigation(root);
     this.#bindSetup(root);
     bindFolds(root,this.ui);
-    bindFileButtons(root,(files,wrap)=>this.#pickFile(wrap.dataset.agFileKind,files[0]));
+    bindFileButtons(root,(files,wrap)=>this.#pickFile(wrap.dataset.agFileKind,files[0],files));
     if(this.tab==='items'&&this.itemsView==='records')this.#fillItemPreview(root);
+    if(this.tab==='items'&&this.itemsView==='assets'&&!this.assets.listing&&!this.assets.loading)void this.#assetsLoad();
     this.browseUnsub?.();this.browseUnsub=null;this.browsePaint=null;
     if(this.tab==='items'&&this.itemsView==='all')this.#mountBrowse(root.querySelector('[data-ag-browse]'));
     this.#bindItems(root);
@@ -857,8 +897,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return super.close(options);
   }
   /** Every file button (kit fileButton) in the window: the main import, organize rules, codex restore and moods file. */
-  async #pickFile(kind,file) {
+  async #pickFile(kind,file,files=[file]) {
     if(!file)return;
+    if(kind==='sync')return;
+    if(kind==='assets')return this.#assetsUpload(files).catch(err=>this.#fail(err));
     if(kind==='import')return this.#importFile(file);
     if(kind==='rules')return this.#importRules(file).catch(err=>this.#fail(err));
     if(kind==='codex')return this.#codexImport(file).catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
@@ -993,6 +1035,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       else this.librarySelected.delete(event.target.dataset.agLibrarySelect);
       void this.render();
     }));
+    this.#bindSync(root);
+    this.#bindGithub(root);
     root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
       if (this.busy) return;
       this.updateExisting = event.target.checked;
@@ -1056,11 +1100,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#bindImportLayout(root);
     this.#bindOrganize(root);
     this.#bindIcons(root);
+    this.#bindAssets(root);
     // Not a data-ag-action: those are ignored while busy, and Cancel must work while the commit runs.
     root.querySelector('[data-ag-clean-stop]')?.addEventListener('click',event=>{
       event.preventDefault();if(!this.cleanAbort)return;
       this.cleanAbort.abort();event.currentTarget.disabled=true;
       const el=root.querySelector('[data-ag-clean-status]');if(el)el.textContent='Cancelling after the current chunk…';
+    });
+    root.querySelector('[data-ag-release-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.releaseAbort)return;
+      this.releaseAbort.abort();event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-release-status]');if(el)el.textContent='Cancelling after the current chunk…';
     });
     root.querySelectorAll('[data-ag-cl-tick]').forEach(el=>el.addEventListener('change',e=>{
       const id=e.target.dataset.agClTick;if(e.target.checked)this.clTicked.add(id);else this.clTicked.delete(id);void this.render();
@@ -1150,7 +1200,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": await this.#coreLinkAction(name); break;
       case "setup-save": await this.#saveSetup(); break;
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
+      case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
+      case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": await this.#assetsAction(name); break;
       case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
@@ -1198,6 +1250,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!response.ok) throw new Error(`Import template unavailable (${response.status}).`);
         downloadJson(file,await response.json());break;
       }
+      case "gh-save": await this.#ghSave(); break;
+      case "gh-find": await this.#ghFind(); break;
+      case "gh-check": await this.#ghCheck(); break;
+      case "gh-pull": await this.#ghPull(); break;
+      case "gh-token-remove": await this.#ghRemoveToken(); break;
+      case "gh-send-sync": await this.#ghSendSync(); break;
+      case "gh-send-import": await this.#ghSendImport(); break;
+      case "sync-preview": await this.#syncPreview(); break;
+      case "sync-reset": this.sync.inputs=[]; this.#syncDrop('Files cleared. Nothing in your world changed.'); await this.render(); break;
+      case "sync-cancel": this.#syncDrop('Sync cancelled. Nothing in your world changed.'); await this.render(); break;
+      case "sync-report": this.#syncReport(); break;
+      case "sync-backup": this.#syncBackupFile(); break;
+      case "sync-run": await this.#syncRun(); break;
       case "reset": this.zipBundle=null; this.#clearLoaded("Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin."); await this.render();break;
       default: throw new Error(`Unknown action: ${name}`);
     }
@@ -1425,6 +1490,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
     try {
       log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
+      await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action))
+        .map(r=>({key:ledgerKey(null,kind),id:r.id,info:{kind:r.kind,module:spec.label,name:rows.find(x=>x.id===r.id)?.name??r.id}})));
     } catch(error) { log.results.push({action:'import-aborted',status:'error',message:String(error?.message??error)}); }
     const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
     await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
@@ -1611,6 +1678,49 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconMessage=rows.length?`${rows.length} world Item(s) and Actor(s) have a placeholder icon; ${suggested} have a suggestion${index?'':' (the icon library could not be read, so pick icons with Change…)'}. Player characters start unticked. Nothing has changed yet.`
       :'No world Item or Actor has a placeholder icon. Nothing changed.';
   }
+  /** Release player-visible records (0.55.0): the Checks-view section's state. */
+  #releaseContext() {
+    const p=this.releasePreview;
+    return {scan:Boolean(p),total:p?.total??0,kinds:p?.kinds??[],alreadyReleased:p?.alreadyReleased??0,examples:p?.examples??[],
+      more:p?Math.max(0,p.total-p.examples.length):0,running:Boolean(this.releaseAbort),pct:this.releasePct,message:this.releaseMessage};
+  }
+  async #releaseAction(name) {
+    const say=(text,error=false)=>{this.releaseMessage=text;toast(text,error);};
+    if(!game.user?.isGM)return say('Only the GM can release records.',true);
+    const sourceOf=doc=>sourceFlag(doc);
+    const docs=()=>allBoundDocuments().filter(d=>['Item','JournalEntry','Actor'].includes(d.documentName));
+    switch(name){
+      case 'release-scan': {
+        this.releasePreview=previewRelease(docs(),sourceOf,CONST.DOCUMENT_OWNERSHIP_LEVELS);
+        this.releaseMessage=`${releasePreviewText(this.releasePreview)} Nothing has changed yet.`;
+        break;
+      }
+      case 'release-cancel': this.releasePreview=null;this.releaseMessage='Release preview cleared. Nothing changed.';break;
+      case 'release-commit': {
+        const p=this.releasePreview;
+        if(!p?.total)return say('Find the hidden records first.',true);
+        const kinds=p.kinds.map(k=>`${k.count} ${k.label.toLowerCase()}`).join(', ');
+        const yes=await confirmDialog(`Make ${p.total} record(s) readable by players (${kinds})?\nOnly the default ownership changes, from None to Observer. GM-only and draft records, other ownership entries and everything else on the documents stay as they are. Running it again later does nothing.`,
+          {title:'Release player-visible records?',yes:`Release ${p.total} record(s)`});
+        if(!yes)return;
+        this.releaseAbort=new AbortController();this.releasePct=0;this.busy=true;
+        await this.render();
+        const update=(pct,text)=>{this.releaseMessage=text;this.releasePct=pct;
+          const el=this.element?.querySelector('[data-ag-release-status]');if(el)el.textContent=text;
+          const bar=this.element?.querySelector('[data-ag-release-bar]');if(bar)bar.value=pct;};
+        try{
+          const out=await applyRelease(p,sourceOf,{signal:this.releaseAbort.signal,levels:CONST.DOCUMENT_OWNERSHIP_LEVELS,
+            write:(kind,updates)=>CONFIG[kind].documentClass.updateDocuments(updates),
+            onProgress:({done,total})=>update(total?done/total:1,`Released ${done} of ${total}…`)});
+          this.releasePreview=null;say(out.message,out.skipped>0);
+        }catch(error){
+          console.error(`[${MODULE_ID}] Release failed`,error);this.releasePreview=null;say(`Release stopped: ${error.message??error}. Records already released stay released; run the scan again.`,true);
+        }finally{this.busy=false;this.releaseAbort=null;}
+        break;
+      }
+    }
+    await this.render();
+  }
   #iconScanContext() {
     const undo=game.settings.get(MODULE_ID,ICON_UNDO_SETTING);
     const rows=this.iconScan?.rows??[];
@@ -1622,6 +1732,198 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return {scan:Boolean(this.iconScan),groups,count:rows.length,ticked:rows.filter(r=>r.checked&&r.img).length,
       running:Boolean(this.iconAbort),pct:this.iconPct,message:this.iconMessage,status:this.#iconIndexText(),
       hasUndo:Boolean(undo?.applied?.length),undoCount:undo?.applied?.length??0};
+  }
+  // ---------- Items → Assets (0.57.0): browse, upload and link art files. GM only; assets.js checks the GM too. ----------
+  #assetDocs() {
+    return allBoundDocuments().filter(doc=>!doc.getFlag(MODULE_ID,'lifecycle')?.archived).map(doc=>{
+      const source=sourceFlag(doc);
+      return {uuid:doc.uuid,documentName:doc.documentName,type:doc.type,name:doc.name,sourceId:source.sourceId,img:doc.img,
+        flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img};
+    });
+  }
+  #assetSource() {
+    const a=this.assets;
+    if(!assetSources().some(s=>s.id===a.source))a.source=defaultSource();
+    return a.source;
+  }
+  #assetUrl(path) {
+    if(/^(https?:)?\/\//i.test(path)||/^data:/i.test(path))return path;
+    try{return foundry.utils.getRoute(path);}catch{return path;}
+  }
+  async #assetsLoad() {
+    if(!game.user?.isGM)return;
+    const a=this.assets;
+    a.loading=true;
+    const out=await listFolder(filePickerClass(),{source:this.#assetSource(),target:a.target,user:game.user});
+    a.loading=false;a.listing=out;a.shown=ASSET_PAGE;
+    if(this.rendered&&this.tab==='items'&&this.itemsView==='assets')await this.render();
+  }
+  #assetsGo(target,focus) {
+    const a=this.assets;
+    if(a.uploading)return;
+    a.target=target;a.listing=null;a.query='';
+    this.focusAfterRender=focus??null;void this.render();
+  }
+  #assetsContext() {
+    const a=this.assets, sources=assetSources(), source=this.#assetSource(), l=a.listing;
+    const files=l?filterAssetEntries(l.files,a.query):[], dirs=l?filterAssetEntries(l.dirs,a.query):[];
+    const tiles=files.slice(0,a.shown).map(f=>({...f,url:this.#assetUrl(f.path)}));
+    const sourceLabel=sources.find(s=>s.id===source)?.label??'Library';
+    const onForge=sources.some(s=>s.id==='forgevtt');
+    const links=a.links;
+    const kindOf=name=>capitalize(name==='RollTable'?'roll table':name==='JournalEntry'?'journal':name);
+    const linkRows=(links?.rows??[]).slice(0,300).map(r=>({...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:this.#assetUrl(r.to),
+      kindLabel:kindOf(r.documentName),stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn'}));
+    const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
+    const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
+    const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
+    const sel=(list,value)=>list.map(o=>({...o,selected:o.value===value}));
+    return {
+      sources:sources.map(s=>({value:s.id,label:s.label,selected:s.id===source})),multiSource:sources.length>1,sourceLabel,onForge,manageUrl:MANAGE_ON_FORGE_URL,
+      crumbs:crumbs(a.target,sourceLabel).map((c,i,all)=>({...c,current:i===all.length-1})),canGoUp:Boolean(a.target),
+      loading:a.loading||!l,ok:Boolean(l?.ok),problem:l&&!l.ok?l.message:'',query:a.query,
+      dirs,tiles,fileCount:files.length,folderCount:dirs.length,moreCount:Math.max(0,files.length-tiles.length),
+      emptyFolder:Boolean(l?.ok)&&!l.files.length&&!l.dirs.length,noMatches:Boolean(l?.ok)&&(l.files.length||l.dirs.length)&&!files.length&&!dirs.length,
+      uploading:a.uploading,uploads:a.uploads.map(r=>({...r,label:UPLOAD_LABEL[r.status]??r.status,tone:UPLOAD_TONE[r.status]??''})),hasUploads:a.uploads.length>0,
+      uploadMessage:a.uploadMessage,
+      chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
+      scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,
+      linkTicked:(links?.rows??[]).filter(r=>r.checked).length,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
+      actorsSkipped:links?.actorsSkipped??[],hasActorsSkipped:Boolean(links?.actorsSkipped?.length),
+      scanSummary:links?`Looked through ${links.folders} folder(s) and ${a.scan.files.length} image file(s)${a.scan.complete?'':' (the scan stopped early; open a deeper folder to narrow it)'}. ${links.unmatched} record(s) have no file of their name.`:'',
+      missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
+      missingRows:missingShown,missingCount:missing.length,missingOverflow:Math.max(0,missing.length-missingShown.length),
+      missingScanned:Boolean(foundNames),message:a.message
+    };
+  }
+  async #assetsAction(name) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets, picker=filePickerClass(), source=this.#assetSource();
+    const say=(text,error=false)=>{a.message=text;toast(text,error);};
+    switch(name){
+      case 'assets-up': return this.#assetsGo(parentPath(a.target),'[data-ag-assets-up]');
+      case 'assets-new-folder': {
+        const typed=await promptText('Create folder','Folder name','',{ok:'Create folder'});
+        if(typed===null)break;
+        const out=await createFolder(picker,{source,parent:a.target,name:typed,user:game.user});
+        say(out.message,!out.ok);
+        if(out.ok){a.listing=null;a.scan=null;a.links=null;}
+        break;
+      }
+      case 'assets-scan': {
+        a.scanning=true;a.linkMessage='Looking for files named after records…';await this.render();
+        try{
+          const scan=await scanFolders(picker,{source,target:a.target,user:game.user});
+          a.scan=scan;
+          const plan=planAssetLinks(this.#assetDocs(),scan.files);
+          a.links={...plan,folders:scan.folders};
+          a.linkMessage=plan.rows.length?`${plan.rows.length} record(s) can take a file of their name. Nothing has changed yet.`
+            :scan.ok?'No file in this folder (or under it) is named after a record that needs it. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
+        }finally{a.scanning=false;}
+        break;
+      }
+      case 'assets-link-cancel': a.links=null;a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
+      case 'assets-link-apply': {
+        const rows=(a.links?.rows??[]).filter(r=>r.checked);
+        if(!rows.length)return say('Tick at least one record first.',true);
+        const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
+        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file named after each?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
+          {title:'Link images to records?',yes:`Link ${rows.length} image(s)`});
+        if(!yes)return;
+        const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
+        const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry})[documentName].updateDocuments(updates);
+        this.busy=true;
+        try{
+          const out=await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
+          a.links={...planAssetLinks(this.#assetDocs(),a.scan?.files??[]),folders:a.links.folders};
+          a.linkMessage=out.message;say(out.message,!out.ok);
+        }finally{this.busy=false;}
+        break;
+      }
+    }
+    await this.render();
+  }
+  async #assetsUpload(files) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets;
+    if(a.uploading||!files?.length||!a.listing?.ok)return;
+    const source=this.#assetSource(), target=a.target;
+    a.uploading=true;a.abort=new AbortController();a.uploads=[];a.uploadMessage=`Uploading ${files.length} file(s)…`;
+    await this.render();
+    const decide=async names=>{
+      const shown=names.slice(0,12).map(escapeHtml).join(', ')+(names.length>12?` and ${names.length-12} more`:'');
+      const yes=await confirmDanger(`${names.length} of these files already exist in this folder: ${shown}.\nReplace them with the new files? Keeping them skips those files; the others are still added.`,
+        {title:'Replace existing files?',yes:`Replace ${names.length} file(s)`,no:'Keep existing files'});
+      return yes?'overwrite':'skip';
+    };
+    const onProgress=({results,done,total})=>{
+      a.uploads=results;
+      const status=this.element?.querySelector('[data-ag-assets-upload-status]');if(status)status.textContent=`Finished ${done} of ${total}…`;
+      const bar=this.element?.querySelector('[data-ag-assets-upload-bar]');if(bar)bar.value=total?done/total:1;
+    };
+    try{
+      const out=await uploadFiles(files,{picker:filePickerClass(),source,target,user:game.user,existing:(a.listing?.files??[]).map(f=>f.name),decide,onProgress,signal:a.abort.signal});
+      a.uploads=out.results;
+      const count=s=>out.results.filter(r=>r.status===s).length;
+      a.uploadMessage=out.cancelled&&!out.results.some(r=>['uploaded','replaced'].includes(r.status))?'Nothing was uploaded.'
+        :`${count('uploaded')} uploaded, ${count('replaced')} replaced, ${count('skipped')} skipped, ${count('failed')+count('rejected')} not uploaded${count('not started')?`, ${count('not started')} not started`:''}.`;
+      toast(a.uploadMessage,!out.ok&&!out.cancelled);
+    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkMessage='';}
+    await this.render();
+  }
+  async #copyAssetPath(path) {
+    try{await (game.clipboard?.copyPlainText?.(path)??navigator.clipboard.writeText(path));toast('Path copied.');}
+    catch{toast('Could not copy the path.',true);}
+  }
+  #bindAssets(root) {
+    const a=this.assets, pane=root.querySelector('[data-ag-assets]');
+    if(!pane)return;
+    pane.querySelector('[data-ag-assets-source]')?.addEventListener('change',event=>{
+      if(a.uploading)return;
+      a.source=event.target.value;a.target='';a.listing=null;a.query='';a.scan=null;a.links=null;a.linkMessage='';
+      this.focusAfterRender='[data-ag-assets-source]';void this.render();
+    });
+    pane.querySelectorAll('[data-ag-assets-open]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();this.#assetsGo(el.dataset.agAssetsOpen,`[data-ag-assets-open="${CSS.escape(el.dataset.agAssetsOpen)}"]`);
+    }));
+    const query=pane.querySelector('[data-ag-assets-query]');
+    const search=()=>{if(query.value===a.query)return;a.query=query.value;a.shown=ASSET_PAGE;this.focusAfterRender='[data-ag-assets-query]';void this.render();};
+    query?.addEventListener('change',search);query?.addEventListener('search',search);
+    pane.querySelector('[data-ag-assets-more]')?.addEventListener('click',event=>{
+      event.preventDefault();a.shown+=ASSET_PAGE;this.focusAfterRender='[data-ag-assets-more]';void this.render();
+    });
+    pane.querySelector('[data-ag-assets-refresh]')?.addEventListener('click',event=>{
+      event.preventDefault();if(a.uploading)return;a.listing=null;this.focusAfterRender='[data-ag-assets-refresh]';void this.render();
+    });
+    pane.querySelectorAll('[data-ag-assets-copy]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();void this.#copyAssetPath(el.dataset.agAssetsCopy);
+    }));
+    // Not a data-ag-action: those are ignored while busy, and Stop must work during an upload.
+    pane.querySelector('[data-ag-assets-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!a.abort)return;
+      a.abort.abort();event.currentTarget.disabled=true;
+      const el=pane.querySelector('[data-ag-assets-upload-status]');if(el)el.textContent='Stopping after the files already started…';
+    });
+    const drop=pane.querySelector('[data-ag-assets-drop]');
+    if(drop){
+      const over=on=>drop.classList.toggle('is-over',on);
+      drop.addEventListener('dragover',event=>{event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect='copy';over(true);});
+      drop.addEventListener('dragleave',()=>over(false));
+      drop.addEventListener('drop',event=>{
+        event.preventDefault();over(false);
+        void this.#assetsUpload([...(event.dataTransfer?.files??[])]).catch(err=>this.#fail(err));
+      });
+    }
+    pane.querySelectorAll('[data-ag-assets-tick]').forEach(el=>el.addEventListener('change',event=>{
+      const row=a.links?.rows.find(r=>r.uuid===el.dataset.agAssetsTick);if(row)row.checked=event.target.checked;
+      const n=(a.links?.rows??[]).filter(r=>r.checked).length;
+      pane.querySelectorAll('[data-ag-assets-ticked]').forEach(x=>{x.textContent=String(n);});
+      pane.querySelectorAll('[data-ag-assets-needs-ticks]').forEach(x=>{x.disabled=!n;});
+    }));
+    pane.querySelectorAll('[data-ag-assets-missing]').forEach(el=>{
+      const set=()=>{const key=el.dataset.agAssetsMissing;if(a.missing[key]===el.value)return;a.missing[key]=el.value;this.focusAfterRender=`[data-ag-assets-missing="${key}"]`;void this.render();};
+      el.addEventListener('change',set);if(el.type==='search')el.addEventListener('search',set);
+    });
   }
   #pickIcon(current,done) {
     const FP=filePickerClass();
@@ -1900,91 +2202,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(routeRows.length) log.results.push(...await applyRoutes(routeRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),routesApi(game),{updateExisting:this.updateExisting}));
       // Shops, services and merchant lists come after the Items their lines sell (Utilities finds them by permanent id).
       if(shopRows.length) log.results.push(...await applyShops(shopRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),shopsApi(game),{updateExisting:this.updateExisting}));
-      // Complete-world UUID index: only actual saved documents are addressable.
-      // Resolve after the *whole* batch; record order and reference cycles do not matter.
-      const uuidIndex=buildUuidIndex(allBoundDocuments());
-      // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
-      const moduleRecord=moduleRecordLookup(game);
-      for(const row of ordered) {
-        if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
-        const record=this.pkg.records.find(r=>r.id===row.id);
-        const doc=foundDocuments(row.id)[0];
-        if(!doc) continue;
-        const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
-        for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
-        if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
-        const updates={};
-        const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
-        const source=sourceFlag(doc)??{};
-        const currentIds=new Set(uuidIndex.keys());
-        updates[`flags.${MODULE_ID}.source.refs`]=projectedReferences(record.refs,currentIds);
-        const newFields={...(source.managedFields??{})};
-        updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
-        updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
-        updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
-        // Only source-provided rich-text paths receive AGREF substitution.
-        // Add a small reference section for canonical refs without explicit markers.
-        if(doc.documentName==='Item') {
-          const original=record.foundry.data?.system?.description?.value;
-          if(typeof original==='string' || bindings.length) {
-            const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-            const final=stripReferenceBlock(linked.text);
-            for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-            // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
-            // References section is cleaned up only on documents nobody has changed since the import).
-            const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
-            if(row.action==='create'||live===final||live===baseline) {
-              if(live!==final) updates['system.description.value']=final;
-              newFields['system.description.value']=final;
-            }
-            log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length});
-          }
-        } else if(doc.documentName==='Actor') {
-          // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
-          const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
-          const keys=itemKeys(record.foundry.data?.items??[]);
-          const bio=record.foundry.data?.system?.details?.biography?.value;
-          if(created && typeof bio==='string') {
-            const resolved=resolveRichText(bio,uuidIndex);
-            updates['system.details.biography.value']=resolved.text;
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
-          }
-          for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
-            if(!created&&!touched.has(keys[i])) continue;
-            const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
-            if(typeof html!=='string'||!embedded) continue;
-            const resolved=resolveRichText(html,uuidIndex);
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
-            if(embedded.system?.description?.value!==resolved.text) try{await embedded.update({'system.description.value':resolved.text});}catch(e){log.results.push({id:row.id,action:'actor-item-link',status:'error',message:String(e.message??e)});}
-          }
-        } else if(doc.documentName==='RollTable') {
-          const text=record.foundry.data?.description;
-          if(typeof text==='string') {
-            const resolved=resolveRichText(text,uuidIndex);
-            updates.description=resolved.text;
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
-          }
-        } else if(doc.documentName==='JournalEntry') {
-          const pages=record.foundry.data?.pages??[];
-          for(const [pi,pageDef] of pages.entries()) {
-            const page=doc.pages?.contents?.[pi];
-            if(!page || typeof pageDef.text?.content!=='string') continue;
-            const linked=resolveRichText(pageDef.text.content,uuidIndex);
-            const final=linked.text;
-            for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-            try{
-              // Rewrite only a page nobody edited: created this run, or equal to the source text once a legacy References section is removed.
-              if(page.text?.content!==final&&(row.action==='create'||stripReferenceBlock(page.text?.content)===final)) await page.update({'text.content':final});
-              log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
-            }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
-          }
-        }
-        updates[`flags.${MODULE_ID}.source.managedFields`]=newFields;
-        try{
-          await doc.update(updates);
-          if(bindings.length) log.results.push({id:row.id,action:'uuid-bind',status:'ok',bindings:bindings.length});
-        }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
-      }
+      // 0.56.0: remember what was passed to other modules, so a later Sync from package can say what a newer package no longer carries.
+      await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action)&&HANDOFF_KINDS[r.kind])
+        .map(r=>({key:ledgerKey(this.pkg.manifest.package_id),id:r.id,info:{kind:r.kind,module:HANDOFF_KINDS[r.kind],name:this.pkg.records.find(x=>x.id===r.id)?.name??r.id}})));
+      await resolvePackageLinks({pkg:this.pkg,rows:ordered,log,plans});
       const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
       await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
       const created=log.results.filter(r=>r.status==="ok"&&r.action==="create").length;
@@ -2885,6 +3106,395 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
     toast(this.codexMessage,out.errors.length>0);await this.render();
   }
+  // ---------- Pull from GitHub (0.59.0) ----------
+  // The token lives in a client-scope setting and is read only inside github-pull.js; this window never holds it beyond what the GM types.
+  #ghStore() { return {get:name=>game.settings.get(MODULE_ID,name),set:(name,value)=>game.settings.set(MODULE_ID,name,value)}; }
+  #ghDraft() {
+    if(!this.gh.draft) {
+      const saved=github.loadConfig(game.user,{store:this.#ghStore()}).config??{};
+      this.gh.draft={repo:saved.repo??'',branch:saved.branch??'main',paths:(saved.paths??[]).join('\n'),token:''};
+    }
+    return this.gh.draft;
+  }
+  #ghHtml_state() {
+    const g=this.gh, status=github.tokenStatus(game.user,{store:this.#ghStore()});
+    return {draft:this.#ghDraft(),dirty:g.dirty,token:{saved:status.saved,masked:status.masked},packs:g.packs,selected:g.selected,busy:this.busy,stopping:g.stopping,
+      rows:g.rows,progress:g.progress,message:g.message,update:g.update,pulled:g.pulled,syncOn:this.sync.on};
+  }
+  #githubHtml() {
+    if(!game.user?.isGM)return '';
+    return githubView(this.#ghHtml_state());
+  }
+  #bindGithub(root) {
+    root.querySelectorAll('[data-ag-gh-field]').forEach(el=>el.addEventListener('input',()=>{
+      this.#ghDraft()[el.dataset.agGhField]=el.value;
+      if(!this.gh.dirty) { this.gh.dirty=true;void this.#ghDirtyPaint(root); }
+    }));
+    root.querySelectorAll('[data-ag-gh-pack]').forEach(el=>el.addEventListener('change',()=>{
+      const set=new Set(this.gh.selected);
+      if(el.checked)set.add(el.dataset.agGhPack);else set.delete(el.dataset.agGhPack);
+      this.gh.selected=[...set];
+      const pull=root.querySelector('[data-ag-action="gh-pull"]');if(pull)pull.disabled=this.busy||!this.gh.selected.length;
+    }));
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while files are being read.
+    root.querySelector('[data-ag-gh-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.gh.abort)return;
+      this.gh.abort.abort();this.gh.stopping=true;event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-gh-status]');if(el)el.textContent='Stopping…';
+    });
+  }
+  /** Typing never re-renders (focus stays in the box); only the Save button and its "Unsaved changes" note appear. */
+  async #ghDirtyPaint(root) {
+    const save=root.querySelector('[data-ag-action="gh-save"]');
+    if(save) { save.disabled=this.busy;
+      if(!save.parentElement.querySelector('[data-ag-gh-dirty]')) save.insertAdjacentHTML('afterend','<span class="agmanager-tiny" role="status" data-ag-gh-dirty>Unsaved changes</span>'); }
+  }
+  /** Saves the form (settings and, when typed, the token). Changing the repository, branch or paths forgets the packs found for the old ones. */
+  async #ghCommit() {
+    const d=this.#ghDraft(), store=this.#ghStore(), before=github.loadConfig(game.user,{store}).config;
+    const saved=await github.saveConfig(game.user,{store,input:{repo:d.repo,branch:d.branch,paths:d.paths}});
+    if(!saved.ok)return saved;
+    if(String(d.token??'').trim()) {
+      const t=await github.saveToken(game.user,{store,token:d.token});
+      if(!t.ok)return t;
+      d.token='';
+    }
+    d.repo=saved.config.repo;d.branch=saved.config.branch;d.paths=saved.config.paths.join('\n');
+    if(JSON.stringify(before)!==JSON.stringify(saved.config)) Object.assign(this.gh,{packs:[],selected:[],rows:[],pulled:null,update:null});
+    this.gh.dirty=false;
+    return {ok:true,config:saved.config};
+  }
+  async #ghSave() {
+    const r=await this.#ghCommit();
+    this.gh.message=r.ok?{tone:'info',text:'Settings saved. The token, if you entered one, is kept on this device only.'}:{tone:'danger',text:r.message};
+    await this.render();
+  }
+  async #ghRemoveToken() {
+    const yes=await confirmDanger('Remove the GitHub token from this device? Pulling from GitHub stops working here until you save a token again. The token itself stays valid on GitHub: delete it there too if you no longer want it to exist.',{title:'Remove token?',yes:'Remove token'});
+    if(!yes)return;
+    const r=await github.removeToken(game.user,{store:this.#ghStore()});
+    this.gh.message={tone:r.ok?'info':'danger',text:r.message};
+    await this.render();
+  }
+  /** Runs one network job with the window locked and a Cancel button; the job gets the abort signal. */
+  async #ghWork(job) {
+    const committed=await this.#ghCommit();
+    if(!committed.ok) { this.gh.message={tone:'danger',text:committed.message};await this.render();return; }
+    if(!github.tokenStatus(game.user,{store:this.#ghStore()}).saved) { this.gh.message={tone:'danger',text:'Paste a GitHub token first (see Token above).'};await this.render();return; }
+    const controller=new AbortController();
+    Object.assign(this.gh,{abort:controller,stopping:false,message:null});
+    this.busy=true;await this.render();
+    try { await job(controller.signal,committed.config); }
+    finally { this.busy=false;Object.assign(this.gh,{abort:null,stopping:false,progress:null});await this.render(); }
+  }
+  async #ghFind() {
+    await this.#ghWork(async (signal,config)=>{
+      this.gh.update=null;
+      const r=await github.findPacks(game.user,{store:this.#ghStore(),signal,config});
+      const notes=(r.notes??[]).slice(0,4).join(' ');
+      if(!r.ok) { this.gh.packs=[];this.gh.selected=[];this.gh.message={tone:r.cancelled?'info':'danger',text:r.message}; return; }
+      this.gh.packs=r.packs.map(p=>({id:p.id,label:p.label,fileCount:p.files.length,missing:p.files.filter(f=>f.missing).length,files:p.files.map(f=>f.path)}));
+      this.gh.selected=this.gh.packs.map(p=>p.id);
+      this.gh.pulled=null;this.gh.rows=[];
+      this.gh.message={tone:'info',text:`Found ${r.packs.length===1?'1 pack':`${r.packs.length} packs`} on ${config.branch}. Tick the ones to pull.${notes?` ${notes}`:''}`};
+    });
+  }
+  async #ghCheck() {
+    await this.#ghWork(async (signal,config)=>{
+      const r=await github.checkForUpdates(game.user,{store:this.#ghStore(),signal,config});
+      this.gh.update=r.ok?{tone:r.upToDate?'info':'warn',text:updateSummary(r)}:{tone:r.cancelled?'info':'danger',text:r.message};
+    });
+  }
+  async #ghPull() {
+    await this.#ghWork(async (signal,config)=>{
+      const wanted=this.gh.selected.filter(id=>this.gh.packs.some(p=>p.id===id));
+      const rows=new Map();
+      for(const pack of this.gh.packs.filter(p=>wanted.includes(p.id))) for(const path of pack.files) rows.set(path,{path,status:'waiting'});
+      this.gh.rows=[...rows.values()];this.gh.pulled=null;this.gh.update=null;
+      this.gh.progress={done:0,total:rows.size};
+      await this.render();
+      let lastPaint=0;
+      const paint=({path,status,done,total})=>{
+        const row=rows.get(path)??{path,status};rows.set(path,row);row.status=status;
+        this.gh.progress={done,total};
+        const now=Date.now();
+        if(now-lastPaint<120&&status!=='failed')return;
+        lastPaint=now;
+        const bar=this.element?.querySelector('[data-ag-gh-bar]');if(bar)bar.value=total?Math.min(1,done/total):0;
+        const label=this.element?.querySelector('[data-ag-gh-status]');if(label&&!this.gh.stopping)label.textContent=`${done} of ${total} file${total===1?'':'s'} read`;
+        const table=this.element?.querySelector('[data-ag-gh-rows]');if(table)table.innerHTML=rowsTable([...rows.values()]);
+      };
+      const r=await github.pullPacks(game.user,{store:this.#ghStore(),signal,config,manifestPaths:wanted,onProgress:paint});
+      this.gh.rows=[...rows.values()];
+      if(!r.ok) {
+        const detail=(r.failed??[]).slice(0,3).map(f=>f.message).join(' ');
+        this.gh.message={tone:r.cancelled?'info':'danger',text:`${r.message}${detail&&!r.cancelled&&!r.message.includes(detail)?` ${detail}`:''}`};
+        return;
+      }
+      await github.recordPull(game.user,{store:this.#ghStore(),config,state:r.state});
+      const usable=r.files.filter(f=>!f.ledger);
+      this.gh.pulled={files:r.files,count:usable.length,ledger:r.files.filter(f=>f.ledger).map(f=>f.path),commit:r.commit};
+      this.gh.message={tone:'ok',text:`Read ${r.files.length} file${r.files.length===1?'':'s'} from GitHub. Nothing in your world has changed.${r.notes?.length?` ${r.notes.join(' ')}`:''}`};
+    });
+  }
+  /** The pulled files through Sync's own input stage; if any one is refused none is added (a half-read pack would look like deletions). */
+  async #ghSyncInputs() {
+    const made=github.syncFiles(game.user,{files:this.gh.pulled?.files});
+    if(!made.ok||!made.files.length)return {problems:[made.message??'There are no JSON files to send. The pack lists only gathering node files or files that are not JSON.'],inputs:[]};
+    const inputs=[],problems=[];
+    for(const file of made.files) {
+      try { const input=await this.#syncRead(file);input.github=true;inputs.push(input); }
+      catch(error) { problems.push(String(error?.message??error)); }
+    }
+    return {problems,inputs};
+  }
+  async #ghSendSync() {
+    if(!this.gh.pulled)return;
+    const {problems,inputs}=await this.#ghSyncInputs();
+    if(problems.length) { this.gh.message={tone:'danger',text:`Nothing was sent to Sync. ${problems.slice(0,3).join(' ')}`};await this.render();return; }
+    // An earlier pull's files are replaced as a set, so a file the manifest dropped does not linger; files you chose by hand stay.
+    this.sync.inputs=[...this.sync.inputs.filter(i=>!i.github),...inputs];
+    this.sync.on=true;
+    this.#syncDrop('Files pulled from GitHub. Review the preview below; nothing in your world changes until you confirm.');
+    this.gh.message={tone:'info',text:`${inputs.length} file${inputs.length===1?'':'s'} sent to Sync from package.`};
+    await this.#syncPreview();
+  }
+  /** Normal import instead of Sync: the files become a ZIP-style list (Manager packages first), each previewed and applied in turn. */
+  async #ghSendImport() {
+    if(!this.gh.pulled)return;
+    const {problems,inputs}=await this.#ghSyncInputs();
+    if(problems.length) { this.gh.message={tone:'danger',text:`Nothing was loaded. ${problems.slice(0,3).join(' ')}`};await this.render();return; }
+    const files=inputs.flatMap(i=>i.sources.map(src=>({filename:src.filename,kind:src.kind,label:src.label,count:src.records,payload:src.payload,status:'ok',notice:'',duplicateIds:[]})));
+    sortBundleFiles(files,files.map(f=>f.filename.split('/').at(-1)));
+    this.#clearLoaded('');
+    this.zipMedia=new Map();
+    this.zipBundle={source:'GitHub',files,skipped:inputs.flatMap(i=>i.skipped),assets:new Map(),duplicateArt:[],picked:new Set(files.map(f=>f.filename)),queue:null,current:null,outcome:new Map(),
+      auto:false,autoUpdates:false,autoRunning:false,stopRequested:false,paused:null,summary:new Map()};
+    this.message=`GitHub: ${bundleSummary(this.zipBundle)} Tick the files to import, then press Import selected files. Nothing in your world has changed.`;
+    this.gh.message={tone:'info',text:'The files are listed under ZIP contents in the normal import.'};
+    this.tab='import';await this.render();
+  }
+
+  // ---------- Sync from package (0.56.0) ----------
+  /** The mode switch and the Sync section. Off by default; while it is on the normal import is paused, never mixed in. */
+  #bindSync(root) {
+    // The sync picker takes every chosen file at once; the shared binding above ignores it (#pickFile does nothing for 'sync').
+    const section=root.querySelector('.agm-sync');
+    if(section)bindFileButtons(section,files=>this.#syncPick(files).catch(err=>this.#fail(err)));
+    root.querySelector('[data-ag-sync-mode]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.on=Boolean(event.target.checked);
+      this.focusAfterRender='[data-ag-sync-mode]';void this.render();
+    });
+    root.querySelector('[data-ag-sync-edited]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.overwriteEdited=Boolean(event.target.checked);
+      this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
+      this.focusAfterRender='[data-ag-sync-edited]';void this.render();
+    });
+    root.querySelector('[data-ag-sync-unscoped]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.deleteUnscoped=Boolean(event.target.checked);
+      this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
+      this.focusAfterRender='[data-ag-sync-unscoped]';void this.render();
+    });
+    // The red button only wakes up when the phrase is typed; typing never re-renders, so focus stays in the box.
+    root.querySelector('[data-ag-sync-phrase]')?.addEventListener('input',event=>{
+      this.sync.phrase=event.target.value;
+      const run=root.querySelector('[data-ag-sync-run]');if(run)run.disabled=this.busy||!phraseOk(this.sync.phrase);
+    });
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while the sync writes.
+    root.querySelector('[data-ag-sync-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.sync.abort)return;
+      this.sync.abort.abort();this.sync.stopping=true;event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-sync-status]');if(el)el.textContent='Stopping after the current chunk…';
+    });
+  }
+  #syncDrop(message) {
+    Object.assign(this.sync,{set:null,plan:null,phrase:'',result:null,progress:null,stopping:false,message});
+  }
+  #syncHtml() {
+    const s=this.sync, joined=joinSyncInputs(s.inputs);
+    return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
+      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message});
+  }
+  #syncFileButton() {
+    return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
+  }
+  /** One chosen file through Sync's own input stage, with the counts the file table shows. */
+  async #syncRead(file) {
+    const input=await readSyncInput(file);
+    input.sources=input.sources.map(src=>({...src,records:src.kind==='manager'?src.payload.records.length:SPECIALIST_COUNT(src),packageId:src.kind==='manager'?src.payload.manifest?.package_id??null:null}));
+    return input;
+  }
+  /** Reads every chosen file (JSON or ZIP) without touching the world; files already chosen stay, a file picked again replaces its earlier copy. */
+  async #syncPick(files) {
+    if(this.busy)return;
+    const problems=[];
+    for(const file of files) {
+      try {
+        const input=await this.#syncRead(file);
+        this.sync.inputs=[...this.sync.inputs.filter(i=>i.name!==file.name),input];
+      } catch(error) { problems.push(String(error?.message??error)); }
+    }
+    this.#syncDrop(problems.length?`${problems.join(' ')} The other files were read. Nothing in your world changed.`:'Files read. Press Preview sync to see exactly what would change. Nothing in your world has changed.');
+    await this.render();
+  }
+  /** What a sync must know about the world; the planner never touches Foundry itself. */
+  #syncPlanContext() {
+    const folders=folderIndex([...(game.folders?.contents??[])]);
+    const sceneActorIds=new Set((game.scenes?.contents??[]).flatMap(scene=>(scene.tokens?.contents??[]).map(t=>t.actorId).filter(Boolean)));
+    const hotbarMacroIds=new Set((game.users?.contents??[]).flatMap(user=>Object.values(user.hotbar??{})));
+    const locApi=locationsApi(game), rteApi=routesApi(game), shpApi=shopsApi(game);
+    const locationIds=locApi?new Set(locApi.listLocations().map(l=>l.id)):null;
+    const routeIds=rteApi?new Set(rteApi.listRoutes().map(r=>r.id)):null;
+    const shopSet=shopIds(shpApi);
+    const copies=new Map();
+    const worldUuid=new Map(allBoundDocuments().filter(d=>d.documentName==='Item').map(d=>[d.uuid,sourceFlag(d).sourceId]));
+    for(const actor of (game.actors?.contents??[])) {
+      if(actor.type!=='character')continue;
+      for(const item of actor.items?.contents??[]) {
+        const id=item.getFlag?.(MODULE_ID,'source')?.sourceId??worldUuid.get(item.flags?.core?.sourceId??item._stats?.compendiumSource);
+        if(id)copies.set(id,(copies.get(id)??0)+1);
+      }
+    }
+    const handed=moduleRecordIndex(locApi,shpApi);
+    return {includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,
+      retiredIds:new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),ledger:game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{},
+      buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
+      externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
+      sceneActorIds,hotbarMacroIds,isProtectedFolder:id=>Boolean(id&&folders.isProtected(id)),
+      locationIds,routeIds,shopIds:shopSet,specialistApi:kind=>specialistApi(game,kind),moduleHas:(kind,id)=>handed(kind,id),
+      validateExtra:records=>[...cinderDefinitionChecks(game,records).errors,...modifierDefinitionChecks(game,records).errors],
+      copyCount:id=>copies.get(id)??0};
+  }
+  #syncWorld(ctx) {
+    const docs=[];
+    for(const type of MANAGED_TYPES) for(const doc of documentsOfType(type)) if(sourceFlag(doc)?.sourceId)docs.push(makeSnapshot(doc,ctx));
+    const all=MANAGED_TYPES.flatMap(type=>documentsOfType(type));
+    return {docs,characterCount:(game.actors?.contents??[]).filter(a=>a.type==='character').length,unflaggedNames:nameIndex(all)};
+  }
+  /** ZIP artwork: the same destination folder as a normal import, so the preview shows the paths the upload will give. */
+  #syncSources(joined) {
+    const assets=joined.assets;
+    if(!assets.size)return joined.sources;
+    return joined.sources.map(src=>{
+      if(src.kind!=='manager')return src;
+      const base=this.#syncArtBase(src.payload.manifest.package_id);
+      const paths=new Map([...assets.keys()].map(name=>[name,`${base}/${name}`]));
+      const records=src.payload.records.map(record=>this.uploadZipArtwork?adaptRecordArtwork(record,paths):withoutBundledArt(record,assets));
+      return {...src,payload:{...src.payload,records}};
+    });
+  }
+  #syncArtBase(packageId) { return `worlds/${game.world.id}/ashen-gate-imports/${String(packageId).toLowerCase().replace(/[^a-z0-9-]/g,'-')}`; }
+  async #syncPreview() {
+    const joined=joinSyncInputs(this.sync.inputs);
+    if(!joined.sources.length) { this.sync.message='Choose at least one package file first.'; return this.render(); }
+    this.sync.set=buildSyncSet(this.#syncSources(joined));
+    const ctx=this.#syncPlanContext();
+    this.sync.plan=planSync(this.sync.set,this.#syncWorld(ctx),ctx);
+    this.sync.phrase='';this.sync.result=null;
+    const c=this.sync.plan.counts;
+    this.sync.message=this.sync.plan.ok?`Preview: ${c.create} to create, ${c.overwrite} to overwrite, ${c.keptEdited} kept (edited in your world), ${c.delete} to delete, ${c.untouched} untouched. Nothing has changed yet.`:'Preview stopped: see the problems below. Nothing has changed.';
+    await this.render();
+  }
+  #syncPreviewFile() {
+    const plan=this.sync.plan;
+    return {schema:'ag-sync-preview/1',created_at:new Date().toISOString(),counts:plan.counts,gm_edited_fields_lost:plan.lost,scope:plan.scope,notes:plan.notes,errors:plan.errors,
+      rows:plan.rows.map(r=>({group:r.group,id:r.id,name:r.name,kind:r.kind,reason:r.reason,refused:Boolean(r.refused),metadata_only:Boolean(r.metadataOnly),module:r.module??null,
+        changes:r.changes.map(({label,from,to,gmEdited})=>({field:label,now:from,package:to,gm_edit_replaced:gmEdited}))}))};
+  }
+  #syncReport() {
+    if(!this.sync.plan)return;
+    downloadJson(`AG_Sync_Preview_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncPreviewFile());
+    toast('Downloaded the full preview. Nothing changed.');
+  }
+  #syncBackupData(plan) {
+    let modules=null;
+    try { modules=collectModuleSections(game); } catch(error) { modules={error:String(error?.message??error)}; }
+    return buildSyncBackup(plan,{world:game.world,modules});
+  }
+  #syncBackupFile() {
+    if(!this.sync.plan?.ok)return;
+    downloadJson(`AG_Sync_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncBackupData(this.sync.plan));
+    toast('Downloaded the backup of everything this sync would overwrite or delete. Nothing changed.');
+  }
+  async #syncRun() {
+    const plan=this.sync.plan;
+    if(!plan?.ok)return;
+    if(!phraseOk(this.sync.phrase)) { toast(`Type "${SYNC_PHRASE}" to confirm.`,true); return; }
+    const c=plan.counts;
+    const yes=await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are${c.keptRemoved?` (${c.keptRemoved} of them are no longer in the files and are not deleted)`:''}`:''} and ${c.delete} deleted${plan.overwriteEdited?' (including records you edited that the files no longer carry)':''}${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
+      {title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel});
+    if(!yes)return;
+    const set=this.sync.set, controller=new AbortController();
+    Object.assign(this.sync,{abort:controller,stopping:false,result:null,progress:{pct:0,label:'Starting…'}});
+    this.busy=true;await this.render();
+    const results=[];
+    const paint=({phase,label,done,total})=>{
+      const pct=total?Math.min(1,done/total):1;
+      this.sync.progress={pct,label:`${phase==='backup'?'Backup':phase==='check'?'Checking':'Sync'}: ${label}${total&&phase!=='backup'&&phase!=='check'?` (${done} of ${total})`:''}`};
+      const bar=this.element?.querySelector('[data-ag-sync-bar]');if(bar)bar.value=pct;
+      const el=this.element?.querySelector('[data-ag-sync-status]');if(el&&!this.sync.stopping)el.textContent=this.sync.progress.label;
+    };
+    const log={at:new Date().toISOString(),packageId:`${SYNC_NAME}: ${plan.scope.lines.map(l=>l.packageId).join(', ')||'specialist files'}`,packageVersion:plan.scope.lines.flatMap(l=>l.versions).join(', ')||'—',results:[]};
+    let outcome=null,failure=null;
+    try {
+      await runFolderRenames();
+      outcome=await executeSync(plan,this.#syncAdapter(set,results),{user:game.user,confirmation:this.sync.phrase,signal:controller.signal,onProgress:paint,chunk:20});
+      log.results.push(...outcome.log.filter(r=>r.status!=='note'||r.message));
+    } catch(error) {
+      failure=String(error?.message??error);
+      console.error(`[${MODULE_ID}] ${SYNC_NAME} failed`,error);
+      log.results.push({action:'sync-aborted',status:'error',message:failure,id:'—'});
+    } finally {
+      this.busy=false;this.sync.abort=null;this.sync.progress=null;this.sync.stopping=false;
+      const prior=game.settings.get(MODULE_ID,'importHistory')??[];
+      await game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40));
+    }
+    const k=outcome?.counts;
+    const lines=failure?[`${SYNC_NAME} stopped before finishing: ${failure}`,'Anything already written stays; the sync is safe to run again.']
+      :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
+        ...(outcome.cancelled?['Run the same files again to finish; what is already done is not repeated.']:[]),
+        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)).slice(0,8).map(r=>`${r.id??''} ${r.action??''}: ${r.message??r.status}`)];
+    await this.#syncPreview();
+    this.sync.result={tone:failure||k?.failed?'danger':outcome?.cancelled||k?.skipped?'warn':'ok',lines};
+    toast(lines[0],Boolean(failure||k?.failed));
+    await this.render();
+  }
+  /** The Foundry-specific half of a sync run (the planner and executor are tested without Foundry). */
+  #syncAdapter(set,results) {
+    const records=[...set.records.values()].map(r=>r.record);
+    const present=id=>{const ids=new Set(existingSourceIndex().keys());ids.add(id);return ids;};
+    return {
+      backup: async plan=>{ downloadJson(`AG_Sync_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncBackupData(plan)); },
+      replan: async ()=>{ const ctx=this.#syncPlanContext(); return planSync(set,this.#syncWorld(ctx),ctx); },
+      uploadArt: async rows=>{
+        if(!this.uploadZipArtwork)return;
+        const assets=joinSyncInputs(this.sync.inputs).assets;
+        if(!assets.size)return;
+        const byLine=new Map();
+        for(const row of rows)(byLine.get(row.manifest.package_id)??byLine.set(row.manifest.package_id,[]).get(row.manifest.package_id)).push(row.record);
+        for(const [line,recs] of byLine) {
+          const base=this.#syncArtBase(line), got=await uploadMatchingArt(assets,recs,base,entry=>results.push(entry));
+          for(const [name,path] of got) if(path!==`${base}/${name}`) throw new Error(`Foundry stored ${name} at ${path}, not where the preview said (${base}/${name}). Nothing was written; use Foundry's file browser to check the folder.`);
+        }
+      },
+      create: async row=>createRecord(row.record,{manifest:row.manifest},present(row.id),entry=>results.push({...entry,id:entry.id??row.id}),{smart:this.smartIcons}),
+      docFor: row=>foundDocuments(row.id)[0],
+      buildFlag: row=>sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),
+      // The importer's own ownership rule (release.js): an update raises a plain None default to Observer for approved, player-visible records.
+      extraUpdate: (doc,row)=>{const levels=CONST.DOCUMENT_OWNERSHIP_LEVELS;return releasable(doc,sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),levels)?{'ownership.default':levels.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:levels.OBSERVER}:{};},
+      bindLinks: async (rows,log)=>{
+        const plans=new Map(rows.filter(r=>r.kind==='Actor'&&r.group==='overwrite').map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
+        await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':'update',kind:r.kind})),log:{results:log},plans});
+      },
+      apis: {locations:locationsApi(game),routes:routesApi(game),shops:shopsApi(game),specialist:kind=>specialistApi(game,kind)},
+      retire: async ids=>{ const prior=new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]);for(const id of ids)prior.add(id);await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...prior].sort()); },
+      saveLedger: saveLedgerEntries,
+      pause: ()=>new Promise(resolve=>setTimeout(resolve,0))
+    };
+  }
   #fail(error) {
     console.error(`[${MODULE_ID}]`,error);
     this.message=String(error?.message??error);
@@ -2904,7 +3514,7 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/my-appearance.hbs`}};
   constructor(options={}){
     super({...options,position:{...windowSize(AshenGateMyAppearance.DEFAULT_OPTIONS.position),...options.position}});
-    myAppearanceApp=this;this.selection=null;this.sizeSelection=null;this.status='Select a skin, or inherit the GM world default.';
+    myAppearanceApp=this;this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.status='Select a skin, or inherit the GM world default.';
     // 0.46.0: skin and size both wait for Save My Appearance; closing with a change asks first.
     this.guard=guardDirty({status:()=>this.element?.querySelector('[data-ag-my-appearance-status]')});
   }
@@ -2918,18 +3528,20 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
       skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected})),
-      sizes:appearanceController.listSizes().map(s=>({...s,selected:s.id===size}))};
+      sizes:appearanceController.listSizes().map(s=>({...s,selected:s.id===size})),
+      styleChat:this.chatSelection??state.chat};
   }
   async _onRender(ctx,options){
     await super._onRender(ctx,options);
     const root=this.element;
     bindSkinPicker(root.querySelector('[data-ag-skin-picker="my"]'),value=>{this.selection=value;this.guard.markDirty();});
     bindSkinPicker(root.querySelector('[data-ag-size-picker="my"]'),value=>{this.sizeSelection=value;this.guard.markDirty();},{valueKey:'agSizeValue'});
+    root.querySelector('[data-ag-chat-style]')?.addEventListener('change',e=>{this.chatSelection=e.currentTarget.checked;this.guard.markDirty();});
     if(this.guard.dirty)this.guard.markDirty();
     root.querySelector('[data-ag-my-help]')?.addEventListener('click',e=>{e.preventDefault();
       void infoDialog('My Appearance help','<p>Pick a skin for every Ashen Gate window, or <strong>Inherit world default</strong> to follow the GM\u2019s choice. <strong>Size</strong> makes text and controls larger on this device only. Nothing changes until <strong>Save My Appearance</strong>; Cancel puts back what is saved.</p><p>This never opens GM tools, and it never changes Player Access, progress or permissions.</p>');});
     root.querySelector('[data-ag-my-cancel]')?.addEventListener('click',async e=>{
-      e.preventDefault();this.selection=null;this.sizeSelection=null;this.guard.markClean();this.status='Changes discarded.';await this.render();
+      e.preventDefault();this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.guard.markClean();this.status='Changes discarded.';await this.render();
     });
     root.querySelector('[data-ag-my-save]')?.addEventListener('click',async e=>{
       e.preventDefault();const button=e.currentTarget;button.disabled=true;
@@ -2937,8 +3549,9 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
         const chosen=this.selection===null ? (state.userOverride??'') : this.selection;
         await appearanceController.setUserOverride(chosen);
         if(this.sizeSelection&&this.sizeSelection!==state.size)await appearanceController.setSize(this.sizeSelection);
+        if(this.chatSelection!==null&&this.chatSelection!==state.chat)await appearanceController.setChat(this.chatSelection);
         this.status=chosen?'Your personal Ashen Gate appearance is saved.':'You now inherit the GM world default.';
-        this.selection=null;this.sizeSelection=null;this.guard.markClean();await this.render();
+        this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.guard.markClean();await this.render();
       }catch(error){this.status=`Unable to save appearance: ${error.message}`;await this.render();}
       finally{button.disabled=false;}
     });
@@ -2972,6 +3585,129 @@ class AshenGateCodexPlayer extends ApplicationV2 {
   }
 }
 /** 0.40.0: Codex deity links open Renown's Pantheon (api.open, feature-detected). A failure is a notice, never a crash. */
+/**
+ * After documents are written: binds [[AGREF]] markers and typed references to real UUIDs and refreshes each document's
+ * stored baseline. Shared by Import and Sync from package (0.56.0). `rows` are the written rows ({id, action}); plans holds each
+ * Actor row's plan (its touched Items).
+ */
+async function resolvePackageLinks({pkg,rows,log,plans}) {
+  // Complete-world UUID index: only actual saved documents are addressable.
+  // Resolve after the *whole* batch; record order and reference cycles do not matter.
+  const uuidIndex=buildUuidIndex(allBoundDocuments());
+  // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
+  const moduleRecord=moduleRecordLookup(game);
+  for(const row of rows) {
+    if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
+    const record=pkg.records.find(r=>r.id===row.id);
+    const doc=foundDocuments(row.id)[0];
+    if(!doc) continue;
+    const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
+    for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
+    if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
+    const updates={};
+    const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
+    const source=sourceFlag(doc)??{};
+    const currentIds=new Set(uuidIndex.keys());
+    updates[`flags.${MODULE_ID}.source.refs`]=projectedReferences(record.refs,currentIds);
+    const newFields={...(source.managedFields??{})};
+    updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
+    updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
+    updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
+    // Only source-provided rich-text paths receive AGREF substitution. 0.60.3: a cell marked data-ag-ref="<relation>" becomes
+    // a content link to that typed ref's target (plain text when it is missing or not player-visible); nothing else is appended.
+    const hostVisibility=record.visibility;
+    const refCells=text=>stripReferenceBlock(resolveRefCells(text,bindings,{
+      nameOf:id=>uuidIndex.get(id)?.[0]?.name??'',
+      canLink:id=>hostVisibility==='gm'||sourceFlag(foundDocuments(id)[0])?.visibility==='player'}));
+    if(doc.documentName==='Item') {
+      const original=record.foundry.data?.system?.description?.value;
+      if(typeof original==='string') {
+        const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
+        const final=refCells(linked.text);
+        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
+        // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
+        // References section is cleaned up, and a cell re-resolved, only on documents nobody has changed since the import).
+        const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
+        if(row.action==='create'||live===final||live===baseline) {
+          if(live!==final) updates['system.description.value']=final;
+          newFields['system.description.value']=final;
+        }
+        log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length});
+      }
+    } else if(doc.documentName==='Actor') {
+      // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
+      const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
+      const keys=itemKeys(record.foundry.data?.items??[]);
+      const bio=record.foundry.data?.system?.details?.biography?.value;
+      if(created && typeof bio==='string') {
+        const resolved=resolveRichText(bio,uuidIndex);
+        updates['system.details.biography.value']=refCells(resolved.text);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
+      }
+      for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
+        if(!created&&!touched.has(keys[i])) continue;
+        const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
+        if(typeof html!=='string'||!embedded) continue;
+        const resolved=resolveRichText(html,uuidIndex);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
+        if(embedded.system?.description?.value!==resolved.text) try{await embedded.update({'system.description.value':resolved.text});}catch(e){log.results.push({id:row.id,action:'actor-item-link',status:'error',message:String(e.message??e)});}
+      }
+    } else if(doc.documentName==='RollTable') {
+      const text=record.foundry.data?.description;
+      if(typeof text==='string') {
+        const resolved=resolveRichText(text,uuidIndex);
+        updates.description=refCells(resolved.text);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
+      }
+    } else if(doc.documentName==='JournalEntry') {
+      const pages=record.foundry.data?.pages??[];
+      for(const [pi,pageDef] of pages.entries()) {
+        // Sync from package (0.56.0): pages are found by name when the name is unique (a sync can add or drop pages), else by position.
+        const named=doc.pages?.contents?.filter(p=>p.name===pageDef.name)??[];
+        const page=named.length===1?named[0]:doc.pages?.contents?.[pi];
+        if(!page || typeof pageDef.text?.content!=='string') continue;
+        const linked=resolveRichText(pageDef.text.content,uuidIndex);
+        const final=refCells(linked.text);
+        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
+        try{
+          // Rewrite only a page nobody edited: created this run, or equal to the new text once a legacy References section is removed.
+          if(page.text?.content!==final&&(row.action==='create'||stripReferenceBlock(page.text?.content)===final||page.text?.content===undefined)) await page.update({'text.content':final});
+          log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
+        }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
+      }
+    }
+    updates[`flags.${MODULE_ID}.source.managedFields`]=newFields;
+    try{
+      await doc.update(updates);
+      if(bindings.length) log.results.push({id:row.id,action:'uuid-bind',status:'ok',bindings:bindings.length});
+    }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
+  }
+}
+/** Sync from package (0.56.0): ZIP artwork cannot be uploaded when the GM turned that off, so a record keeps its current image instead of a broken path. */
+function withoutBundledArt(record,assets) {
+  const data=record.foundry?.data;
+  if(!data)return record;
+  const named=value=>{const name=mediaFilename(value);return Boolean(name&&assets.has(name));};
+  if(!named(data.img)&&!named(data.prototypeToken?.texture?.src))return record;
+  const clone=structuredClone(record);
+  if(named(clone.foundry.data.img))delete clone.foundry.data.img;
+  if(named(clone.foundry.data.prototypeToken?.texture?.src))delete clone.foundry.data.prototypeToken.texture.src;
+  return clone;
+}
+const SPECIALIST_COUNT=src=>specialistCount(src.kind,src.payload);
+/** Which module-owned ids still exist, for "Not removed: remove it in <module>" (undefined when Manager cannot tell). */
+function moduleRecordIndex(locApi,shpApi) {
+  const loc=locApi?new Set(locApi.listLocations().map(l=>l.id)):null, shop=shopIds(shpApi);
+  return (kind,id)=>kind==='Location'||kind==='Route'?(loc?loc.has(id):undefined):['Shop','Service','MerchantList'].includes(kind)?(shop?shop.has(id):undefined):undefined;
+}
+/** Remembers which ids Manager passed to other modules, per package line, so a later sync can say what a newer package no longer carries. */
+async function saveLedgerEntries(entries) {
+  if(!entries.length)return;
+  const ledger=structuredClone(game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{});
+  for(const e of entries)(ledger[e.key]??={})[e.id]=e.info;
+  await game.settings.set(MODULE_ID,HANDOFF_LEDGER_SETTING,ledger);
+}
+const HANDOFF_KINDS={Location:'Locations',Route:'Locations',Shop:'Utilities',Service:'Utilities',MerchantList:'Utilities'};
 function bindDeityLinks(root){
   root?.querySelectorAll?.('[data-ag-codex-deity]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
     try{codexService().openDeity(el.dataset.agCodexDeity);}catch(err){ui.notifications?.warn?.(err.message);}}));
@@ -3017,6 +3753,8 @@ Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value,userId)=>appearanceController?.noteChange(key,value,userId)});
   game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,SYNC_RETIRED_SETTING,{name:"Ids retired by Sync from package",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,HANDOFF_LEDGER_SETTING,{name:"Records handed to other modules",scope:"world",config:false,type:Object,default:{}});
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.
   game.settings.register(MODULE_ID,MOODS_SETTING,{name:"Scene mood presets",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,LAYERS_SETTING,{name:"Scene layer presets",scope:"world",config:false,type:Array,default:[]});
@@ -3031,6 +3769,11 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false,onChange:value=>syncCodexMenu(value)});
   // 0.45.0: one-time folder renames already run in this world ({cinderPowers:true}).
   // 0.45.0: Import tab folds and message drawer, per device (presentation only).
+  // 0.59.0 Pull from GitHub. All three are CLIENT scope on purpose: a world setting is readable by every connected player,
+  // and the token (and the name of a private repository) must stay in this browser.
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.token,{name:"GitHub token (this device only)",scope:"client",config:false,type:String,default:""});
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.config,{name:"GitHub pull settings",scope:"client",config:false,type:Object,default:{}});
+  game.settings.register(MODULE_ID,github.GITHUB_SETTINGS.state,{name:"GitHub last pull",scope:"client",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,LAYOUT_SETTING,{name:"Import tab layout",scope:"client",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,FOLDER_RENAMES_SETTING,{name:"Folder renames",scope:"world",config:false,type:Object,default:{}});
   // 0.47.0: Items → Checks → Improve icons keeps its last run here for one-step Undo ({at, applied:[{uuid, before, after}]}).
@@ -3076,6 +3819,10 @@ Hooks.once("ready",()=>{
   }catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
   applyDocumentSkin();
   appearanceController.subscribe(applyDocumentSkin);
+  // Compact pause: mirror Foundry's paused state to html[data-ag-paused]; styles/pause.css only acts when the GM setting is on.
+  try{installPauseMirror({game,hooks:Hooks,doc:document});}catch(error){console.warn(`[${MODULE_ID}] Pause indicator not installed`,error);}
+  // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
+  if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
   game.modules.get(MODULE_ID).api = {
     appearance:{
       contract:APPEARANCE_CONTRACT,

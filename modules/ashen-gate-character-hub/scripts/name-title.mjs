@@ -71,11 +71,6 @@ export function nameEditBtn(actor, user = globalThis.game?.user) {
   if (!canRename(actor, user)) return '';
   return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon ag-btn--sm agch-head__edit" data-action="name-edit" aria-label="${esc(EDIT_LABEL)}" data-tooltip="${esc(EDIT_LABEL)}"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`;
 }
-/** The same action as an item of the header's "⋯" menu (for keyboard users). */
-export function nameMenuItem(actor, user = globalThis.game?.user) {
-  if (!canRename(actor, user)) return '';
-  return `<button type="button" class="ag-btn ag-btn--ghost agch-menu__btn" data-action="name-edit" data-menu-item data-tooltip="Change the character's name and the title shown beside it"><i class="fa-solid fa-pen" aria-hidden="true"></i><span>${esc(EDIT_LABEL)}</span></button>`;
-}
 
 const dialogV2 = () => globalThis.foundry?.applications?.api?.DialogV2;
 const formOf = (event, button, dialog) => button?.form ?? event?.currentTarget?.form ?? dialog?.element?.querySelector?.('form') ?? null;

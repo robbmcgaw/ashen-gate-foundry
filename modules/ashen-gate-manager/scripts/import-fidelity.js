@@ -117,6 +117,29 @@ export function resolveTypedRefs(refs,index,excludeIds=[],moduleRecord=null){
   return {bindings,issues,moduleLinks};
 }
 /**
+ * Related-record cells (0.60.3). Contract: an author marks an element (normally a table cell) in a description with
+ * data-ag-ref="<relation>" and puts the target's plain display name inside, e.g. <td data-ag-ref="created_by">Iron Caltrops</td>.
+ * <relation> is the relation of one of the record's typed refs (created_by, gathered_by, ...). On import the cell content becomes a
+ * world-local content link, @UUID[...]{Iron Caltrops}, when that target exists in the world and `canLink(target_id)` allows it;
+ * otherwise it stays plain text. The marker attribute is kept so every re-import resolves again from the source text. Nothing is
+ * appended for refs that have no marker, and a raw id or relation name is never shown.
+ * `bindings` = resolveTypedRefs(...).bindings; `nameOf(target_id)` = the target's display name; returns the new html.
+ */
+const REF_ID_LIKE=/^[A-Z]+(?:-[A-Z0-9_]+)+$/;
+export function resolveRefCells(html,bindings,{nameOf=()=>'',canLink=()=>false}={}){
+  if(typeof html!=='string'||!html.includes('data-ag-ref'))return html;
+  return html.replace(/(<([a-z][a-z0-9]*)\b[^>]*\bdata-ag-ref="([A-Za-z0-9_]+)"[^>]*>)([\s\S]*?)(<\/\2>)/g,(whole,open,tag,relation,inner,close)=>{
+    let label=inner.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g,'$1').replace(/<[^>]*>/g,'').replace(/[{}\[\]]/g,'').trim();
+    const candidates=(bindings??[]).filter(b=>b.relation===relation);
+    const named=candidates.filter(b=>label&&String(nameOf(b.target_id)).toLowerCase()===label.toLowerCase());
+    const pick=named[0]??(candidates.length===1?candidates[0]:null);
+    if(!label||REF_ID_LIKE.test(label))label=pick?safeLinkLabel(nameOf(pick.target_id)||''):'';
+    if(!label)return `${open}${close}`;
+    return pick&&canLink(pick.target_id)?`${open}@UUID[${pick.uuid}]{${label}}${close}`:`${open}${label}${close}`;
+  });
+}
+
+/**
  * 0.54.2: Manager no longer writes a "References" list into descriptions (it printed raw relation tokens and ids into
  * player-readable text; the bindings live in flags.<module>.source.refs). Older imports left one behind: this removes
  * exactly that section (the one marked data-ag-managed-links) and the line break before it. Idempotent.

@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.28.3';
+export const VERSION = '0.30.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -221,11 +221,20 @@ export function statusEntries(registry) {
   }
   return out;
 }
-/** 0.28.3: the name of the effect on `actor` that carries `statusId`, else the id itself. */
+/** 0.29.2: the name of the effect on `actor` that carries `statusId`, else the id itself. */
 export const unknownStatusLabel = (actor, statusId) => {
   const e = [...(actor?.effects ?? [])].find(x => (x?.statuses instanceof Set ? x.statuses.has(statusId) : Array.isArray(x?.statuses) && x.statuses.includes(statusId)) && typeof x.name === 'string' && x.name);
   return e ? e.name : statusId;
 };
+/**
+ * 0.29.2: the shared conditions list, from `statusEntries(...)` rows: not read-only, not exhaustion, with a label and an image,
+ * sorted by label. [{id, label, img}]
+ */
+export function sharedConditionChoices(entries, {label = e => e.name ?? e.id} = {}) {
+  return entries.filter(e => !isReadOnlyStatus(e.id))
+    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: typeof (e.img ?? e.icon) === 'string' ? (e.img ?? e.icon) : ''}))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
 /** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
 export const STATUS_ALIASES = Object.freeze({blind: 'blinded', charm: 'charmed', deaf: 'deafened', fear: 'frightened', grapple: 'grappled', incapacitate: 'incapacitated', paralysis: 'paralyzed', petrify: 'petrified', poison: 'poisoned', restrain: 'restrained', stun: 'stunned', sleep: 'sleeping', fly: 'flying', burrow: 'burrowing', hover: 'hovering'});
 /** `id` when it is native, else its alias when that is native, else `id` unchanged (and refused as unknown later). */
@@ -257,18 +266,29 @@ export function withController(controllers, userId, on) {
   return next;
 }
 /**
- * Who `user` is for conditions on `actor`: 'gm', 'controller' (any character), 'owner' (owns it and the GM let owners
- * manage it: GM Setup switch `ownersManage` for every character, or the character's unlock), or '' with the reason.
+ * 0.29.2: a player character is a Character actor a player (not the GM) owns or has as their assigned character. Without a
+ * `users` list every Character actor counts as one (the careful reading).
  */
-export function conditionRole({user, actor, unlocks, ownersManage = false, controllers = {}}) {
+export function isPlayerCharacter(actor, users) {
+  if (actor?.type !== 'character') return false;
+  if (!Array.isArray(users)) return true;
+  return users.some(u => u && !u.isGM && (actor.testUserPermission?.(u, 'OWNER') === true || (u.character?.id !== undefined && u.character.id === actor.id)));
+}
+/**
+ * Who `user` is for conditions on `actor` (0.29.2): 'gm' (anyone), 'controller' (a player the GM designated: also other
+ * players' characters), 'owner' (their own character) or 'player' (any actor that is not a player character: monsters,
+ * NPCs, creatures, linked or not), else '' with the reason. Another player's character is the GM's (or a controller's).
+ * The old per-character unlock and "owners manage" switches no longer decide anything: owners always manage their own.
+ */
+export function conditionRole({user, actor, controllers = {}, users} = {}) {
   if (!user) return {role: '', reason: 'Unknown user.'};
   if (!actor) return {role: '', reason: 'Character not found.'};
   if (isLevelBackup(actor)) return {role: '', reason: LEVEL_BACKUP_REFUSAL};
   if (user.isGM) return {role: 'gm', reason: ''};
   if (isController(controllers, user.id)) return {role: 'controller', reason: ''};
-  if (!actor.testUserPermission?.(user, 'OWNER')) return {role: '', reason: `You do not own ${actor.name}.`};
-  if (ownersManage !== true && !isUnlocked(unlocks, actor.id)) return {role: '', reason: `The GM has locked conditions for ${actor.name}.`};
-  return {role: 'owner', reason: ''};
+  if (actor.testUserPermission?.(user, 'OWNER') === true) return {role: 'owner', reason: ''};
+  if (!isPlayerCharacter(actor, users)) return {role: 'player', reason: ''};
+  return {role: '', reason: `${actor.name} is another player's character: only the GM can change its conditions.`};
 }
 /**
  * Whether `user` may remove `statusId` from `actor`. The GM always may. A condition controller may remove native
@@ -276,24 +296,24 @@ export function conditionRole({user, actor, unlocks, ownersManage = false, contr
  * or unlocked the character. Custom statuses are removed by deleting or disabling their source effect, which stays a
  * GM decision. Read-only statuses (isReadOnlyStatus, e.g. the Cinders Strain chip) are refused for everyone, the GM included.
  */
-export function removalDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
+export function removalDecision({user, actor, statusId, nativeIds = [], controllers = {}, users}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (!hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} does not have that condition.`};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be removed here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
-  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  const r = conditionRole({user, actor, controllers, users});
   if (!r.role) return {ok: false, reason: r.reason};
   if (r.role === 'gm') return {ok: true, reason: ''};
   if (!nativeIds.includes(statusId)) return {ok: false, reason: 'Custom statuses can only be removed by the GM.'};
   return {ok: true, reason: ''};
 }
 /** 0.23.0: whether `user` may apply native `statusId` to `actor`. Same people as removal; never a Custom or read-only status. */
-export function applyDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
+export function applyDecision({user, actor, statusId, nativeIds = [], controllers = {}, users}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be applied here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
   if (typeof statusId !== 'string' || !nativeIds.includes(statusId)) return {ok: false, reason: 'Unknown native status.'};
-  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  const r = conditionRole({user, actor, controllers, users});
   if (!r.role) return {ok: false, reason: r.reason};
   if (hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} already has that condition.`};
   return {ok: true, reason: ''};
@@ -307,6 +327,30 @@ export const overlayBackground = (v, surface = '#17191d') => `color-mix(in srgb,
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
   return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id, actor), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
     .filter(g => g.conditions.length);
+}
+
+/**
+ * 0.30.0 overlay cards: one card per player character, conditions or not (plus any other character that has a condition,
+ * as before). Each card: {actorId, name, img, conditions:[{id, label, custom, readOnly, removable}]}, in the given order.
+ */
+export function overlayCards(actors, {users, label = id => id, isNative = () => true, canRemove = () => false} = {}) {
+  return actors.filter(a => a && ((a.statuses?.size ?? a.statuses?.length ?? 0) > 0 || isPlayerCharacter(a, users)))
+    .map(actor => ({actorId: actor.id, name: actor.name, img: typeof actor.img === 'string' ? actor.img : '',
+      conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id, actor), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}));
+}
+export const OVERLAY_OTHER_PC_REASON = "Only the GM or a condition controller can change another player's conditions.";
+/**
+ * 0.30.0: the overlay header controls for the selected card. `enabled` says whether this user may change conditions on
+ * `actor` at all (the same conditionRole the tracker, Apply and Remove use); `reason` is shown beside the disabled controls.
+ * It only shapes the UI: Apply and Remove still go through applyDecision / removalDecision on every call.
+ */
+export function overlayControlState({actor, user, playerAccess = true, controllers = {}, users} = {}) {
+  if (!actor) return {enabled: false, reason: 'Select a character to change its conditions.'};
+  if (!user) return {enabled: false, reason: 'Unknown user.'};
+  if (!user.isGM && playerAccess !== true) return {enabled: false, reason: 'Utilities access is hidden by the GM.'};
+  const r = conditionRole({user, actor, controllers, users});
+  if (r.role) return {enabled: true, reason: ''};
+  return {enabled: false, reason: isPlayerCharacter(actor, users) && !isLevelBackup(actor) ? OVERLAY_OTHER_PC_REASON : r.reason};
 }
 
 /* ---- v0.5.0: party stash rows and the take-out consent poll ---- */
@@ -356,13 +400,14 @@ export const HISTORY_APPROVALS = ['accepted', 'denied', 'timed-out', 'not-requir
 const str = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : null);
 /** One history record. `moved` is false for a denied or timed-out take-out (the item stayed). */
 export function historyEntry({id, kind, approval, user, actor, item, worldTime = null, realTime = Date.now()} = {}) {
-  if (!['deposit', 'withdraw'].includes(kind)) throw new TypeError('History kind must be deposit or withdraw.');
+  if (!['deposit', 'withdraw', 'delete'].includes(kind)) throw new TypeError('History kind must be deposit or withdraw (or delete).');
   if (!HISTORY_APPROVALS.includes(approval)) throw new TypeError('Unknown history approval.');
   const row = item ?? {};
   return {id: String(id ?? `h${realTime}`), kind, approval, moved: approval !== 'denied' && approval !== 'timed-out',
     userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', actorId: str(actor?.id), actorName: str(actor?.name),
     itemName: str(row.name) ?? 'Unnamed Item', itemUuid: str(row.uuid, 400), img: str(row.img, 400), quantity: num(row.quantity) ?? 1,
     ...(num(row.contents) > 0 ? {contents: num(row.contents)} : {}),
+    ...(kind === 'delete' && num(row.left) > 0 ? {left: num(row.left)} : {}),
     worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
 }
 /** 0.13.1: " (with 3 items inside)" for a container entry; '' for anything else, including entries from before 0.13.1. */
@@ -397,6 +442,21 @@ export function moveBundle(item, items, {randomId, strip = []} = {}) {
     return o;
   });
   return {sourceIds: docs.map(d => d.id), data, contents: docs.length - 1};
+}
+/**
+ * 0.29.0: what a stash Delete removes. `requested` is a whole number of the stack, or undefined / 'all' for everything.
+ * A container (one that holds items) is deleted whole, with what it holds; a stack of ordinary items can lose part.
+ * Returns {ok, remove, whole, left} or {ok: false, reason}.
+ */
+export function planStashDelete({quantity, requested, contents = 0, name = 'that item'} = {}) {
+  const have = num(quantity) ?? 1;
+  if (requested === undefined || requested === null || requested === '' || requested === 'all') return {ok: true, remove: have, whole: true, left: 0};
+  const n = Number(requested);
+  if (!Number.isInteger(n) || n < 1) return {ok: false, reason: 'Enter a whole number of 1 or more.'};
+  if (n > have) return {ok: false, reason: `The stash holds only ${have} of ${name}.`};
+  if (n === have) return {ok: true, remove: have, whole: true, left: 0};
+  if (contents > 0) return {ok: false, reason: `${name} holds other items, so it can only be deleted whole.`};
+  return {ok: true, remove: n, whole: false, left: have - n};
 }
 /** Newest last; the oldest entries are trimmed once the cap is passed. Never mutates the input. */
 export function appendHistory(list, entry, cap = STASH_HISTORY_CAP) {
