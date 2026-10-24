@@ -12,7 +12,7 @@ test('image paths: only safe local image files',()=>{
   for(const ok of ['https://assets.forge-vtt.com/5f2a/Art/Level%201.png','https://assets.forge-vtt.com/5f2a/a.webp','https://foo.bar.forge-vtt.com/x/y.jpg','HTTPS://Assets.Forge-VTT.com/a.png'])assert.equal(safeImagePath(ok),ok);
   assert.equal(cssUrl('https://assets.forge-vtt.com/a/b%20c.png'),'url("https://assets.forge-vtt.com/a/b%20c.png")');
   for(const bad of ['https://forge-vtt.com.evil.example/a.png','https://evilforge-vtt.com/a.png','https://forge-vtt.com/a.png','http://assets.forge-vtt.com/a.png','https://user@assets.forge-vtt.com/a.png','https://assets.forge-vtt.com:8080/a.png','https://assets.forge-vtt.com/a.png?x=1','https://assets.forge-vtt.com/a.png#x','https://assets.forge-vtt.com/../a.png','https://assets.forge-vtt.com/%2e%2e/a.png','https://assets.forge-vtt.com/a"b.png','https://assets.forge-vtt.com/<a>.png','https://assets.forge-vtt.com/a.html','file:///etc/a.png','ftp://assets.forge-vtt.com/a.png','//assets.forge-vtt.com/a.png','https://assets.forge-vtt.com//a.png','https://assets.forge-vtt.com/a%zz.png','https://evil.example/a.png','http://a/b.png','//evil.example/a.png','javascript:alert(1)','data:image/png;base64,AAAA','../secret.png','worlds/../a.png','a.png"onerror="x','a.png);background:url(x','worlds/t/<script>.png','worlds\\t\\a.png','worlds/t/a.html','worlds/t/','worlds/t/a%2e%2e.png','',null,undefined,42,'x'.repeat(301)+'.png'])assert.equal(safeImagePath(bad),null,String(bad));
-  assert.equal(cssUrl('a b/c d.png'),'url("a%20b/c%20d.png")');
+  assert.equal(cssUrl('a b/c d.png'),'url("/a%20b/c%20d.png")');
   assert.equal(cssUrl('javascript:alert(1)'),'url("")');
 });
 test('background: fit, opacity and unsafe image handling',()=>{
@@ -23,14 +23,14 @@ test('background: fit, opacity and unsafe image handling',()=>{
   assert.equal(cleanBackground({image:'https://x.test/a.png'}),null);
   assert.equal(backgroundView({background:{image:'https://x.test/a.png'}}),null);
   const v=backgroundView({background:{image:'worlds/t/b.webp',fit:'fixed',opacity:.5}});
-  assert.equal(v.fixed,true);assert.match(v.style,/^--agst-bg-image:url\("worlds\/t\/b\.webp"\);--agst-bg-opacity:0\.5;$/);
+  assert.equal(v.fixed,true);assert.match(v.style,/^--agst-bg-image:url\("\/worlds\/t\/b\.webp"\);--agst-bg-opacity:0\.5;$/);
 });
 test('tiers: sorted, bounded, unsafe icons dropped, bands run to the next tier',()=>{
   const tiers=cleanTiers([{level:2,label:' Two ',y:400,icon:'worlds/t/i2.png'},{level:1,y:0,icon:'https://x.test/i.png'},{level:'x',y:5},{level:3,y:9000}]);
   assert.deepEqual(tiers,[{level:1,label:'',y:0,icon:null},{level:2,label:'Two',y:400,icon:'worlds/t/i2.png'}]);
   const bands=tierBands(tiers,1000);
   assert.deepEqual(bands.map(b=>[b.top,b.height,b.text,b.alt]),[[0,400,'Level 1',false],[400,600,'Two',true]]);
-  assert.equal(bands[0].iconStyle,'');assert.match(bands[1].iconStyle,/--agst-tier-icon:url\("worlds\/t\/i2\.png"\)/);
+  assert.equal(bands[0].iconStyle,'');assert.match(bands[1].iconStyle,/--agst-tier-icon:url\("\/worlds\/t\/i2\.png"\)/);
   assert.equal(cleanTiers(Array.from({length:60},(_,i)=>({level:1,y:i}))).length,40);
 });
 test('look fields round-trip through normalise, export JSON and import; unsafe values are removed',()=>{

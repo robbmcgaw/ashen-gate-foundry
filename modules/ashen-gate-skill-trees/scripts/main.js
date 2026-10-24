@@ -8,7 +8,7 @@ import {
 import {graphEdges,edgeLine} from './graph.mjs';
 import {sanitizePerkHtml} from './perk-html.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
-import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
+import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -23,7 +23,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.23.0';
+const VERSION='0.23.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -679,7 +679,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // GM Setup draft (Player Access): "Unsaved changes" in the footer, and a question before a tab switch or close drops it.
     this.guard=guardDirty({status:()=>this.element?.querySelector?.('[data-agst-setup-status]')});}
   /** Close asks first when GM Setup has unsaved changes. */
-  async close(options){if(!(await this.guard?.confirm()??true))return this;return super.close?.(options);}
+  async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;return super.close?.(options);}
   get actor(){return game.actors?.get(this.actorId)??null;}
   get trees(){return readSelectedTrees(this.playerPreview);}
   /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
@@ -845,7 +845,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const viewport=root.querySelector('.agst-viewport');
     if(viewport){
       viewport.addEventListener('pointerdown',e=>this._pointerDown(e),listenerOptions);
-      viewport.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();this._setZoom(this.zoom+(e.deltaY<0?.1:-.1));},{...listenerOptions,passive:false});
+      viewport.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();this._userZoom();this._setZoom(this.zoom+(e.deltaY<0?.1:-.1));},{...listenerOptions,passive:false});
       if(this._scroll){viewport.scrollLeft=this._scroll.vp[0];viewport.scrollTop=this._scroll.vp[1];}
     }
     const side=root.querySelector('.agst-sidebar-scroll');if(side&&this._scroll)side.scrollTop=this._scroll.side;
@@ -871,9 +871,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const tip=root.querySelector('.agst-tip');
     tip?.addEventListener('keydown',e=>{if(e.key==='Escape'&&this.nodeId){e.stopPropagation();root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}},listenerOptions);
     if(this._focusCard){this._focusCard=false;tip?.querySelector('button')?.focus({preventScroll:true});}
-    if(viewport&&this.tree&&!this._fitted.has(this.treeId)){ // first time this tree opens in this window: the whole width fits
-      this._fitted.add(this.treeId);
-      this._setZoom(fitZoom(viewport.clientWidth,Number(board?.style?.width?.replace('px',''))||0),{exact:true});
+    this._fitWatch?.stop();this._fitWatch=null;
+    if(viewport&&this.tree&&!this._fitted.has(this.treeId)){ // opens fitted: re-fits after layout / resize until the user takes over the zoom
+      this._fitWatch=watchFit(viewport,()=>Number(board?.style?.width?.replace('px',''))||0,z=>this._setZoom(z,{exact:true}));
     }
     root.querySelectorAll('.agst-feature').forEach(el=>el.addEventListener('dragstart',e=>e.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:el.dataset.uuid})),listenerOptions));
     this._restoreFocus(root);
@@ -1066,6 +1066,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!doc?.sheet){notify(game.user.isGM?'This node has no perk sheet to open; its text is in the tooltip.':'Learn this perk to open its sheet. Its full text is in the tooltip.');return;}
     doc.sheet.render(true);
   }
+  /** The user took the zoom (buttons, ctrl-wheel, pan, fit button): stop auto-fitting this tree. */
+  _userZoom(){this._fitWatch?.stop();this._fitWatch=null;if(this.treeId)this._fitted.add(this.treeId);}
   _setZoom(value,{exact=false}={}){
     this.zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,exact?Math.round(value*100)/100:Math.round(value*10)/10));
     const board=this.element?.querySelector?.('.agst-board');if(board)board.style.zoom=String(this.zoom);
@@ -1097,9 +1099,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if(action==='cancel-link'){this.linkFrom=null;this.render();return;}
     if(action==='toggle-sidebar'){this.sidebarOpen=toggledSidebar(this.sidebarOpen);this._applySidebar();return;}
-    if(action==='zoom-in'){this._setZoom(this.zoom+.1);return;}
-    if(action==='zoom-out'){this._setZoom(this.zoom-.1);return;}
-    if(action==='zoom-reset'){const vp=this.element?.querySelector?.('.agst-viewport'),bd=this.element?.querySelector?.('.agst-board');this._setZoom(fitZoom(vp?.clientWidth,Number(bd?.style?.width?.replace('px',''))||0),{exact:true});return;}
+    if(action==='zoom-in'){this._userZoom();this._setZoom(this.zoom+.1);return;}
+    if(action==='zoom-out'){this._userZoom();this._setZoom(this.zoom-.1);return;}
+    if(action==='zoom-reset'){this._userZoom();const vp=this.element?.querySelector?.('.agst-viewport'),bd=this.element?.querySelector?.('.agst-board');this._setZoom(fitZoom(vp?.clientWidth,Number(bd?.style?.width?.replace('px',''))||0),{exact:true});return;}
     if(el.closest?.('.agst-tip')&&['purchase','request','refund'].includes(action))this._refocus=true;
     this.busy=true;
     try{
@@ -1627,7 +1629,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop,{once:true});
   }
   _pointerDown(event){
-    if(!event.target.closest('.agst-node'))return this._panStart(event);
+    if(!event.target.closest('.agst-node')){this._userZoom();return this._panStart(event);}
     if(!game.user.isGM||!this.editMode||this.playerPreview||event.button!==0)return;
     const target=event.target.closest('.agst-node');if(!target||!this.tree)return;
     const id=target.dataset.id,original=this.tree.nodes.find(n=>n.id===id);if(!original)return;

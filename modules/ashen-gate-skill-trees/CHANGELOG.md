@@ -1,3 +1,12 @@
+## 0.23.1 — 2026-10-25
+
+Fixes from the first live Foundry test run.
+
+- **Tree backgrounds and tier icons now show.** A local image path (for example `worlds/<world>/bg.png`) was resolved against the module's stylesheet, so the browser asked for `/modules/ashen-gate-skill-trees/styles/worlds/...` and got a 404. Local paths now point from the site root (through Foundry's route prefix when there is one). Forge asset addresses are unchanged. Applies to the canvas background and the level-band icons.
+- **Trees open fitted.** The fit was worked out before the window had a width, so the first open sat at 25%. It now waits for the window to be laid out, re-fits if the window is resized, and stops as soon as you zoom, pan or press *Fit tree to window*.
+- **Crossroads ring appears.** A crossroads is a perk that needs a specific perk *and* one of several others ("Requires A and one of B or C"), or one of each of two groups. The old check only counted the second form, so no shipped perk got the double ring. Rival pairs are unchanged.
+- Saved data: no change, no migration. Tests are mocked Foundry and pure logic; they prove the rules and wiring, not how the window looks in the live Forge.
+
 ## 0.23.0 — 2026-10-24
 
 Tree nodes are icons; specialties, rival pairs and crossroads are readable on the canvas; imports show counts.

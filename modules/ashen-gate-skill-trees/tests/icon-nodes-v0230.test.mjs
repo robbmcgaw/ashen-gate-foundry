@@ -113,3 +113,54 @@ test('template, styles and kit rules for the icon nodes',async()=>{
   assert.match(css,/agst-rival[^{]*\{[^}]*dashed/);assert.match(css,/agst-crossroads[^{]*\{[^}]*double/);
   assert.match(css,/\.agst-tip\{[^}]*pointer-events:none/);assert.doesNotMatch(css,/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
 });
+
+// 0.23.1 live-test fixes. Mocked Foundry and pure logic: they prove the logic, not how the window looks or behaves in the live Forge.
+import {cssUrl,backgroundView,tierBands} from '../scripts/appearance.mjs';
+import {watchFit} from '../scripts/layout.mjs';
+test('0.23.1 D1: local image paths become site-root absolute in css url(); Forge https untouched; unsafe still rejected',()=>{
+  assert.equal(cssUrl('worlds/w/bg-test.png',null),'url("/worlds/w/bg-test.png")');
+  assert.equal(cssUrl('/worlds/w/bg.png',null),'url("/worlds/w/bg.png")');
+  assert.equal(cssUrl('worlds/w/My Art (1).png',null),'url("/worlds/w/My%20Art%20(1).png")');
+  assert.equal(cssUrl('https://assets.forge-vtt.com/a/b.png',p=>'/x/'+p),'url("https://assets.forge-vtt.com/a/b.png")');
+  assert.equal(cssUrl('worlds/w/bg.png',p=>`/game/${p}`),'url("/game/worlds/w/bg.png")'); // route prefix honoured
+  assert.equal(cssUrl('worlds/w/bg.png',()=>{throw new Error('x');}),'url("/worlds/w/bg.png")');
+  assert.equal(cssUrl('worlds/w/bg.png',()=>'//evil.example/a.png'),'url("/worlds/w/bg.png")'); // a resolver cannot redirect elsewhere
+  assert.equal(cssUrl('worlds/w/bg.png',()=>'/other/file.png'),'url("/worlds/w/bg.png")');
+  assert.equal(cssUrl('../x.png',null),'url("")');assert.equal(cssUrl('javascript:alert(1)',null),'url("")');
+  globalThis.foundry={utils:{getRoute:p=>`/vtt/${p.replace(/^\//,'')}`}};
+  try{
+    assert.match(backgroundView({background:{image:'worlds/w/bg.png'}}).style,/--agst-bg-image:url\("\/vtt\/worlds\/w\/bg\.png"\)/);
+    const [band]=tierBands([{level:1,y:0,icon:'worlds/w/i.png'}],300);
+    assert.match(band.iconStyle,/url\("\/vtt\/worlds\/w\/i\.png"\)/); // tier icons too
+  }finally{delete globalThis.foundry;}
+  assert.match(backgroundView({background:{image:'worlds/w/bg.png'}}).style,/url\("\/worlds\/w\/bg\.png"\)/);
+});
+test('0.23.1 D2: fit waits for the viewport to have a width, re-fits on resize, and stops when the user takes over',()=>{
+  const vp={clientWidth:0};let ro,frames=[];const applied=[];
+  class RO{constructor(cb){this.cb=cb;ro=this;}observe(){}disconnect(){this.off=true;}}
+  const w=watchFit(vp,()=>1900,z=>applied.push(z),{Observer:RO,raf:f=>{frames.push(f);return frames.length;},caf:()=>{}});
+  assert.deepEqual(applied,[]); // no width yet: nothing applied (not the 25% minimum)
+  vp.clientWidth=1100;frames.shift()();assert.deepEqual(applied,[.57]);
+  ro.cb();assert.deepEqual(applied,[.57]); // same size: no repeat, no flicker
+  vp.clientWidth=1500;ro.cb();assert.deepEqual(applied,[.57,.78]);
+  w.stop();assert.equal(ro.off,true);vp.clientWidth=800;ro.cb();assert.deepEqual(applied,[.57,.78]); // user took over: never again
+});
+test('0.23.1 D2: fits at once when the viewport already has a width; zero-size map does nothing',()=>{
+  const applied=[];watchFit({clientWidth:1120},()=>1900,z=>applied.push(z),{Observer:null,raf:null});assert.deepEqual(applied,[.58]);
+  const none=[];watchFit({clientWidth:1120},()=>0,z=>none.push(z),{Observer:null,raf:null});assert.deepEqual(none,[]);
+});
+test('0.23.1 D6: crossroads = all-of plus any-of, or two any-of groups; rivals unaffected',()=>{
+  const shipped={requiresAll:['PERK-A'],requiresAny:[['PERK-B','PERK-C']],excludes:[]};
+  assert.equal(isCrossroads(shipped),true);
+  assert.equal(isCrossroads({requiresAll:['A'],requiresAny:[['B'],['C','D']]}),true);
+  assert.equal(isCrossroads({requiresAll:[],requiresAny:[['A','B'],['C']]}),true);
+  assert.equal(isCrossroads({requiresAll:['A','B'],requiresAny:[]}),false); // plain chain
+  assert.equal(isCrossroads({requiresAll:[],requiresAny:[['A','B']]}),false); // one fork only
+  assert.equal(isCrossroads({requiresAll:['A'],requiresAny:[[]]}),false);
+  assert.equal(isCrossroads({}),false);assert.equal(isCrossroads(null),false);
+  const rival={requiresAll:[],requiresAny:[],excludes:['PERK-X']};
+  assert.equal(isCrossroads(rival),false);assert.equal(isRival(rival,{}),true);
+  assert.equal(isCrossroads({...shipped,excludes:['PERK-X']}),true);assert.equal(isRival({...shipped,excludes:['PERK-X']},{}),true);
+  const n=n=>({name:n});
+  assert.equal(requirementText({all:[n('A')],any:[{nodes:[n('B'),n('C')]}]}),'Requires A and one of B or C');
+});
