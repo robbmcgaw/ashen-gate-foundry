@@ -1,3 +1,8 @@
+## 0.32.4 — 2026-10-24
+
+- **Gathering nodes: the id is made for you.** A new node no longer has an *Id (permanent)* box to fill in. Its id is made from the name when you save (`NODE-` plus the name, `-2`, `-3`... if taken) and never changes. A saved node shows it read-only under *Details*. *Advanced: set id (optional)* is still there for a new node and is still checked (NODE- prefix, upper-case letters and digits, not used or deleted before).
+- Saved data: no change; existing nodes keep their ids. No migration.
+
 ## 0.32.3 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
