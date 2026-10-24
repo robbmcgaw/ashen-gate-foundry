@@ -31,8 +31,8 @@ const rewardText=({items,text})=>{
 export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
  const vis=r.visible?`<span class="ag-badge ag-badge--ok"${tip('Players can see this quest')}>${icon('fa-eye')}Visible to players</span>`
   :`<span class="ag-badge"${tip('Players cannot see this quest')}>${icon('fa-eye-slash')}GM only</span>`;
- const facts=[`<span class="agq-mono">${E(r.id)}</span>`];
- if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',r.locationNames.map(E).join(', ')+(r.regions?.length?` (${r.regions.map(E).join(', ')})`:'')));
+ const facts=[];
+ if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',[...new Set(r.locationNames)].map(E).join(', ')+(r.regions?.length?` (${r.regions.map(E).join(', ')})`:'')));
  if(r.givers.length)facts.push(meta('fa-handshake','Giver',r.givers.map(E).join(', ')));
  else if(r.sourceText)facts.push(meta('fa-handshake','Source',E(r.sourceText)));
  facts.push(r.audience.scope==='individual'?meta('fa-user','Audience',`Individual: ${E(r.audience.name)}`):meta('fa-users','Audience','Party'));
@@ -59,7 +59,7 @@ export function questsSubnav(nav,counts={}){
     Filters (n) opens (0.17.0, QL-05). */
 export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[]}={}){
  const v={...DEFAULT_VIEW,...view},n=filterCount(v);
- return `<div class="agq-bars"><div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, ID, location, giver or source, or tag" value="${E(v.search)}"></label>
+ return `<div class="agq-bars"><div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, location, giver or source, or tag" value="${E(v.search)}"></label>
  <div class="ag-toolbar__filters"><button type="button" class="ag-btn ag-btn--sm" data-action="toggle-filters" id="ag-gm-filters-toggle" aria-expanded="${filtersOpen}" aria-controls="ag-gm-filters">${icon('fa-filter')} <span data-filter-label>${filterLabel(n)}</span></button>
  <select id="ag-gm-group" aria-label="Group by">${options(GROUPS.map(([k,n])=>[k,k==='none'?n:`Group: ${n}`]),v.group)}</select>
  <select id="ag-gm-sort" aria-label="Sort">${options(SORTS.map(([k,n])=>[k,`Sort: ${n}`]),v.sort)}</select></div>

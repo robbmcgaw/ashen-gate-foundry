@@ -2,9 +2,9 @@
 // planBulk says what would change (for the confirmation), runBulk does it through the store functions it is given,
 // one quest at a time, so one refusal never stops the rest. Every store write is GM-checked in store.mjs.
 import {STATUSES,validSource} from './core.mjs';
-import {statusChip,isPlayerVisible} from './quests-tab.mjs';
+import {statusChip,isPlayerVisible,UNTITLED} from './quests-tab.mjs';
 export const BULK_ACTIONS=Object.freeze(['status','hide','reveal','duplicate','delete']);
-const nameOf=e=>e.source.name||e.source.id;
+const nameOf=e=>e.source.name||UNTITLED;
 /** {changes:[{id,name,patch?}], skipped:[{id,name,reason}], willShow:[name], willHide:[name]} */
 export function planBulk(action,entries,ids,{status=null}={}){
  if(!BULK_ACTIONS.includes(action))throw new Error(`Unknown bulk action ${action}.`);
@@ -37,7 +37,7 @@ export function planBulk(action,entries,ids,{status=null}={}){
 export function duplicateSource(source,existing=new Set()){
  const base=`${source.id}-COPY`;let id=base,n=2;while(existing.has(id))id=`${base}-${n++}`;
  const copy=structuredClone(source);
- Object.assign(copy,{id,name:`${source.name||source.id} (copy)`,status:'draft'});
+ Object.assign(copy,{id,name:`${source.name||UNTITLED} (copy)`,status:'draft'});
  return validSource(copy);
 }
 /** Runs a plan. deps: {updateState, saveRecord, removeRecord, existingIds:Set, sourceOf(id)}. Returns {done:[{id,name,newId?}], failed:[{id,name,reason}]}. */

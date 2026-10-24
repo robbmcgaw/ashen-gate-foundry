@@ -1,5 +1,5 @@
 // Item rewards markup (GM editor section and player "Rewards" list). No Foundry globals, so it can be tested.
-import {cleanText as E} from './core.mjs';
+import {cleanText as E,rewardLabel} from './core.mjs';
 import {safeButton,options,emptyState} from './gm-panels.mjs';
 
 const FALLBACK_IMG='icons/svg/item-bag.svg';
@@ -9,9 +9,10 @@ const GOES=[['chosen','One character (chosen when granting)'],['each','Each char
 const img=src=>`<img class="agq-reward__img" src="${E(src||FALLBACK_IMG)}" alt="">`;
 
 const noteHint=r=>r.note?`<span class="ag-field__hint">${E(r.note)}</span>`:'';
+// An item that cannot be found has only its permanent id for a name: it reads "Item not found" instead (ids stay out of the UI).
+const named=rows=>rows.map(r=>({...r,name:rewardLabel(r,'Item not found')}));
 function itemCell(r){
- const id=r.itemId?`<span class="agq-mono">${E(r.itemId)}</span>`
-  :`<span class="ag-badge"${tip('No permanent id: this reward is tied to this world. It will not follow the item into another world or a reimport.')}>No permanent id</span>`;
+ const id=r.itemId?'':`<span class="ag-badge"${tip('No permanent id: this reward is tied to this world. It will not follow the item into another world or a reimport.')}>No permanent id</span>`;
  return `<span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)}</span>${id}${noteHint(r)}</span></span>`;
 }
 function statusCell(r){
@@ -34,7 +35,7 @@ function rewardRow(r,{individual}){
 }
 /** GM editor section. rows = api.rewards.list() output; removed rows are not shown. Its edits save at once (Applies now). */
 export function rewardsSection(rows,{individual=false,status='',grantHtml='',canGive=false}={}){
- const shown=rows.filter(r=>!r.removed);
+ const shown=named(rows.filter(r=>!r.removed));
  const table=shown.length?`<div class="ag-table-wrap"><table class="ag-table agq-rewards__table"><thead><tr><th scope="col">Item</th><th scope="col" class="is-num">Qty</th><th scope="col">Status</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead>
  <tbody>${shown.map(r=>rewardRow(r,{individual})).join('')}</tbody></table></div>`
   :emptyState('No item rewards yet','Drop an item here to add it.',{iconName:'fa-gift'});
@@ -58,6 +59,7 @@ export function defaultChoices(rows){
 }
 /** What each character will receive, and what stops the grant: {problems:[text], receive:[{name, items:[{name,quantity}]}]}. Pure. */
 export function grantSummary(rows,choices,{individual=false}={}){
+ rows=named(rows);
  const problems=[],by=new Map();
  const give=(p,r,q)=>{if(!by.has(p.id))by.set(p.id,{name:p.name,items:[]});by.get(p.id).items.push({name:r.name,quantity:q});};
  for(const r of rows){
@@ -92,7 +94,8 @@ function goesToCell(r,c,individual){
 }
 /** The Give rewards panel (inside Item rewards). rows: grantable() rows still owed. */
 export function grantPanel(rows,choices,{individual=false,noParty=false}={}){
- const summary=grantSummary(rows,choices,{individual}),blocked=summary.problems.length>0;
+  const summary=grantSummary(rows,choices,{individual}),blocked=summary.problems.length>0;
+ rows=named(rows);
  const body=rows.map(r=>{const c=choices[r.key]??{};const ok=r.grantable;
   return `<tr data-grant-key="${E(r.key)}" data-recipient="${E(individual?'individual':r.recipient)}"><td><input type="checkbox" data-grant-give ${ok&&c.give?'checked':''} ${ok?'':'disabled'} aria-label="Give ${E(r.name)}"></td>
   <td><span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)} × ${E(r.quantity)}</span>${noteHint(r)}${ok?'':`<span class="ag-field__hint">${E(r.reason||'Not available.')}</span>`}</span></span></td>

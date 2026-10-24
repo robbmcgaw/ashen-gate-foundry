@@ -1,6 +1,6 @@
 import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES,WORK_ORDER_DOMAINS} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHint,questsAdvanced,filterLabel,editorSection,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
-import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount} from './quests-tab.mjs';
+import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED} from './quests-tab.mjs';
 import {planBulk,runBulk,confirmText} from './bulk.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.19.2';
+const VERSION='0.19.3';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -27,10 +27,10 @@ const openAllowed=()=>game.user?.isGM||game.settings.get(MOD,'playerAccessEnable
 const hasGM=()=>!!game.user?.isGM;
 // Character pickers: player characters only (core.mjs isPlayerCharacter); a player sees their own.
 function actorsOwned(){return [...game.actors].filter(a=>isPlayerCharacter(a,hasGM()?[...game.users]:[game.user])).sort((a,b)=>String(a.name).localeCompare(String(b.name)));}
-function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(err.message??String(err));}
+function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(hideIds(err.message??String(err)));}
 function dialogDownload(name,text,type='application/json'){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function blankTemplate(){return {
- id:'QUEST-',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',
+ id:'',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',
  provenance:{sources:['GM-authored world draft; not approved canon']},visibility:'reveal_gated',refs:[],
  name:'',public_summary:'',source:{description:'GM to specify source'},
  objectives:[{key:'first',goal:'',visibility:'player'}],locations:[],parameters:{},outcomes:{}
@@ -76,11 +76,10 @@ const KIND_PREFIX=Object.freeze({quest:'QUEST',work_order:'ORDER',contract:'CONT
 function basicsSection(source,existing){
  const type=source.objective_kind;
  const kinds=[['quest','Quest'],['work_order','Work Order (crafting, production or creative)'],['contract','Contract']];
- return `<p class="ag-field__hint">Write what the job is and what the players can learn. Permanent IDs are never renamed after creation.</p>
- <div class="ag-form-grid"><label class="ag-field">Type<select id="ag-src-kind" ${existing?'disabled':''}>${options(kinds,type)}</select></label><label class="ag-field">Permanent ID<input id="ag-src-id" value="${E(source.id)}" ${existing?'readonly':''} placeholder="${KIND_PREFIX[type]||'QUEST'}-NEW-JOB"></label>
+ return `<p class="ag-field__hint">Write what the job is and what the players can learn.</p>
+ <div class="ag-form-grid"><label class="ag-field">Type<select id="ag-src-kind" ${existing?'disabled':''}>${options(kinds,type)}</select></label>
  <label class="ag-field ag-field--wide">Title<input id="ag-src-name" value="${E(source.name)}" placeholder="Name this quest"></label>
  <label class="ag-field ag-field--wide">Public description<textarea id="ag-src-summary" rows="3">${E(source.public_summary??'')}</textarea></label>
- <label class="ag-field">Related Location IDs<textarea id="ag-src-locations" rows="2">${E((source.locations||[]).filter(x=>typeof x==='string').join('\n'))}</textarea><span class="ag-field__hint">Optional LOC-* IDs, one per line.</span></label>
  <label class="ag-field">Definition visibility<select id="ag-src-visibility">${options([['reveal_gated','Reveal when GM approves'],['player','Player-visible when not Hidden'],['gm','GM only (never publish)']],source.visibility)}</select></label>
  ${existing&&type!=='work_order'?'':`<label class="ag-field" data-kind-field="work_order"${type==='work_order'?'':' hidden'}>Work order domain<select id="ag-src-workdomain">${options(WORK_ORDER_DOMAINS,source.work_order_domain||'crafting')}</select></label>`}</div>
  ${source.visibility==='gm'?'<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> This is a GM-only source. Campaign status and reveal cannot publish it until you change Definition visibility.</p>':''}`;
@@ -112,14 +111,21 @@ function statusSection(source,state,saved){
  const isPublic=saved&&!!publicView(source,state);
  const why=!saved?'Not published: a new quest is saved Hidden unless you choose another status.':source.visibility==='gm'?'Not published: this definition is GM only. Change Definition visibility in Basics.':state.status==='Hidden'?'Not published: set status to Available or Active, then save.':source.visibility==='reveal_gated'&&!state.revealed?'Not published: tick Reveal quest and save.':'Not published: check audience and source permissions.';
  return `<p class="ag-notice ${isPublic?'ag-notice--ok':'ag-notice--warn'}"><i class="fa-solid ${isPublic?'fa-eye':'fa-eye-slash'}" aria-hidden="true"></i> ${isPublic?'Published to authorized players.':why}</p>
- <div class="ag-form-grid"><label class="ag-field">Campaign status<select id="ag-status">${options(STATUSES.map(x=>[x,x]),state.status)}</select></label>
- <label class="ag-field">Public Location IDs<textarea id="ag-public-locations" rows="2">${E((state.publicLocationIds||[]).join('\n'))}</textarea><span class="ag-field__hint">One LOC-* ID per line.</span></label></div>
+ <div class="ag-form-grid"><label class="ag-field">Campaign status<select id="ag-status">${options(STATUSES.map(x=>[x,x]),state.status)}</select></label></div>
  <label class="ag-field ag-field--inline"><input id="ag-state-revealed" type="checkbox" ${state.revealed?'checked':''} ${source.visibility==='gm'?'disabled':''}> Reveal quest to the selected audience (when status is not Hidden)</label>
  <label class="ag-field">Shared party notes<textarea id="ag-party-notes" rows="3">${E(state.partyNotes||'')}</textarea><span class="ag-field__hint">Players in the audience can read these.</span></label>`;
 }
 function gmNotesSection(source,state){
  return `<label class="ag-field">GM-only notes<textarea id="ag-gm-notes" rows="3">${E(state.gmNotes||'')}</textarea></label>
  <label class="ag-field">GM-only source / issuer notes<textarea id="ag-src-description" rows="2">${E(source.source?.description??'')}</textarea></label>`;
+}
+// IDs live only here: a closed fold the GM opens on purpose. A new quest's ID is made from its title when left empty.
+function detailsSection(source,state,existing){
+ return `<p class="ag-field__hint">Permanent IDs, for linking and troubleshooting. You do not need them to run a quest; they are never renamed after creation.</p>
+ <div class="ag-form-grid"><label class="ag-field">Permanent ID<input id="ag-src-id" value="${existing?E(source.id):''}" ${existing?'readonly':''} placeholder="Made from the title when left empty"></label>
+ ${existing?`<div class="ag-field"><span>&nbsp;</span>${safeButton('Copy ID','copy-id',{sm:true,icon:'fa-copy',data:{id:source.id}})}</div>`:''}</div>
+ <div class="ag-form-grid"><label class="ag-field">Related location IDs<textarea id="ag-src-locations" rows="2">${E((source.locations||[]).filter(x=>typeof x==='string').join('\n'))}</textarea><span class="ag-field__hint">Optional, one per line.</span></label>
+ <label class="ag-field">Public location IDs<textarea id="ag-public-locations" rows="2">${E((state.publicLocationIds||[]).join('\n'))}</textarea><span class="ag-field__hint">One per line.</span></label></div>`;
 }
 // 0.17.0 The source JSON is its own section (QL-10: once edited it is what Save changes saves, and the form says so).
 function jsonSection(source){
@@ -128,16 +134,25 @@ function jsonSection(source){
 // 0.17.0 Delegated assignments: their own section with their own footer; they never go through Save changes (QL-02, QL-07).
 function assignmentsSection(source){
  const list=listAssignments({objectiveId:source.id});
- const rows=list.length?`<div class="ag-rows agq-assignments">${list.map(a=>`<div class="ag-row"><span class="ag-row__main"><span class="ag-row__title agq-mono">${E(a.id)}</span><span class="ag-row__meta">${E(a.execution_status)}</span></span><span class="ag-row__end">${safeButton('Load into editor','edit-assignment',{sm:true,icon:'fa-pen',data:{id:a.id},title:`Load ${a.id} into the assignment editor below`})}${safeButton(`Delete ${a.id}`,'remove-assignment',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',data:{id:a.id},title:'Delete this assignment'})}</span></div>`).join('')}</div>`:'<p class="ag-field__hint">No delegated assignments.</p>';
- return `<div class="agq-assign" data-assignments><p class="ag-field__hint">Separate ASSIGN-* execution records, not HQ staffing. They save with Save assignment, not with Save changes.</p>${rows}
+ const rows=list.length?`<div class="ag-rows agq-assignments">${list.map((a,i)=>`<div class="ag-row"><span class="ag-row__main"><span class="ag-row__title">Assignment ${i+1}</span><span class="ag-row__meta">${E(a.execution_status)}</span></span><span class="ag-row__end">${safeButton('Load into editor','edit-assignment',{sm:true,icon:'fa-pen',data:{id:a.id},title:`Load assignment ${i+1} into the assignment editor below`})}${safeButton(`Delete assignment ${i+1}`,'remove-assignment',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',data:{id:a.id},title:'Delete this assignment'})}</span></div>`).join('')}</div>`:'<p class="ag-field__hint">No delegated assignments.</p>';
+ return `<div class="agq-assign" data-assignments><p class="ag-field__hint">Separate execution records, not HQ staffing. They save with Save assignment, not with Save changes.</p>${rows}
  <label class="ag-field">Assignment JSON<textarea id="ag-assignment-json" rows="8" class="agq-code" spellcheck="false">${E(JSON.stringify(blankAssignment(source.id),null,2))}</textarea></label>
  <footer class="ag-footer agq-assign__footer">${safeButton('Cancel','cancel-assignment',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-assign-status>New assignment</span>${safeButton('Save assignment','save-assignment',{icon:'fa-floppy-disk'})}</footer></div>`;
+}
+// A new quest left without an ID gets one made from its title (QUEST-HARBOR-RUMORS, -2 if taken); the GM never has to type one.
+function idFromTitle(name,kind){
+ const slug=String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48).replace(/-+$/,'');
+ if(!slug)throw new Error('Give the quest a title first.');
+ const taken=new Set(allPrivate().map(x=>x.source.id)),base=`${KIND_PREFIX[kind]||'QUEST'}-${slug}`;
+ let id=base,n=2;while(taken.has(id))id=`${base}-${n++}`;
+ return id;
 }
 function sourceFromForm(root,current){
  const src=structuredClone(current||blankTemplate());
  src.id=root.querySelector('#ag-src-id').value.trim().toUpperCase();
  src.objective_kind=root.querySelector('#ag-src-kind').value;
  src.name=root.querySelector('#ag-src-name').value.trim();
+ if(!current&&!src.id)src.id=idFromTitle(src.name,src.objective_kind);
  src.public_summary=root.querySelector('#ag-src-summary').value.trim();
  src.source={...src.source,description:root.querySelector('#ag-src-description').value.trim()};
  src.visibility=root.querySelector('#ag-src-visibility').value;
@@ -146,7 +161,7 @@ function sourceFromForm(root,current){
  const unchanged=(src.locations||[]).filter(x=>typeof x==='string');
  if(JSON.stringify(unchanged)!==JSON.stringify(locationIds))src.locations=[...(src.locations||[]).filter(x=>typeof x!=='string'),...locationIds];
  else src.locations=src.locations||[];
- if(locationIds.some(x=>!/^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(x)))throw new Error('Location IDs must use LOC-* format.');
+ if(locationIds.some(x=>!/^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(x)))throw new Error('Location IDs (in Details) must be valid location IDs.');
  src.objectives=[...root.querySelectorAll('.agq-srcobj')].map(row=>{
   const key=row.querySelector('.ag-src-obj-key').value.trim();
   const old=(current?.objectives||[]).find(x=>x.key===key)||{};
@@ -173,7 +188,7 @@ function stateFromForm(root,source,old){
  return next;
 }
 function editorHead(selected,dirty){
- const name=selected?.source?.name||selected?.source?.id;
+ const name=selected?.source?.name||UNTITLED;
  return `<header class="agq-edit__head"><h2 class="agq-detail__title">${selected?E(name):'New quest'}</h2><span class="ag-badge ag-badge--warn agq-dirty-badge"${dirty?'':' hidden'}><i class="fa-solid fa-pen" aria-hidden="true"></i>Unsaved changes</span>${selected?safeButton('Delete quest…','delete',{kind:'danger',sm:true,icon:'fa-trash'}):''}</header>`;
 }
 // 0.17.0 Sections after Audience and Objectives start closed (QL-02); the GM's open/closed choice is kept (gmView flag).
@@ -190,6 +205,7 @@ function questEditor(selected,rewardsHtml,{sections,dirty=false}){
   editorSection('rewards','Rewards',rewardsEditSection(source,state,rewardsHtml,saved),{open:open('rewards'),summary:saved?'Item rewards save as you change them':''}),
   editorSection('status','Campaign status and reveal',statusSection(source,state,saved),{open:open('status'),summary:`${state.status} · ${visible?'visible to players':'GM only'}`}),
   editorSection('gmnotes','GM notes',gmNotesSection(source,state),{open:open('gmnotes')}),
+  editorSection('details','Details (IDs)',detailsSection(source,state,saved),{open:open('details'),summary:'Permanent IDs'}),
   editorSection('json','Advanced: source JSON',jsonSection(source),{open:open('json'),summary:'Optional'}),
  ].join('');
  // Assignments sit after the draft form and its save bar: they save on their own.
@@ -334,7 +350,7 @@ class QuestLogApplication extends Base {
   return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p>
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). The GM and whoever started a session can rename it (pencil).${gm?' <em>Export Markdown</em> and <em>Archive session</em> sit under the session title.':''}</p>
-  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
  }
@@ -399,7 +415,6 @@ class QuestLogApplication extends Base {
   const id=root.querySelector('#ag-src-id'),next=KIND_PREFIX[kind];
   if(id&&next&&id.getAttribute?.('readonly')==null){
    const m=String(id.value).match(/^(QUEST|ORDER|CONTRACT)-(.*)$/i);if(m&&m[1].toUpperCase()!==next)id.value=`${next}-${m[2]}`;
-   id.setAttribute?.('placeholder',`${next}-NEW-JOB`);
   }
   const hint=root.querySelector('details[data-section="basics"] .ag-fold__hint');if(hint)hint.textContent=KIND_LABELS[kind]||kind;
  }
@@ -462,14 +477,14 @@ class QuestLogApplication extends Base {
   assertGM(game.user);if(!file)return;
   let raw;try{raw=JSON.parse(await file.text());}catch{throw new Error('That file is not a JSON quest file. Nothing was imported.');}
   const plan=previewQuestImport(raw);
-  if(plan.errors.length)return await infoDialog('Nothing imported',`<ul>${plan.errors.map(e=>`<li>${E(e)}</li>`).join('')}</ul>`);
+  if(plan.errors.length)return await infoDialog('Nothing imported',`<ul>${plan.errors.map(e=>`<li>${E(hideIds(e))}</li>`).join('')}</ul>`);
   const add=plan.rows.filter(r=>r.action==='new'),keep=plan.rows.filter(r=>r.action==='skip');
   if(!add.length)return await infoDialog('Nothing to import',`<p>Every quest in this file is already in this world (${keep.length}). Nothing was changed.</p>`);
   const q=n=>`${n} ${n===1?'quest':'quests'}`;
-  const lines=[`Adds ${q(add.length)}: ${add.map(r=>r.name||r.id).join(', ')}.`,keep.length?`Already here, kept as is: ${keep.map(r=>r.name||r.id).join(', ')}.`:'',...plan.warnings,'New quests start Hidden. No campaign state is overwritten.'].filter(Boolean);
+  const lines=[`Adds ${q(add.length)}: ${add.map(r=>r.name||UNTITLED).join(', ')}.`,keep.length?`Already here, kept as is: ${keep.map(r=>r.name||UNTITLED).join(', ')}.`:'',...plan.warnings.map(w=>hideIds(w,plan.rows)),'New quests start Hidden. No campaign state is overwritten.'].filter(Boolean);
   if(!await confirmDialog(lines.join('\n'),{title:`Import ${q(add.length)}?`,yes:`Import ${q(add.length)}`}))return;
   const report=await importQuests(raw,{mode:'skip'});
-  const failed=report.failed.map(f=>`${f.id}: ${f.reason}`);
+  const failed=report.failed.map(f=>hideIds(`${f.id}: ${f.reason}`,plan.rows));
   if(failed.length)await infoDialog('Import finished',`<p>${E(q(report.created.length))} imported.</p><ul>${failed.map(f=>`<li>${E(f)}</li>`).join('')}</ul>`);
   else ui.notifications.info(`${q(report.created.length)} imported. No campaign state was overwritten.`);
   return await this.render();
@@ -508,6 +523,7 @@ class QuestLogApplication extends Base {
      assertUI(game.user,openAllowed());await savePersonalNote(this.selectedId,this.actorId,root.querySelector('#ag-my-note')?.value||'');ui.notifications.info('Character notes saved.');return;
    }
    assertGM(game.user);
+   if(action==='copy-id'){try{await navigator.clipboard.writeText(String(id));ui.notifications.info('ID copied.');}catch{ui.notifications.warn('Could not copy. Select the ID and copy it by hand.');}return;}
    if(action==='gm-select'){if(!await this.guard.confirm())return;this.gmId=id;this.rewardNote='';this.grantOpen=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='new'){if(!await this.guard.confirm())return;this.gmId=null;this.forgetScroll=['gm-edit:new'];this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    // 0.15.0 One save for the whole quest: definition and campaign state are written together (one record write).
@@ -569,11 +585,11 @@ class QuestLogApplication extends Base {
    }
    // QL-07 Load into editor: the record goes into the assignment JSON, which takes focus and says what is being edited.
    if(action==='edit-assignment'){const record=getAssignment(id);const textarea=root.querySelector('#ag-assignment-json');if(!record||!textarea)throw new Error('Assignment unavailable');
-    textarea.value=JSON.stringify(record,null,2);const st=root.querySelector('[data-assign-status]');if(st)st.textContent=`Editing ${record.id}`;
+    textarea.value=JSON.stringify(record,null,2);const st=root.querySelector('[data-assign-status]');if(st)st.textContent='Editing a saved assignment';
     textarea.scrollIntoView?.({block:'nearest'});textarea.focus?.();return;}
    if(action==='cancel-assignment'){const textarea=root.querySelector('#ag-assignment-json');if(textarea)textarea.value=JSON.stringify(blankAssignment(this.gmId),null,2);const st=root.querySelector('[data-assign-status]');if(st)st.textContent='New assignment';return;}
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
-   if(action==='remove-assignment'){if(!await confirmDanger(`This cannot be undone.`,{title:`Delete ${id}?`,yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
+   if(action==='remove-assignment'){if(!await confirmDanger(`This cannot be undone.`,{title:'Delete this assignment?',yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
    if(action==='delete'){const name=getPrivate(this.gmId)?.getFlag(MOD,'source')?.name||'this quest';if(!await confirmDanger(`This removes its published Quest Log view. Character-owned notes are kept.`,{title:`Delete ${name}?`,yes:'Delete quest'}))return;await removeRecord(this.gmId);this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportPackage(allPrivate().map(x=>x.source)),null,2));}
   }catch(err){notifyError(err);}

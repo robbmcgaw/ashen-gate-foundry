@@ -1,6 +1,6 @@
 // Quest item rewards (contract ag-quest-rewards/1): the GM's reward list on a quest, and giving it to characters (0.12.0).
 // Every call is GM only and every write goes through updateState (assertGM, validState, publish).
-import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,isPlayerCharacter,LEVEL_BACKUP_ERROR} from './core.mjs';
+import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,isPlayerCharacter,LEVEL_BACKUP_ERROR,rewardLabel} from './core.mjs';
 import {getPrivate,allPrivate,updateState} from './store.mjs';
 import {resolveItemDrop,itemRef,resolveRef,bundleOf,grantBundle,dragPayload} from './ag-item-drop.mjs';
 
@@ -139,12 +139,12 @@ export function isGranted(state,actor,rewardKey,round,questId,keys=grantedKeys(s
 export function grantPlan(rows,state,choices={},{party=[],nameOf=id=>id}={}){
  const keys=grantedKeys(state),byActor=new Map(),partySet=new Set(party);
  const add=(actorId,row,quantity)=>{
-  if(keys.has(`${row.key}|${row.round}|${actorId}`))throw new Error(`${row.name??row.key} was already given to ${nameOf(actorId)}.`);
+  if(keys.has(`${row.key}|${row.round}|${actorId}`))throw new Error(`${rewardLabel(row,'That reward')} was already given to ${nameOf(actorId)}.`);
   if(!byActor.has(actorId))byActor.set(actorId,[]);byActor.get(actorId).push({rewardKey:row.key,round:row.round,quantity});
  };
  for(const row of rows){
   const c=choices[row.key];if(!c?.give||row.removed)continue;
-  const label=row.name??row.key;
+  const label=rewardLabel(row);
   if(state.scope==='individual'){add(state.actorId,row,row.quantity);continue;}
   if(row.recipient==='each'){
    const ids=[...new Set(c.actorIds??[])];if(!ids.length)throw new Error(`Tick at least one character for ${label}.`);
@@ -214,7 +214,7 @@ export function executeGrant(questId,plan){
     const tagged=taggedItems(actor,questId,l.rewardKey,l.round);
     if(tagged.length){record.push({rewardKey:l.rewardKey,round:l.round,actorId,quantity:l.quantity,itemIds:tagged.map(i=>i.id),status:'granted',repaired:true});continue;}
     const found=await resolveRef(row.origin==='gm'?row.ref:{itemId:row.itemId});
-    const label=found.item?.name??row.ref?.name??row.itemId;
+    const label=found.item?.name??row.ref?.name??'That item';
     if(found.status!=='ok'){fail||=missingReason(found.status,label);todo.push({...l,row});continue;}
     todo.push({...l,row,item:found.item,name:found.item.name});
    }

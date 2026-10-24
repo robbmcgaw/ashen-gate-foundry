@@ -100,7 +100,7 @@ test('QL-02/QL-07: assignments load into their own editor with a status; Cancel 
  assert.match(content.innerHTML,/data-action="edit-assignment"[^>]*>[^<]*<i[^>]*><\/i> Load into editor<\/button>/);
  const ta=content.querySelector('#ag-assignment-json');let scrolled=false;ta.scrollIntoView=()=>{scrolled=true;};
  await app.action({dataset:{action:'edit-assignment',id:'ASSIGN-TEST-ONE'}},content);
- assert.match(ta.value,/"id": "ASSIGN-TEST-ONE"/);assert.equal(content.querySelector('[data-assign-status]').textContent,'Editing ASSIGN-TEST-ONE');
+ assert.match(ta.value,/"id": "ASSIGN-TEST-ONE"/);assert.equal(content.querySelector('[data-assign-status]').textContent,'Editing a saved assignment');
  assert.ok(scrolled);assert.equal((await import('./helpers/fake-dom.mjs')).doc.focused,ta,'focus moves to the editor');
  await app.action({dataset:{action:'cancel-assignment'}},content);
  assert.match(ta.value,/"id": "ASSIGN-REPLACE-ME"/);assert.equal(content.querySelector('[data-assign-status]').textContent,'New assignment');
