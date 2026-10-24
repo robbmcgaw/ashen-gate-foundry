@@ -1,3 +1,7 @@
+## 0.44.3 — 2026-10-24
+
+Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)
+
 ## 0.44.2 — 2026-10-23
 
 Level up now says what happened when dnd5e shows no advancement window. If the class has no advancement steps for that level, or dnd5e's "Disable Advancements" world setting is on, the level still goes up as before and a notice says so, with what is left to do by hand (set Hit Points, add new features). Before, it looked as if nothing had happened. Nothing else changes; saved data is untouched.

@@ -6,6 +6,7 @@
  * opens its Prototype Token settings instead, as the dnd5e sheet does. Owner or GM only.
  */
 import {canEdit} from './actions.mjs';
+import {renderBeside} from './popout.mjs';
 
 export const ART_FIELDS = {portrait: 'img', token: 'prototypeToken.texture.src'};
 /** File types as on the dnd5e sheet: portraits are images, token art may also be a video. */
@@ -23,14 +24,14 @@ export const filePickerClass = () => globalThis.foundry?.applications?.apps?.Fil
  * Opens the picker for the shown art. Resolves to {ok, result: 'picker' | 'token-config'} once it is open; choosing a
  * file updates the Actor, and cancelling changes nothing.
  */
-export async function changeArt(actor, mode, {position = null, notify = msg => globalThis.ui?.notifications?.warn?.(msg)} = {}) {
+export async function changeArt(actor, mode, {position = null, hub = null, notify = msg => globalThis.ui?.notifications?.warn?.(msg)} = {}) {
   if (!canEdit(actor)) return refuse(`You don't own ${actor?.name ?? 'this character'}, so you can't change its art.`);
   const field = ART_FIELDS[mode];
   if (!field) return refuse('Unknown art.');
   if (mode === 'token' && actor.prototypeToken?.randomImg) {
     const Config = globalThis.foundry?.applications?.sheets?.PrototypeTokenConfig ?? globalThis.CONFIG?.Token?.prototypeSheetClass;
     if (!Config) return refuse('This token uses random images: change them in the Prototype Token settings.');
-    await new Config({prototype: actor.prototypeToken}).render({force: true});
+    await renderBeside(hub, new Config({prototype: actor.prototypeToken}));
     return {ok: true, result: 'token-config'};
   }
   const FP = filePickerClass();

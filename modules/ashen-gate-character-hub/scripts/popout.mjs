@@ -23,3 +23,14 @@ export async function togglePopOut(sheet) {
   await (out ? sheet.attachWindow() : sheet.detachWindow());
   return {ok: true, result: out ? 'in' : 'out'};
 }
+
+/**
+ * Opens an application next to the Hub (0.44.3). A Hub in its own browser window must open its item sheets and settings
+ * windows there too: a plain render() puts them in the main Foundry window, where they cannot be seen from the pop-out.
+ * Foundry's renderChild() registers the app as a child that shares the Hub's window (as dnd5e's sheets do). Not popped
+ * out, or no renderChild: an ordinary render, exactly as before.
+ */
+export async function renderBeside(sheet, app) {
+  if (isPoppedOut(sheet) && typeof sheet.renderChild === 'function') return sheet.renderChild(app);
+  return app.render?.({force: true}) ?? app.render?.(true);
+}
