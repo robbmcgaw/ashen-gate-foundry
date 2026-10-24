@@ -78,7 +78,7 @@ export function professionStatus(tree,rawAccount,level,siblings=[]) {
   const one=(t,acc)=>{
     const taken=t.nodes.filter(n=>acc.unlocks.includes(n.id));
     return {spent:totalSpent(t,acc),kept:taken.filter(n=>keptAt(acc,n.id,level)).length,
-      above:ledger?taken.filter(n=>needLevel(n)>level&&!keptAt(acc,n.id,level)).map(n=>({nodeId:n.id,name:n.name||n.perkId||n.id,threshold:needLevel(n)})):[]};
+      above:ledger?taken.filter(n=>needLevel(n)>level&&!keptAt(acc,n.id,level)).map(n=>({nodeId:n.id,name:n.name||'Unnamed perk',threshold:needLevel(n)})):[]};
   };
   const own=one(tree,a),rest=others.map(x=>({tree:x.tree,...one(x.tree,cleanAccount(x.account))}));
   const earned=ledger?pointsForLevel(level):0,spent=own.spent+rest.reduce((s,x)=>s+x.spent,0);
@@ -223,7 +223,7 @@ export function resolveTree(tree,lookup) {
     if(!n.perkId)return {...n,custom:true,perkMissing:false,img:null,cost:n.cost??1};
     const perk=lookup?.(n.perkId,n)??null;
     return {...n,custom:false,perkMissing:!perk,
-      name:perk?.name??(n.name||n.perkId),description:perk?.description??n.description??'',
+      name:perk?.name??(n.name||'Unnamed perk'),description:perk?.description??n.description??'',
       img:perk?.img??null,cost:perk?.cost??n.cost??1,perkUuid:perk?.uuid??n.perkUuid,perkTier:perk?.tier??null};
   });
   // Worked out fresh from the perk every time; a stored requiredLevel is never trusted.
@@ -374,7 +374,7 @@ export function availability(tree,rawAccount,nodeId,{canModify=true,level=null,s
   if(!n)return {ok:false,reason:'Unknown node'};
   if(!canModify)return {ok:false,reason:'You cannot change this character'};
   if(a.unlocks.includes(n.id))return {ok:false,reason:'Already unlocked'};
-  if(n.perkMissing)return {ok:false,reason:`Perk ${n.perkId} is not in this world. Import it through General Manager first`};
+  if(n.perkMissing)return {ok:false,reason:`${n.name||'This perk'} is not in this world. Import it through General Manager first`};
   if(n.status==='placeholder'||n.status==='draft')return {ok:false,reason:'Unfinished content — cannot unlock'};
   if(tree.status==='draft')return {ok:false,reason:'Tree is in draft mode'};
   if(n.visibility!=='player'||n.display!=='shown')return {ok:false,reason:'Not released to players'};
@@ -417,7 +417,7 @@ export function overrideGrant(tree,rawAccount,nodeId,{level=null,reason='',by=''
   const a=cleanAccount(rawAccount),n=tree.nodes.find(x=>x.id===nodeId);
   if(!n)throw Error('Unknown node');
   if(a.unlocks.includes(n.id))throw Error('Already unlocked');
-  if(n.perkMissing)throw Error(`Perk ${n.perkId} is not in this world. Import it through General Manager first`);
+  if(n.perkMissing)throw Error(`${n.name||'This perk'} is not in this world. Import it through General Manager first`);
   if(!String(reason??'').trim())throw Error('Give a reason for the override');
   const check=availability(tree,a,nodeId,{level,siblings});
   a.unlocks.push(n.id);a.revision++;
@@ -435,7 +435,7 @@ export function refund(tree,rawAccount,nodeId) {
   const a=cleanAccount(rawAccount);
   if(!a.unlocks.includes(nodeId))throw Error('That node is not unlocked');
   const blockers=dependentsBlockingRefund(tree,a,nodeId);
-  if(blockers.length)throw Error(`Refund ${blockers.map(n=>n.name||n.id).join(', ')} first; it depends on this node`);
+  if(blockers.length)throw Error(`Refund ${blockers.map(n=>n.name||'an unnamed perk').join(', ')} first; it depends on this node`);
   a.unlocks=a.unlocks.filter(id=>id!==nodeId);delete a.kept[nodeId];a.revision++;
   return a;
 }
@@ -458,8 +458,8 @@ export function savedDataReport(trees,perkExists) {
     for(const n of t.nodes){
       if(!n.perkId)rows.push({treeId:t.id,treeName:t.name,nodeId:n.id,nodeName:n.name,issue:'custom',
         text:'Custom node with no perk. It still works (unlocks record points only); assign a perk to give an Item.'});
-      else if(!perkExists(n.perkId))rows.push({treeId:t.id,treeName:t.name,nodeId:n.id,nodeName:n.name||n.perkId,issue:'missing_perk',
-        text:`${n.perkId} is not in this world. Import it through General Manager; until then the node cannot be unlocked.`});
+      else if(!perkExists(n.perkId))rows.push({treeId:t.id,treeName:t.name,nodeId:n.id,nodeName:n.name||'Unnamed perk',issue:'missing_perk',
+        text:`${n.name||'This perk'} is not in this world. Import it through General Manager; until then the node cannot be unlocked.`});
     }
   }
   return rows;
@@ -531,7 +531,7 @@ export function changedPurchasedNodes(oldTree,newTree,accounts) {
  */
 export function reconcile(tree,rawAccount,{level=null,itemTags=[],siblings=[]}={}) {
   const a=cleanAccount(rawAccount),st=professionStatus(tree,a,level,siblings),issues=[];
-  const by=new Map(tree.nodes.map(n=>[n.id,n])),tags=asArray(itemTags).filter(Boolean),name=id=>by.get(id)?.name||id;
+  const by=new Map(tree.nodes.map(n=>[n.id,n])),tags=asArray(itemTags).filter(Boolean),name=id=>by.get(id)?.name||'an unnamed perk';
   if(!st.ledger)issues.push({code:'LEDGER_UNAVAILABLE',nodeId:null,detail:'Profession Ledger is not active, so the level and points cannot be checked.'});
   if(st.overSpent>0)issues.push({code:'OVER_SPENT',nodeId:null,detail:`${st.spent} points used${st.trees?` across ${st.trees.length} trees of this profession`:''}; level ${st.level} gives ${st.earned}.`});
   for(const x of st.aboveLevel)issues.push({code:'ABOVE_THRESHOLD',nodeId:x.nodeId,detail:`${x.name} needs level ${x.threshold}; the character is level ${st.level}.`});
@@ -539,11 +539,11 @@ export function reconcile(tree,rawAccount,{level=null,itemTags=[],siblings=[]}={
     const n=by.get(id);if(!n)continue;
     const broken=n.requiresAll.some(p=>!a.unlocks.includes(p))||n.requiresAny.some(g=>!g.some(p=>a.unlocks.includes(p)));
     if(broken&&!a.kept[id])issues.push({code:'PREREQ_BROKEN',nodeId:id,detail:`${name(id)} is allocated without its prerequisites.`});
-    if(n.perkMissing)issues.push({code:'PERK_NOT_IN_WORLD',nodeId:id,detail:`${n.perkId} is not in this world.`});
+    if(n.perkMissing)issues.push({code:'PERK_NOT_IN_WORLD',nodeId:id,detail:`${n.name||'This perk'} is not in this world.`});
     const mine=tags.filter(t=>isGrantFor(t,tree,id));
     if(n.perkId&&!n.perkMissing&&!mine.length)issues.push({code:'MISSING_ITEM',nodeId:id,detail:`${name(id)} is allocated but its perk Item is not on the sheet.`});
     if(mine.length>1)issues.push({code:'DUPLICATE_ITEM',nodeId:id,detail:`${name(id)} is on the sheet ${mine.length} times.`});
-    if(n.perkId&&tags.some(t=>t.treeId!==tree.id&&t.perkId===n.perkId))issues.push({code:'DUPLICATE_ITEM',nodeId:id,detail:`${n.perkId} was also given by another tree.`});
+    if(n.perkId&&tags.some(t=>t.treeId!==tree.id&&t.perkId===n.perkId))issues.push({code:'DUPLICATE_ITEM',nodeId:id,detail:`${n.name||'This perk'} was also given by another tree.`});
   }
   for(const t of tags)if(t.treeId===tree.id&&!a.unlocks.includes(t.nodeId))issues.push({code:'ORPHAN_ITEM',nodeId:t.nodeId,detail:`A perk Item from ${name(t.nodeId)} is on the sheet, but the node is not allocated.`});
   return {...st,issues};
@@ -556,7 +556,7 @@ export function reviewCandidates(tree,rawAccount,level,siblings=[]) {
   if(!st.overAllocated)return [];
   const above=new Set(st.aboveLevel.map(x=>x.nodeId));
   return tree.nodes.filter(n=>a.unlocks.includes(n.id)&&(above.has(n.id)||(st.overSpent>0&&!keptAt(a,n.id,level))))
-    .map(n=>({nodeId:n.id,name:n.name||n.perkId||n.id,threshold:needLevel(n),aboveLevel:above.has(n.id)}));
+    .map(n=>({nodeId:n.id,name:n.name||'Unnamed perk',threshold:needLevel(n),aboveLevel:above.has(n.id)}));
 }
 /**
  * Order to remove several nodes so each is removed after the nodes that depend on it.
@@ -572,7 +572,7 @@ export function removalOrder(tree,rawAccount,nodeIds) {
       a=refund(tree,a,id);order.push(id);left.delete(id);progress=true;
     }
   }
-  return {order,blocked:[...left].map(id=>({nodeId:id,by:dependentsBlockingRefund(tree,a,id).map(n=>n.name||n.id)})),account:a};
+  return {order,blocked:[...left].map(id=>({nodeId:id,by:dependentsBlockingRefund(tree,a,id).map(n=>n.name||'an unnamed perk')})),account:a};
 }
 /**
  * Dry run of importing legacy Profession Ledger perk choices (selectedPerkIds) into a profession tree. Never writes.
@@ -583,8 +583,8 @@ export function planLedgerImport(tree,rawAccount,perkIds,sheetPerkIds=[]) {
   return [...new Set(asArray(perkIds))].map(perkId=>{
     const n=tree.nodes.find(x=>x.perkId===perkId);
     if(!n)return {perkId,nodeId:null,action:'unmapped',reason:'No node on this tree has this perk; left as it is.'};
-    if(a.unlocks.includes(n.id))return {perkId,nodeId:n.id,name:n.name||perkId,action:'skip',reason:'Already allocated.'};
-    return {perkId,nodeId:n.id,name:n.name||perkId,action:sheet.has(perkId)?'adopt':'add',
+    if(a.unlocks.includes(n.id))return {perkId,nodeId:n.id,name:n.name||'Unnamed perk',action:'skip',reason:'Already allocated.'};
+    return {perkId,nodeId:n.id,name:n.name||'Unnamed perk',action:sheet.has(perkId)?'adopt':'add',
       reason:sheet.has(perkId)?'Allocate; the perk Item already on the sheet is linked to the node.':'Allocate and add the perk Item.'};
   });
 }
