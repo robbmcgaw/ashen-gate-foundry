@@ -3,15 +3,17 @@
 import {NODE_SIZES} from './appearance.mjs';
 export const NODE_W = 181, NODE_H = 67;
 const GAP = 3;
-// A node keeps its width; its height grows with a long name, so a measured n.h (board px) overrides the default height.
-const dims = (size, n) => { const d = NODE_SIZES[size] ?? {w: NODE_W, h: NODE_H}; return Number.isFinite(n?.h) && n.h > d.h ? {w: d.w, h: n.h} : d; };
-export const nodeCenter = (n, size) => { const {w, h} = dims(size, n); return {x: n.x + w / 2, y: n.y + h / 2}; };
-/** Where the line from box centre a toward point b leaves the node box (plus a small gap). */
+export const RING = 7; // ring and outer ring around the icon, px
+// A node is a fixed-size icon centred in its footprint (NODE_SIZES w by h); a long name no longer grows it.
+const dims = size => NODE_SIZES[size] ?? {w: NODE_W, h: NODE_H};
+export const nodeCenter = (n, size) => { const {w, h} = dims(size); return {x: n.x + w / 2, y: n.y + h / 2}; };
+/** Where the line from node centre a toward point b leaves the node's icon ring (plus a small gap). */
 function borderPoint(c, toward, size, n) {
-  const {w: NODE_W, h: NODE_H} = dims(size, n);
   const dx = toward.x - c.x, dy = toward.y - c.y;
   if (!dx && !dy) return {...c};
-  const scale = Math.min(dx ? (NODE_W / 2 + GAP) / Math.abs(dx) : Infinity, dy ? (NODE_H / 2 + GAP) / Math.abs(dy) : Infinity);
+  // 0.23.0: a node is a round icon, so a line stops at the icon's outer ring, not at the old box edge.
+  const radius = (NODE_SIZES[size]?.icon ?? NODE_SIZES.normal.icon) / 2 + RING + GAP;
+  const scale = radius / Math.hypot(dx, dy);
   return {x: c.x + dx * scale, y: c.y + dy * scale};
 }
 const r = v => Math.round(v * 10) / 10;

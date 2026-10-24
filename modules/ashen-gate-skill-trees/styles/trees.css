@@ -64,42 +64,67 @@
 .agst-link{fill:none;stroke-width:2.5;stroke-linecap:round;opacity:1}
 .agst-link-all{stroke:var(--ag-muted)}
 .agst-link-any{stroke:var(--ag-accent);stroke-dasharray:8 5}
-.agst-link-exclude{stroke:var(--ag-danger);stroke-dasharray:2 5}
+.agst-link-exclude{stroke:var(--ag-danger);stroke-dasharray:2 5;stroke-width:3}
 .agst-link.agst-linked{stroke:var(--ag-ok);stroke-width:3}
 .agst-edge-label{font:700 var(--ag-text-xs)/1 var(--ag-font-body);paint-order:stroke;stroke:var(--ag-surface);stroke-width:4px;stroke-linejoin:round}
-.agst-edge-label-any{fill:var(--ag-accent)}.agst-edge-label-exclude{fill:var(--ag-danger);font-size:var(--ag-text-md)}
+.agst-edge-label-any{fill:var(--ag-accent)}.agst-edge-label-exclude{fill:var(--ag-danger-ink);font-size:var(--ag-text-xs)}
 
-/* Nodes: fixed width per size (arrows use it); the height grows so the whole name shows, and the edges are refitted after render. */
-.agst-window-v2 button.agst-node{position:absolute;z-index:3;display:flex;align-items:center;gap:8px;width:181px;min-height:67px;height:auto;padding:8px 10px;text-align:left;white-space:normal;overflow-wrap:anywhere;background:var(--ag-surface-hover);border:2px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:0 2px 8px color-mix(in srgb,var(--ag-surface-sunken) 70%,transparent);cursor:pointer} /* ag-lint-allow: board geometry (NODE_SIZES.normal) */
-.agst-node-icon{flex:none;width:32px;height:32px;display:grid;place-items:center;overflow:hidden;color:var(--ag-text);background:var(--ag-surface-raised);border:1px solid var(--ag-border-strong);border-radius:50%;font-size:var(--ag-text-md)} /* ag-lint-allow: fixed board node geometry */
-.agst-node-icon img{width:100%;height:100%;object-fit:cover;border:0}
-.agst-node-main{min-width:0;display:flex;flex-direction:column;gap:2px} /* ag-lint-allow: fixed board node geometry */
-.agst-node-main strong{font-size:var(--ag-text-sm);line-height:1.16}
-.agst-node-main small{font-size:var(--ag-text-xs);letter-spacing:.03em;color:var(--ag-text);white-space:normal}
-.agst-size-compact button.agst-node{width:132px;min-height:46px;padding:4px 7px;gap:6px;border-width:2px} /* ag-lint-allow: board geometry (NODE_SIZES.compact) */
-.agst-size-compact .agst-node-icon{width:24px;height:24px;font-size:var(--ag-text-xs)} /* ag-lint-allow: fixed board node geometry */
-.agst-size-compact .agst-node-main{gap:0}
-.agst-size-compact .agst-node-main strong{font-size:var(--ag-text-xs);line-height:1.12}
-.agst-size-compact .agst-flag{display:none}
-.agst-window-v2 button.agst-node.agst-selected{border-color:var(--ag-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ag-accent) 35%,transparent)}
-.agst-window-v2 button.agst-node.agst-eligible,.agst-window-v2 button.agst-node.agst-unlocked{border-color:var(--ag-ok)}
-.agst-window-v2 button.agst-node.agst-unlocked{background:var(--ag-ok-soft)}
-.agst-window-v2 button.agst-node.agst-silhouette{border-style:dashed;filter:saturate(.5)}.agst-window-v2 button.agst-node.agst-silhouette strong{font-style:italic}
-.agst-window-v2 button.agst-node.agst-node-warn{border-color:var(--ag-warn);border-style:dashed}
-.agst-window-v2 button.agst-node.agst-node-review{border-color:var(--ag-warn)}
+/* Nodes (0.23.0): each node is only a round icon. The button keeps the old footprint (stored x,y and spacing do not change) but takes no
+   pointer events; the icon does. State is the ring: locked grey, available gold, learned green and bright. A rival pair gets a dashed outer
+   ring and a crossroads a double outer ring, so shape (not colour alone) tells them apart. */
+.agst-window-v2 button.agst-node{--ring:var(--ag-border-strong);position:absolute;z-index:3;display:grid;place-items:center;width:181px;height:67px;min-height:0;padding:0;margin:0;background:none;border:0;border-radius:0;box-shadow:none;pointer-events:none;cursor:pointer} /* ag-lint-allow: board geometry (NODE_SIZES.normal) */
+.agst-size-compact button.agst-node{width:132px;height:46px} /* ag-lint-allow: board geometry (NODE_SIZES.compact) */
+.agst-node-icon{position:relative;pointer-events:auto;width:52px;height:52px;display:grid;place-items:center;color:var(--ag-text);background:var(--ag-surface-raised);border-radius:50%;font-size:var(--ag-text-xl);box-shadow:0 0 0 3px var(--ring)} /* ag-lint-allow: fixed board node geometry (NODE_SIZES.normal.icon) */
+.agst-size-compact .agst-node-icon{width:40px;height:40px;font-size:var(--ag-text-lg)} /* ag-lint-allow: fixed board node geometry (NODE_SIZES.compact.icon) */
+.agst-node-icon>img,.agst-node-icon>i{width:100%;height:100%;border-radius:50%;object-fit:cover;border:0;display:grid;place-items:center}
+.agst-window-v2 button.agst-node:hover .agst-node-icon{transform:scale(1.08)}
+.agst-window-v2 button.agst-node.agst-locked{--ring:var(--ag-border-strong)}
+.agst-window-v2 button.agst-node.agst-locked .agst-node-icon>*{filter:grayscale(1);opacity:.5}
+.agst-window-v2 button.agst-node.agst-eligible{--ring:var(--ag-accent)}
+.agst-window-v2 button.agst-node.agst-eligible .agst-node-icon{box-shadow:0 0 0 3px var(--ring),0 0 10px 2px color-mix(in srgb,var(--ag-accent) 55%,transparent)}
+.agst-window-v2 button.agst-node.agst-unlocked{--ring:var(--ag-ok)}
+.agst-window-v2 button.agst-node.agst-unlocked .agst-node-icon{background:var(--ag-ok-soft);box-shadow:0 0 0 3px var(--ring),0 0 14px 3px color-mix(in srgb,var(--ag-ok) 65%,transparent)}
+.agst-window-v2 button.agst-node.agst-rival .agst-node-icon{outline:2px dashed var(--ag-danger);outline-offset:5px} /* ag-lint-allow: ring geometry (graph.mjs RING) */
+.agst-window-v2 button.agst-node.agst-crossroads .agst-node-icon{outline:4px double var(--ag-info);outline-offset:4px} /* ag-lint-allow: ring geometry (graph.mjs RING) */
+.agst-window-v2 button.agst-node.agst-silhouette .agst-node-icon{box-shadow:0 0 0 3px var(--ring);outline:2px dotted var(--ag-muted);outline-offset:5px} /* ag-lint-allow: fixed board ring geometry */
+.agst-window-v2 button.agst-node.agst-node-warn{--ring:var(--ag-warn)}
+.agst-window-v2 button.agst-node.agst-node-review{--ring:var(--ag-warn)}
+.agst-window-v2 button.agst-node.agst-selected .agst-node-icon{filter:drop-shadow(0 0 6px var(--ag-accent))}
+.agst-window-v2 button.agst-node:focus-visible{outline:none}
+.agst-window-v2 button.agst-node:focus-visible .agst-node-icon::after{content:"";position:absolute;inset:-13px;border-radius:50%;border:2px solid var(--ag-focus)} /* ag-lint-allow: fixed board ring geometry */
+@media (prefers-reduced-motion:no-preference){.agst-node-icon{transition:transform .12s}}
+
+/* Specialty / branch labels above their column */
+.agst-lane{position:absolute;z-index:2;transform:translateX(-50%);white-space:nowrap;pointer-events:none;font-size:var(--ag-text-md);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ag-accent-ink);text-shadow:0 0 3px var(--ag-surface),0 0 3px var(--ag-surface),0 0 6px var(--ag-surface)}
+
 .agst-board-empty{position:absolute;top:30%;left:12%;right:12%;z-index:3}
 .agst-board-empty>.ag-empty{background:var(--ag-surface-raised)}
 .agst-canvas-help{flex:none;font-size:var(--ag-text-sm);padding:var(--ag-space-2) var(--ag-space-4);border-top:1px solid var(--ag-border-strong);color:var(--ag-text);background:var(--ag-surface-raised)}
 
-/* Corner tooltip over the canvas (top-right). The only tooltip for a node; it takes no pointer events. */
-.agst-tip{position:absolute;z-index:6;top:var(--ag-space-3);right:var(--ag-space-5);width:min(16rem,calc(100% - 2 * var(--ag-space-5)));max-height:calc(100% - 2 * var(--ag-space-3));overflow:auto;padding:var(--ag-space-2) var(--ag-space-3);background:var(--ag-surface-raised);color:var(--ag-text);border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:var(--ag-shadow);font-size:var(--ag-text-sm);line-height:1.4;pointer-events:none}
+/* Corner card over the canvas (top-right): hover or keyboard focus shows a perk in full. The card of the pinned node (right-click or Shift+Enter) carries
+   its buttons and takes pointer events; the others never do. */
+.agst-tip{position:absolute;z-index:6;top:var(--ag-space-3);right:var(--ag-space-5);width:min(26rem,calc(100% - 2 * var(--ag-space-5)));max-height:calc(100% - 2 * var(--ag-space-3));overflow:auto;padding:var(--ag-space-2) var(--ag-space-3);background:var(--ag-surface-raised);color:var(--ag-text);border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:var(--ag-shadow);font-size:var(--ag-text-sm);line-height:1.4;pointer-events:none}
+.agst-tip.agst-tip-live{pointer-events:auto}
 .agst-tip[hidden]{display:none}
 .agst-tip-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--ag-space-2)}.agst-tip-head strong{font-size:var(--ag-text-md);overflow-wrap:anywhere}
 .agst-tip-line{margin-top:var(--ag-space-1);color:var(--ag-muted)}.agst-tip-text{margin:var(--ag-space-1) 0 0;overflow-wrap:anywhere}.agst-tip-req{color:var(--ag-text)}
+.agst-tip-kind{font-weight:650;color:var(--ag-text)}
+.agst-tip-hint{font-size:var(--ag-text-xs)}
+.agst-tip-desc{margin-top:var(--ag-space-2);overflow-wrap:anywhere}
+.agst-tip-desc :where(p,ul,ol,table,blockquote){margin:0 0 var(--ag-space-2)}
+.agst-tip-desc :where(ul,ol){padding-left:var(--ag-space-5)}
+.agst-tip-desc :where(h1,h2,h3,h4,h5,h6){margin:var(--ag-space-2) 0 var(--ag-space-1);font-size:var(--ag-text-md);line-height:1.25}
+.agst-tip-desc table{width:100%;border-collapse:collapse;font-size:var(--ag-text-xs)}
+.agst-tip-desc :where(th,td){padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border-strong);text-align:left;vertical-align:top}
+.agst-tip-desc th{background:var(--ag-surface-hover)}
+.agst-tip-actions{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
 
 /* Legend */
 .agst-legend{flex:none;display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-5);align-items:center;padding:var(--ag-space-1) var(--ag-space-4);font-size:var(--ag-text-sm);color:var(--ag-text);background:var(--ag-surface-raised);border-top:1px solid var(--ag-border-strong)}
 .agst-legend span{display:inline-flex;align-items:center;gap:var(--ag-space-2)}.agst-legend svg{overflow:visible;flex:none}
+.agst-key{--ring:var(--ag-border-strong);display:inline-block;width:12px;height:12px;margin:0 3px;border-radius:50%;background:var(--ag-surface-raised);box-shadow:0 0 0 2px var(--ring)} /* ag-lint-allow: fixed legend swatch geometry */
+.agst-key-available{--ring:var(--ag-accent)}.agst-key-learned{--ring:var(--ag-ok);background:var(--ag-ok-soft)}
+.agst-key-rival{outline:2px dashed var(--ag-danger);outline-offset:3px}.agst-key-crossroads{outline:3px double var(--ag-info);outline-offset:3px}
 
 /* Sidebar contents */
 .agst-help{font-size:var(--ag-text-sm);color:var(--ag-text);line-height:1.45;margin:0}

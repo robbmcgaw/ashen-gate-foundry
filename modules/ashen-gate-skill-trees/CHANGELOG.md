@@ -1,3 +1,17 @@
+## 0.23.0 — 2026-10-24
+
+Tree nodes are icons; specialties, rival pairs and crossroads are readable on the canvas; imports show counts.
+
+- **Nodes are just the perk's icon**, a little bigger than before, with no text, box or point badge. The ring is the state: locked is greyed, available has a gold ring, learned is bright green. Rival-pair nodes get a dashed outer ring and crossroads nodes a double outer ring, so colour is not the only signal. Positions and spacing are unchanged (a node keeps its old footprint); lines now stop at the icon's ring.
+- **Hover or keyboard focus shows the whole perk** in the card at the top right: name, tier and level (for example "Expert (level 7)"), point cost, the perk's description as the Item has it (its table and Effect & Rules, shown as plain structure: no links, images, styles or GM secret sections), what it needs and who its rivals are. Players get the same text (it is part of the shared player view, 8,000 characters at most per perk, else plain text).
+- **Click opens the perk's Item sheet.** The GM opens the world perk; a player opens the copy on their own sheet once learned (the player view carries no world ids, so a perk they have not learned says to learn it first). Unlock and Refund never happen on a plain click: **right-click, the Menu key or Shift+Enter** pins a node, and its card shows **Open perk sheet**, **Unlock** (a player asks; the GM client does it) and, for the GM only, **Remove / Refund**, each with the existing confirmation. The Perk tab keeps the same buttons. In **Edit layout** a click still selects the node for editing; Open perk sheet is on its card.
+- **Specialty labels.** A node may carry an optional `lane` text (up to 40 characters); the canvas prints each lane's name above its column. Nodes without one print nothing; teasers and hidden nodes never show theirs to players.
+- **Rival pairs and crossroads in words.** The card says "Choose one: X or Y" on both nodes; the connecting line is thicker, dotted and labelled "Choose one". A node needing a perk and one of several reads "Requires A and one of B or C"; a crossroads reads "Requires one of A or B, and one of C or D". The legend explains every ring and line.
+- **Import preview and checks.** `previewTreeImport` rows carry a `summary` ("24 nodes, 3 rival pairs, up to 21 can be taken together"). The "have 24 nodes (16 can be chosen)" warning is replaced by a range: a profession tree warns only below 20 or above 36 nodes, or when its rival pairs leave fewer than 16 perks that can be held together.
+- **Opens fitted.** The first time a tree opens in a window it is zoomed so its whole width shows (the widest trees span about 1,900 px); the zoom reset button is now "Fit tree to window". Zoom runs 25% to 160%.
+- Help and README rewritten for the above. Saved data: no change and no migration; `lane` is an optional new field on a node, and older layouts simply have none.
+- Tests are mocked Foundry and pure logic: they prove the rules, wording and wiring, not how the window looks or behaves in the live Forge.
+
 ## 0.22.2 — 2026-10-24
 
 - **Create tree: pick the profession or mutation by name.** For a Profession or Cinder tree, *Create tree* shows a searchable list of the Profession (or Mutation) records General Manager imported, instead of a box to paste an id into. Generic trees show none. If you forget to choose, it says *Choose the profession this tree is for.*; if there are no records it says to import them first.

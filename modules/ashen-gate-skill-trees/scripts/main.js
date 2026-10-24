@@ -6,8 +6,9 @@ import {
   sharedWalletKey,walletGroups,groupName,memberName,accessText,cleanAccess,PROFESSION_MAX_LEVEL
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
+import {sanitizePerkHtml} from './perk-html.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
-import {tooltipModel,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
+import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -22,7 +23,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.22.2';
+const VERSION='0.23.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -171,7 +172,7 @@ const plainText=html=>{
 /** The world perk for a permanent id (Manager's binding). The node's stored UUID is only a local hint. */
 const perkDoc=id=>{const hit=lookupWorldDefinition(game,id,{});return hit.status==='ok'&&hit.document?.documentName==='Item'?hit.document:null;};
 const perkInfo=id=>{const doc=perkDoc(id);if(!doc)return null;
-  return {name:doc.name,description:plainText(doc.system?.description?.value),img:doc.img??null,cost:perkCost(sourceFlag(doc)?.definition),uuid:doc.uuid,tier:sourceFlag(doc)?.definition?.tier??null};};
+  return {name:doc.name,description:plainText(doc.system?.description?.value),html:sanitizePerkHtml(doc.system?.description?.value),img:doc.img??null,cost:perkCost(sourceFlag(doc)?.definition),uuid:doc.uuid,tier:sourceFlag(doc)?.definition?.tier??null};};
 const resolved=t=>resolveTree(t,id=>perkInfo(id));
 const safePublicSource=n=>{
   if(!n.perkId)return true; // Older custom nodes have no perk.
@@ -641,9 +642,7 @@ function relationsOf(nodes,n){
 const STATE_VIEW={UNLOCKED:{text:'Unlocked',badge:'ag-badge--ok'},AVAILABLE:{text:'Available',badge:'ag-badge--accent'},LOCKED:{text:'Locked',badge:''}};
 const TIP_BADGE={unlocked:'ag-badge--ok',available:'ag-badge--accent'};
 const HISTORY_LABELS={allocate:'Picked',override:'GM grant',remove:'Removed',keep:'Kept',reset:'Reset',undo:'Undo',migrate:'Imported from Ledger'};
-const relationText=r=>[r.all.length?`Requires ${r.all.map(x=>x.name).join(' and ')}`:'',
-  ...r.any.map(g=>`Requires one of ${g.nodes.map(x=>x.name).join(' or ')}`),
-  r.excludes.length?`Cannot be taken with ${r.excludes.map(x=>x.name).join(', ')}`:''].filter(Boolean).join('. ');
+const relationText=(r,name='')=>relationSentence(name,r);
 
 const plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
 const awardLabel=n=>`Award ${plural(Number.isFinite(n)&&n>0?n:0,'point')}`;
@@ -671,7 +670,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(key)this._focusKey={act:key.dataset.act??null,id:key.dataset.id??key.dataset.tree??null,tab:key.dataset.tab??null};
     return super.render(options);
   }
-  constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};
+  constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this._fitted=new Set();this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};
     // 0.20.0: remembered per user (kit uiState): the sidebar and Tree Library sub-tabs and the open folds.
     this.ui=uiState(MODULE);this.sideTab=this.ui.get('sideTab','perk',SIDE_TABS.map(t=>t.id));this.libraryTab=this.ui.get('libraryTab','trees',LIBRARY_TABS.map(t=>t.id));
     // 0.22.0: Tree Library sort, grouping and filters are remembered per user; the search text is not.
@@ -715,10 +714,11 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const overLevel=unlocked&&above.has(n.id),kept=unlocked&&Boolean(acc.kept[n.id]);
       return {...n,unlocked,eligible:!unlocked&&e.ok,overLevel,kept,reason:unlocked?(overLevel?`Unlocked, but needs level ${n.requiredLevel} (now ${level})`:kept?`Unlocked (kept by the GM at level ${acc.kept[n.id].level})`:'Unlocked'):e.reason,
         levelText:profession&&Number.isSafeInteger(n.requiredLevel)?`Level ${n.requiredLevel}`:'',
-        selected:n.id===this.nodeId,flag,stateText:state.text,badgeClass:state.badge,rel,relText:relationText(rel),
+        selected:n.id===this.nodeId,flag,stateText:state.text,badgeClass:state.badge,rel,relText:relationText(rel,n.name),rival:isRival(n,rel),crossroads:isCrossroads(n),lane:n.lane??'',
+        actions:{learn:!unlocked&&e.ok&&actor?(raw?'purchase':!gm?'request':null):null,learnLabel:raw?`Unlock for ${actor?.name??'character'}…`:`Unlock (${n.cost??1} pt)…`,refund:raw&&unlocked&&!!actor,refundLabel:profession?'Remove (point returned)…':'Refund (removes perk from sheet)…'},
         placeholder:n.status==='placeholder',silhouette:n.silhouette??false,img:n.silhouette?null:n.img??null,
         statusText:labelOf(NODE_STATUS_LABELS,n.status),visibilityText:labelOf(NODE_VISIBILITY_LABELS,n.visibility),displayText:labelOf(NODE_DISPLAY_LABELS,n.display),
-        label:[`${n.name}: ${state.text}`,`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel)].filter(Boolean).join('. '),
+        label:[`${n.name}: ${state.text}`,(n.silhouette?'':tierText(n)),`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel,n.name),isCrossroads(n)?'Crossroads':''].filter(Boolean).join('. '),
         blocked:!unlocked&&!e.ok,style:`left:${n.x}px;top:${n.y}px;`};
     });
     const selected=nodes.find(n=>n.id===this.nodeId)??null;
@@ -776,10 +776,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       trees:picker.options,treeGroups:pickerGroups(picker.options,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
       treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
-      nodes,sizeClass:`agst-size-${size}`,nodeSize:size,bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
+      nodes,sizeClass:`agst-size-${size}`,nodeSize:size,lanes:laneLabels(nodes,dim),bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
       sidebarOpen:this.sidebarOpen!==false,
       edges:graphEdges(nodes,size).map(e=>({...e,marker:e.kind==='exclude'?'':`url(#agst-arrow-${e.active?'active':e.kind})`,
-        label:e.kind==='exclude'?'✕':e.kind==='any'?(e.group>1?`OR ${e.group}`:'OR'):''})),selectedId:this.nodeId,
+        label:e.kind==='exclude'?'Choose one':e.kind==='any'?(e.group>1?`OR ${e.group}`:'OR'):''})),selectedId:this.nodeId,
       progress:{awarded:acc.awarded,spent,available:points,unlocks:acc.unlocks.length,cap:t?.provider?.maxPoints??null},
       mapWidth:Math.ceil(maxX),mapHeight:Math.ceil(maxY),zoom:this.zoom,zoomText:`${Math.round(this.zoom*100)}%`,
       hasFeatures:!!features.length,features,search:this.search,linkFrom:this.linkFrom,
@@ -862,8 +862,18 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(this._refocus&&this.nodeId){board.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});this._focusKey=null;}
       this._refocus=false;
       board.addEventListener('keydown',e=>this._nodeKey(e),listenerOptions);
+      // 0.23.0: right-click (or the Menu key / Shift+Enter) pins a node so its card offers Unlock / Refund; a plain click opens the perk sheet.
+      board.addEventListener('contextmenu',e=>{const id=nodeOf(e);if(!id)return;e.preventDefault();this._pin(id,{focusCard:e.button!==2});},listenerOptions);
+      board.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.shiftKey){const id=nodeOf(e);if(id){e.preventDefault();this._pin(id,{focusCard:true});}}},listenerOptions);
       board.addEventListener('dragover',e=>{if(game.user.isGM&&this.editMode&&!this.playerPreview)e.preventDefault();},listenerOptions);
       board.addEventListener('drop',e=>this._dropped(e),listenerOptions);
+    }
+    const tip=root.querySelector('.agst-tip');
+    tip?.addEventListener('keydown',e=>{if(e.key==='Escape'&&this.nodeId){e.stopPropagation();root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}},listenerOptions);
+    if(this._focusCard){this._focusCard=false;tip?.querySelector('button')?.focus({preventScroll:true});}
+    if(viewport&&this.tree&&!this._fitted.has(this.treeId)){ // first time this tree opens in this window: the whole width fits
+      this._fitted.add(this.treeId);
+      this._setZoom(fitZoom(viewport.clientWidth,Number(board?.style?.width?.replace('px',''))||0),{exact:true});
     }
     root.querySelectorAll('.agst-feature').forEach(el=>el.addEventListener('dragstart',e=>e.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:el.dataset.uuid})),listenerOptions));
     this._restoreFocus(root);
@@ -926,9 +936,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Redraw the edges (arrowheads and labels) touching one node from the nodes' current positions on the board. */
   _redrawEdges(id){
     const board=this.element?.querySelector?.('.agst-board');if(!board||!this.tree)return;
-    const size=nodeSizeOf(this.tree),w=NODE_SIZES[size].w;
+    const size=nodeSizeOf(this.tree);
     const pos=nodeId=>{const el=board.querySelector(`.agst-node[data-id="${CSS.escape(nodeId)}"]`);
-      return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top),...(el.offsetWidth?{h:el.offsetHeight*w/el.offsetWidth}:{})}:null;};
+      return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top)}:null;};
     for(const el of board.querySelectorAll('[data-edge]')){
       if(el.dataset.from!==id&&el.dataset.to!==id)continue;
       const src=pos(el.dataset.from),dst=pos(el.dataset.to);if(!src||!dst)continue;
@@ -994,16 +1004,11 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     notify(`Saved. Player Access: ${next?'players can open Skill Trees':'hidden from players'}. Points and unlocks are unchanged.`);
     return true;
   }
-  /**
-   * Nodes keep their width but grow in height to show the whole name, so redraw each edge to the node's real border.
-   * The height is read relative to the fixed width, so the board zoom does not matter.
-   */
+  /** Redraw every edge from the nodes' positions on the board (a node is a fixed-size icon, so the lines stop at its ring). */
   _fitEdges(){
     const board=this.element?.querySelector?.('.agst-board');if(!board||!this.tree)return;
-    const size=nodeSizeOf(this.tree),w=NODE_SIZES[size].w;
-    const box=id=>{const el=board.querySelector(`.agst-node[data-id="${CSS.escape(id)}"]`);if(!el)return null;
-      const h=el.offsetWidth?el.offsetHeight*w/el.offsetWidth:NODE_SIZES[size].h;
-      return {x:parseFloat(el.style.left),y:parseFloat(el.style.top),h};};
+    const size=nodeSizeOf(this.tree);
+    const box=id=>{const el=board.querySelector(`.agst-node[data-id="${CSS.escape(id)}"]`);return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top)}:null;};
     const boxes=new Map();const get=id=>{if(!boxes.has(id))boxes.set(id,box(id));return boxes.get(id);};
     for(const el of board.querySelectorAll('[data-edge]')){
       const src=get(el.dataset.from),dst=get(el.dataset.to);if(!src||!dst)continue;
@@ -1016,22 +1021,53 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     layout?.classList.toggle('agst-sidebar-open',open);
     this.element?.querySelectorAll?.('[data-act="toggle-sidebar"]').forEach(b=>b.setAttribute('aria-expanded',String(open)));
   }
-  /** Fill the corner card from the prepared tooltip data (text only, never markup); no re-render. */
+  /** Fill the corner card from the prepared tooltip data; no re-render. Perk text is sanitised markup (perk-html.mjs), everything else is set as text. */
   _showTip(id){
     const card=this.element?.querySelector?.('.agst-tip');if(!card)return;
     const tip=this._tips?.[id]??null;
     card.hidden=!tip;
-    if(!tip){card.replaceChildren();return;}
+    if(!tip){card.replaceChildren();card.className='agst-tip';return;}
     const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=text;return e;};
+    const pinned=id===this.nodeId&&Boolean(tip.actions?.learn||tip.actions?.refund||tip.canOpen);
+    card.className=pinned?'agst-tip agst-tip-live':'agst-tip';
     const head=make('div','agst-tip-head','');head.append(make('strong','',tip.name),make('span',`ag-badge ${TIP_BADGE[tip.statusKey]??''}`.trim(),tip.status));
     card.replaceChildren(head);
-    if(tip.costText)card.append(make('div','agst-tip-line',tip.costText));
-    if(tip.text)card.append(make('p','agst-tip-text',tip.text));
+    const meta=[tip.tier,tip.costText].filter(Boolean).join(' · ');
+    if(meta)card.append(make('div','agst-tip-line',meta));
+    if(tip.kind==='rival'||tip.kind==='crossroads')card.append(make('div','agst-tip-line agst-tip-kind',tip.kind==='rival'?'Rival perks':'Crossroads'));
+    if(tip.rival)card.append(make('div','agst-tip-line agst-tip-req',tip.rival));
     if(tip.prerequisites)card.append(make('div','agst-tip-line agst-tip-req',tip.prerequisites));
     else if(tip.reason)card.append(make('div','agst-tip-line agst-tip-req',tip.reason));
+    if(tip.html){const d=make('div','agst-tip-desc','');d.innerHTML=tip.html;card.append(d);} // tip.html comes only from sanitizePerkHtml
+    else if(tip.fullText||tip.text)card.append(make('p','agst-tip-text',tip.fullText||tip.text));
+    if(pinned){
+      const row=make('div','agst-tip-actions','');
+      const button=(label,act,cls)=>{const b=make('button',`ag-btn ag-btn--sm ${cls}`.trim(),label);b.type='button';b.setAttribute('data-act',act);b.setAttribute('data-id',id);return b;};
+      if(tip.canOpen)row.append(button('Open perk sheet','open-sheet',''));
+      if(tip.actions?.learn)row.append(button(tip.actions.learnLabel||'Unlock…',tip.actions.learn,'ag-btn--primary'));
+      if(tip.actions?.refund)row.append(button(tip.actions.refundLabel||'Refund…','refund','ag-btn--danger'));
+      card.append(row);
+    }else if(tip.canOpen)card.append(make('div','agst-tip-line agst-tip-hint',`Click to open the perk sheet. Right-click, or press Shift+Enter, to ${tip.actions?.learn||tip.actions?.refund?'unlock or refund':'pin this card'}.`));
   }
-  _setZoom(value){
-    this.zoom=Math.min(1.6,Math.max(.4,Math.round(value*10)/10));
+  /** Pin a node: its card offers Open perk sheet / Unlock / Refund, and the Perk tab shows it. Used by right-click and Shift+Enter. */
+  _pin(id,{focusCard=false}={}){
+    if(this.busy)return;
+    this.nodeId=id;this.sideTab='perk';this._refocus=!focusCard;this._focusCard=focusCard;this.render();
+  }
+  /** Open the perk Item sheet. GM: the world perk. Player: their own copy once learned, else the world perk if they may see it. */
+  async _openPerkSheet(id){
+    const node=this.tree?.nodes?.find(n=>n.id===id);if(!node)return;
+    if(node.silhouette){notify('This perk has not been revealed yet.');return;}
+    let doc=null;
+    if(game.user.isGM)doc=node.perkId?perkDoc(node.perkId):null;
+    else{
+      doc=this.actor?(grantedItems(this.actor,this.tree,id)[0]??null):null; // the player view carries no world id or UUID, so only the learned copy can open
+    }
+    if(!doc?.sheet){notify(game.user.isGM?'This node has no perk sheet to open; its text is in the tooltip.':'Learn this perk to open its sheet. Its full text is in the tooltip.');return;}
+    doc.sheet.render(true);
+  }
+  _setZoom(value,{exact=false}={}){
+    this.zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,exact?Math.round(value*100)/100:Math.round(value*10)/10));
     const board=this.element?.querySelector?.('.agst-board');if(board)board.style.zoom=String(this.zoom);
     const label=this.element?.querySelector?.('.agst-zoom-label');if(label)label.textContent=`${Math.round(this.zoom*100)}%`;
   }
@@ -1049,7 +1085,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(action==='tab-trees'){this.activeTab='trees';this.render();return;}
     if(action==='tab-library'){if(!game.user.isGM){notify('Tree Library is restricted to the GM.',true);return;}this.activeTab='library';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
-    if(action==='select'){
+    if(action==='open-perk'||action==='open-sheet'){
+      if(action==='open-perk'&&this._dragged){this._dragged=false;return;}
+      // Edit layout is for building the tree, so there a click still selects the node (use Open perk sheet on its card to read it).
+      const editing=game.user.isGM&&this.editMode&&!this.playerPreview;
+      if(action==='open-sheet'||!editing){await this._openPerkSheet(id);return;}
+    }
+    if(action==='select'||action==='open-perk'){
       if(this.linkFrom&&game.user.isGM&&this.editMode){try{await this._linkTo(id);}catch(e){notify(e.message,true);}return;}
       this.nodeId=id;this.sideTab='perk';this._refocus=true;this.render();return;
     }
@@ -1057,7 +1099,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(action==='toggle-sidebar'){this.sidebarOpen=toggledSidebar(this.sidebarOpen);this._applySidebar();return;}
     if(action==='zoom-in'){this._setZoom(this.zoom+.1);return;}
     if(action==='zoom-out'){this._setZoom(this.zoom-.1);return;}
-    if(action==='zoom-reset'){this._setZoom(1);return;}
+    if(action==='zoom-reset'){const vp=this.element?.querySelector?.('.agst-viewport'),bd=this.element?.querySelector?.('.agst-board');this._setZoom(fitZoom(vp?.clientWidth,Number(bd?.style?.width?.replace('px',''))||0),{exact:true});return;}
+    if(el.closest?.('.agst-tip')&&['purchase','request','refund'].includes(action))this._refocus=true;
     this.busy=true;
     try{
       switch(action){
@@ -1107,7 +1150,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _help(){
     await infoDialog('Skill Trees help',`
-      <h3>Skill Trees</h3><p>Shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. The menu beside the canvas has three tabs:</p>
+      <h3>Skill Trees</h3><p>Shows a character’s tree. Each node is a perk’s picture. Its ring shows the state: grey is locked, gold is available, bright green is learned. A dashed outer ring is a rival pair (choose one of the two) and a double outer ring is a crossroads. Names above the columns are the tree’s specialties. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked Choose one joins rival perks. A tree opens fitted to the window; the fit button next to the zoom controls fits it again.</p>
+      <p><strong>Reading and using a perk.</strong> Hover a node, or Tab to it, to see the whole perk in the card at the top right: tier and level, point cost, its description, what it needs and who its rivals are. <strong>Click</strong> a node to open the perk’s Item sheet (a player opens the copy on their own sheet once they have learned it). <strong>Right-click</strong>, the Menu key or <strong>Shift+Enter</strong> pins the node: its card then offers Open perk sheet, Unlock and, for the GM, Remove. A plain click never unlocks or refunds. In Edit layout a click selects the node for editing instead; Open perk sheet is on its card. The menu beside the canvas has three tabs:</p>
       <ul><li><strong>Perk</strong>: the selected perk, what it needs and what it opens, and its actions (Unlock, Remove, Grant). Selecting a node opens this tab. “Tree as a list” selects nodes from the keyboard.</li>
       <li><strong>Character</strong>: points, Award points, the characters on a profession tree, the character’s History (every change can be undone) and Reset this tree.</li>
       <li><strong>Edit</strong> (GM): with Edit layout on, Tree settings, Appearance, Undo/Redo and the Perks list.</li></ul>
@@ -1600,6 +1644,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const stop=async e=>{
       window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);
       if(!moved)return;
+      this._dragged=true;setTimeout(()=>{this._dragged=false;},60); // the click that ends a drag must not open the sheet
       try{await this._moveNode(id,original.x+(e.clientX-startX)/this.zoom,original.y+(e.clientY-startY)/this.zoom);}catch(error){notify(error.message,true);}
       this.render();
     };
@@ -1873,7 +1918,7 @@ Hooks.once('ready',()=>{
     previewTreeImport:(pack,{mode='skip'}={})=>{
       if(!game.user.isGM)throw Error('GM only');
       const {errors,rows}=planTreeImport(pack,readPrivate(),{mode});
-      return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+      return {errors,rows:rows.map(({id,name,action,reason,summary})=>({id,name,action,reason,summary}))};
     },
     importTrees:async(pack,{mode='skip'}={})=>{
       if(!game.user.isGM)throw Error('GM only');
