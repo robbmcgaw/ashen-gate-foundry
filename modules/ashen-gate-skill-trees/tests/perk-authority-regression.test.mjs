@@ -14,7 +14,7 @@ test('generic tree can spend points on a perk node, at the cost stored on the pe
 test('a perk missing from the world blocks the unlock with a clear reason',()=>{
  const t=resolveTree(base(),()=>null);
  const r=availability(t,account,'DEMO-NODE');
- assert.equal(r.ok,false);assert.match(r.reason,/PERK-TEST is not in this world/);
+ assert.equal(r.ok,false);assert.match(r.reason,/Unnamed perk is not in this world/);
  assert.throws(()=>purchase(t,account,'DEMO-NODE'),/not in this world/);
 });
 test('0.11.0: profession trees spend Ledger-level points, 1 per node, never without the Ledger',()=>{

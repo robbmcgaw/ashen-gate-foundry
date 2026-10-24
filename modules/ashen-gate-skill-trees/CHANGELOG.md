@@ -1,3 +1,9 @@
+## 0.21.2 — 2026-10-24
+
+- Canonical ids (PERK-…, PROF-…, node and tree ids) no longer show in the window. The perk shelf lists names and status words, the Create tree and Assign perk dialogs, the Edit node dialog, the Saved data check, the Profession perk check, the Ledger import table and every error or reason message name the perk or tree instead.
+- The GM's selected-perk panel (Skill Trees tab, Edit layout) keeps the id in a "Details" fold with a Copy id button. Searching the perk shelf by id still works.
+- Saved data: no change; no migration. Import and validation messages for tree files still quote ids (GM file authoring).
+
 ## 0.21.1 — 2026-10-23
 
 - Removed the Alpha wording: the GM Actor progress backup file's note now reads "GM backup only. It is not restored automatically." (before: "…No automatic restore in this alpha.").
