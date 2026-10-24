@@ -63,7 +63,7 @@ test('GM new location is an unsaved draft until Save', async () => {
   app.draft = {...(await import('../scripts/model.mjs')).normalizeLocation({}), name: ''};
   app.dirty = true;
   const html = await app._renderHTML();
-  assert.match(html, /The ID is made from the name when you save/);
+  assert.doesNotMatch(html, /data-ag-fold-key="details"/, "a new location has no id yet, so no Details fold");
   assert.equal(app.draft.id, '');
 });
 

@@ -147,7 +147,7 @@ test('editor: pick a template by activity, see it read only (Hunting, tier range
   let html = await app._renderHTML();
   assert.match(html, /data-action="add-node"[^>]*><i[^>]*><\/i><span>Add node…<\/span>/, '0.19.0: one Add node… button');
   assert.match(html, /<strong>\[TEST\] River Reeds<\/strong> · Hunting · Tier 1–3/);
-  assert.match(html, /Common: \[TEST\] Reed ×2 \(70%\), MAT-TEST-RUSH \(30%\) · Rare \(by 5\+\): MAT-TEST-SILVER-REED · Exotic: 1 candidate/);
+  assert.match(html, /Common: \[TEST\] Reed ×2 \(70%\), Unknown material \(30%\) · Rare \(by 5\+\): Unknown material · Exotic: 1 candidate/);
   assert.match(html, /data-action="open-ledger-nodes"/);
   assert.doesNotMatch(html, /Skinning/);
   const tierSel = html.slice(html.indexOf('data-bind="resources.r1.tier"'), html.indexOf('</select>', html.indexOf('data-bind="resources.r1.tier"')));
@@ -179,7 +179,7 @@ test('editor: pick a template by activity, see it read only (Hunting, tier range
 test('editor: a deleted template shows "no longer exists" and keeps the data; no Ledger shows the manual entry and a note', async () => {
   let {app} = await editor(fakeLedger([]));
   let html = await app._renderHTML();
-  assert.match(html, /Node template NODE-TEST-RIVER-REEDS no longer exists/);
+  assert.match(html, /This node template no longer exists/);
   assert.match(html, /value="\[TEST\] Reeds by the ford"/, 'the place data is still there');
   ({app} = await editor(null));
   html = await app._renderHTML();

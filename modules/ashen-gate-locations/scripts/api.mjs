@@ -40,13 +40,13 @@ export function createApi(deps) {
   const findGM = id => {
     const all = deps.readAll();
     const loc = all.find(l => l.id === id);
-    if (!loc) throw new Error(`No location ${id}.`);
+    if (!loc) throw new Error('No location found with that reference.');
     return {all, loc};
   };
   const checkParent = (loc, all) => {
     if (!loc.parentLocationId) return;
     if (wouldCycle(loc.id, loc.parentLocationId, parentMap(all.filter(l => l.id !== loc.id))))
-      throw new Error(`${loc.name} cannot sit inside ${loc.parentLocationId}: that location is already inside it.`);
+      throw new Error(`${loc.name} cannot sit inside ${all.find(l => l.id === loc.parentLocationId)?.name ?? 'that location'}: that location is already inside it.`);
   };
 
   // ---------- Party Notes ----------
@@ -54,7 +54,7 @@ export function createApi(deps) {
   /** What the caller may send: GM → the LOC id (any state); player → the pin key of a location they can see. */
   const notesTarget = ref => {
     requireAccess();
-    if (gm()) { const loc = find(ref); if (!loc) throw new Error(`No location ${ref}.`); return loc.id; }
+    if (gm()) { const loc = find(ref); if (!loc) throw new Error('No location found with that reference.'); return loc.id; }
     const v = findView(ref);
     if (!v) throw new Error("That location isn't available to you.");
     return v.key;
@@ -208,11 +208,11 @@ export function createApi(deps) {
       if (typeof exhausted !== 'boolean') throw new TypeError('exhausted must be true or false.');
       const all = deps.readAll();
       const loc = all.find(l => l.id === locationId);
-      if (!loc) throw new Error(`No location ${locationId}.`);
+      if (!loc) throw new Error('No location found with that reference.');
       const node = loc.resources.find(n => n.key === nodeId);
-      if (!node) throw new Error(`No gathering node ${nodeId} at ${locationId}.`);
+      if (!node) throw new Error(`No gathering node found at ${loc.name}.`);
       // A template reference with no finite of its own (null) follows its template; the Ledger only exhausts finite nodes.
-      if (exhausted && node.finite === false) throw new Error(`${node.label || nodeId} is not finite, so it cannot be exhausted.`);
+      if (exhausted && node.finite === false) throw new Error(`${node.label || 'This node'} is not finite, so it cannot be exhausted.`);
       node.exhausted = exhausted;
       // Play state, not authored content: players see it straight away, without a Publish.
       const shown = loc.published?.resources.find(n => n.key === nodeId);
@@ -273,7 +273,7 @@ export function createApi(deps) {
     placeOnScene(id, opts) {
       requireGM();
       const loc = find(id);
-      if (!loc) throw new Error(`No location ${id}.`);
+      if (!loc) throw new Error('No location found with that reference.');
       return deps.placeNote(loc, opts);
     },
     /** GM (1.8.0): the scenes that hold a Map Note for this location: [{uuid, name, count}]. */
@@ -329,7 +329,7 @@ export function createApi(deps) {
       requireAccess();
       if (gm()) {
         const loc = find(ref);
-        if (!loc) throw new Error(`No location ${ref}.`);
+        if (!loc) throw new Error('No location found with that reference.');
         if (loc.audience.mode !== 'selected') throw new Error('Everyone can already see this location.');
         const audience = await api.setAudience(loc.id, {userIds: [...new Set([...loc.audience.userIds, ...(userIds ?? [])])]});
         return {added: audience.userIds.length - loc.audience.userIds.length};
