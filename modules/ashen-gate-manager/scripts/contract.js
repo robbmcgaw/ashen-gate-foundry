@@ -104,7 +104,8 @@ export function checkContractGraph(records, externalIndex = new Map(), isModuleA
       else internal.set(child.id,{...child,entity_type:'ResourceOpportunity',scope:rec.scope});
     }
   }
-  const external=externalIndex instanceof Map ? externalIndex : new Map();
+  // A bare Set of known ids (no type or scope to compare) still resolves links; anything else is ignored.
+  const external=externalIndex instanceof Map ? externalIndex : externalIndex instanceof Set ? new Map([...externalIndex].map(id=>[id,{}])) : new Map();
   for (const rec of records) for (const link of rec.refs ?? []) {
     const target=internal.get(link.target_id) ?? external.get(link.target_id);
     if (!target) {
