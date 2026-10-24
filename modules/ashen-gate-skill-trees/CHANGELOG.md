@@ -1,3 +1,8 @@
+## 0.22.2 — 2026-10-24
+
+- **Create tree: pick the profession or mutation by name.** For a Profession or Cinder tree, *Create tree* shows a searchable list of the Profession (or Mutation) records General Manager imported, instead of a box to paste an id into. Generic trees show none. If you forget to choose, it says *Choose the profession this tree is for.*; if there are no records it says to import them first.
+- Saved data: no change; trees already created keep their links. No migration.
+
 ## 0.22.1 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
