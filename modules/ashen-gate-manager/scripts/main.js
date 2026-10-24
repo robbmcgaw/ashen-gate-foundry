@@ -42,7 +42,7 @@ import {executeSync, buildSyncBackup} from './sync-apply.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
 import {syncView} from './sync-view.js';
 import * as github from './github-pull.js';
-import {updateSummary} from './github-paths.js';
+import {updateSummary, cleanToken, tokenProblem} from './github-paths.js';
 import {githubView, rowsTable} from './github-view.js';
 import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
@@ -274,7 +274,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
-  '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
+  '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
   '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -3137,23 +3137,31 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       if(!save.parentElement.querySelector('[data-ag-gh-dirty]')) save.insertAdjacentHTML('afterend','<span class="agmanager-tiny" role="status" data-ag-gh-dirty>Unsaved changes</span>'); }
   }
   /** Saves the form (settings and, when typed, the token). Changing the repository, branch or paths forgets the packs found for the old ones. */
-  async #ghCommit() {
+  async #ghCommit({verify=true}={}) {
     const d=this.#ghDraft(), store=this.#ghStore(), before=github.loadConfig(game.user,{store}).config;
     const saved=await github.saveConfig(game.user,{store,input:{repo:d.repo,branch:d.branch,paths:d.paths}});
     if(!saved.ok)return saved;
-    if(String(d.token??'').trim()) {
-      const t=await github.saveToken(game.user,{store,token:d.token});
-      if(!t.ok)return t;
-      d.token='';
-    }
     d.repo=saved.config.repo;d.branch=saved.config.branch;d.paths=saved.config.paths.join('\n');
     if(JSON.stringify(before)!==JSON.stringify(saved.config)) Object.assign(this.gh,{packs:[],selected:[],rows:[],pulled:null,update:null});
+    // A token is saved only when the pasted text is a token AND GitHub accepts it for this repository.
+    let tokenNote='';
+    if(cleanToken(d.token)) {
+      const t=await github.saveToken(game.user,{store,token:d.token,config:verify?saved.config:undefined});
+      if(!t.ok)return {ok:false,message:t.message,tokenRefused:true};
+      d.token='';tokenNote=t.message;
+    } else if(String(d.token??'').trim()) {
+      return {ok:false,message:tokenProblem(d.token)||'The token box holds text that is not a token. Clear it and paste the token again.',tokenRefused:true};
+    }
     this.gh.dirty=false;
-    return {ok:true,config:saved.config};
+    return {ok:true,config:saved.config,tokenNote};
   }
   async #ghSave() {
-    const r=await this.#ghCommit();
-    this.gh.message=r.ok?{tone:'info',text:'Settings saved. The token, if you entered one, is kept on this device only.'}:{tone:'danger',text:r.message};
+    this.busy=true;this.gh.message={tone:'info',text:'Checking the token with GitHub\u2026'};await this.render();
+    let r;
+    try { r=await this.#ghCommit(); } finally { this.busy=false; }
+    const has=github.tokenStatus(game.user,{store:this.#ghStore()}).saved;
+    this.gh.message=r.ok?{tone:'ok',text:r.tokenNote?`Settings saved. ${r.tokenNote}`:has?'Settings saved. The token already saved on this device was not changed.':'Settings saved. There is no token yet: paste one and press Save settings.'}
+      :{tone:'danger',text:r.message};
     await this.render();
   }
   async #ghRemoveToken() {
@@ -3180,7 +3188,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       const r=await github.findPacks(game.user,{store:this.#ghStore(),signal,config});
       const notes=(r.notes??[]).slice(0,4).join(' ');
       if(!r.ok) { this.gh.packs=[];this.gh.selected=[];this.gh.message={tone:r.cancelled?'info':'danger',text:r.message}; return; }
-      this.gh.packs=r.packs.map(p=>({id:p.id,label:p.label,fileCount:p.files.length,missing:p.files.filter(f=>f.missing).length,files:p.files.map(f=>f.path)}));
+      this.gh.packs=r.packs.map(p=>({id:p.id,label:p.label,source:p.kind==='folder'?`Folder ${p.folder}, files in name order`:p.manifestPath.split('/').at(-1),fileCount:p.files.length,ledgerCount:p.ledgerFiles?.length??0,missing:p.files.filter(f=>f.missing).length,files:p.files.map(f=>f.path)}));
       this.gh.selected=this.gh.packs.map(p=>p.id);
       this.gh.pulled=null;this.gh.rows=[];
       this.gh.message={tone:'info',text:`Found ${r.packs.length===1?'1 pack':`${r.packs.length} packs`} on ${config.branch}. Tick the ones to pull.${notes?` ${notes}`:''}`};
@@ -3220,7 +3228,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
       await github.recordPull(game.user,{store:this.#ghStore(),config,state:r.state});
       const usable=r.files.filter(f=>!f.ledger);
-      this.gh.pulled={files:r.files,count:usable.length,ledger:r.files.filter(f=>f.ledger).map(f=>f.path),commit:r.commit};
+      this.gh.pulled={files:r.files,count:usable.length,ledger:[...r.files.filter(f=>f.ledger).map(f=>f.path),...(r.ledgerListed??[])],commit:r.commit};
       this.gh.message={tone:'ok',text:`Read ${r.files.length} file${r.files.length===1?'':'s'} from GitHub. Nothing in your world has changed.${r.notes?.length?` ${r.notes.join(' ')}`:''}`};
     });
   }
