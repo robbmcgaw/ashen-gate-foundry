@@ -1,3 +1,7 @@
+## 0.44.4 — 2026-10-24
+
+Fix: with the Hub popped out into its own browser window, the other windows a Hub button opens still appeared in the main Foundry window. These now open in the Hub's own window too: the Configure a stat picker, the Level up class picker, Restore backup and confirmation dialogs, Help, the spell / item Use dialog, the Short Rest and Long Rest dialogs, and the portrait / token art file picker. Not popped out, nothing changes. Saved data is untouched. (Mocked tests only; please check each in Forge with a popped-out Hub.)
+
 ## 0.44.3 — 2026-10-24
 
 Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)
