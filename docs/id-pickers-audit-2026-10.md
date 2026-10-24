@@ -18,7 +18,7 @@ Method: read every GM editor/form in the ten modules for inputs, textareas, sele
 | Quest Log | Editor > Rewards | Reward items | Drag and drop an Item (no id typed) | n/a | Already fine |
 | Quest Log | GM Setup | Compendium pack IDs | Typed Foundry pack ids | Foundry pack ids, not Ashen Gate ids; left as is | Left (not a permanent id) |
 | Locations | Editor > Place | Location id (own) | Made from the name (`makeLocationId`), never typed, never changed | n/a | Already fine |
-| Locations | Editor > Place | Inside (parent) | `<select>` by name; a deleted parent reads "Deleted location (deleted)" | Keep; reword the missing case to the kit's `Missing: <name>` | Small gap |
+| Locations | Editor > Place | Inside (parent) | `<select>` by name; a deleted parent reads "Deleted location (deleted)" | Keep. The missing case already reads "Deleted location", with no id; wording only, so no PR | Already fine (wording only) |
 | Locations | Editor > Links | Related locations, quests, scenes, roll tables, materials | `<select>` by name, id in the option value; unknown material reads "Unknown material" | Already name pickers (native select, no type-ahead) | Already fine |
 | Locations | Routes | Route endpoints | Routes were retired in 0.20.0 (converted to locations) | n/a | n/a |
 | Locations | Editor | Linked NPCs / shops | No such field exists | n/a | n/a |
@@ -44,6 +44,6 @@ Method: read every GM editor/form in the ten modules for inputs, textareas, sele
 
 ## Pull requests
 
-One per real gap, in this order, each from `main` (not stacked): Renown, Headquarters, Skill Trees, Profession Ledger, Utilities, General Manager, Locations. Quest Log is done. Cinders and Character Hub have no gap, so there is no PR for them.
+One per real gap, each from `main` (not stacked): Renown (#356), Headquarters (#357), Skill Trees (#358), Profession Ledger (#359), Utilities (#360), General Manager (#361). Quest Log is done (#354). Locations, Cinders and Character Hub have no gap that shows or asks for an id, so there is no PR for them.
 
 Not done here, on purpose: the Foundry compendium pack ids in Quest Log GM Setup (they are Foundry ids, not permanent Ashen Gate ids), and the random hidden ids of factions, deities and tree nodes (never typed, never shown).
