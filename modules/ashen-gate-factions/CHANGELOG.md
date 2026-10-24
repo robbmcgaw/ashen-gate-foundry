@@ -1,10 +1,11 @@
 ## 0.16.1 — 2026-10-24
 
-Canonical ids are hidden from the UI. No changes to saved data, ids, flags, the API or export files.
+Canonical ids and stored tokens are hidden from the UI. No changes to saved data, ids, flags, the API or export files.
 
 - **Related quests and contracts** (Factions tab, Links) shows each reference as Quest, Work order or Contract plus its relationship, not the id. The GM can open **Details** on a row for the id and **Copy id**; the Remove button and its confirmation no longer name the id. Adding a reference still means pasting an id.
 - **Item rewards** show a *Permanent id* badge instead of the id; **Details** (GM) holds the id and **Copy id**. The GM Setup check for permanent ids lists faction and reward names only.
 - Messages and notifications (import problems, deity relation problems, invalid or duplicate references, Undo favour, request lists) use names, or a neutral label such as *Unnamed faction* or *Unknown deity*. Searching the roster by id still matches.
+- Relation, mode, status, unlock, behaviour and visibility values show as plain labels everywhere (an unknown objective relation reads *Related to* instead of the stored token). Import file problems for the GM keep their file-path detail.
 - New test `no-ids-ui.test.mjs`.
 
 ## 0.16.0 — 2026-10-22

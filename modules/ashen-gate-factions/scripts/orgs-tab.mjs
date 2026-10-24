@@ -69,7 +69,7 @@ export const unlockLabel=(unlock,threshold,unit='Renown')=>`${UNLOCKS[unlock]??U
 const BEHAVIORS={one_time:'One time',repeatable_service:'Repeatable service',passive:'Passive'};
 export const behaviorLabel=b=>BEHAVIORS[b]??BEHAVIORS.one_time;
 const RELATIONS={associated_objective:'Associated with',offers_objective:'Offers'};
-export const objectiveLabel=(relation,mode)=>`${RELATIONS[relation]??relation} · ${mode==='required'?'Required':'Optional'}`;
+export const objectiveLabel=(relation,mode)=>`${RELATIONS[relation]??'Related to'} · ${mode==='required'?'Required':'Optional'}`;
 /** Link-mode button (FR-07): names what the button does, not the current state. */
 export const linkModeAction=mode=>mode==='preview'?'Switch to document link':'Switch to preview';
 const REF_STATUS={resolved:'Found in Quest Log',unverified:'Unverified',invalid_ref:'Invalid id'};

@@ -4,9 +4,9 @@
 import assert from 'node:assert/strict';
 import nodeTest from 'node:test';
 import {readFileSync} from 'node:fs';
-import {assertNoIds,visibleText} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,visibleText} from '../../../scripts/test-helpers/no-ids.mjs';
 import {makeFaction,blankStanding,adjustStanding} from '../scripts/core.mjs';
-import {orgRow,objectiveLabel,objectiveStatusLabel} from '../scripts/orgs-tab.mjs';
+import {orgRow,objectiveLabel,objectiveStatusLabel,unlockLabel,behaviorLabel,revealLabel,linkModeAction,visibilityChip,CHIPS,KINDS,SORTS,GROUPS,FACTION_TABS,DEITY_TABS} from '../scripts/orgs-tab.mjs';
 import {knockOns} from '../scripts/deity.mjs';
 import {makeDeity,validateDeityParts} from '../scripts/deity.mjs';
 import {validateObjectiveRef,checkObjectiveRefs,objectiveKind} from '../scripts/objective-refs.mjs';
@@ -45,7 +45,7 @@ await new Promise(r=>setTimeout(r,30));
 const embedOf=user=>{game.user=user;let html='';const el={innerHTML:'',isConnected:true,classList:{add(){},remove(){}},addEventListener(){},contains:()=>true};mod.api.embed.mount(el,{actorId:'A1',mode:'character'});html=el.innerHTML;game.user=gm;return html;};
 
 nodeTest('embed (GM and player) shows names, never ids',()=>{
-  for(const [who,u] of [['GM',gm],['player',p1]]){const html=embedOf(u);assert.match(html,/\[TEST\] Guild/);assertNoIds(html,`Renown embed for ${who}`);}
+  for(const [who,u] of [['GM',gm],['player',p1]]){const html=embedOf(u);assert.match(html,/\[TEST\] Guild/);assertNoMachineText(html,`Renown embed for ${who}`);}
 });
 nodeTest('roster rows, labels and messages show display names, not ids',()=>{
   const f=makeFaction({id:'FACTION-NOID-X',trackId:'RENOWN-NOID-X',name:''});
@@ -83,4 +83,21 @@ nodeTest('dashboard template prints no id field as text, title, tooltip, aria-la
   assert.deepEqual(hits,[],'id fields shown to users');
   assert.doesNotMatch(shown,/\b(QUEST|ORDER|CONTRACT|REC|ITEM|FACTION|DEITY|RENOWN)-/,'literal id prefixes in the template text');
   assertNoIds(shown,'dashboard template text');
+});
+
+nodeTest('display labels never print stored tokens (relations, modes, status, unlock, behavior, visibility)',()=>{
+  const out=[];
+  for(const rel of ['associated_objective','offers_objective','something_new'])for(const mode of ['required','optional'])out.push(objectiveLabel(rel,mode));
+  for(const st of ['resolved','unverified','invalid_ref','unavailable','weird_status'])out.push(objectiveStatusLabel(st));
+  for(const u of ['manual','group_renown','individual_renown','odd_value'])out.push(unlockLabel(u,3));
+  for(const b of ['one_time','repeatable_service','passive','odd_value'])out.push(behaviorLabel(b));
+  for(const f of [{},{discovery:{party:true}},{discovery:{actors:['A1']}}])out.push(visibilityChip(f));
+  out.push(revealLabel(true,'party'),revealLabel(false,'[TEST] Hero'),linkModeAction('preview'),linkModeAction('document'));
+  out.push(...CHIPS,...KINDS.flat(),...SORTS.flat(),...GROUPS.flat(),...FACTION_TABS.map(t=>t.label),...DEITY_TABS.map(t=>t.label));
+  assertNoMachineText(out.join('\n'),'Renown labels');
+});
+nodeTest('template text, tooltips and options carry no machine tokens (GM Details folds excepted)',()=>{
+  const raw=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
+  const stripped=raw.replace(/<details class="agf-details">[\s\S]*?<\/details>/g,'').replace(/\{\{[\s\S]*?\}\}/g,' ');
+  assertNoMachineText(stripped,'dashboard template');
 });
