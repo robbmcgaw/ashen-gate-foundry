@@ -1,3 +1,9 @@
+## 0.13.4 — 2026-10-24
+
+- **Activation: pick the Guildhall and Location by name.** *Guildhall record* lists the Guildhall records General Manager has imported, and *Location* lists Locations' places, each as a searchable list. Nothing to find or paste. If General Manager or Locations is off, the form says so.
+- **Keys are filled in.** *Campaign key* (from the world name) and *Guild key* (`primary`) now sit under *Advanced: keys* with values already in them.
+- Saved data: no change; the saved Guildhall and Location references are the same ids as before. No migration.
+
 ## 0.13.3 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

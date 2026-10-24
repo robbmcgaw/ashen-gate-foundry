@@ -4,6 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {emptyState,applyOperation,freeSpot} from '../js/logic.mjs';
+import {assertNoIds} from '../../../scripts/test-helpers/no-ids.mjs';
+import {guildhallRecords,locationPickRecords,defaultCampaignKey} from '../js/activation-links.mjs';
 import {rosterGroups,stationLabels,employmentLabel,perkStatus,localDate} from '../js/hirelings-tab.mjs';
 
 const hooks={once:{},on:{}};
@@ -37,7 +39,7 @@ globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).p
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:m=>infos.push(m),error:m=>warnings.push(m)}};
 globalThis.document={querySelectorAll:()=>[]};
 let menu;
-const mod={id:'ashen-gate-headquarters',version:'0.13.3'};
+const mod={id:'ashen-gate-headquarters',version:'0.13.4'};
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm],['p1',player]]),{activeGM:gm}),modules:{get:()=>mod},
   settings:{register:()=>{},registerMenu:(_m,_k,o)=>{menu=o;},get:(m,k)=>structuredClone(settings.get(`${m}.${k}`)),set:async(m,k,v)=>{writes.push({[k]:v});settings.set(`${m}.${k}`,v);}},
   keybindings:{register:()=>{}},journal:{contents:[],get:()=>null},items:{contents:[hire('HIRE-TEST-ADA','[TEST] Ada'),hire('HIRE-TEST-BEN','[TEST] Ben'),hire('HIRE-TEST-CAL','[TEST] Cal')]},actors:{contents:[]}};
@@ -218,10 +220,24 @@ test('HQ-06: players have no Hirelings tab and cannot switch to it',async()=>{
   finally{game.user=gm;}
 });
 
-test('HQ-08: activation fields start empty with example placeholders',()=>{
-  const a=app();const html=a.activation(emptyState(),true);
-  for(const n of ['hq_ref','location_ref','campaign_key','guild_key'])assert.match(html,new RegExp(`<input name="${n}" placeholder="[^"]+" required>`));
-  assert.ok(!/value="(HQ-DEMO-001|LOC-DEMO-001|local-campaign|primary)"/.test(html));
+test('HQ-08 (0.13.4): activation picks the Guildhall and Location by name; the keys are filled in under Advanced',()=>{
+  const realGet=game.modules.get;
+  const partners={'ashen-gate-manager':{active:true,api:{definitions:{list:()=>[{id:'HQ-TEST-HALL',entityType:'Headquarters',title:'[TEST] Ash Hall'},{id:'FAC-TEST-FORGE',entityType:'Facility',title:'[TEST] Forge'}]}}},
+    'ashen-gate-locations':{active:true,api:{listLocations:()=>[{id:'LOC-TEST-ASH',name:'[TEST] Ashford',region:'[TEST] Marches',type:'Town'}]}}};
+  game.modules.get=id=>partners[id]??realGet(id);
+  try{
+    const html=app().activation(emptyState(),true);
+    assert.match(html,/id="aghq-hq-ref-text"/);assert.match(html,/data-label="\[TEST\] Ash Hall"/);assert.ok(!html.includes('[TEST] Forge'),'only Guildhall records');
+    assert.match(html,/data-label="\[TEST\] Ashford"/);
+    assert.ok(!/name="(hq_ref|location_ref)"/.test(html),'no id boxes');
+    assert.match(html,/Advanced: keys/);assert.match(html,/<input name="guild_key" value="primary" required>/);assert.match(html,/<input name="campaign_key" value="[a-z0-9_-]+" required>/);
+    assertNoIds(html,'the activation form');
+  }finally{game.modules.get=realGet;}
+});
+test('HQ-08 (0.13.4): activation says why a list is empty when General Manager or Locations is off, and shows no ids',()=>{
+  const html=app().activation(emptyState(),true);
+  assert.match(html,/General Manager is not active/);assert.match(html,/Locations is not active/);assert.ok(!/ag-picker/.test(html));
+  assertNoIds(html,'the activation form without partners');
 });
 
 test('HQ-10: only Guildhall Builder shows the editing lease; other tabs say Auto-saved',()=>{
@@ -242,4 +258,14 @@ test('kit 2.2 adoption: tabs, folds, sub-tab memory, file button, guard and dang
   for(const s of ['bindTablist(node)','bindFolds(node,this.ui)','uiState(MODULE_ID)','guardDirty(','bindFileButtons(node'])assert.ok(code.includes(s),s);
   assert.ok(!/confirmDialog\([^;]*danger:true/.test(code),'removals use confirmDanger');
   assert.equal((code.match(/confirmDanger\(/g)??[]).length,4,'uninstall, remove decoration, unassign, departure');
+});
+
+test('activation lists: Guildhall records only, Locations by region, null when a list is unavailable, keys from the world',()=>{
+  assert.deepEqual(guildhallRecords([{id:'HQ-A',title:'  '},{id:'HQ-B',title:'[TEST] B'},{id:'LOC-X',title:'no'},null]).map(r=>[r.value,r.label]),[['HQ-A','Unnamed Guildhall'],['HQ-B','[TEST] B']]);
+  assert.equal(guildhallRecords(null),null);assert.equal(locationPickRecords(undefined),null);
+  assert.deepEqual(locationPickRecords([{id:'LOC-A',name:'[TEST] A',region:'[TEST] R',type:'Town'},{id:'bad',name:'x'},{id:'LOC-REG',name:'[TEST] Reg',isRegion:true}]).map(r=>[r.label,r.group,r.hint]),[['[TEST] A','[TEST] R','Town'],['[TEST] Reg','Regions','Region']]);
+  assert.equal(defaultCampaignKey({id:'My World_2!'}),'my-world_2');assert.equal(defaultCampaignKey({}),'campaign');
+  const s=applyOperation(emptyState(),gm,'activate',{hq_ref:'HQ-A',location_ref:'LOC-A',campaign_key:defaultCampaignKey({id:'my-world'}),guild_key:'primary'});
+  assert.equal(s.active,true,'ids stored under the hood as before');
+  assert.throws(()=>applyOperation(emptyState(),gm,'activate',{hq_ref:'',location_ref:'',campaign_key:'c',guild_key:'primary'}),/Choose a Guildhall record and a Location from the lists/);
 });

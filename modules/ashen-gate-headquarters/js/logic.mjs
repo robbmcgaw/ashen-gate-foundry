@@ -109,7 +109,7 @@ export function applyOperation(prior,actor,op,payload={},now=Date.now()){
  const gm=!!actor?.isGM;
  if(op==="activate"){
   requireGM(actor);if(s.active)throw Error("Guildhall already active. Existing state preserved.");
-  if(!HQ_ID.test(payload.hq_ref||"")||!LOC_ID.test(payload.location_ref||""))throw Error("Enter a valid Guildhall record and Location record from your source records.");
+  if(!HQ_ID.test(payload.hq_ref||"")||!LOC_ID.test(payload.location_ref||""))throw Error("Choose a Guildhall record and a Location from the lists.");
   let campaign_key=safeText(payload.campaign_key,"campaign key"),guild_key=safeText(payload.guild_key,"guild key",40);
   if(!COPY_KEY.test(guild_key))throw Error("Guild key must be lowercase letters, digits, underscores or hyphens.");
   s.active=true;s.core={guild_state:{campaign_key,guild_key,rank:1,shared_defaults:{},unlocked_facility_refs:[]},headquarters_states:[{hq_ref:payload.hq_ref,location_ref:payload.location_ref,shared_revision:0,rooms:[{key:"common",kind:"shared",owner_user_id:null,revision:0}],installations:[],staffing_slots:[]}]};updateUnlocks(s);
