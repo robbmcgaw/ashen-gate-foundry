@@ -1,3 +1,7 @@
+## 0.46.3 — 2026-10-24
+
+Ashen Gate ids no longer show in the Hub. Where a partner module gave a profession, skill tree or perk no name, the Hub used to fall back to its id (PROF-, tree or perk ids) in the Professions and Skill Trees tabs and the Overview's Professions box; it now shows a neutral word ("Profession", "Skill tree", "a perk"). Machine wording (snake_case kinds such as a quest's "side_quest" in the Journey) is shown as plain words too; the Hub prints no relation, status or entity-type tokens. Nothing else in the Hub displayed ids. Saved data, flags and APIs are untouched. (Mocked tests; please check the Professions and Skill Trees tabs in Forge.)
+
 ## 0.46.2 — 2026-10-24
 
 Pop-out dialogs no longer pull in windows from the main window, and the roll dialogs follow the Hub.

@@ -150,7 +150,7 @@ export function questCompletions(api, seen, partyActorIds) {
     let state = null;
     try { state = api.getGMState?.(q.id) ?? null; } catch { state = null; }
     const actorIds = state?.scope === 'individual' && state.actorId ? [state.actorId] : partyActorIds;
-    done.push({actorIds, entry: {id: `quest-${q.id}`, type: 'quest', text: `Completed ${q.kind && q.kind !== 'quest' ? `${q.kind} ` : ''}"${q.name}"`, at, data: {questId: q.id}}});
+    done.push({actorIds, entry: {id: `quest-${q.id}`, type: 'quest', text: `Completed ${q.kind && q.kind !== 'quest' ? `${String(q.kind).replace(/_/g, ' ')} ` : ''}"${q.name}"`, at, data: {questId: q.id}}});
   }
   return {done, seen: next};
 }
