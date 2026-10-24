@@ -1,10 +1,31 @@
-## 0.19.3 — 2026-10-24
+## 0.21.1 — 2026-10-24
 
 - **Ids are out of the Quest Log's screens.** Quest cards no longer show a `QUEST-…` line, *Sort* has no *ID* choice, the item rewards table and the Give rewards panel no longer print an item's id (an item that can't be found reads *Item not found*), assignments read *Assignment 1, 2…*, and messages, confirmations and tooltips name quests and items, never ids. A quest with no title reads *Untitled quest*, a location the Locations module can't name reads *Unnamed location*, and an unknown character reads *Unknown character*. Search still finds a quest by its id.
 - **Details (IDs) fold in the quest editor.** Permanent ID (with *Copy ID*), related location IDs and public location IDs moved there, closed by default. The source JSON fold still shows everything.
 - **Machine wording.** Quest Log printed no relation names; an assignment's execution status now reads as words (*Pending*), and tests now also check that players see no snake_case or status tokens.
 - **Import messages** shown in Quest Log's *Import JSON…* and error pop-ups use quest names in place of ids. The importer API's own warning text is unchanged.
 - Saved data: no change; no migration.
+## 0.21.0 — 2026-10-24
+
+Export a whole journal in one file (Journal tab).
+- **Export Journal.** Downloads every session of the player journal you are looking at as one Markdown file, with each session's number, name and date as a heading, oldest first. A player gets it on their own journal (*My journal*); the GM gets it on the player journal picked under *Whose journal*. On the party journal it is switched off and says why (hover, and a line under the buttons).
+- **Export Group Journal.** The party journal of every session in one file. Anyone who can read the party journal can export it.
+- **Export GM Journal.** (GM only.) Your GM-only notes from every session in one file. The button is not drawn for players, and the API refuses a player (`api.journal.exportJournal('gm')`); it is not a socket request, so no message carries page text.
+- Each button asks first and says what it covers: for the GM that is every session including archived ones; a player gets the sessions they can see (archived sessions are hidden from players, so they are not exported). Files are named `<world>-player-<name>-journal-YYYY-MM-DD.md`, `<world>-group-journal-...` and `<world>-gm-journal-...`. Nobody can export a page they cannot read, and the Markdown is the same as before (a heading inside a page sits two levels lower under its session heading).
+- **Renamed: Export Markdown is now Export This Session** (GM), so it is not confused with the new buttons. It still downloads only the open session with the party journal and every player's journal. `api.journal.exportMarkdown` is unchanged.
+- Saved data: no change; no migration. New API call `api.journal.exportJournal(kind, {userId})`.
+
+## 0.20.0 — 2026-10-24
+
+The Game Journal (Journal tab), a focused pass.
+- **More formatting.** The toolbar adds Strikethrough, Highlight, Title heading (H1), Quote and Divider next to Bold, Italic, Underline, Heading, Subheading, Normal text and the two lists. Pages store `hr` and `mark` as well as the earlier tags (still no attributes, links, images or scripts); Export Markdown writes a divider as `---` and keeps highlighted text as plain text.
+- **Auto format…** (in the toolbar) tidies pasted or typed text: extra and trailing spaces and blank lines, bullet lines (• - * –) and `1.` / `2)` numbered lines into real lists, spacing around commas and full stops, and a lone `Title:` or ALL CAPS line into a heading (only plain text standing alone with something after it). It lists what it will change and waits for **Apply auto format**; **Undo auto format** puts the text back, and the page is an ordinary unsaved change until saved (Discard changes works too). It never changes a word: if the letters differ at all, it changes nothing. Existing headings, lists, quotes and dividers are left as they are.
+- **GM-only notes.** On the party journal the GM gets a *GM-only notes* section under the book that players cannot see. It is its own page (`NONE` for every player in Foundry) and Quest Log's journal API refuses it to players for read, write, search and listing; Export Markdown leaves it out unless the GM asks (`exportMarkdown(id, {includeGmNotes: true})`). No socket message carries page text.
+- **Date.** Renaming a session (pencil) shows a **Date** field for the GM. It starts as the day the session began; change it to the day you played, or clear it to go back to automatic. Players can still rename but not change the date. The date shows under the session title and in the session list.
+- **Session number.** The title at the top of the journal reads *Session 3 - Market day*. A session still named *Session 3* shows just that.
+- **Delete from the archive.** An archived session now has **Delete session…** (GM only): *Delete <session>?* then **Delete session**, with Cancel as the default. It removes the session's party journal, GM-only notes and every player's journal for good; a session must be archived first. A player's call is refused in the API, and it is not a socket request at all (`api.journal.remove(id)`).
+- **Fix: a block at the top of the session list.** *New session* used to open the Name and Subtitle form by itself at the top of the list (the indented block above the other sessions). It now opens the new session on its own page; use the pencil to name it.
+- Saved data: new optional `date` on a session record (absent means automatic) and a GM-only notes page per session. Sessions made before this get the page the next time the GM's client is ready (Quest Log adds it once; running it again adds nothing). Existing entries and pages are not rewritten.
 
 ## 0.19.2 — 2026-10-23
 

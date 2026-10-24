@@ -1,3 +1,14 @@
+## 0.12.0 — 2026-10-24
+
+Art stages: a Cinder's orb can change as its bearer advances. Additive: Cinders without stages look and behave exactly as before; no migration.
+
+- **Stages.** A definition can give `cinder.artStages` (2 to 5 `{art, at}`), and a Cinder can have its own set (**Stages…**). Stage 1 applies from the bind; a later stage applies once the bearer has that many Skill Tree nodes unlocked on the Cinder's tree (suggested 0, 3, 6, 10, 14). `cinder.art` stays the fallback and the image for Cinders without stages. The orb updates when the bearer unlocks (or loses) a node, in the Cinders tab and the Character Hub.
+- **GM control.** Binding card: **Stages…** (editor with image picker, Unlocks needed, reorder, remove, preview, Save Changes / Cancel, unsaved-changes guard), **Hold this stage**, **Set stage…** and **Auto again**. Only the GM can change stages or the hold: the API (`api.cinder.setArtStages`, `setStageHold`, `stages`) refuses everyone else.
+- **Players** see only the current stage on the orb. The bearer's copy carries just the current image, not the other stages or their numbers.
+- **Change art…** still pins one image on the orb (it wins over stages); **Reset to default orb** gives the stages back.
+- Import check: `cinder.artStages` errors name the stage (count, image path, whole-number Unlocks needed, stage 1 at 0, rising order). Manage → Check / Repair also cover the stage copy.
+- Reads the unlock count from the Cinder's tree account; nothing new is needed from Skill Trees.
+
 ## 0.11.0 — 2026-10-22
 
 UI cleanup (audit 2026-10, CN-01 to CN-12). No rules or saved data change: same setting keys, flags and ids, no migration.

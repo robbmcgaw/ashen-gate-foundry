@@ -13,10 +13,11 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog,choiceDialo
 import {orbArt,strainTone,ringModel,orbitModel,ART_FOLDER} from './orb.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fileButton,bindFileButtons} from './ag-html.mjs';
 import {draftFromConfig,draftDirty,setDraftField,addBand,removeBand,checkDraft,editorView} from './strain-editor.mjs';
+import {openStageEditor} from './stage-editor.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.11.0';
+const VERSION='0.12.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -181,8 +182,16 @@ function socketView(h,fits){
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
 }
+/** GM (0.12.0): the Binding card's art-stage row from api.stages(instanceId); null when the Cinder has no stages. */
+export function stageView(info){
+  const st=info?.state;if(!st)return null;
+  const held=st.held,here=`Stage ${st.index+1} of ${st.count}`;
+  return {here,held,hasNext:st.next!=null&&!held,text:held?`${here}, held by the GM${st.auto!==st.index?` (automatic would be stage ${st.auto+1})`:''}`:`${here}, automatic`,
+    unlocked:info.unlocked,detail:`${info.unlocked} node${info.unlocked===1?'':'s'} unlocked${!held&&st.next!=null?` · ${st.next} more to the next stage`:''}`,
+    own:Boolean(info.own),options:Array.from({length:st.count},(_,i)=>({value:i+1,label:`Stage ${i+1}`,selected:i===st.index}))};
+}
 /** The Cinder sheet (0.6.0): orb, Strain ring, sockets on an orbit, and the sheet column. `c` is one api.cinder.list entry, `h` its api.sockets host. */
-export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidOf=()=>null,maxSockets=12,rotate={world:true,local:true},offer={world:true,local:true}}={}){
+export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidOf=()=>null,maxSockets=12,rotate={world:true,local:true},offer={world:true,local:true},stages=null}={}){
   const top=Math.max(1,strainState.guaranteeAt??10),art=orbArt(c),orbit=orbitModel(h,maxSockets);
   const canEdit=Boolean(h?.canEdit),tip=x=>[x.name,...(x.modifiers??[]).map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`)].join(' · ');
   const sockets=orbit.positions.map(p=>({...p,number:p.index+1,canEdit,tip:p.empty?(canEdit?'Empty socket: attach an item, or drag one here':'Empty socket'):tip(p),
@@ -210,7 +219,7 @@ export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidO
     spare,hasSpare:spare.length>0,unspent:c.unspent,hasUnspent:Number.isSafeInteger(c.unspent),treeId:c.treeId??null,
     powers,hasPowers:powers.length>0,rows,hasRows:rows.length>0,
     signature,hasSignature:signature.length>0,offerToggle,offerLocal:Boolean(offer.local),hasDeviceOptions:spinToggle||offerToggle,
-    gm:gm?{bearer:actor.name,since:c.bearerSince?new Date(c.bearerSince).toLocaleDateString():'not recorded',hasArt:Boolean(c.ownArt),artSource:c.artSource??null}:null};
+    gm:gm?{bearer:actor.name,since:c.bearerSince?new Date(c.bearerSince).toLocaleDateString():'not recorded',hasArt:Boolean(c.ownArt),artSource:c.artSource??null,stage:gm?stageView(stages):null}:null};
 }
 const chipWorld=()=>game.settings.get(MODULE,CHIP_SETTING)!==false;
 /** The staged GM Setup values (null / {} = unchanged): Player Access, Rotate art, Push offer, Strain chip, the number settings
@@ -257,7 +266,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(c){
           const h=cinders.socketsApi.slots(actor,c.instanceId),fits=cinders.socketsApi.socketable(actor);
           let perks=[];try{perks=cinders.modifiersApi.forActor(actor);}catch{perks=[];}
-          sheet=sheetView(actor,c,h,{fits,perks,strainState:s,gm,uuidOf:id=>actor.items?.get?.(id)?.uuid??null,maxSockets:cinders.socketsApi.maxSockets,rotate:{world:rotateWorld(),local:rotateLocal()},offer:{world:offerWorld(),local:offerLocal()}});
+          sheet=sheetView(actor,c,h,{fits,perks,strainState:s,gm,stages:gm?cinders.api.stages(c.instanceId):null,uuidOf:id=>actor.items?.get?.(id)?.uuid??null,maxSockets:cinders.socketsApi.maxSockets,rotate:{world:rotateWorld(),local:rotateLocal()},offer:{world:offerWorld(),local:offerLocal()}});
         }
       }catch(e){error=e.message;}
     }
@@ -336,6 +345,11 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
           const kindArt=this.actor?cinders.api.list(this.actor).find(x=>x.instanceId===el.dataset.instance)?.defaultArt:null;
           if(!await confirm(`${kindArt?'Show the default art for this kind of Cinder again (from its definition), on the Strain glow?':'Show the default orb for this Cinder again?'}\nThe image file stays in the Assets Library.`,{title:'Reset to the default orb?',yes:'Reset to default orb'}))return;
           await cinders.api.setArt(el.dataset.instance,null);notify('Cinder art reset to the default orb.');}break;
+        case 'stages-edit':await this._stages(el.dataset.instance);return;
+        case 'stage-hold':{if(!game.user.isGM)throw Error('GM only');
+          const info=cinders.api.stages(el.dataset.instance),r=await cinders.api.setStageHold(el.dataset.instance,el.dataset.mode==='auto'?null:info.state.index+1);
+          if(r.changed)notify(el.dataset.mode==='auto'?'Art stage follows the unlocks again.':`Art held at stage ${r.hold}.`);}break;
+        case 'stage-set':await this._setStage(el.dataset.instance);return;
         case 'strain-adjust':await this._adjust(el.dataset.op);break;
         case 'socket-attach':await this._socket('attach',el.dataset.instance,el.dataset.slot==null||el.dataset.slot===''?null:Number(el.dataset.slot),el.dataset.actor,el.dataset.item);break;
         case 'socket-swap':await this._socket('swap',el.dataset.instance,Number(el.dataset.slot),el.dataset.actor);break;
@@ -523,11 +537,32 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _pickArt(instanceId){
     if(!game.user.isGM)throw Error('GM only');
     const c=cinders.api.list(this.actor).find(x=>x.instanceId===instanceId);if(!c)throw Error('That character does not bear this Cinder');
+    await this._filePicker(c.art,path=>cinders.api.setArt(instanceId,path)
+      .then(r=>{if(r.changed)notify('Cinder art saved.');}).catch(error=>notify(`Cinders: ${error.message}`,true)));
+  }
+  /** GM: the file picker, opened beside this window when it is popped out (Foundry's renderChild), else as usual. */
+  async _filePicker(current,callback){
     const FP=foundry.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker?.implementation??globalThis.FilePicker;
     if(!FP)throw Error('The file picker is not available');
-    const picker=new FP({type:'image',current:c.art??ART_FOLDER,callback:path=>cinders.api.setArt(instanceId,path)
-      .then(r=>{if(r.changed)notify('Cinder art saved.');}).catch(error=>notify(`Cinders: ${error.message}`,true))});
-    await picker.render?.({force:true});
+    const picker=new FP({type:'image',current:current||ART_FOLDER,callback});
+    const out=this.element?.ownerDocument&&this.element.ownerDocument!==globalThis.document;
+    if(out&&typeof this.renderChild==='function')await this.renderChild(picker);else await picker.render?.({force:true});
+  }
+  /** GM: the Stages… editor for one Cinder (2 to 5 images; Save Changes / Cancel; unsaved edits ask first). */
+  async _stages(instanceId){
+    if(!game.user.isGM)throw Error('GM only');
+    const c=cinders.api.list(this.actor).find(x=>x.instanceId===instanceId);if(!c)throw Error('That character does not bear this Cinder');
+    await openStageEditor({info:cinders.api.stages(instanceId),art:c.defaultArt??c.ownArt,name:c.name,
+      pickImage:(current,setPath)=>this._filePicker(current,setPath),
+      save:async stages=>{const r=await cinders.api.setArtStages(instanceId,stages);notify(stages?'Cinder art stages saved.':'This Cinder uses its definition\'s stages again.');return r;}});
+    this.render();
+  }
+  async _setStage(instanceId){
+    if(!game.user.isGM)throw Error('GM only');
+    const info=cinders.api.stages(instanceId),v=stageView(info);if(!v)throw Error('This Cinder has no art stages');
+    const f=await input('Set stage',[{name:'stage',label:'Show stage',type:'select',value:info.state.index+1,options:v.options,hint:'The Cinder stays at this stage until you choose Auto again.'}],'Set stage');
+    if(!f)return;
+    const r=await cinders.api.setStageHold(instanceId,Number(f.stage));if(r.changed)notify(`Art held at stage ${r.hold}.`);
   }
   async _adjust(op){
     if(!game.user.isGM)throw Error('GM only');const actor=this.actor;if(!actor)throw Error('Choose a character');

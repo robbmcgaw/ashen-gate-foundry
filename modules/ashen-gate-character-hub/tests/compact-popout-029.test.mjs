@@ -30,7 +30,7 @@ test('Compact preference: the Hub opens narrow with the character column and the
   const html = await sheet._renderHTML();
   assert.match(html, /<div class="agch-root agch-root--compact">/);
   assert.match(head(html), /aria-pressed="true"[^>]*><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"><\/i><span>Full<\/span>/);
-  for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /data-action="level-up"/, /data-action="open-native"/, /agch-tiles/, /agch-idcard/])
+  for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /data-action="open-native"/, /agch-tiles/, /agch-idcard/])
     assert.doesNotMatch(html, gone, String(gone));
   // 0.32.0: marks, hit dice and abilities are in Compact too (compact-stats-0320.test.mjs).
   assert.match(head(html), /<h1 class="agch-head__name">\[TEST\] Hero<\/h1>/, '0.37.0: the name is the header heading');
@@ -104,31 +104,30 @@ test('Pop out uses Foundry\'s own detachWindow / attachWindow; the label follows
   sheet.attachWindow = async () => { calls.push('attach'); sheet.element.ownerDocument = MAIN_DOC; };
   sheet._canDetach = () => true;
   sheet.element = {ownerDocument: MAIN_DOC};
-  sheet.menu = 'more';   // 0.33.0: Pop out is in the header's ⋯ menu
-  assert.match(head(await sheet._renderHTML()), /data-action="pop-out"[^>]*data-tooltip="Open the Hub in its own browser window[^"]*"[^>]*><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"><\/i><span>Pop out<\/span>/);
+  // 0.46.0: Pop out / Pop in is an icon button in the header, next to Compact (not in the ⋯ menu)
+  assert.match(head(await sheet._renderHTML()), /data-action="pop-out" data-ag-always aria-label="Pop out" data-tooltip="Open the Hub in its own browser window[^"]*"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"><\/i><\/button>/);
   assert.deepEqual(await sheet.dispatch('pop-out', {dataset: {}}, {}), {ok: true, result: 'out'});
   assert.equal(sheet.menu, null, 'the menu closes');
-  sheet.menu = 'more';
-  assert.match(head(await sheet._renderHTML()), /<span>Pop in<\/span>/);
+  assert.match(head(await sheet._renderHTML()), /data-action="pop-out"[^>]*aria-label="Pop in"/, 'a popped-out Hub keeps Pop in');
   assert.deepEqual(await sheet.dispatch('pop-out', {dataset: {}}, {}), {ok: true, result: 'in'});
   assert.deepEqual(calls, ['detach', 'attach']);
   const before = sheet.renders.length;
   sheet._onDetach({}, {}); sheet._onAttach({}, {});
   assert.equal(sheet.renders.length, before + 2, 'redrawn after Foundry moves it');
-  sheet._canDetach = () => false; sheet.menu = 'more';
+  sheet._canDetach = () => false;
   assert.doesNotMatch(await sheet._renderHTML(), /data-action="pop-out"/, 'Foundry says no: no button');
 });
 
-test('Compact and Pop out together: the compact header keeps Pop out (in its ⋯ menu since 0.33.0)', async () => {
+test('Compact and Pop out together: the compact header keeps Pop out (an icon button beside Compact since 0.46.0)', async () => {
   setup({settings: {compactMode: true}});
   const sheet = new Hub({document: makeActor()});
   sheet.detachWindow = async () => {}; sheet.element = {ownerDocument: MAIN_DOC};
   let h = head(await sheet._renderHTML());
-  assert.ok(h.indexOf('compact-toggle') < h.indexOf('more-menu') && h.indexOf('more-menu') < h.indexOf('ag-version'));
+  assert.ok(h.indexOf('compact-toggle') < h.indexOf('look-menu') && h.indexOf('look-menu') < h.indexOf('pop-out') && h.indexOf('pop-out') < h.indexOf('level-up')
+    && h.indexOf('level-up') < h.indexOf('more-menu') && h.indexOf('more-menu') < h.indexOf('ag-version'));
   assert.doesNotMatch(h, /data-compact-opacity/, 'CH-04: no slider in the Compact header');
   sheet.menu = 'more';
-  h = head(await sheet._renderHTML());
-  assert.ok(h.indexOf('compact-toggle') < h.indexOf('pop-out') && h.indexOf('pop-out') < h.indexOf('ag-version'));
+  assert.doesNotMatch(head(await sheet._renderHTML()), /agch-moremenu[\s\S]*data-action="pop-out"/, 'not in the ⋯ menu');
 });
 
 test('compact CSS uses kit tokens only', () => {

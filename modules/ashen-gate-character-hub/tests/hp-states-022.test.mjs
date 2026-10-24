@@ -84,20 +84,21 @@ test('rail tabs: role tab, aria-selected, aria-label and a Foundry tooltip on th
   assert.match(html, /<nav class="ag-siderail agch-rail" role="tablist"/);
 });
 
-test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Level up is in the ⋯ menu (0.34.0)', async () => {
+test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Compact, Appearance, Level up (0.46.0) then ⋯', async () => {
   installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.34.0'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<h1 class="agch-head__name">\[TEST\] Hero<\/h1>/, '0.37.0: the name; the brand is the window title');
   const at = s => head.indexOf(s);
-  assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
-  assert.equal((head.slice(at('ag-header__actions')).match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
+  assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="look-menu"') && at('data-action="look-menu"') < at('data-action="level-up"') && at('data-action="level-up"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
+  assert.equal((head.slice(at('ag-header__actions')).match(/data-action="/g) ?? []).length, 5, '0.46.0: Compact, Appearance, Level up, ⋯ and Help in the header (Pop out where Foundry can detach)');
   assert.match(head, /<span class="ag-version">v0\.34\.0<\/span>/);
-  assert.doesNotMatch(html, /data-action="level-up"|agch-ident__actions/, 'not under the name any more');
+  assert.doesNotMatch(html, /agch-ident__actions/, 'not under the name any more');
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()});
   await sheet.dispatch('more-menu', {dataset: {}}, {});
   const menu = (await sheet._renderHTML()).match(/<div class="agch-menu agch-moremenu"[\s\S]*?<\/div>/)[0];
-  assert.match(menu, /data-action="level-up"[\s\S]*data-action="configure"[\s\S]*<hr class="agch-menu__sep">[\s\S]*data-action="look-menu"[\s\S]*data-action="open-native"/, 'Level up and Configure… first, then the window items');
+  assert.match(menu, /data-action="configure"[\s\S]*data-action="open-native"/, 'Configure… then Open native sheet');
+  assert.doesNotMatch(menu, /level-up|look-menu|pop-out|name-edit|hotbar-link|<hr/, '0.46.0: only Configure…, NPC Codex, Open native sheet (and the GM\'s Restore backup…)');
 });
 
 test('segmented controls: radiogroup with radios; arrow keys move to the next choice and pick it', () => {

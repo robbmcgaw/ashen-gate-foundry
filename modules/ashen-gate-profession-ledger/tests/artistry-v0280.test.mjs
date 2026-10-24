@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.31.4',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.32.0',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -226,9 +226,9 @@ test('Individual view: an activity shows Complete activity (no Needs/Makes); a c
   const h=await html('individual');
   const row=h.slice(h.lastIndexOf('<article',h.indexOf('[TEST] Ballad')),h.indexOf('</article>',h.indexOf('[TEST] Ballad')));
   assert.match(row,/data-action="complete-activity" data-id="REC-TEST-BALLAD" data-actor="bard"><i class="fa-solid fa-masks-theater" aria-hidden="true"><\/i> Complete activity<\/button>/);
-  assert.match(row,/Activity · Apprentice · Short effort/);
+  assert.match(row,/Activity<\/span>.*Apprentice<\/span>.*Short effort/s);
   assert.doesNotMatch(row,/Needs|Makes|No ingredient list/);
-  assert.match(row,/Any musical instrument <span class="ag-badge ag-badge--ok">Ready<\/span>/);
+  assert.match(row,/Any musical instrument<\/span> <span class="ag-badge ag-badge--ok">Ready<\/span>/);
   assert.match(h,/data-action="complete-activity" data-id="REC-TEST-OPUS"/,'an activity naming no tool rolls the profession’s skill');
   game.user=bob;app.actorId='smith';
   assert.match(await html('individual'),/data-action="craft" data-id="REC-TEST-SALVE"/);
