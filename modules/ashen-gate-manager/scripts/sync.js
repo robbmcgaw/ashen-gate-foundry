@@ -127,8 +127,64 @@ export function nameIndex(docs) {
 const memoOf = snap => { try { return JSON.parse(snap.flag?.[MEMO_KEY] ?? 'null') ?? {}; } catch { return {}; } };
 
 // ---------- field comparison ----------
-function matches(path, live, incoming, memo) {
+/**
+ * Foundry and dnd5e store some package values in a different shape the moment a document is created. Comparing those
+ * shapes literally made a record that nobody touched look edited (0.60.14), so these pairs count as equal:
+ *  - system.weight: the package's plain number 0.1 and dnd5e's {value: 0.1, units: 'lb'} (a missing unit means pounds);
+ *  - system.rarity: "Very Rare", "very rare" and "veryRare" are one rarity; a word dnd5e has no rarity for (for example
+ *    "Exotic") that dnd5e left blank is not an edit either.
+ * Anything else (another number, another unit, another valid rarity) still differs. Pure; the Node suite covers it.
+ */
+const RARITY_KEYS = new Set(['common', 'uncommon', 'rare', 'veryrare', 'legendary', 'artifact']);
+const rarityWord = v => String(v ?? '').replace(/[\s_-]+/g, '').toLowerCase();
+const weightParts = v => {
+  if (v === null || v === undefined || v === '') return {value: 0, units: 'lb'};
+  if (isPlainObject(v)) return {value: Number(v.value ?? 0), units: String(v.units ?? 'lb').toLowerCase()};
+  return {value: Number(v), units: 'lb'};
+};
+export function equivalentValue(path, live, incoming) {
   if (same(live, incoming)) return true;
+  if (path === 'system.weight') {
+    const a = weightParts(live), b = weightParts(incoming);
+    return Number.isFinite(a.value) && Number.isFinite(b.value) && a.value === b.value && a.units === b.units;
+  }
+  if (path === 'system.rarity' && (typeof live === 'string' || live == null) && (typeof incoming === 'string' || incoming == null)) {
+    const a = rarityWord(live), b = rarityWord(incoming);
+    if (a === b) return true;
+    return a === '' && !RARITY_KEYS.has(b);
+  }
+  return false;
+}
+/**
+ * Rich text: the package carries [[AGREF:ID|Label]] markers and the world holds the @UUID[...]{label} links an import turned
+ * them into. The pair is equal when the text between the markers is identical and every link points at the document that
+ * has the marker's id (known from the snapshots of this world; a link to anything else is a real change).
+ */
+let uuidSourceIds = new Map();
+const MARKER_RE = /\[\[AGREF:([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:\|([^\]\r\n]{1,160}))?\]\]/g;
+const LINK_RE = /@UUID\[([^\]]+)\]\{([^}]*)\}/y;
+const linkLabel = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/[{}\[\]]/g, '');
+export function markerTextMatches(live, incoming, idOfUuid = uuidSourceIds) {
+  if (typeof live !== 'string' || typeof incoming !== 'string' || !hasMarker(incoming)) return false;
+  // Walk the incoming text piece by piece against the live text.
+  let pos = 0, last = 0;
+  for (const m of incoming.matchAll(MARKER_RE)) {
+    const lit = incoming.slice(last, m.index);
+    if (live.slice(pos, pos + lit.length) !== lit) return false;
+    pos += lit.length; last = m.index + m[0].length;
+    LINK_RE.lastIndex = pos;
+    const link = LINK_RE.exec(live);
+    if (!link) return false;
+    if (idOfUuid.get(link[1]) !== m[1]) return false;
+    if (m[2] && m[2] !== m[1] && link[2] !== linkLabel(m[2])) return false;
+    pos = LINK_RE.lastIndex;
+  }
+  const tail = incoming.slice(last);
+  return live.slice(pos) === tail;
+}
+function matches(path, live, incoming, memo) {
+  if (same(live, incoming) || equivalentValue(path, live, incoming)) return true;
+  if (hasMarker(incoming) && markerTextMatches(live, incoming)) return true;
   const m = memo?.[path];
   return Boolean(m) && m.raw === contentHash(incoming ?? null) && m.live === contentHash(live ?? null);
 }
@@ -142,7 +198,7 @@ export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => 
     if (emptyObject(incoming) || skip(path)) continue;
     const live = getPath(raw, path);
     if (matches(path, live, incoming, memo)) continue;
-    const gmEdited = own(baseline, path) && !same(live, baseline[path]);
+    const gmEdited = own(baseline, path) && !same(live, baseline[path]) && !equivalentValue(path, live, baseline[path]);
     patch[path] = incoming;
     changes.push({path, label: label(path), from: hasMarker(incoming) ? '(text with links)' : show(live), to: hasMarker(incoming) ? '(text with links)' : show(incoming), gmEdited});
   }
@@ -344,7 +400,7 @@ export function editedFields(record, snap, plannedChanges = []) {
     if ((fields ? !own(fields, path) : isActor && keptActorPath(path)) || emptyObject(base) || path === 'items') continue;
     let live = getPath(raw, path);
     if (path === 'img') live = plannerIcon(live, raw.flags?.[MODULE_ID], base);
-    if (same(live, base)) continue;
+    if (same(live, base) || equivalentValue(path, live, base)) continue;
     const m = memo[path];
     if (m && m.live === contentHash(live ?? null)) continue;
     out.push(path);
@@ -401,6 +457,7 @@ export function planSync(set, world, ctx = {}) {
     for (const e of validatePackage(file.payload, knownIds)) errors.push(`${file.filename}: ${e}`);
   }
   if (!errors.length) errors.push(...(ctx.validateExtra?.([...set.records.values()].map(r => r.record)) ?? []));
+  uuidSourceIds = new Map(docs.filter(d => d.uuid && d.flag?.sourceId).map(d => [d.uuid, d.flag.sourceId]));
   const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited)};
   const lines = [...set.lines.values()];
   plan.scope = {

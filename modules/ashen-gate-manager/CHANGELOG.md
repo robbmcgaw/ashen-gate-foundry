@@ -1,3 +1,13 @@
+## 0.60.14 — 2026-10-25
+
+Fixes from a live Foundry V14 test run.
+
+- **Sync from package: Choose files… now takes the files.** The picker was wired twice, and the first handler cleared the chosen files before the second one read them, so a real file dialog showed "No files chosen". It is wired once now.
+- **Sync from package: a record you did not touch now previews as unchanged.** After an import, dnd5e stores some values in a different shape (weight as a number plus unit, rarity spelled its own way) and the import turns `[[AGREF:…]]` markers into links. Sync compared those literally and called the record changed or edited. It now treats the same weight, the same rarity and links to the right records as equal. A different weight or unit, a different rarity, a changed or re-pointed link, and any other edit are still found, kept unless you tick "Also overwrite records I edited", and replaced from the package when you do. Locations, Shops, Quests, Skill Trees and the other module-owned records still show as "replace" when they exist, because Manager hands those to their module without a field-by-field preview.
+- **Assets: Actors on Manager's default image no longer say "Set by you".** An Actor whose portrait is the default and whose token is still the art the import gave it is a Default image and starts on Yes. A token you changed yourself still starts on No.
+- **Assets: weaker file matches are shown.** When a record has a better file (for example `Tobin.webp` for Tobin Marsh), a weaker one that also fits (`Marsh.webp`) is listed under the file name instead of disappearing. Only the best-fitting file is ever offered for a record, so nothing is guessed.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.60.13 — 2026-10-24
 
 Assets: every match now has three clear choices.
