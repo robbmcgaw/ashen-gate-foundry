@@ -248,7 +248,7 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
@@ -648,6 +648,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const setupSkins=this.tab==='setup'?(()=>{const st=appearanceController?.getState?.()??{};const pick=this.setupDraft?.worldSkin??st.worldDefault;
       return (appearanceController?.listSkins?.()??[]).map(skin=>({...skin,current:skin.id===st.worldDefault,selected:skin.id===pick}));})():[];
     const captureRows = allItems.filter(row => (!this.captureTaggedOnly || row.capture) && (!this.captureSearch || row.name.toLowerCase().includes(this.captureSearch.toLowerCase()) || row.type.toLowerCase().includes(this.captureSearch.toLowerCase())));
+    // Validation messages name a record by its permanent id; show the record's name for the ones in the loaded package.
+    const nameById=this.preview.filter(r=>r.id&&r.name).map(r=>[String(r.id),String(r.name)]).sort((x,y)=>y[0].length-x[0].length);
+    const named=text=>nameById.reduce((out,[id,name])=>out.includes(id)?out.split(id).join(name):out,String(text));
     return {
       ...ctx,
       version: game.modules.get(MODULE_ID)?.version ?? '',
@@ -748,10 +751,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       updateActors: this.updateActors,
       actorUpdateCount: this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').length,
       message: this.message,
-      errors: this.errors.map(message => ({message})),
-      warnings: this.warnings.map(message => ({message})),
+      errors: this.errors.map(message => ({message:named(message)})),
+      warnings: this.warnings.map(message => ({message:named(message)})),
       hasWarnings: this.warnings.length > 0,
-      moduleLinks: (this.moduleLinks ?? []).map(message => ({message})),
+      moduleLinks: (this.moduleLinks ?? []).map(message => ({message:named(message)})),
       hasModuleLinks: (this.moduleLinks?.length ?? 0) > 0,
       schemaVersion: this.specialist ? (this.specialist.payload?.schema_version ?? this.specialist.payload?.schema ?? "list") : (this.pkg?.manifest?.schema_version ?? "—"),
       hasErrors: this.errors.length > 0,
@@ -939,6 +942,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;this.itemsView='records';
       this.itemFilters={...DEFAULT_FILTERS};this.orgPreview=null;this.librarySystem='all';this.libraryStatus='all';this.libraryPackage='all';
       this.libraryShowArchived=true;this.libraryPage=0;void this.render();
+    }));
+    // GM-only technical "Details" folds carry a Copy id button (the id itself is never shown outside the fold).
+    root.querySelectorAll('[data-ag-copy-id]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const id=el.dataset.agCopyId;
+      Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast('Id copied.'),()=>toast('Could not copy the id.',true));
     }));
     root.querySelectorAll('[data-ag-library-open]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();const row=this.managedRows().find(r=>r.uuid===el.dataset.agLibraryOpen);
@@ -1481,23 +1489,23 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const record=records.find(r=>r.id===id);
       if (isLocationRecord(record)) {
         const {action,reason}=planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? record.id, kind:'Location', lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? 'Unnamed location', kind:'Location', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       if (isRouteRecord(record)) {
         const {action,reason}=planRoute(record,{existingIds:routeIds,locationIds:endpointIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.route?.name || record.name || record.id, kind:'Route', lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.route?.name || record.name || 'Unnamed route', kind:'Route', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       if (isShopRecord(record)) {
         const {action,reason}=planShop(record,{existingIds:existingShopIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.name || record.id, kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.name || 'Unnamed record', kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
       // 0.52.2: a folder_path deeper than Foundry allows shows the folder it will actually file into.
       let dest=null; try{dest=folderDestination(record.foundry?.folder_path);}catch{dest=null;}
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? 'Unnamed record', kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
         effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
       this.warnings.push(...flagWarnings(record));
     }
@@ -2018,7 +2026,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           +(shopOk||shopBad?` ${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed (reasons below)`:''}.`:'');
         this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s)${chosen?`, chose ${chosen} icon(s)`:''}; ${bad} error(s).${locText} Details are in the result panel below.`;
         this.importReports=pushReport(this.importReports,buildImportReport({file:this.packageSource??log.packageId,at:log.at,results:last.results,
-          names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??r.id])??[])}));
+          names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??''])??[])}));
         await this.render();
       }
     }
@@ -2111,8 +2119,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         sourceId:row.sourceId,entityType:row.entityType,dependentIds:dependents,embeddedCount:embedded,action});
       (check.allowed?accepted:denied).push({...row,reason:check.reason});
     }
-    if(!accepted.length){this.libraryMessage=`No ${action} eligible records. ${denied.map(r=>`${r.sourceId}: ${r.reason}`).join(' | ')}`;await this.render();return;}
-    const warning=denied.length?`\nSkipped ${denied.length}: ${denied.map(r=>r.name??r.sourceId).join(', ')}`:'';
+    if(!accepted.length){this.libraryMessage=`No ${action} eligible records. ${denied.map(r=>`${r.name??'This record'}: ${r.reason}`).join(' | ')}`;await this.render();return;}
+    const warning=denied.length?`\nSkipped ${denied.length}: ${denied.map(r=>r.name??'a record').join(', ')}`:'';
     const verb=`${action[0].toUpperCase()}${action.slice(1)}`;
     // Archive and delete use the kit danger confirm (Cancel is the default); restore is a plain confirm.
     const first=await (action==='restore'?confirmDialog:confirmDanger)(`${accepted.length} managed world document(s) will be ${action}d.${warning}
@@ -2172,7 +2180,7 @@ Existing Actor items, player progress and unmanaged content are not changed. A J
     }
     if(!candidates.length){this.libraryMessage=`Nothing eligible to replace. ${denied.join(' | ')}`;await this.render();return;}
     const yes=await confirmDanger(`Replace ${candidates.length} managed Item(s) with values from ${this.pkg.manifest.package_id}?
-This can overwrite source-owned fields you edited by hand: ${candidates.flatMap(c=>c.local.map(p=>`${c.row.name??c.row.sourceId} (${p})`)).join(', ')||'none'}.
+This can overwrite source-owned fields you edited by hand: ${candidates.flatMap(c=>c.local.map(p=>`${c.row.name??'a record'} (${p})`)).join(', ')||'none'}.
 Foundry links, other fields and Actor inventories are kept. JSON snapshots download automatically.`,
       {title:'Replace fields from the source?',yes:'Replace fields'});
     if(!yes)return;
@@ -2225,7 +2233,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const entries=[];
     for(const doc of docs) {
       const flag=sourceFlag(doc);
-      const prefix=`${flag.sourceId} (${doc.name})`;
+      const prefix=doc.name||'A managed record';
       if(counts.get(flag.sourceId)>1) entries.push({level:"error", message:`DUPLICATE: ${prefix}`});
       if(!flag.managedFields) entries.push({level:"error", message:`MISSING BASELINE: ${prefix}`});
       if(!flag.version) entries.push({level:"warning", message:`MISSING SOURCE VERSION: ${prefix}`});
@@ -2652,7 +2660,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
       else if(d.agBrowseCopy){
         const id=d.agBrowseCopy;
-        Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast(`Copied ${id}.`),()=>toast(`Could not copy ${id}.`,true));
+        Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast('Id copied.'),()=>toast('Could not copy the id.',true));
       }
       else return;
       event.preventDefault();
@@ -2859,7 +2867,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const svc=codexService();
     const plan=svc.planImport(JSON.parse(await file.text()));
     if(plan.errors.length){this.codexMessage=`${file.name} was not used: ${plan.errors.join(' ')}`;toast(this.codexMessage,true);await this.render();return;}
-    const yes=await confirmDanger(`Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s) with the ones in ${file.name}?${plan.missing.length?`\nNot in this world, skipped: ${plan.missing.join(', ')}`:''}\nNPC content is not changed; it comes from the package import.`,
+    const yes=await confirmDanger(`Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s) with the ones in ${file.name}?${plan.missing.length?`\n${plan.missing.length} NPC(s) in the file are not in this world and are skipped.`:''}\nNPC content is not changed; it comes from the package import.`,
       {title:'Restore codex reveals?',yes:`Restore ${plan.apply.length} NPC(s)`});
     if(!yes)return;
     const out=await svc.applyImport(plan);

@@ -16,6 +16,9 @@
 .agm-gap-top{margin-top:var(--ag-space-3)}
 .agm-push-end{margin-left:auto}
 .agm-id{overflow-wrap:anywhere}
+.agm-tech{display:inline-block;margin-top:.15rem;font-size:var(--ag-text-sm)}
+.agm-tech>summary{cursor:pointer;color:var(--ag-ink-muted,inherit)}
+.agm-tech[open]{display:block}
 .agm-details>summary,.agmanager-org-group>summary{cursor:pointer;margin:var(--ag-space-2) 0}
 .agmanager-tiny{color:var(--ag-muted);font-size:var(--ag-text-sm);margin:var(--ag-space-1) 0}
 .agmanager-toggle{margin:var(--ag-space-1) 0}

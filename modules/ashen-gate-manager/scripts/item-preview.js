@@ -116,6 +116,6 @@ export async function loadItemPreview({game, entry = null, uuid = null, doc = nu
   let card = null, note = '';
   if (typeof doc?.richTooltip === 'function') {
     try { card = await doc.richTooltip(); } catch (error) { note = `The dnd5e item card could not be built: ${error?.message ?? error}`; }
-  } else note = doc ? 'This item has no dnd5e item card (not a dnd5e item).' : `Could not load ${entry?.name ?? id}.`;
+  } else note = doc ? 'This item has no dnd5e item card (not a dnd5e item).' : `Could not load ${entry?.name ?? "this item"}.`;
   return {name: doc?.name ?? entry?.name ?? '', card, note, facts: previewFacts(entry ?? {}, doc)};
 }

@@ -124,7 +124,7 @@ function deityEntry(r, owner) {
   const disc = d.discovery ?? {};
   const discovery = `${disc.placeholder ? 'placeholder until discovered' : 'hidden until discovered'}${disc.sharing_enabled === false ? ', no sharing' : ''}`;
   const tone = v => typeof v !== 'number' ? '' : v < 0.5 ? 'Dissonance' : v > 0.5 ? 'Resonance' : 'Neutral';
-  return entry({key: `${owner}/${r.id}`, id: r.id, name: r.name ?? r.id, kind: 'Deity', owner, ag: true, entityType: 'Deity',
+  return entry({key: `${owner}/${r.id}`, id: r.id, name: r.name ?? 'Unnamed deity', kind: 'Deity', owner, ag: true, entityType: 'Deity',
     status: str(d.status), visibility: str(d.visibility), category: 'Renown', ...definitionFields({tags: d.tags, summary: p.blurb}),
     tier, searchText: [p.title, p.domain, p.portfolio].map(str).filter(Boolean),
     chips: [tier ? `${tier === 'lesser' ? 'Lesser' : tier === 'major' ? 'Major' : tier} deity` : null, p.domain ? `Domain: ${p.domain}` : null, `Discovery: ${discovery}`].filter(Boolean),
@@ -145,12 +145,12 @@ function codexEntries(game) {
     const known = n.discoveryMode === 'party' ? 'Known to party' : n.discoveryMode === 'actors' ? `Known to ${actors} character${actors === 1 ? '' : 's'}` : 'Hidden from players';
     const links = Array.isArray(n.links) ? n.links : [];
     const role = n.fields?.find?.(f => f.key === 'role')?.value ?? '';
-    return entry({key: `codex/${n.id}`, id: n.id, name: n.name ?? n.id, kind: 'NPC Codex', owner: MODULE_ID, ag: true, entityType: 'NPC',
+    return entry({key: `codex/${n.id}`, id: n.id, name: n.name ?? 'Unnamed NPC', kind: 'NPC Codex', owner: MODULE_ID, ag: true, entityType: 'NPC',
       status: str(n.status), category: systemOf({sourceId: n.id}).label, linked: true, provenance: 'NPC Codex', description: stripHtml(role).slice(0, 2000),
       searchText: [n.discoveryLabel, ...links.map(l => l.name)].map(str).filter(Boolean),
       chips: [known, `${n.revealedCount ?? 0} field${n.revealedCount === 1 ? '' : 's'} revealed`, `${links.length} link${links.length === 1 ? '' : 's'}`],
       extraFields: [['Codex: known to', str(n.discoveryLabel)], ['Codex: fields revealed', `${n.revealedCount ?? 0} of ${n.fields?.length ?? 0}`],
-        ['Codex: connections', links.map(l => l.named ? `${l.name} (${l.id})` : l.id).join(', ')]],
+        ['Codex: connections', links.map(l => l.name).join(', ')]],
       open: {type: 'codex', id: n.id, label: 'Open in NPC Codex'}, refIds: links.map(l => l.id).filter(id => id && id !== n.id)});
   });
 }
@@ -167,7 +167,7 @@ function partnerEntries(game) {
       const d = r.data ?? {};
       const data = section === 'quests' ? {...(d.source ?? {}), definitionStatus: d.definitionStatus, kind: d.kind} : d;
       const owner = s.module_id;
-      out.push(entry({key: `${owner}/${r.id}`, id: r.id, name: r.name ?? r.id, kind, owner, ag: true,
+      out.push(entry({key: `${owner}/${r.id}`, id: r.id, name: r.name ?? `Unnamed ${String(kind).toLowerCase()}`, kind, owner, ag: true,
         entityType: str(data.entity_type ?? data.entityType ?? data.objective_kind ?? data.kind ?? kind),
         status: str(data.definitionStatus ?? data.status), visibility: str(data.visibility),
         category: systemOf({sourceId: r.id}).label, ...definitionFields(data), open: {type: 'module', module: owner, kind, id: r.id},
@@ -175,7 +175,7 @@ function partnerEntries(game) {
       if (section === 'skill_trees') for (const node of Array.isArray(data.nodes) ? data.nodes : []) {
         const pid = str(node.perkId ?? node.perk_id);
         const nid = pid ?? `${r.id}/${node.id}`;
-        out.push(entry({key: `${owner}/${r.id}/${node.id}`, id: pid, name: node.name ?? node.label ?? pid ?? node.id, kind: 'Perk', owner, ag: true,
+        out.push(entry({key: `${owner}/${r.id}/${node.id}`, id: pid, name: node.name ?? node.label ?? 'Unnamed perk', kind: 'Perk', owner, ag: true,
           entityType: 'Perk', visibility: str(node.visibility), status: str(node.status), category: 'Skill Trees', folder: r.name ?? r.id,
           ...definitionFields(node), open: {type: 'module', module: owner, kind: 'Tree', id: r.id},
           refIds: [r.id, ...scanIds(node)].filter(id => id !== nid)}));
@@ -188,7 +188,7 @@ function partnerEntries(game) {
   if (typeof materials === 'function') {
     try {
       for (const m of materials({quality: null, includeUnavailable: true}) ?? []) out.push(entry({key: `ashen-gate-profession-ledger/${m.id}`, id: str(m.id),
-        name: m.name ?? m.id, kind: 'Material', owner: 'ashen-gate-profession-ledger', ag: true, entityType: 'Material',
+        name: m.name ?? 'Unnamed material', kind: 'Material', owner: 'ashen-gate-profession-ledger', ag: true, entityType: 'Material',
         quality: str(m.quality), tier: str(m.tier), profession: first(m.professions), tags: [], category: 'Professions',
         status: m.available === false ? 'unavailable' : null, open: {type: 'module', module: 'ashen-gate-profession-ledger', kind: 'Material', id: m.id}}));
     } catch (error) { console.warn(`[${MODULE_ID}] Browse: Profession Ledger materials not read`, error); }
@@ -431,7 +431,7 @@ export function createBrowse({game, hooks = null, fromUuid = null, openCodex = n
         }
         if (target?.type === 'module') return await openInModule(game, target, e);
         if (target?.type === 'codex') {
-          if (typeof openCodex !== 'function') return {ok: false, message: `Open the NPC Codex tab and pick ${e.name} (${e.id}).`};
+          if (typeof openCodex !== 'function') return {ok: false, message: `Open the NPC Codex tab and pick ${e.name}.`};
           await openCodex(target.id); return {ok: true};
         }
       } catch (error) { return {ok: false, message: `Could not open ${e.name}: ${error?.message ?? error}`}; }
@@ -450,11 +450,11 @@ async function openInModule(game, target, e) {
   const mod = game.modules?.get?.(target.module);
   const title = ownerLabel(target.module);
   const api = mod?.active ? mod.api : null;
-  if (!api) return {ok: false, message: `${title} is not active, so ${e.id ?? e.name} cannot be opened there.`};
+  if (!api) return {ok: false, message: `${title} is not active, so ${e.name} cannot be opened there.`};
   const fallback = async () => {
     if (typeof api.open !== 'function') return {ok: false, message: `Open it in ${title}: that module has no open API Manager can call.`};
     await api.open();
-    return {ok: true, message: `${title} opened. Find ${e.name} (${e.id}) there: it has no open-at-record API.`};
+    return {ok: true, message: `${title} opened. Find ${e.name} there: it has no open-at-record API.`};
   };
   if (target.kind === 'Location' && typeof api.openLocation === 'function') { await api.openLocation(target.id); return {ok: true}; }
   if (target.kind === 'Quest' && typeof api.openObjective === 'function') {

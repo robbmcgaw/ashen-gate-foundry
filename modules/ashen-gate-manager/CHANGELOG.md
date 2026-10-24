@@ -1,3 +1,12 @@
+## 0.54.2 — 2026-10-24
+
+Hide ids from the UI. Permanent record ids (REC-, MAT-, NPC-, DEITY- and the rest) no longer show in Manager's rows, lists, tooltips, labels or messages; names show instead.
+
+- **Where the id went:** GM-only places keep it, in a collapsed **Details** fold with a **Copy id** button: the import preview rows, import results and history, Items → Records (the detail pane), Core links, Browse (rows and detail), the Housekeeping report and the NPC Codex detail. Search by id still matches for the GM.
+- **Names in messages:** import errors, review notes and results, Records actions, Check library, Codex errors, Browse "open" messages and the world-export summary use the record's name (or "this record") instead of its id. A link to a record that is not in this world reads "Location record (not in this world)". Validation messages about a link to a record that is not in the package can still name the missing id, because there is no name to show.
+- **Not changed:** stored data, ids, flags, APIs and export file formats. The Pre-session check still names records by id on purpose, so the report can be pasted where players can read it without revealing hidden names.
+- Tests are mocked (including a new no-ids test); please check the screens above in Forge.
+
 ## 0.54.1 — 2026-10-23
 
 Fix: when one player saved My Appearance, every other client changed to that skin too. Foundry tells every client when any user's per-user setting changes, and Manager adopted the value it was handed as its own. Now a per-user skin is taken only from your own changes, and another user's change is ignored. The world default and your own Size are unchanged. Saved data is untouched. (Tests are mocked; please check with two accounts in Forge.)

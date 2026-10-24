@@ -35,7 +35,10 @@ function sectionOf(result) {
 function lineOf(result, names) {
   const mod = sectionOf(result);
   const name = names?.get?.(result.id) ?? '';
-  const base = {id: result.id ?? '', name, message: result.message ?? ''};
+  // The id stays in the line (shown only in a GM "Details" fold); the visible message names the record instead.
+  const label = name || (result.id ? 'this record' : '');
+  const message = result.id ? String(result.message ?? '').split(result.id).join(label) : String(result.message ?? '');
+  const base = {id: result.id ?? '', name, message};
   if (result.status === 'ok' && LISTED.has(result.action)) {
     const outcome = result.action === 'create' ? 'created' : 'updated';
     return {...base, outcome, label: outcome === 'created' ? 'Created' : 'Updated'};
@@ -48,7 +51,7 @@ function lineOf(result, names) {
   if (result.status === 'error') {
     const aborted = result.action === 'import-aborted';
     return {...base, outcome: 'failed', label: aborted ? 'Import stopped' : 'Failed',
-      message: result.message || 'No reason was given.', fix: fixFor(result.message, mod.label)};
+      message: message || 'No reason was given.', fix: fixFor(result.message, mod.label)};
   }
   if (result.status === 'warning') return {...base, outcome: 'warning', label: 'Warning'};
   if (result.status === 'note') return {...base, outcome: 'note', label: 'Note'};

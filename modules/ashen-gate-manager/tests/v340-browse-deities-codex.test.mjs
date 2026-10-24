@@ -140,7 +140,7 @@ test('0.34.0: an NPC Actor and its Codex entry are one row listing both places; 
   const d = svc.detail(row.key);
   assert.equal(d.fields.find(f => f.label === 'Found in').value, 'World • NPC Codex');
   assert.equal(d.fields.find(f => f.label === 'Codex: known to').value, 'Party');
-  assert.equal(d.fields.find(f => f.label === 'Codex: connections').value, 'LOC-TEST-TOWN, [TEST] Guild (FACTION-TEST-GUILD)');
+  assert.equal(d.fields.find(f => f.label === 'Codex: connections').value, 'Location record (not in this world), [TEST] Guild');
   const html = bodyHtml(DEFAULT_STATE, svc.search({query: 'warden'}), d);
   assert.match(html, /Open in NPC Codex/);
   assert.match(html, /data-ag-browse-sheet/);

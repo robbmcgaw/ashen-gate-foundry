@@ -176,14 +176,16 @@ export function summarize(diff, records, sections) {
   return Object.fromEntries(Object.keys(rows).sort().map(k => [k, {...rows[k], ...(sections[k] && sections[k].status !== 'ok' ? {status: sections[k].status} : {})}]));
 }
 
-export function summaryText(header, diff, counts) {
+/** `names` maps record keys to display names; ids are not shown. Removed records have no stored name, so they are counted. */
+export function summaryText(header, diff, counts, names = new Map()) {
   const lines = [`Ashen Gate world export (${header.mode}) — ${header.world.title ?? header.world.id}, ${header.date}`];
   if (diff.firstRun) lines.push('First export: everything counts as new.');
   for (const [name, c] of Object.entries(counts)) {
     lines.push(c.status ? `${name}: ${c.status}` : `${name}: ${c.total} records — ${c.new} new, ${c.changed} changed, ${c.removed} removed`);
   }
-  const ids = (label, keys) => keys.length ? [`${label}: ${keys.map(idOfKey).join(', ')}`] : [];
-  lines.push(...ids('New', diff.new), ...ids('Changed', diff.changed), ...ids('Removed', diff.removed));
+  const listed = (label, keys) => keys.length ? [`${label}: ${keys.map(k => names.get(k) || 'an unnamed record').join(', ')}`] : [];
+  lines.push(...listed('New', diff.new), ...listed('Changed', diff.changed));
+  if (diff.removed.length) lines.push(`Removed: ${diff.removed.length} record${diff.removed.length === 1 ? '' : 's'} no longer in the world`);
   return lines.join('\n');
 }
 
@@ -210,7 +212,7 @@ export function buildWorldExport(game, {mode = 'everything', snapshot = null, no
     modules: Object.fromEntries(Object.entries(sections).sort(([a], [b]) => a < b ? -1 : 1)
       .map(([name, s]) => [name, {...s, records: pick(s.records).map(strip)}])),
     ...(keep || diff.removed.length ? {removed: diff.removedInfo.map(({id, section}) => ({id, section}))} : {})};
-  return {file: sortKeys(file), diff, counts, snapshot: makeSnapshot(all, date), summary: summaryText(header, diff, counts),
+  return {file: sortKeys(file), diff, counts, snapshot: makeSnapshot(all, date), summary: summaryText(header, diff, counts, new Map(all.map(r => [r.key, r.name && r.name !== r.id ? r.name : '']))),
     filename: `AG_World_Export_${date}${keep ? '_changed' : ''}.json`};
 }
 
