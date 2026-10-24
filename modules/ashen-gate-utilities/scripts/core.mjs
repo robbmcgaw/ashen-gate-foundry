@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.29.1';
+export const VERSION = '0.29.2';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -221,17 +221,17 @@ export function statusEntries(registry) {
   }
   return out;
 }
-/** 0.29.1: the name of the effect on `actor` that carries `statusId`, else the id itself. */
+/** 0.29.2: the name of the effect on `actor` that carries `statusId`, else the id itself. */
 export const unknownStatusLabel = (actor, statusId) => {
   const e = [...(actor?.effects ?? [])].find(x => (x?.statuses instanceof Set ? x.statuses.has(statusId) : Array.isArray(x?.statuses) && x.statuses.includes(statusId)) && typeof x.name === 'string' && x.name);
   return e ? e.name : statusId;
 };
 /**
- * 0.29.1: the shared conditions list, from `statusEntries(...)` rows: not read-only, not exhaustion, with a label and an image,
+ * 0.29.2: the shared conditions list, from `statusEntries(...)` rows: not read-only, not exhaustion, with a label and an image,
  * sorted by label. [{id, label, img}]
  */
 export function sharedConditionChoices(entries, {label = e => e.name ?? e.id} = {}) {
-  return entries.filter(e => e.id !== 'exhaustion' && !isReadOnlyStatus(e.id))
+  return entries.filter(e => !isReadOnlyStatus(e.id))
     .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: typeof (e.img ?? e.icon) === 'string' ? (e.img ?? e.icon) : ''}))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -266,18 +266,29 @@ export function withController(controllers, userId, on) {
   return next;
 }
 /**
- * Who `user` is for conditions on `actor`: 'gm', 'controller' (any character), 'owner' (owns it and the GM let owners
- * manage it: GM Setup switch `ownersManage` for every character, or the character's unlock), or '' with the reason.
+ * 0.29.2: a player character is a Character actor a player (not the GM) owns or has as their assigned character. Without a
+ * `users` list every Character actor counts as one (the careful reading).
  */
-export function conditionRole({user, actor, unlocks, ownersManage = false, controllers = {}}) {
+export function isPlayerCharacter(actor, users) {
+  if (actor?.type !== 'character') return false;
+  if (!Array.isArray(users)) return true;
+  return users.some(u => u && !u.isGM && (actor.testUserPermission?.(u, 'OWNER') === true || (u.character?.id !== undefined && u.character.id === actor.id)));
+}
+/**
+ * Who `user` is for conditions on `actor` (0.29.2): 'gm' (anyone), 'controller' (a player the GM designated: also other
+ * players' characters), 'owner' (their own character) or 'player' (any actor that is not a player character: monsters,
+ * NPCs, creatures, linked or not), else '' with the reason. Another player's character is the GM's (or a controller's).
+ * The old per-character unlock and "owners manage" switches no longer decide anything: owners always manage their own.
+ */
+export function conditionRole({user, actor, controllers = {}, users} = {}) {
   if (!user) return {role: '', reason: 'Unknown user.'};
   if (!actor) return {role: '', reason: 'Character not found.'};
   if (isLevelBackup(actor)) return {role: '', reason: LEVEL_BACKUP_REFUSAL};
   if (user.isGM) return {role: 'gm', reason: ''};
   if (isController(controllers, user.id)) return {role: 'controller', reason: ''};
-  if (!actor.testUserPermission?.(user, 'OWNER')) return {role: '', reason: `You do not own ${actor.name}.`};
-  if (ownersManage !== true && !isUnlocked(unlocks, actor.id)) return {role: '', reason: `The GM has locked conditions for ${actor.name}.`};
-  return {role: 'owner', reason: ''};
+  if (actor.testUserPermission?.(user, 'OWNER') === true) return {role: 'owner', reason: ''};
+  if (!isPlayerCharacter(actor, users)) return {role: 'player', reason: ''};
+  return {role: '', reason: `${actor.name} is another player's character: only the GM can change its conditions.`};
 }
 /**
  * Whether `user` may remove `statusId` from `actor`. The GM always may. A condition controller may remove native
@@ -285,24 +296,24 @@ export function conditionRole({user, actor, unlocks, ownersManage = false, contr
  * or unlocked the character. Custom statuses are removed by deleting or disabling their source effect, which stays a
  * GM decision. Read-only statuses (isReadOnlyStatus, e.g. the Cinders Strain chip) are refused for everyone, the GM included.
  */
-export function removalDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
+export function removalDecision({user, actor, statusId, nativeIds = [], controllers = {}, users}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (!hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} does not have that condition.`};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be removed here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
-  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  const r = conditionRole({user, actor, controllers, users});
   if (!r.role) return {ok: false, reason: r.reason};
   if (r.role === 'gm') return {ok: true, reason: ''};
   if (!nativeIds.includes(statusId)) return {ok: false, reason: 'Custom statuses can only be removed by the GM.'};
   return {ok: true, reason: ''};
 }
 /** 0.23.0: whether `user` may apply native `statusId` to `actor`. Same people as removal; never a Custom or read-only status. */
-export function applyDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
+export function applyDecision({user, actor, statusId, nativeIds = [], controllers = {}, users}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be applied here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
   if (typeof statusId !== 'string' || !nativeIds.includes(statusId)) return {ok: false, reason: 'Unknown native status.'};
-  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  const r = conditionRole({user, actor, controllers, users});
   if (!r.role) return {ok: false, reason: r.reason};
   if (hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} already has that condition.`};
   return {ok: true, reason: ''};
