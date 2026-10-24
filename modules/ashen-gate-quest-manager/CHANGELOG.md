@@ -1,3 +1,13 @@
+## 0.22.2 — 2026-10-24
+
+The Journal's top is two slim rows, so the page gets the room.
+- **Row 1: title and where you are.** *Session 2 - Market day* with the date and subtitle on the line under it, then **Whose journal** (or My journal / Party journal for players) and **More…**.
+- **Row 2: the formatting toolbar** (with Auto format…). The rows of buttons that sat above it are gone.
+- **More… menu** holds the less-used actions, each under its same label: **Export Journal** (greyed with its reason when no player journal is picked), **Export Group Journal**, **Export GM Journal** and **Export This Session** (GM), **Rename session…**, **Show archived sessions** (GM, was a checkbox in the session list), **Archive session** / **Restore session** and **Delete session…** (GM). Players see only the exports (and Rename for a session they started); the GM-only items are not drawn for them, and the store still refuses them. Keyboard: Enter, Space or Down opens it; Up, Down, Home and End move; Escape closes and returns to **More…**; Tab leaves; choosing an item returns to **More…**, also after the window redraws.
+- On a 900 by 700 window the area above the page went from about 240 px (GM) and 161 px (player) to about 97 px. Measured on the real markup and styles in a scratch page, not in Foundry.
+- Unchanged: the session list on the left, Save / Discard in the pinned footer, the unsaved-changes rules, GM-only notes.
+- Saved data: no change; no migration.
+
 ## 0.22.1 — 2026-10-24
 
 Fix: the Journal's first block was a quote, and Quote nested quotes.

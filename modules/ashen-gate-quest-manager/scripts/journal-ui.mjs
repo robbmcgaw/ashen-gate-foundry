@@ -152,7 +152,6 @@ export function journalSidebarHTML(m){
  return `<aside class="ag-split__list agq-jside" aria-label="Sessions" data-ag-scroll="journal-list">
   <div class="agq-jside__tools"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agq-journal-search" placeholder="Search journals" aria-label="Search the sessions and journal pages you can read" value="${E(m.query)}"></label>${jbtn('New session','new',{sm:true,icon:'fa-plus',title:'Start a new session: a party journal and one for each player',disabled:!!m.noGM})}</div>
   ${m.noGM?'<p class="ag-field__hint agq-jside__hint">New session needs a GM connected.</p>':''}
-  ${m.isGM?`<label class="ag-field ag-field--inline agq-jside__archived"><input type="checkbox" id="agq-journal-archived" ${m.showArchived?'checked':''}> Show archived sessions</label>`:''}
   <div id="agq-journal-list">${journalListHTML(m)}</div></aside>`;
 }
 // 0.17.0 Players pick My journal / Party journal with the kit's segmented control (radios, arrow keys); the GM picks
@@ -167,12 +166,24 @@ export function journalDetailHTML(m){
  const s=m.session;
  if(!s)return `<section class="ag-split__detail agq-jdetail">${emptyState('No session open','Pick a session on the left, or start one with New session.',{iconName:'fa-book-open'})}</section>`;
  const p=m.page,canWrite=!!p?.canWrite;
- const gmTools=m.isGM?`${jbtn('Export This Session','export',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'})}${s.archived?`${jbtn('Restore session','restore',{sm:true,icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',sm:true,icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}):''}`:jbtn('Archive session','archive',{kind:'danger',sm:true,icon:'fa-box-archive'})}`:'';
- // 0.21.0 One journal across every session. Export Journal waits for a player's journal; Export GM Journal is never drawn for a player.
+// 0.22.2 One slim title row. The less-used actions live in one "More…" menu (real buttons; arrow keys, Home/End, Escape).
  const whyNoPlayer=m.isGM?"Pick a player's journal under Whose journal to export it.":'Switch to My journal to export it.';
- const exportTools=`<div class="ag-btn-group agq-jactions agq-jexport" role="group" aria-label="Export journals">${jbtn('Export Journal','export-player',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',disabled:!m.exportUserId,
-  title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer})}${jbtn('Export Group Journal','export-group',{kind:'ghost',sm:true,icon:'fa-users',
-  title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'})}${m.isGM?jbtn('Export GM Journal','export-gm',{kind:'ghost',sm:true,icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):''}</div>${m.exportUserId?'':`<p class="ag-field__hint agq-jexport-hint">Export Journal is off: ${E(whyNoPlayer)}</p>`}`;
+ const item=(label,action,o={})=>jbtn(label,action,{kind:'ghost',...o}).replace('<button ','<button role="menuitem" tabindex="-1" ');
+ const moreItems=[
+  item('Export Journal','export-player',{icon:'fa-file-arrow-down',disabled:!m.exportUserId,
+   title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer}),
+  m.exportUserId?'':`<span class="ag-field__hint agq-jmenu__why">Export Journal is off: ${E(whyNoPlayer)}</span>`,
+  item('Export Group Journal','export-group',{icon:'fa-users',
+   title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'}),
+  m.isGM?item('Export GM Journal','export-gm',{icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):'',
+  m.isGM?item('Export This Session','export',{icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'}):'',
+  s.canRename?item('Rename session…','rename',{icon:'fa-pen',data:{id:s.id},disabled:!!m.noGM,title:m.noGM?'Renaming needs a GM connected':'Change this session\'s name, subtitle and date'}):'',
+  m.isGM?`<button type="button" role="menuitemcheckbox" tabindex="-1" class="ag-btn ag-btn--ghost" data-jaction="toggle-archived" aria-checked="${m.showArchived}">${icon(m.showArchived?'fa-square-check':'fa-square')} Show archived sessions</button>`:'',
+  m.isGM?(s.archived?`${item('Restore session','restore',{icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}).replace('<button ','<button role="menuitem" tabindex="-1" '):''}`
+   :jbtn('Archive session','archive',{kind:'danger',icon:'fa-box-archive'}).replace('<button ','<button role="menuitem" tabindex="-1" ')):''
+ ].filter(Boolean).join('');
+ const more=`<div class="agq-jmore"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" id="agq-jmore-btn" data-jmenu="toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="agq-jmore-menu">${icon('fa-ellipsis')} More…</button><div class="agq-jmenu" id="agq-jmore-menu" role="menu" aria-label="More journal actions" hidden>${moreItems}</div></div>`;
+ const meta=[day(s)?`<span class="agq-jhead__date">${E(day(s))}</span>`:'',s.subtitle?`<span class="agq-jhead__sub">${E(s.subtitle)}</span>`:''].filter(Boolean).join(' <span aria-hidden="true">·</span> ');
  const notes=[
   s.archived?notice('warn','fa-box-archive','This session is archived: players no longer see it and its pages are read only. Restore it to write again.'):'',
   m.error?notice('warn','fa-triangle-exclamation',m.error):'',
@@ -190,8 +201,8 @@ export function journalDetailHTML(m){
  const gmBlock=m.gm&&!m.gm.missing?`<section class="agq-gmnotes" aria-labelledby="agq-gmnotes-title"><h3 class="agq-gmnotes__title" id="agq-gmnotes-title">${icon('fa-eye-slash')} GM-only notes <span class="ag-badge">Players cannot see this</span></h3><div class="agq-book__pages agq-book__pages--single" id="agq-journal-gm" contenteditable="${m.gm.canWrite?'true':'false'}" role="textbox" aria-multiline="true" aria-readonly="${m.gm.canWrite?'false':'true'}" aria-label="${E(`${sessionHeading(s)}: GM-only notes`)}" spellcheck="true" data-placeholder="${E(m.gm.canWrite?'Secrets, prep and reminders for you only…':'Nothing written yet.')}">${sanitizeHtml(m.gm.html)}</div></section>`:'';
  const footer=canEdit?`<footer class="ag-footer agq-footer agq-jfooter">${jbtn('Discard changes','discard',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-journal-status>${m.dirty?'Unsaved changes':'Saved'}</span>${jbtn('Save','save',{kind:'primary',icon:'fa-floppy-disk'})}</footer>`:'';
  return `<section class="ag-split__detail agq-jdetail" data-ag-scroll="journal-page:${E(s.id)}:${E(m.target)}">
-  <header class="agq-jhead"><div class="agq-jhead__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${s.subtitle?`<p class="agq-jhead__sub">${E(s.subtitle)}</p>`:''}${day(s)?`<p class="agq-jhead__date">${E(day(s))}</p>`:''}</div>
-  <div class="agq-jhead__tools">${whichJournal(m)}</div></header>${gmTools?`<div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">${gmTools}</div>`:''}${exportTools}${notes}${tools}${book}${gmBlock}${footer}</section>`;
+  <header class="agq-jbar"><div class="agq-jbar__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${meta?`<p class="agq-jbar__meta">${meta}</p>`:''}</div>
+  <div class="agq-jbar__tools">${whichJournal(m)}${more}</div></header>${tools}${notes}${book}${gmBlock}${footer}</section>`;
 }
 export function journalPaneHTML(m){return `<div class="ag-split agq-split agq-journal">${journalSidebarHTML(m)}${journalDetailHTML(m)}</div>`;}
 
@@ -218,10 +229,13 @@ export function installJournal(App,ctx){
   bindJournal(root){
    this.jRoot=root;const jv=this.journalView();
    const pane=root.querySelector('.agq-journal');if(!pane)return;
+   this.jMenu?.abort?.();
+   if(typeof AbortController==='function'){this.jMenu=new AbortController();bindMenu(root.querySelector('.agq-jmore'),{signal:this.jMenu.signal});}
+   // After a menu action redraws the window, focus goes back to the More… button, not to the top of the page.
+   if(jv.refocus==='more'){jv.refocus=null;root.querySelector('#agq-jmore-btn')?.focus?.();}
    pane.addEventListener('click',e=>{const b=e.target?.closest?.('[data-jaction]');if(b&&pane.contains(b))this.journalAction(b.dataset.jaction,b,root).catch(ctx.notify);});
    const search=root.querySelector('#agq-journal-search');
    search?.addEventListener('input',()=>{jv.query=search.value;this.refreshJournalList(root);});
-   root.querySelector('#agq-journal-archived')?.addEventListener('change',async e=>{if(!await this.flushJournal())return;jv.showArchived=e.target.checked;await this.render();});
    bindRadios(root.querySelector('.agq-jtoggle'));
    root.querySelector('#agq-journal-who')?.addEventListener('change',async e=>{const want=e.target.value;if(!await this.flushJournal()){e.target.value=jv.target;return;}jv.target=want;await this.render();});
    for(const el of [root.querySelector('#agq-jr-name'),root.querySelector('#agq-jr-subtitle')])el?.addEventListener('keydown',e=>{
@@ -365,6 +379,7 @@ export function installJournal(App,ctx){
   },
   async journalAction(action,el,root){
    const jv=this.journalView(),id=el.dataset.id;
+   if(el.closest?.('.agq-jmenu'))jv.refocus='more';
    if(action==='save')return void await this.saveJournal(root);
    if(action==='discard'){if(anyDirty(jv)&&!await ctx.danger('Discard your unsaved changes to this page?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'}))return;jv.dirty=false;jv.gmDirty=false;jv.stale=false;jv.key='';return void await this.render();}
    if(action==='autoformat')return void await this.autoFormatJournal(root);
@@ -380,6 +395,7 @@ export function installJournal(App,ctx){
    }
    // Everything below leaves the open page: save it first (a refused save stays put).
    if(!await this.flushJournal())return;
+   if(action==='toggle-archived'){jv.showArchived=!jv.showArchived;return void await this.render();}
    if(action==='select'){jv.sessionId=id;jv.renaming=null;return void await this.render();}
    if(action==='hit'){jv.sessionId=id;const t=el.dataset.target;jv.target=game.user?.isGM?(t===GM_TARGET?'party':t):t===game.user?.id?'me':'party';return void await this.render();}
    if(action==='target'){jv.target=el.dataset.target;return void await this.render();}
@@ -413,6 +429,27 @@ export function installJournal(App,ctx){
    }
   }
  });
+}
+/** The "More…" menu: opens on click or Down, arrow keys / Home / End move over the enabled items, Escape and Tab close it
+    (Escape returns focus to the button), a click outside closes it, choosing an item closes it and returns focus to the button
+    (the item's action then runs through the pane's own click handler). */
+export function bindMenu(wrap,{signal,doc=globalThis.document}={}){
+ const btn=wrap?.querySelector?.('[data-jmenu]'),menu=wrap?.querySelector?.('[role="menu"]');
+ if(!btn||!menu)return;
+ const items=()=>[...menu.querySelectorAll('[role^="menuitem"]')].filter(b=>!b.disabled);
+ const open=()=>{menu.hidden=false;btn.setAttribute('aria-expanded','true');items()[0]?.focus?.();};
+ const close=back=>{menu.hidden=true;btn.setAttribute('aria-expanded','false');if(back)btn.focus?.();};
+ btn.addEventListener('click',()=>menu.hidden?open():close(true));
+ btn.addEventListener('keydown',e=>{if(e.key==='ArrowDown'&&menu.hidden){e.preventDefault?.();open();}});
+ menu.addEventListener('keydown',e=>{
+  const it=items(),i=it.indexOf(e.target?.closest?.('[role^="menuitem"]')??e.target);
+  const to={ArrowDown:i+1,ArrowUp:i-1,Home:0,End:it.length-1}[e.key];
+  if(to!==undefined&&it.length){e.preventDefault?.();it[(to+it.length)%it.length].focus?.();return;}
+  if(e.key==='Escape'){e.preventDefault?.();e.stopPropagation?.();close(true);}
+  else if(e.key==='Tab')close(false);
+ });
+ menu.addEventListener('click',e=>{if(e.target?.closest?.('[role^="menuitem"]'))close(true);});
+ doc?.addEventListener?.('click',e=>{if(!menu.hidden&&!wrap.contains(e.target))close(false);},{signal});
 }
 /** Arrow keys for a role="radiogroup" of buttons: Left/Right (Up/Down) and Home/End pick the next radio and click it. */
 export function bindRadios(group){

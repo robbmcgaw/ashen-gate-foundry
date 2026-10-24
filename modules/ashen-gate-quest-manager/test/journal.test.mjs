@@ -5,7 +5,7 @@ import {sessionId,nextNumber,freeId,cleanTitle,readSession,sortSessions,currentS
  canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME,journalMarkdown,journalFilename,
  autoFormatHtml,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock,cleanDate,sessionHeading,sessionDate,autoDate,gmOwnership,GM_TARGET,canDelete} from '../scripts/journal-core.mjs';
 import {createJournalStore,JournalConflict} from '../scripts/journal-store.mjs';
-import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys,ensureParagraph,tidyBlank,wrapBareText,toggleQuote} from '../scripts/journal-ui.mjs';
+import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys,bindMenu,ensureParagraph,tidyBlank,wrapBareText,toggleQuote} from '../scripts/journal-ui.mjs';
 import {El} from './helpers/fake-dom.mjs';
 
 const MOD='ashen-gate-quest-manager';
@@ -255,9 +255,12 @@ test('markup: sidebar newest first, toggle, toolbar, book; GM view of a player p
  assert.match(gh,/Whose journal<select id="agq-journal-who"><option value="party" >Party journal<\/option><option value="alice" selected>Alice&#39;s journal/);
  assert.match(gh,/contenteditable="false"/);assert.doesNotMatch(gh,/data-format=|data-journal-status/);
  assert.match(gh,/Only they can write it/);assert.match(gh,/Export This Session/);assert.match(gh,/Archive session/);assert.match(gh,/data-jaction="rename"/);
- // QJ-03 Session actions sit on their own line under the session title, Archive session last.
- assert.match(gh,/<\/header><div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">[^]*Export This Session[^]*Archive session<\/button><\/div>/);
- assert.doesNotMatch(gh.slice(gh.indexOf('agq-jhead__tools'),gh.indexOf('</header>')),/Export This Session|Export Journal|Archive session/);
+ // 0.22.2 The session actions are in the More… menu, not on rows of their own above the page.
+ assert.doesNotMatch(gh,/aria-label="Session actions"|agq-jactions|agq-jexport"/);
+ assert.match(gh,/<header class="agq-jbar">[^]*id="agq-jmore-btn"[^]*<\/header>/);
+ const menu=gh.slice(gh.indexOf('id="agq-jmore-menu"'),gh.indexOf('</header>'));
+ assert.match(menu,/Export This Session[^]*Archive session/);
+ assert.doesNotMatch(gh.slice(gh.indexOf('agq-jbar__tools'),gh.indexOf('id="agq-jmore-menu"')),/Export This Session|Export Journal|Archive session/,'not in the visible row');
  gv.renaming='SESSION-002';
  assert.match(journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm')))),/id="agq-jr-name" maxlength="80" value="Second"[\s\S]*id="agq-jr-subtitle"[^>]*value="The gate"/);
 });
@@ -701,4 +704,88 @@ test('0.21.2 window: Remove quote formatting asks, applies, and Undo puts the qu
  assert.equal(ed.innerHTML,'<p>Hi, there</p><p>x</p>');
  // no first quote: the plain confirmation, no checkbox
  forms.length=0;ed.innerHTML='<p>a ,b</p>';await app.autoFormatJournal(root);assert.equal(forms.length,0);
+});
+
+// ---- 0.22.2 compact top ----
+const paneFor=async(user,over={})=>{
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Market day',subtitle:'Rain'}));
+ const me=w.users.get(user);
+ return {w,id,html:w.as(user,()=>{globalThis.game.user=me;return journalPaneHTML(buildJournalModel(w.store(user),{...newJournalView(me.isGM),sessionId:id,...over},me));})};
+};
+const detailTop=html=>html.slice(html.indexOf('<section class="ag-split__detail'),html.indexOf('id="agq-journal-editor"'));
+
+test('0.22.2 the area above the page is two slim rows: title row (title, date, subtitle, whose journal, More…) then the formatting toolbar',async()=>{
+ const {html}=await paneFor('gm');const top=detailTop(html);
+ const rows=[...top.matchAll(/<header class="agq-jbar">|<div class="agq-jtools"/g)].map(m=>m[0]);
+ assert.deepEqual(rows,['<header class="agq-jbar">','<div class="agq-jtools"'],'exactly a title row, then the toolbar');
+ const bar=top.slice(top.indexOf('<header class="agq-jbar">'),top.indexOf('</header>'));
+ assert.match(bar,/<h2 class="agq-detail__title">Session 1 - Market day<\/h2>/);assert.match(bar,/agq-jbar__meta">[^]*agq-jhead__date[^]*·[^]*agq-jhead__sub">Rain/,'date and subtitle inline with the title');
+ assert.match(bar,/Whose journal<select id="agq-journal-who"/);assert.match(bar,/id="agq-jmore-btn"[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*aria-controls="agq-jmore-menu"[^>]*>[^<]*<i[^>]*><\/i> More…<\/button>/);
+ assert.doesNotMatch(top,/ag-btn-group|aria-label="Session actions"|aria-label="Export journals"|type="checkbox"/,'no button rows, no checkbox rows');
+ assert.doesNotMatch(html,/agq-journal-archived/,'Show archived sessions left the sidebar');
+ assert.match(html,/aria-label="Formatting"/);assert.match(html,/data-journal-status/,'the pinned footer is still there');
+});
+
+test('0.22.2 More… holds every export, rename, archive and delete; each keeps its exact label and its reason text',async()=>{
+ const {html}=await paneFor('gm');
+ const menu=html.slice(html.indexOf('id="agq-jmore-menu"'),html.indexOf('</header>'));
+ assert.match(menu,/role="menu" aria-label="More journal actions" hidden>/);
+ const labels=[...menu.matchAll(/<button[^>]*role="menuitem[a-z]*"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
+ assert.deepEqual(labels,['Export Journal','Export Group Journal','Export GM Journal','Export This Session','Rename session…','Show archived sessions','Archive session']);
+ for(const b of menu.match(/<button[^>]*>/g))assert.match(b,/type="button"/);
+ assert.match(menu,/role="menuitemcheckbox"[^>]*data-jaction="toggle-archived"[^>]*aria-checked="false"|data-jaction="toggle-archived"[^>]*aria-checked="false"/);
+ // Export Journal waits for a player's journal: disabled, with its tooltip and its visible reason
+ assert.match(menu,/<button[^>]*data-jaction="export-player"[^>]*disabled[^>]*data-tooltip="Pick a player&#39;s journal under Whose journal to export it\."/);
+ assert.match(menu,/Export Journal is off: Pick a player&#39;s journal under Whose journal to export it\./);
+ const bob=await paneFor('gm',{target:'bob'});assert.doesNotMatch(bob.html.match(/<button[^>]*data-jaction="export-player"[^>]*>/)[0],/disabled/);
+ // Archived: Restore session and Delete session… replace Archive session
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Old'}));await w.call('gm',s=>s.create({name:'New'}));await w.call('gm',s=>s.archive(id));
+ const gm=w.users.get('gm'),arch=w.as('gm',()=>{globalThis.game.user=gm;return journalPaneHTML(buildJournalModel(w.store('gm'),{...newJournalView(true),sessionId:id,showArchived:true},gm));});
+ const am=arch.slice(arch.indexOf('id="agq-jmore-menu"'),arch.indexOf('</header>'));
+ assert.match(am,/Restore session/);assert.match(am,/ag-btn--danger[^>]*>[^<]*<i[^>]*><\/i> Delete session…|data-jaction="delete"[^>]*class="[^"]*ag-btn--danger/);assert.doesNotMatch(am,/Archive session/);
+ assert.match(am,/aria-checked="true"/,'Show archived sessions reads as ticked');
+});
+
+test('0.22.2 players: the menu has only what they may use; GM-only controls are not rendered at all',async()=>{
+ const {html,w,id}=await paneFor('alice',{target:'me'});
+ const menu=html.slice(html.indexOf('id="agq-jmore-menu"'),html.indexOf('</header>'));
+ const labels=[...menu.matchAll(/role="menuitem[a-z]*"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
+ assert.deepEqual(labels,['Export Journal','Export Group Journal']);
+ assert.doesNotMatch(html,/Export GM Journal|Export This Session|Archive session|Restore session|Delete session|Show archived|toggle-archived|export-gm|agq-journal-gm|GM-only|Whose journal/);
+ assert.match(html,/role="radiogroup" aria-label="Which journal"/,'players keep the My / Party switch in the title row');
+ // Alice started nothing: no rename item. The creator gets one.
+ assert.doesNotMatch(menu,/Rename session/);
+ // GM-only items are also refused in the data layer, not only left out of the markup
+ await assert.rejects(w.call('alice',s=>s.archive(id)),/GM permission/);
+ await assert.rejects(w.call('alice',s=>s.remove(id)),/GM permission/);
+ await assert.rejects(w.call('alice',async s=>s.exportJournal('gm')),/GM permission|can't|GM/);
+});
+
+test('0.22.2 More… menu keyboard: opens on click or Down, arrows and Home/End skip disabled items, Escape and Tab close, focus returns',()=>{
+ const wrap=new El();wrap.innerHTML='<button data-jmenu="toggle" aria-expanded="false"></button><div role="menu" hidden><button role="menuitem" id="a"></button><button role="menuitem" id="b" disabled></button><button role="menuitem" id="c"></button><button role="menuitemcheckbox" id="d"></button></div>';
+ const btn=wrap.querySelector('[data-jmenu]'),menu=wrap.querySelector('[role="menu"]'),[a,b,c,d]=['a','b','c','d'].map(i=>wrap.querySelector('#'+i));
+ const focused=[];for(const el of [btn,a,b,c,d])el.focus=()=>focused.push(el.id||'btn');
+ const outside=new Map();const doc={addEventListener:(ev,fn)=>outside.set(ev,fn)};
+ bindMenu(wrap,{doc});
+ btn.fire('click');assert.equal(menu.hidden,false);assert.equal(btn.getAttribute('aria-expanded'),'true');assert.equal(focused.at(-1),'a','first enabled item gets focus');
+ a.fire('keydown',{key:'ArrowDown'});assert.equal(focused.at(-1),'c','the disabled item is skipped');
+ c.fire('keydown',{key:'ArrowDown'});assert.equal(focused.at(-1),'d');d.fire('keydown',{key:'ArrowDown'});assert.equal(focused.at(-1),'a','wraps');
+ a.fire('keydown',{key:'End'});assert.equal(focused.at(-1),'d');d.fire('keydown',{key:'Home'});assert.equal(focused.at(-1),'a');
+ a.fire('keydown',{key:'Escape'});assert.equal(menu.hidden,true);assert.equal(btn.getAttribute('aria-expanded'),'false');assert.equal(focused.at(-1),'btn','focus returns to More…');
+ btn.fire('keydown',{key:'ArrowDown'});assert.equal(menu.hidden,false);
+ c.fire('keydown',{key:'Tab'});assert.equal(menu.hidden,true);
+ btn.fire('click');a.fire('click');assert.equal(menu.hidden,true,'choosing an item closes it');assert.equal(focused.at(-1),'btn');
+ btn.fire('click');outside.get('click')({target:new El()});assert.equal(menu.hidden,true,'a click elsewhere closes it');
+});
+
+test('0.22.2 window: Show archived sessions from the menu toggles the list; More… keeps focus after the redraw',async()=>{
+ const {installJournal}=await import('../scripts/journal-ui.mjs');
+ const {El:Fake}=await import('./helpers/fake-dom.mjs');
+ let renders=0;class App{async render(){renders++;}}
+ installJournal(App,{store:{},danger:async()=>true,confirm:async()=>true,notify:e=>{throw e;},info(){},download(){}});
+ const app=new App();app.jv=newJournalView(true);app.tab='journal';globalThis.game.user={isGM:true,id:'gm'};
+ const item=Object.assign(new Fake(),{dataset:{},closest:sel=>sel==='.agq-jmenu'?{}:null});
+ await app.journalAction('toggle-archived',item,{querySelector:()=>null});
+ assert.equal(app.jv.showArchived,true);assert.equal(renders,1);assert.equal(app.jv.refocus,'more');
+ await app.journalAction('toggle-archived',item,{querySelector:()=>null});assert.equal(app.jv.showArchived,false);
 });
