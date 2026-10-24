@@ -10,7 +10,7 @@ import {tierBadge} from './tier-style.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
-import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
+import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,looseToolName,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
   TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
@@ -23,7 +23,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.32.1';
+const VERSION='0.32.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -596,12 +596,14 @@ const advantageToolsFor=name=>advantageToolsOf(rollMapping(),professionKey(name)
 const advantageItemsFor=name=>advantageItemsOf(rollMapping(),professionKey(name));
 
 /** GM: imported, active PROF-* Profession Items with their definitions (the catalog layer and the Items to assign). */
-function professionDefinitions(){
-  if(!game.user?.isGM)return [];
-  const out=[];
+function professionDefinitions(){return game.user?.isGM?visibleProfessionDefinitions():[];}
+/** 0.32.2: the same list for any user: a player only gets the Profession records released to the party (what a recipe card
+ * needs to name the profession's tools). GM-only uses (catalog layer, Assign) still go through professionDefinitions. */
+function visibleProfessionDefinitions(){
+  const gm=Boolean(game.user?.isGM),out=[];
   for(const doc of game.items?.contents??[]){
     const id=agSourceId(doc);if(!/^PROF-[A-Z0-9-]+$/.test(id??'')||classify(doc)!=='Profession')continue;
-    const hit=lookupWorldDefinition(game,id,{entityType:'Profession'});
+    const hit=lookupWorldDefinition(game,id,gm?{entityType:'Profession'}:{entityType:'Profession',partyKnown:true});
     if(hit.status!=='ok'||hit.document!==doc)continue;
     const def=hit.source?.definition??{},name=def.name??professionDisplayName(doc),category=declaredCategory(doc);
     // 0.28.0: a profession imported with category `creative` that is not built in joins the registry here (definitionProfessionKey).
@@ -902,15 +904,47 @@ function craftRequirement(recipe,actor=null){
     .filter((ref,i,list)=>list.findIndex(r=>toolRefLabel(r)===toolRefLabel(ref))===i);
   const profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
   const tools=own.length?own:recipe?.workstation||!profTool?[]:[profTool];
+  // 0.32.2: one tool requirement that is the profession's own (or one of its allowed tools) is met by ANY tool GM Setup
+  // allows for that profession (Inscription: Calligrapher's Supplies, Cartographer's Tools or Painter's Supplies).
+  const anyOf=activity?null:alternativeTools(tools,profLabel,{fromProfession:!own.length});
   const checks=own.length?own:profTool?[profTool]:[];
   const usable=ref=>heldTool(actor,ref)||(ref.key&&toolProficiencyMatches(actor,ref.key).length);
-  const missing=!actor?[]:activity?(tools.some(usable)?[]:tools):tools.filter(ref=>!heldTool(actor,ref));
+  const carriedRef=!actor||!anyOf?null:anyOf.find(ref=>heldTool(actor,ref))??null,carried=carriedRef;
+  const missing=!actor?[]:activity?(tools.some(usable)?[]:tools):anyOf?(carried?[]:anyOf):tools.filter(ref=>!heldTool(actor,ref));
   // A profession whose main check is a skill (Enchanting: Arcana) offers that skill; a recipe tool is offered beside it.
   const skill=checkMapping().skills[professionKey(profLabel)]||null;
   const tool=tools[0]??null;
-  return {tool,tools,activity,toolLabel:tools.map(toolRefLabel).join(activity?' or ':' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
-    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
+  const shown=anyOf??tools;
+  return {tool,tools:anyOf??tools,anyOf:Boolean(anyOf),carried:carried?toolRefLabel(carried):null,activity,toolLabel:anyOf?orList(shown.map(toolRefLabel)):tools.map(toolRefLabel).join(activity?' or ':' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
+    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,anyOf??checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
     lacks:missing.length>0,missing:missing.map(toolRefLabel)};
+}
+/** "A", "A or B", "A, B or C". */
+const orList=names=>names.length<2?names.join(''):`${names.slice(0,-1).join(', ')} or ${names.at(-1)}`;
+/** 0.32.2: the tools GM Setup allows for a profession (Tools column: GM edits, baseline file, imported content, else the
+ * built-in default), as tool references. One synchronous pass shares the result, so a long recipe list reads it once. */
+let toolSetMemo=null;
+function professionToolSet(profLabel){
+  const key=professionKey(profLabel);
+  if(!toolSetMemo){toolSetMemo=new Map();queueMicrotask(()=>{toolSetMemo=null;});}
+  if(toolSetMemo.has(key))return toolSetMemo.get(key);
+  let list=[];
+  try{
+    const {catalog}=catalogCrosswalk(visibleProfessionDefinitions());
+    const map=effectiveMapping(game.settings.get(ID,'checkMapping'),{catalog,baseline:baselineLayer()});
+    list=(map.qualifyTools[key]??[]).map(k=>({key:k,uuid:null,name:null}));
+  }catch(err){console.warn(`[${ID}] profession tool list`,err);}
+  toolSetMemo.set(key,list);return list;
+}
+/** The tools any one of which meets a single tool requirement, or null when the requirement stays as it is (no tool, several
+ * tools that are all needed, or a named tool outside the profession's allowed list). The check tool leads, then the rest. */
+function alternativeTools(tools,profLabel,{fromProfession}){
+  if(tools.length!==1)return null;
+  const set=professionToolSet(profLabel),one=tools[0],sameKey=(a,b)=>a.key&&a.key===b.key;
+  if(!set.length||!(fromProfession||set.some(r=>sameKey(r,one)||(one.name&&looseToolName(one.name)===looseToolName(toolLabel(r.key))))))return null;
+  const list=[...set];
+  if(fromProfession&&!list.some(r=>sameKey(r,one)))list.unshift(one);
+  return list.length>1?list:null;
 }
 const skillIdOfName=name=>{const t=String(name??'').trim();return SKILL_IDS.includes(t)?t:SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(t))??null;};
 /** 0.28.0: an activity recipe's optional access list ({toolProficienciesAnyOf, skillProficienciesAnyOf}), as extra check
@@ -922,11 +956,15 @@ function activityAccess(recipe){
 }
 /** "doesn't carry X" for one tool, "doesn't carry X, Y" when several of the required tools are missing.
  * 0.28.0: an activity's tools are alternatives, so it says the character has none of them. */
-const lacksText=(req,actor)=>req.activity?(req.tools.length>1?`${actor.name} has none of these`:`${actor.name} doesn’t have this`)
+const lacksText=(req,actor)=>req.anyOf?`${actor.name} carries none of these`:req.activity?(req.tools.length>1?`${actor.name} has none of these`:`${actor.name} doesn’t have this`)
   :req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
 function requirementHTML(req,actor){
   const parts=[];
-  if(req.tool)parts.push(`<span class="agl-station"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">${req.activity?'Uses':'Tool'}</span> <span>${esc(req.toolLabel)}</span>${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok')}`):''}</span>`);
+  if(req.tool){
+    // 0.32.2: any-of requirement: the readable list; with a character, which one is carried, or that one of them is needed.
+    const text=req.anyOf&&actor&&req.lacks?`Needs one of: ${req.toolLabel}`:req.toolLabel;
+    const state=!actor?'':req.lacks?badge(req.anyOf?'None carried':lacksText(req,actor),'warn'):req.anyOf?badge(`${req.carried}: carried`,'ok'):badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok');
+    parts.push(`<span class="agl-station"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">${req.activity?'Uses':'Tool'}</span> <span>${esc(text)}</span>${state?` ${state}`:''}</span>`);}
   if(req.workstation)parts.push(`<span class="agl-station"><i class="fa-solid fa-warehouse" aria-hidden="true"></i><span class="agl-label agl-label--inline">Station</span> <span>${esc(req.workstation)}</span></span>`);
   if(!parts.length&&!req.activity)parts.push('<span class="agl-station agl-sub"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">Tool or station</span> <span>None needed</span></span>');
   return parts.length?`<div class="agl-recipe-station">${parts.join('')}</div>`:'';
@@ -1316,7 +1354,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
   const preset=presetOf(picked);
   let mode=preset.mode;
   if(confirm){
-    const needs=[req.tool?`<li>${req.tools.length>1?'Tools (all needed)':'Tool'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(req.tools.length>1?`${lacksText(req,actor)}.`:`${actor.name} doesn’t carry this tool.`)}</strong>`:' (carried)'}</li>`:'',
+    const needs=[req.tool?`<li>${req.anyOf?'Tool (any one)':req.tools.length>1?'Tools (all needed)':'Tool'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(req.anyOf||req.tools.length>1?`${lacksText(req,actor)}.`:`${actor.name} doesn’t carry this tool.`)}</strong>`:req.anyOf?` (${esc(req.carried)}: carried)`:' (carried)'}</li>`:'',
       req.workstation?`<li>Workstation: <strong>${esc(req.workstation)}</strong> (confirm with your GM)</li>`:'',
       extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
     const answer=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes

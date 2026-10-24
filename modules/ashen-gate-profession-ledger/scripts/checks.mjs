@@ -213,14 +213,38 @@ export const toolQualifies=(actor,key)=>toolProficiencyMatches(actor,key).length
 const inGroup=(item,group)=>{const g=TOOL_GROUPS[group];if(!g)return false;
   const type=item?.system?.type?.value,base=item?.system?.type?.baseItem??item?.system?.baseItem;
   return type===g.type||toolGroupMembers(group).includes(base)||Object.values(INSTRUMENT_LABELS).some(n=>group==='music'&&norm(n)===norm(item?.name));};
-/** The tool Item the character carries for this reference, or null. */
+/** 0.32.2: a tool name compared loosely: no brackets or (source book) tags, no punctuation, apostrophe style or case, and
+ * no plural "s", so "Cartographer’s Tools (XGE)", "Cartographers Tool" and "cartographers-tools" are one name. */
+export const looseToolName=v=>norm(String(v??'').replace(/\([^)]*\)|\[[^\]]*\]/g,'')).replace(/s$/,'');
+const PHYSICAL_TYPES=new Set(['tool','loot','equipment','consumable','weapon','container','backpack']);
+/** Items a character carries, flattened: the Actor's own Items (a container's contents are Actor Items that point at the
+ * container, so they are included) plus any synchronous `system.contents` list. Quantity 0 and non-gear Items are left out. */
+function carriedGear(actor){
+  const out=[],seen=new Set(),walk=list=>{for(const i of Array.from(list??[])){
+    if(!i||typeof i!=='object'||seen.has(i))continue;seen.add(i);
+    if(PHYSICAL_TYPES.has(i.type)&&Number(i.system?.quantity??1)>0)out.push(i);
+    const inner=i.system?.contents;if(inner&&typeof inner!=='string'&&typeof inner.then!=='function'&&typeof inner[Symbol.iterator]==='function')walk(inner);}};
+  walk(actor?.items);return out;
+}
+/** Does this Item stand for the tool key? dnd5e base item, identifier or name (any case, punctuation, plural, source tag). */
+function itemIsTool(item,key){
+  const base=item.system?.type?.baseItem??item.system?.baseItem;
+  if(base&&base===key)return true;
+  const names=new Set([toolLabel(key),TOOL_LABELS[key],INSTRUMENT_LABELS[key]].filter(Boolean).map(looseToolName));
+  if(!names.size)return false;
+  return [item.name,item.system?.identifier].some(n=>n&&names.has(looseToolName(n)));
+}
+/** The tool Item the character carries for this reference, or null. Physical Items only: proficiency never counts here.
+ * 0.32.2: Items imported from D&D Beyond (no base item, a different identifier, curly apostrophes, a source tag) match by
+ * name or identifier as well; Items inside containers count; quantity 0 and Items that are not gear do not. */
 export function heldTool(actor,ref){
   if(!ref)return null;
-  if(isToolGroup(ref.key))return Array.from(actor?.items??[]).find(i=>i?.type==='tool'&&inGroup(i,ref.key))??null;
-  return Array.from(actor?.items??[]).find(i=>i?.type==='tool'&&(
-    (ref.key&&(i.system?.type?.baseItem===ref.key||i.system?.baseItem===ref.key))||
+  const gear=carriedGear(actor);
+  if(isToolGroup(ref.key))return gear.find(i=>(i.type==='tool'||i.system?.type?.value==='tool')&&inGroup(i,ref.key))??null;
+  return gear.find(i=>
+    (ref.key&&itemIsTool(i,ref.key))||
     (ref.uuid&&(i.uuid===ref.uuid||i._stats?.compendiumSource===ref.uuid||i.flags?.core?.sourceId===ref.uuid))||
-    (ref.name&&norm(i.name)===norm(ref.name))))??null;
+    (ref.name&&looseToolName(i.name)===looseToolName(ref.name)))??null;
 }
 /** 0.20.0: the Item this character carries for a crosswalk item reference (an Item/Compendium UUID, matched against the
  * Item, its compendium source and General Manager's core link; otherwise a name, any case), or null. Quantity 0 is not carried. */

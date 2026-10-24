@@ -1,3 +1,10 @@
+## 0.32.2 — 2026-10-24
+
+- **Fix: a recipe's tool is met by any tool GM Setup allows for its profession.** An Inscription recipe said "Calligrapher's Supplies: doesn't carry this" even when the character carried Cartographer's Tools or Painter's Supplies, because the card only looked for the profession's single check tool. Now a recipe that needs one tool of its profession lists them all (for example "Tool: Calligrapher's Supplies, Cartographer's Tools or Painter's Supplies"), shows which one is carried ("Cartographer's Tools: carried"), and otherwise says "Needs one of: …". This uses the same Tools list GM Setup shows (your edits, baseline file, imported content, then the built-in default). Individual, Party, Recipe Catalog, the Tidy5e Professions tab and the Character Hub embed all use the same check. A recipe that needs two or more tools still needs all of them, and professions with a single tool read as before.
+- **Fix: tools imported from D&D Beyond (or made by hand) are recognised.** Carried tools are now matched by dnd5e base item, identifier or name ignoring case, apostrophe style, plural/singular and a source tag such as "(XGE)", so "Cartographer’s Tools" and "Cartographers Tool" are the same tool. Tools inside a bag or other container count, equipped or not. A quantity of 0 does not count, and tool proficiency alone still does not count as carrying the tool.
+- **Not changed:** the Craft button is gated by materials and known recipes, not by tools; a missing tool is a warning on the card, as before. GM Setup data is untouched.
+- **Saved data:** none changed; no migration.
+
 ## 0.32.1 — 2026-10-24
 
 - **Fix: ids are no longer shown anywhere in the Ledger.** The GM's recipe rows showed the raw recipe id (for example `REC-ALCHEMY-FIELD-01`) under each recipe, and several GM screens and messages named materials, nodes and results by id. Rows, node cards, the node editor heading, the node import preview, the Node test list, option lists, notifications, confirmation text and error messages now use the item's name (or a neutral label such as "This material"). Search still finds things by id; it just doesn't display it.
