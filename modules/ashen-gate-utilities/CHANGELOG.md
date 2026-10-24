@@ -1,3 +1,27 @@
+## 0.29.2 — 2026-10-24
+
+Who may change conditions, as the GM decided: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character.** The GM can change everything.
+
+- **Players:** your own character, and any monster, NPC or creature, whether it is linked to a character or an unlinked token. Another player's character is refused with "... is another player's character: only the GM can change its conditions." Player Access still gates all of it.
+- **No more locks.** The per-character *Unlock for Owner* / *Locked* control and the GM Setup switch *Players apply and remove conditions on their own characters* are gone from the screens: owners always manage their own character now. Their saved values are kept and harmless (nothing reads them; `api.conditions.setUnlocked` / `ownersManage` still exist).
+- **Condition controllers** keep one meaning: a controller can also change other players' characters, like the GM. Help and GM Setup say so.
+- **Exhaustion is back on the shared list** (the tracker's Apply list and the Character Hub's), applied and removed as before.
+- New for partners: `api.conditions.canChangeActor(actor, statusId, apply, userId)` answers the same question for any Actor document (the Hub uses it for unlinked tokens), and `api.conditions.isPlayerCharacter(actor)`. The tracker's Apply, Remove and the API calls all use this one rule.
+- No saved data is deleted or rewritten.
+
+## 0.29.1 — 2026-10-24
+
+- **One conditions list.** The Conditions tracker's Apply list and the Character Hub's conditions strip now offer the same conditions (the Hub reads Utilities' list when Utilities is active): every native status by name, A to Z, without the read-only Strain chip and without Exhaustion (it has levels; use the pill beside HP in the Hub). Before, the two lists differed. New `api.conditions.choices()` returns it as `[{id, label, img}]`.
+- No change to saved data or settings; nothing to migrate.
+
+## 0.29.0 — 2026-10-24
+
+- **Party stash: Delete…** Every item row in *Party Inventory → Items* (and in the Character Hub's *Inventory → Party stash*, which shows the same list) now has a **Delete…** button next to Take. For a stack it first asks how many (the full number deletes the whole stack), then shows "Delete <item>?" saying it cannot be undone and that Take is the way to keep it; **Cancel is the default**. A container is deleted whole, and the confirmation says that everything inside goes with it.
+- **Who can delete:** the GM, and any player who can take from the stash (Player Access and the stash on, and a character they own). It is checked on the GM client, not only by hiding the button. There is no party vote for a delete.
+- **Recorded:** each delete is a *Deleted* entry in the stash History (who, what, how many, and how many were left), visible to everyone who can see the History. Take and Add to stash are unchanged.
+- API: `api.stash.deleteItem(itemId, quantity?)` (additive; the stash contract id is unchanged).
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.28.3 — 2026-10-24
 
 - **Condition buttons follow Player Access.** When the GM hides Utilities from players, the Character Hub's conditions strip no longer offers Apply or a chip's ✕ that then failed with "Utilities access is hidden"; Utilities' conditions API now says no up front (`canApply` / `canRemove`), as the tracker itself already does.
