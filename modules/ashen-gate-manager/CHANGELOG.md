@@ -1,3 +1,13 @@
+## 0.60.12 — 2026-10-24
+
+Sync from package and import now use Foundry V14's own data names, so the console no longer prints deprecation warnings and "could not compare" errors are gone.
+
+- **Fixed: "could not compare" a Roll Table in Sync.** Sync read the old `documentCollection` shim on live table results, which throws on some results (`Cannot read properties of null (reading 'type')`). It now compares results through `type`, `name`, `description`, `img`, `documentUuid`, `weight` and `range` only. Packages that still say `text`, `documentCollection` and `documentId` are read and mapped, so no package needs changing.
+- **No more deprecation warnings** for `TableResult#text`, `TableResultData#documentCollection` and the numeric `mode` of an Active Effect change. Roll Table results and Item effects are written with `description`, `documentUuid` and the string change `type` (add, multiply, override, upgrade, downgrade, custom). Older numeric modes in packages and in earlier imports' stored baselines are still read and mapped, so existing effects are not rewritten or reported as edited.
+- Same rules as before: Sync deletes only what Manager imported, never touches character sheets, keeps records you edited unless you opt in, and the package wins for unedited ones.
+- Also: the import path clones package data with structuredClone instead of the deprecated foundry.utils.deepClone.
+- Tests use mocked Foundry data with throwing deprecated getters; they prove the code never reads the old properties.
+
 ## 0.60.11 — 2026-10-24
 
 Scenes, second iteration. Everything is previewable and undoable, nothing is written without Apply, GM only.

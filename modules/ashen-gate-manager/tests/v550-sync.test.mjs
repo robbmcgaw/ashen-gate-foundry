@@ -367,7 +367,7 @@ test('journals follow the package pages; pages the GM added stay; roll tables re
   jd.raw.pages = [{_id: 'p1', name: 'One', type: 'text', text: {content: '<p>GM changed</p>', format: 1}}, {_id: 'p2', name: 'Two', type: 'text', text: {content: '<p>2</p>', format: 1}}, {_id: 'p3', name: 'GM page', type: 'text', text: {content: 'mine', format: 1}}];
   const table = rec('TBL-A', 'RollTable', {name: 'Loot', formula: '1d2', results: [{type: 'text', text: 'Coin', range: [1, 1], weight: 1}, {type: 'text', text: 'Gem', range: [2, 2], weight: 1}]});
   const td = flagged(table, M1);
-  td.raw.results = [{_id: 'r1', type: 'text', text: 'Coin', range: [1, 1], weight: 1, drawn: true}];
+  td.raw.results = [{_id: 'r1', type: 'text', description: 'Coin', range: [1, 1], weight: 1, drawn: true}];
   const world = makeWorld({docs: [jd, td]});
   const newJournal = rec('JRN-A', 'JournalEntry', {name: 'Guide', pages: [{name: 'One', type: 'text', text: {content: '<p>one fixed</p>', format: 1}}]});
   const set = set1([newJournal, table]);
@@ -376,7 +376,7 @@ test('journals follow the package pages; pages the GM added stay; roll tables re
   assert.equal(jd.raw.pages.find(p => p._id === 'p1').text.content, '<p>one fixed</p>');
   assert.ok(!jd.raw.pages.some(p => p._id === 'p2'), 'the old package page that was dropped is removed');
   assert.ok(jd.raw.pages.some(p => p._id === 'p3'), 'a page the GM added stays');
-  assert.deepEqual(td.raw.results.map(r => r.text).sort(), ['Coin', 'Gem']);
+  assert.deepEqual(td.raw.results.map(r => r.description).sort(), ['Coin', 'Gem']);
   assert.equal(world.plan(set).counts.overwrite, 0, 'idempotent');
 });
 
@@ -539,7 +539,7 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.60.11');
+  assert.equal(manifest.version, '0.60.12');
   assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /m);
 });
 

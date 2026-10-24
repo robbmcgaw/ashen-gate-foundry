@@ -12,7 +12,7 @@ export const LIMITS = Object.freeze({effects: 20, changes: 30, name: 120, descri
 export const MODES = Object.freeze({custom: 0, multiply: 1, add: 2, downgrade: 3, upgrade: 4, override: 5});
 const MODE_NAMES = Object.fromEntries(Object.entries(MODES).map(([k, v]) => [v, k]));
 export const EFFECT_KEYS = Object.freeze(['eff_id', 'name', 'img', 'description', 'disabled', 'transfer', 'duration', 'statuses', 'changes', 'flags']);
-const CHANGE_KEYS = ['key', 'mode', 'value', 'priority'];
+const CHANGE_KEYS = ['key', 'mode', 'type', 'value', 'priority'];
 const DURATION_KEYS = ['seconds', 'rounds', 'turns'];
 export const EFF_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const CHANGE_KEY = /^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*$/;
@@ -42,6 +42,32 @@ export function normalizeMode(mode) {
   if (Number.isInteger(mode) && MODE_NAMES[mode] !== undefined) return mode;
   if (typeof mode === 'string' && own(MODES, mode.trim().toLowerCase())) return MODES[mode.trim().toLowerCase()];
   return null;
+}
+
+/**
+ * V14 stores an ActiveEffect change's operation as the string `type` (add, multiply, override, upgrade, downgrade, custom);
+ * the numeric `mode` is a deprecated shim removed in V15. Packages may still say `mode` (a number or a name) or `type`.
+ * Returns the V14 type name, or null when it is not one.
+ */
+export function normalizeType(value) {
+  const n = normalizeMode(value);
+  return n === null ? null : MODE_NAMES[n];
+}
+/** A package change's operation: `type` when given, else the older `mode`. Reads package JSON only, never a live document. */
+const packageOperation = c => normalizeType(own(c, 'type') ? c.type : c.mode);
+/** A stored (older) baseline definition with its changes' numeric/named `mode` mapped to V14 `type`. Safe on null. */
+export function upgradeBaseline(def) {
+  if (!isObj(def) || !Array.isArray(def.changes)) return def;
+  return {...def, changes: def.changes.map(c => {
+    if (!isObj(c)) return c;
+    const {mode, type, ...rest} = c;
+    return {key: rest.key, type: normalizeType(type !== undefined ? type : mode) ?? type ?? null, value: rest.value, priority: rest.priority ?? null};
+  })};
+}
+
+/** Embedded effect data from a package (an Actor's Items) with every change's `mode` mapped to V14 `type`. Other fields untouched. */
+export function upgradeEffectChanges(effects) {
+  return (Array.isArray(effects) ? effects : []).map(e => isObj(e) && Array.isArray(e.changes) ? {...e, changes: upgradeBaseline({changes: e.changes}).changes} : e);
 }
 
 /** Errors for one Item's `effects` (label is e.g. records[3].foundry.data). */
@@ -80,13 +106,13 @@ export function validateItemEffects(effects, label = 'foundry.data') {
     if (e.changes.length > LIMITS.changes) errors.push(`${l}.changes: at most ${LIMITS.changes} changes per effect.`);
     e.changes.slice(0, LIMITS.changes).forEach((c, ci) => {
       const cl = `${l}.changes[${ci}]`;
-      if (!isObj(c)) { errors.push(`${cl} must be {key, mode, value, priority?}.`); return; }
+      if (!isObj(c)) { errors.push(`${cl} must be {key, type (or mode), value, priority?}.`); return; }
       const extra = Object.keys(c).filter(k => !CHANGE_KEYS.includes(k));
       if (extra.length) errors.push(`${cl} includes unsupported keys: ${extra.join(', ')}.`);
       if (typeof c.key !== 'string' || !c.key.trim()) errors.push(`${cl}.key is required (e.g. system.attributes.movement.speeds.walk).`);
       else if (c.key.length > LIMITS.key || !CHANGE_KEY.test(c.key)) errors.push(`${cl}.key "${c.key.slice(0, 60)}" is not a dotted data path.`);
       else if (UNSAFE_KEY.test(c.key) || c.key.split('.').some(p => ['__proto__', 'prototype', 'constructor'].includes(p))) errors.push(`${cl}.key "${c.key}" is not allowed: imported effects may not run macros or scripts or change core flags.`);
-      if (normalizeMode(c.mode) === null) errors.push(`${cl}.mode ${JSON.stringify(c.mode)} is not a mode: use add, multiply, override, upgrade, downgrade, custom or 0-5.`);
+      if (packageOperation(c) === null) errors.push(`${cl}.mode ${JSON.stringify(own(c, 'type') ? c.type : c.mode)} is not a mode: use add, multiply, override, upgrade, downgrade, custom or 0-5.`);
       if (typeof c.value === 'number' ? !Number.isFinite(c.value) : typeof c.value !== 'string') errors.push(`${cl}.value must be a string or a number.`);
       else if (String(c.value).length > LIMITS.value) errors.push(`${cl}.value: at most ${LIMITS.value} characters.`);
       else if (typeof c.value === 'string' && /macro|<\s*script|javascript:/i.test(c.value)) errors.push(`${cl}.value: macros and scripts are not allowed.`);
@@ -137,7 +163,7 @@ export function flagWarnings(record) {
 /** The managed definition of one effect, normalized (mode numbers, value strings). What Manager writes and compares. */
 export function effectDefinition(e) {
   const def = {name: e.name, disabled: e.disabled === true, transfer: e.transfer === true,
-    changes: e.changes.map(c => ({key: c.key.trim(), mode: normalizeMode(c.mode), value: String(c.value), priority: Number.isFinite(c.priority) ? c.priority : null}))};
+    changes: e.changes.map(c => ({key: c.key.trim(), type: packageOperation(c), value: String(c.value), priority: Number.isFinite(c.priority) ? c.priority : null}))};
   if (own(e, 'img')) def.img = e.img;
   if (own(e, 'description')) def.description = e.description;
   if (own(e, 'statuses')) def.statuses = [...e.statuses];
@@ -148,7 +174,7 @@ export function effectDefinition(e) {
 const fieldsOf = def => leaves(def);
 const liveValue = (raw, path) => {
   const v = getPath(raw, path);
-  if (path === 'changes') return (Array.isArray(v) ? v : []).map(c => ({key: String(c?.key ?? ''), mode: Number(c?.mode), value: String(c?.value ?? ''), priority: Number.isFinite(c?.priority) ? c.priority : null}));
+  if (path === 'changes') return (Array.isArray(v) ? v : []).map(c => ({key: String(c?.key ?? ''), type: typeof c?.type === 'string' ? c.type : '', value: String(c?.value ?? ''), priority: Number.isFinite(c?.priority) ? c.priority : null}));
   if (path === 'statuses') return [...(v ?? [])].sort();
   return v;
 };
@@ -165,7 +191,7 @@ export function effectCreateData(e) {
 }
 const flagOf = raw => raw?.flags?.[MODULE_ID]?.[EFFECT_FLAG] ?? null;
 export const effectFlagOf = flagOf;
-const baselineOf = raw => { try { return JSON.parse(flagOf(raw)?.baseline ?? 'null'); } catch { return null; } };
+const baselineOf = raw => { try { return upgradeBaseline(JSON.parse(flagOf(raw)?.baseline ?? 'null')); } catch { return null; } };
 
 /**
  * Plan an Item's effects against its live ActiveEffects (toObject() data or plain objects).

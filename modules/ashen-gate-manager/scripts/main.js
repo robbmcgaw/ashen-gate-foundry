@@ -51,7 +51,8 @@ import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename, sortBundleFiles} from './zip-import.js';
-import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
+import {resultCreateData} from './table-results.js';
+import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, upgradeEffectChanges, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
 import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, CALM_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue, presetIdFromLabel} from './scene-moods.js';
 import {createSceneLooks, LOOKS_SETTING, AUTO_LOOK_SETTING, blendSets, rollWeather} from './scene-looks.js';
 const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'looks',label:'Looks',icon:'fa-solid fa-clone'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
@@ -173,7 +174,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
   if (!cls) throw new Error(`Cannot create ${kind} document.`);
   const folder = await destinationFolder(kind,record.foundry.folder_path,report);
   // Only explicit allowlisted fields from validated records are copied to a Foundry Document.
-  const data = foundry.utils.deepClone(record.foundry.data);
+  const data = structuredClone(record.foundry.data);
   data.folder = folder.id;
   let icon=null;
   if(ICON_DOCUMENT_TYPES.includes(kind)) {
@@ -194,10 +195,11 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     if(Array.isArray(data.effects)&&data.effects.length) data.effects=record.foundry.data.effects.map(effectCreateData);
     else delete data.effects;
   }
+  if(kind==='RollTable'&&Array.isArray(data.results)) data.results=data.results.map(r=>resultCreateData(r,game.packs));
   if(kind==='Actor') {
     // Mark the package's embedded Items so a later opt-in update can tell them from player-added ones.
     const keys=itemKeys(data.items??[]);
-    data.items=(data.items??[]).map((item,i)=>({...item,flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
+    data.items=(data.items??[]).map((item,i)=>({...item,...(Array.isArray(item.effects)?{effects:upgradeEffectChanges(item.effects)}:{}),flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
     data.flags[MODULE_ID][ACTOR_ITEMS_FLAG]={version:1};
   }
   return cls.create(data);
