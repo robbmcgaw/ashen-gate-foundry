@@ -272,8 +272,8 @@ export function identityLineHtml(actor, h) {
 
 /**
  * The row at the top of the character column: the Cinder chips and the inspiration star. 0.37.0: the name, the
- * identity and the level moved up into the header (views.mjs headerHtml). Level up, Restore backup… and Configure… are
- * in the header's "⋯" menu (0.34.0).
+ * identity and the level moved up into the header (views.mjs headerHtml). Level up is an icon button in the header
+ * (0.46.0); Configure… and, for the GM, Restore backup… are in the "⋯" menu.
  */
 function identHtml(actor, h, off) {
   return `<div class="agch-ident">${canSee('cinders') ? cinderChipsHtml(actor) : ''}
@@ -325,16 +325,16 @@ function footHtml(h) {
 
 /**
  * Level up (0.27.0): starts dnd5e's own level-up. When it isn't ready it stays clickable but aria-disabled, so a
- * click can say why (a disabled button shows no tooltip); the reason is also its tooltip. 0.34.0: an item of the
- * header's "⋯" menu (Full and Compact).
+ * click can say why (a disabled button shows no tooltip); the reason is also its tooltip and part of its name.
+ * 0.46.0: an icon-only button in the header, beside Compact, Appearance and Pop out.
  */
 export function levelUpBtn(actor) {
-  const s = levelUpState(actor);
-  return `<button type="button" class="ag-btn ag-btn--ghost agch-menu__btn agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span>${s.ok ? '' : `<span class="ag-sr-only">: ${esc(s.reason)}</span>`}</button>`;
+  const s = levelUpState(actor), name = s.ok ? 'Level up' : `Level up: ${s.reason}`;
+  return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-hdrbtn agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} aria-label="${esc(name)}" data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i></button>`;
 }
 /**
  * Restore (0.28.0): GM only. On a character with level backups, "Restore backup…"; on a backup copy, "Restore this
- * backup…". Nothing for players (restoreBackup refuses them anyway). 0.34.0: in the header's "⋯" menu.
+ * backup…". Nothing for players (restoreBackup refuses them anyway). 0.34.0: in the header's "⋯" menu (the one extra GM item).
  */
 export function restoreBtn(actor) {
   if (globalThis.game?.user?.isGM !== true) return '';
@@ -359,8 +359,6 @@ export function configChoices(actor) {
   return list.map(([kind, key, label]) => ({value: key ? `${kind}:${key}` : kind, label}));
 }
 export const configureBtn = off => off ? '' : btn('configure', 'Configure…', {kind: 'ghost', extra: 'agch-menu__btn agch-configure', icon: 'fa-solid fa-sliders', title: 'Open dnd5e\'s settings for a stat (the same as right-clicking it)'});
-/** The character items of the header's "⋯" menu (0.34.0): Level up, Restore backup… (GM) and Configure… (owner, GM). */
-export const characterMenuItems = (actor, off) => [levelUpBtn(actor), restoreBtn(actor), configureBtn(off)].join('');
 
 /**
  * In a narrow Full window (CH-09) Hide character folds the column to its top row (Cinders, star) and a short HP / AC line;

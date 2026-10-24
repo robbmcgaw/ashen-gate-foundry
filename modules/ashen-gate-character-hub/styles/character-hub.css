@@ -123,7 +123,7 @@
 .agch-app .agch-idlink--class { font-weight: 600; color: var(--ag-text); }
 .agch-app .agch-idlink:hover, .agch-app .agch-idlink:focus-visible { color: var(--ag-accent); text-decoration: underline; background: none; box-shadow: none; }
 .agch-app .agch-idlink:focus-visible { outline: 2px solid var(--ag-accent); outline-offset: 1px; }
-.agch-app .agch-head .ag-header__actions { margin-left: auto; }
+.agch-app .agch-head .ag-header__actions { margin-left: auto; flex-wrap: wrap; row-gap: var(--ag-space-1); }
 
 /* The column's top row (0.37.0): the Cinder chips and the inspiration star (the name moved into the header). */
 .agch-app .agch-ident { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-2); align-items: center; }
@@ -628,6 +628,9 @@
 /* 0.30.0: version and Help stay together at the far right of the header, also when the other buttons wrap. */
 .agch-app .agch-head__meta { margin-left: auto; flex-wrap: nowrap; }
 .agch-app .ag-header__actions { justify-content: flex-end; }
+/* 0.46.0: Compact, Appearance, Pop out and Level up sit together; the group and the header wrap rather than clip. */
+.agch-app .agch-head__tools { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--ag-space-1); min-width: 0; }
+.agch-app .agch-hdrbtn { flex: none; }
 
 /* Level up (0.27.0): not ready yet, but still clickable so it can say why. */
 .agch-app .agch-levelup[aria-disabled="true"] { cursor: not-allowed; color: var(--ag-muted-strong); }

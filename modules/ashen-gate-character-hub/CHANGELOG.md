@@ -1,3 +1,7 @@
+## 0.46.0 — 2026-10-24
+
+Header navigation (Robb, after Session 0). Compact, Appearance, Pop out / Pop in and Level up are now icon buttons side by side at the top right (each has a name and a tooltip; Level up keeps its "why not" reason; Pop out is still hidden where Foundry can't detach; a popped-out Hub keeps Pop in; the group wraps in a narrow window instead of clipping). The ⋯ menu is now only Configure…, NPC Codex (when General Manager offers it) and Open native sheet, plus Restore backup… for the GM when there are level backups. "Edit name and title" is gone from the menu: the pencil beside the name stays. The Foundry hotbar link has no option any more: the Hub is always linked, the "Link quick bar to Foundry's hotbar" menu item and its setting are gone, and an old stored "off" value is ignored (nothing is rewritten; hotbar slots are untouched). Help and README updated.
+
 ## 0.44.3 — 2026-10-24
 
 Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)

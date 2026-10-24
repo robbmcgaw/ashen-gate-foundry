@@ -25,7 +25,7 @@ import * as bio from './biography.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
-import {hotbarLink, linkOn, setLinkOn} from './hotbar-link.mjs';
+import {hotbarLink} from './hotbar-link.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
 import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
@@ -101,7 +101,7 @@ export const ACTIONS = {
   'art-change': (s, t) => { closeMenu(s); return changeArtFor(s, t.dataset.art); },
   'char-fold': s => { s.charFolded = s.charFolded !== true; hubUi().set('charFolded', s.charFolded); return s.render(); },
   'filters-menu': (s, t) => toggleMenu(s, `filters:${t.dataset.tab}`),
-  'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
+  'more-menu': s => toggleMenu(s, 'more'),
   // 0.34.0: Level up, Restore backup… and Configure… are items of the header's "⋯" menu, which closes first.
   'level-up': s => { closeMenu(s); return levelUp(s); },
   // 0.40.0: Edit name and title… (header button and ⋯ menu); name-title.mjs checks who may, again.
@@ -158,9 +158,7 @@ export const ACTIONS = {
   'look-set': async (s, t) => { const r = await look.setUserLook(t.dataset.field, t.dataset.value); if (r.ok) { look.applyLook(s.element); s.render(); } return r; },
   'look-more': s => { s.menu = null; s.render(); return look.managerAppearance()?.openMyAppearance?.(); },
   'codex-open': s => { closeMenu(s); return openCodex(); },
-  'pop-out': s => { s.menu = null; return togglePopOut(s); },
-  // 0.42.0: Link quick bar to Foundry's hotbar (per user; applies at once). On: this Hub's character is linked now.
-  'hotbar-link': async s => { const on = !linkOn(); await setLinkOn(on); s.render(); return on ? linkHub(s) : null; }
+  'pop-out': s => { s.menu = null; return togglePopOut(s); }
 };
 /** Links this Hub's character to the user's Foundry hotbar page 1 (hotbar-link.mjs), when the user can change its quick bar. */
 export function linkHub(sheet, link = hotbarLink) {

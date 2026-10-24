@@ -129,8 +129,8 @@ test('who sees the edit button: owner and GM yes; observer and limited no (the t
   const actor = withTitle(makeActor(), '[TEST] Warden');
   const own = headerHtml(ctxFor(actor, users.owner), false);
   assert.match(own, /<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon ag-btn--sm agch-head__edit" data-action="name-edit" aria-label="Edit name and title…" data-tooltip="Edit name and title…">/);
-  assert.match(moreMenuHtml({menu: 'more'}, ctxFor(actor, users.owner)), /data-action="name-edit"[^>]*>.*<span>Edit name and title…<\/span>/);
-  assert.match(moreMenuHtml({menu: null}, ctxFor(actor, users.owner)), /aria-label="More: Edit name and title, Level up/);
+  assert.doesNotMatch(moreMenuHtml({menu: 'more'}, ctxFor(actor, users.owner)), /name-edit|Edit name and title/, '0.46.0: the pencil is the only way; not in the ⋯ menu');
+  assert.match(moreMenuHtml({menu: null}, ctxFor(actor, users.owner)), /aria-label="More: Configure, Open native sheet"/);
   setup(users.gm);
   assert.match(headerHtml(ctxFor(actor, users.gm), false), /data-action="name-edit"/);
   setup(users.observer);
