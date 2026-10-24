@@ -1,3 +1,12 @@
+## 0.46.2 — 2026-10-24
+
+Pop-out dialogs no longer pull in windows from the main window, and the roll dialogs follow the Hub.
+
+- **Side effect fixed.** Hosting a Hub dialog in a popped-out Hub's window is now on only while a Hub action is waiting for its next window. While a hosted dialog is open (for example Help), a confirm, an actor delete or another actor's rest opened from the main window stays in the main window. It switches back on when that dialog closes only if the action still has more steps (picker, then config window; Use, then usage dialog, then roll dialogs), and off for good when the action ends, the Hub closes, or you Pop in/out.
+- **Roll dialogs.** dnd5e's roll configuration dialogs (damage, attack, ability/skill/tool and the base roll dialog) opened by Cast Spell, Use and attack rolls from the Hub now open in the popped-out Hub's window too.
+- Hub dialogs report their real class (DialogV2) again.
+- Not popped out: nothing changes. No change to saved data. Mocked tests only; please check in Forge with a popped-out Hub.
+
 ## 0.46.1 — 2026-10-24
 
 Conditions follow the GM's rule: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character; the GM can change everything.** (Needs Ashen Gate | Utilities 0.29.2 for anything a player does to a monster; Player Access still gates it.)

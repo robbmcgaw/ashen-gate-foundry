@@ -12,7 +12,7 @@ import {MODULE_ID, VERSION} from '../scripts/constants.mjs';
 
 const Hub = createHubSheetClass(FakeActorSheetV2);
 const MAIN = {documentElement: {dataset: {}}, title: 'Foundry Virtual Tabletop'}, OTHER = {name: 'popout'};
-class FakeApp { constructor(o) { this.options = o; this.rendered = false; } render() { this.rendered = true; return Promise.resolve(this); } }
+class FakeApp { constructor(o) { this.options = o; this.rendered = false; this._l = []; } addEventListener(t, f) { if (t === 'close') this._l.push(f); } close() { this.rendered = false; for (const f of this._l.splice(0)) f(); } render() { this.rendered = true; return Promise.resolve(this); } }
 class FakeDialog extends FakeApp { static wait(options) { const d = new this(options); d.render({force: true}); return Promise.resolve(null); } }
 class CompendiumBrowser extends FakeApp { static async selectOne() { await new this().render({force: true}); return null; } }
 class AdvancementManager extends FakeApp {}
@@ -55,7 +55,7 @@ test("dnd5e's compendium browser and advancement window are hosted in the Hub wi
   const {sheet, kids} = make(true);
   const {hostWindows} = await import('../scripts/popout.mjs');
   try {
-    await hostWindows(sheet, async () => { await CompendiumBrowser.selectOne(); await new AdvancementManager().render({force: true}); });
+    await hostWindows(sheet, async () => { await CompendiumBrowser.selectOne(); kids[0].close(); await new AdvancementManager().render({force: true}); });
     assert.deepEqual(kids.map(k => k.constructor.name), ['CompendiumBrowser', 'AdvancementManager']);
     kids.length = 0;
     await new CompendiumBrowser().render({force: true});

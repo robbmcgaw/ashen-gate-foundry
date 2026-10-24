@@ -31,7 +31,7 @@ import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} fro
 import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
-import {togglePopOut, isPoppedOut, hostWindows} from './popout.mjs';
+import {togglePopOut, isPoppedOut, hostWindows, releaseHosting} from './popout.mjs';
 import {placePopovers} from './popover.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
@@ -873,6 +873,7 @@ export function createHubSheetClass(Base) {
     _onClose(options) {
       // The drawer closes with the Hub; the room it added is given back so the window reopens at its own size.
       if (this.quickOpen) { this.quickOpen = false; try { this.fitDrawer(); } catch {} }
+      releaseHosting(this);   // 0.46.2: closing the Hub restores every patched dialog prototype
       unmountEmbeds(this._embeds);
       this._undo?.clear();
       unbindEscape(this); unbindQuickKeys(this);
