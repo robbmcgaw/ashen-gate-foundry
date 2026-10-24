@@ -385,7 +385,13 @@ export function planSync(set, world, ctx = {}) {
   const docs = world.docs ?? [];
   const bySource = new Map();
   for (const snap of docs) { const id = snap.flag?.sourceId; if (id) (bySource.get(id) ?? bySource.set(id, []).get(id)).push(snap); }
-  const knownIds = new Set([...bySource.keys(), ...set.allIds, ...(ctx.externalIds ?? [])]);
+  // A Map, because contract (0.2) packages resolve cross-file refs through checkContractGraph, which ignores a plain Set.
+  // Later entries win: world documents, then other Manager/specialist ids, then the records in this sync set.
+  const knownIds = new Map();
+  for (const id of ctx.externalIds ?? []) knownIds.set(id, {});
+  for (const [id, snaps] of bySource) knownIds.set(id, {entity_type: snaps[0]?.flag?.entityType, scope: snaps[0]?.flag?.scope});
+  for (const id of set.allIds) if (!knownIds.has(id)) knownIds.set(id, {});
+  for (const [id, {record}] of set.records) knownIds.set(id, {entity_type: record.entity_type, scope: record.scope});
 
   // 1. every Manager file must validate as it would on a normal import; one bad file stops the whole sync.
   for (const file of set.managerFiles) {

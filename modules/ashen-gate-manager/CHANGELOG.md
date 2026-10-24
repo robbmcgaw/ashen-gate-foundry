@@ -1,3 +1,8 @@
+## 0.60.6 — 2026-10-24
+
+- **Fix: Sync from package no longer reports "unresolved required reference" for records another file in the sync defines.** A package that links to a profession (or any record) defined in an earlier file, such as the Crafting Extensions pack linking to `PROF-*`, was checked against an empty list of known records during Sync, so every cross-file link failed and the whole sync was stopped. Sync now checks links against the world, the other files in the sync, and the file itself. A link to a record that is in none of them is still reported.
+- Saved data: no change. No migration.
+
 ## 0.60.5 — 2026-10-24
 
 - **Scene moods and layers: the id is made from the label.** The new mood / layer editor no longer asks for an *Id*. It is made from the label when you save (lower-case words joined by dashes, `-2`, `-3`... if taken) and does not change later. *Advanced: set id (optional)* is still there for a new one. A duplicate also gets a made id instead of a typed `-copy`.
