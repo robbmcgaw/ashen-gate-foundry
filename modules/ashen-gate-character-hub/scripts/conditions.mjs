@@ -104,6 +104,22 @@ export async function applyCondition(self, mode, statusId) {
   return {ok: true, result: {applied: plans.map(p => p.t.name), label}};
 }
 
+/**
+ * Puts `statusId` on one target {actor, name} (the same checks as Apply: the GM, Utilities' rules, or ownership).
+ * Used by marks (Topple puts Prone on the target after a failed save). {ok, result: {applied, already, label}}.
+ */
+export async function applyStatusTo(self, t, statusId) {
+  if (!canEdit(self)) return refuse(`You don't own ${self?.name ?? 'this character'}, so you can't use its conditions.`);
+  const choices = conditionChoices(self), valid = new Set(choices.map(c => c.id));
+  if (!valid.has(statusId)) return refuse('Pick a condition from the list.');
+  const label = choices.find(c => c.id === statusId)?.label ?? statusId;
+  if (hasStatus(t.actor, statusId)) return {ok: true, result: {applied: [], already: [t.name], label}};
+  const d = conditionDecision({actor: t.actor, name: t.name, statusId, apply: true, valid});
+  if (!d.ok) return d;
+  try { await change(d, t.actor, statusId, true); } catch (err) { return refuse(`${label} was not put on ${t.name}: ${err?.message ?? err}`); }
+  return {ok: true, result: {applied: [t.name], already: [], label}};
+}
+
 /** ✕ on a chip: takes `statusId` off this character or one of the current targets (`uuid` names which). */
 export async function removeCondition(self, uuid, statusId) {
   if (!canEdit(self)) return refuse(`You don't own ${self?.name ?? 'this character'}, so you can't use its conditions.`);

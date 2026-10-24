@@ -84,7 +84,7 @@ export const ACTIONS = {
   'journey-show': (s, t) => journey.setHidden(journeyActor({actor: s.document, sheet: s}), t.dataset.id, false),
   'journey-delete': (s, t) => journeyDelete(s, t),
   'list-filter': (s, t) => { setListFilter(s, t.dataset.tab, t.dataset.key, t.dataset.value); return s.render(); },
-  'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
+  'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) { if (r.notice) globalThis.ui?.notifications?.info?.(r.notice); s.render(); } return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
   // 0.42.0: the slot itself (a key press passes only its number) places dnd5e's roll dialogs (item-actions.mjs rollEvent).
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e, t.getBoundingClientRect ? t : s.element?.querySelector?.(`[data-hotbar-slot="${t.dataset.hotbarSlot}"]`) ?? s.element ?? null),
