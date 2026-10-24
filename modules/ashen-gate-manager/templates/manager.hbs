@@ -1092,6 +1092,11 @@
         </div>
         <p class="agmanager-tiny">Your own skin and size: {{{gotoMyAppearance}}}.</p>
       </section>
+      <section class="ag-section" aria-label="Game pause">
+        <div class="ag-section__head"><h3 class="ag-section__title">Game pause</h3></div>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pause {{#if compactPause}}checked{{/if}}> Show the pause as a small indicator</label>
+        <p class="agmanager-tiny">Off keeps Foundry's large Game Paused banner. On hides it for everyone and shows a small Paused label at the top centre of the screen, out of the way. Pausing and resuming work as usual. Saved with Save Changes.</p>
+      </section>
       <section class="ag-section" aria-label="NPC Codex">
         <div class="ag-section__head"><h3 class="ag-section__title">NPC Codex</h3></div>
         <p>Players {{#if codexPlayerAccess}}<strong>can</strong>{{else}}<strong>cannot</strong>{{/if}} open the NPC Codex. Reveal or hide it on the {{{gotoModules}}} tab, with the other modules' player windows.</p>
