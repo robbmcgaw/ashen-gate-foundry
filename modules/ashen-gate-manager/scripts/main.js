@@ -51,7 +51,7 @@ import {buildImportReport, buildBlockedReport, pushReport} from './import-result
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename, sortBundleFiles} from './zip-import.js';
 import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
-import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue} from './scene-moods.js';
+import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue, presetIdFromLabel} from './scene-moods.js';
 const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 /** Sub-tab rows (kit 2.2, 0.46.0): one level under a top-level tab; remembered per user with uiState. */
 const IMPORT_TABS=[{id:'package',label:'Load and preview'},{id:'history',label:'Import history'}];
@@ -542,15 +542,18 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const [kind,id]=ref.split(':');
     const preset=this.#findPreset(kind,id);
     if(!preset)return toast(`${kind==='layer'?'Layer':'Mood'} ${id} not found.`,true);
-    this.moodEdit=duplicate?{isNew:true,kind,id:`${preset.id.slice(0,35)}-copy`,label:`${preset.label} (copy)`,set:{...preset.set},transitionMs:preset.transitionMs??0}
+    this.moodEdit=duplicate?{isNew:true,kind,id:'',label:`${preset.label} (copy)`,set:{...preset.set},transitionMs:preset.transitionMs??0}
       :{isNew:false,kind,id:preset.id,label:preset.label,set:{...preset.set},transitionMs:preset.transitionMs??0};
     await this.render();
   }
   async #saveMood() {
     const root=this.element, edit=this.moodEdit;
     if(!edit)return;
-    const id=edit.isNew?String(root.querySelector('[data-ag-mood-id]')?.value??'').trim().toLowerCase():edit.id;
     const label=String(root.querySelector('[data-ag-mood-label]')?.value??'').trim();
+    // The id is made from the label when the preset is created and never changes; "Advanced: set id" is optional.
+    const typedId=edit.isNew?String(root.querySelector('[data-ag-mood-id]')?.value??'').trim().toLowerCase():'';
+    const list=sceneMoods().listMoods(),existing=(edit.kind==='layer'?list.layers:list.presets)??[];
+    const id=edit.isNew?(typedId||presetIdFromLabel(label,existing.map(p=>p.id))):edit.id;
     const transitionMs=Number(root.querySelector('[data-ag-mood-edit-transition]')?.value??0)||0;
     const set={};
     for(const f of MOOD_FIELDS){
@@ -559,7 +562,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       set[f.path]=f.kind==='number'?Number(input?.value):f.kind==='boolean'?Boolean(input?.checked)
         :f.kind==='color'?(root.querySelector(`[data-ag-mood-none="${f.path}"]`)?.checked?null:String(input?.value??'').toLowerCase()):String(input?.value??'');
     }
-    if(edit.isNew&&this.#findPreset(edit.kind,id))return toast(`A ${edit.kind} with id ${id} already exists.`,true);
+    if(edit.isNew&&this.#findPreset(edit.kind,id))return toast(`The id you set is already used by another ${edit.kind}. Clear it to make one from the label.`,true);
     this.moodEdit={...edit,id,label,set,transitionMs};
     const out=await this.#moodResult(sceneMoods().savePreset({id,label,kind:edit.kind,set,...(transitionMs?{transitionMs}:{})}),`${edit.kind==='layer'?'Layer':'Mood'} "${label}" saved.`);
     if(out.ok){this.moodEdit=null;await this.render();}
