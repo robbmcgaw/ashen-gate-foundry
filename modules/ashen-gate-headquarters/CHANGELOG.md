@@ -1,3 +1,9 @@
+## 0.14.1 — 2026-10-25
+
+- **Quieter console when the private vault is missing (GM only).** The red console error that appeared on every GM load while the vault Journal is missing or can't be used is now one plain yellow console note per session, with no stack. It says a recovery dialog is available and how to open it (open Headquarters as GM). Unexpected failures are still logged as errors with the red toast.
+- Nothing else changes: no automatic recreate, GM only, and a new vault still needs `NEW VAULT` typed.
+- Saved data: no change; no migration.
+
 ## 0.14.0 — 2026-10-24
 
 - **Recover a lost private vault (GM only).** If Headquarters' private Journal (*Ashen Gate | Headquarters — Private Campaign State*) was deleted or can't be found, the red error and the repeated yellow warnings are replaced by one plain window with the choices. Nothing happens automatically and nothing is ever deleted.

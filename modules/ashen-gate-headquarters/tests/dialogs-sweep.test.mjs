@@ -21,7 +21,7 @@ globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).p
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:()=>{},error:m=>warnings.push(m)}};
 globalThis.document={querySelectorAll:()=>[]};
 let menuClass;
-const mod={id:'ashen-gate-headquarters',version:'0.14.0'};
+const mod={id:'ashen-gate-headquarters',version:'0.14.1'};
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm]]),{activeGM:gm}),modules:{get:()=>mod},
   settings:{register:()=>{},registerMenu:(_m,_k,o)=>{menuClass=o.type;},get:(m,k)=>settings.get(`${m}.${k}`),set:async(m,k,v)=>{writes.push({[k]:v});settings.set(`${m}.${k}`,v);}},
   keybindings:{register:()=>{}},journal:{contents:[],get:()=>null},items:{contents:[]},actors:{contents:[]}};
