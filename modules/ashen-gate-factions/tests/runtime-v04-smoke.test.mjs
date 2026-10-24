@@ -126,11 +126,11 @@ test(!JSON.stringify(source).includes('Saved a faction officer'),'personal state
 // AG-WORK-0009 GM-only typed Objective authoring, independent of campaign state.
 await actions.select.call(dashboard,null,{dataset:{id:'FACTION-IRON'}});
 const scoreBeforeRef=groupIron.getFlag(ns,'groupClaims').standing.score;
-const queryValues={'objective-id':'QUEST-HIDDEN-001','objective-relation':'offers_objective','objective-mode':'optional'};
-dashboard.element={querySelector:selector=>({value:queryValues[selector.match(/\[name=[\"']?([^\"'\]]+)/)?.[1]]??''})};
+const queryValues={'agf-objective-id':'QUEST-HIDDEN-001','objective-relation':'offers_objective','objective-mode':'optional'};
+dashboard.element={querySelector:selector=>({value:queryValues[selector.match(/\[name=[\"']?([^\"'\]]+)/)?.[1]??selector.match(/^#(.+)$/)?.[1]]??''})};
 await actions.addObjective.call(dashboard);
 const authorRefs=oldPublic.getFlag(ns,'faction').refs;
-test(authorRefs.some(x=>x.target_id==='QUEST-HIDDEN-001'&&x.relation==='offers_objective'&&x.mode==='optional'),'GM typed Objective reference persisted');
+test(authorRefs.some(x=>x.target_id==='QUEST-HIDDEN-001'&&x.relation==='offers_objective'&&x.mode==='optional'),'GM picked Objective reference persisted');
 test(groupIron.getFlag(ns,'groupClaims').standing.score===scoreBeforeRef,'Objective authoring did not alter Group Renown');
 test(!JSON.stringify(view1.getFlag(ns,'playerView')).includes('QUEST-HIDDEN-001'),'Objective ID withheld from player projection');
 test(mod.api.getObjectiveRefs('FACTION-IRON').length===1,'GM can read canonical refs via read-only API');
