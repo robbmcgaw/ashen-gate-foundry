@@ -4,7 +4,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {validateDefinition,validateModifiers,normalizeModifier,blockModifiers,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
   unbindInstance,planMigration,CINDER_WALLET_CAP,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
 import {defaultConfig,strainEffectBonus,validateConfig} from '../scripts/strain.mjs';
-import {assertNoIds} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const fakeRoll=queue=>async formula=>{const total=queue.shift();if(total==null)throw Error(`unexpected roll ${formula}`);return {total,formula};};
 const steady={powerId:'POWER-TEST-STEADY',name:'[TEST] Steady',power:{kind:'enhancement',modifiers:[
@@ -508,7 +508,7 @@ test('sheet (0.6.0): orbit from api.sockets (+1 extra, inactive off the orbit, l
   for(const g of [g1,g2,g3,g4])B.items.splice(B.items.indexOf(g),1);
 });
 // 0.5.0: the window's Unbind asks first ("Unbind Cinder", red); Cancel leaves the Cinder bound. Manage toolbar counts Cinders.
-test('no canonical ids in player-visible output (0.11.1): sheet, Check rows, Push preview, chat card, refusals',async()=>{
+test('no canonical ids in player-visible output (0.11.1): ids and machine tokens: sheet, Check rows, Push preview, chat card, refusals',async()=>{
   const {sheetView}=await import('../scripts/main.mjs');
   const wiring=new Set(['instanceId','definitionId','treeId','uuid','itemId','powerId','sourceId','id','slot','art','bearerId','actorId','from']);
   const shown=v=>JSON.stringify(v,(k,x)=>wiring.has(k)?undefined:x);
@@ -517,20 +517,20 @@ test('no canonical ids in player-visible output (0.11.1): sheet, Check rows, Pus
     const h=api.sockets.slots(B,c.instanceId),fits=api.sockets.socketable(B);
     const v=sheetView(B,c,h,{fits,perks:api.modifiers.forActor(B),strainState:strain.get(B),gm:gmView,uuidOf:i=>B.items.get(i)?.uuid});
     assert.ok(v.name&&v.powers.length,'sample sheet has a Cinder with powers');
-    assertNoIds(v.name,'Cinder name');
-    assertNoIds(shown({...v,gm:null}),`${gmView?'GM':'player'} sheet view`);
+    assertNoMachineText(v.name,'Cinder name');
+    assertNoMachineText(shown({...v,gm:null}),`${gmView?'GM':'player'} sheet view`);
   }
   // Names fall back to a neutral label, never the id.
   game.user=gm;
   const hbs=await import('node:fs').then(fs=>fs.readFileSync(new URL('../templates/cinders.hbs',import.meta.url),'utf8'));
-  assertNoIds(hbs,'Cinders template');
+  assertNoMachineText(hbs,'Cinders template');
   assert.equal(api.definitionName?.('MUT-TEST-NOPE')??'Unnamed Cinder','Unnamed Cinder');
   // Preview, chat card and refusals.
   const pv=cinder.previewPush(B,cinder.list(B)[0].instanceId,'POWER-TEST-SPARK','amplify');
-  assertNoIds(`${pv.powerName} ${pv.label} ${pv.effect??''} ${pv.modifiers.map(m=>m.label).join(' ')}`,'Push preview');
+  assertNoMachineText(`${pv.powerName} ${pv.label} ${pv.effect??''} ${pv.modifiers.map(m=>m.label).join(' ')}`,'Push preview');
   messages.length=0;rolls.push(10,1,1);const strainBefore=strain.get(B).value;
   await cinder.push(B,'POWER-TEST-SPARK','amplify');
-  assertNoIds(messages.at(-1).content,'Push chat card');
+  assertNoMachineText(messages.at(-1).content,'Push chat card');
   await gmSet(B,strainBefore);
   const refusals=[];
   await cinder.create('MUT-TEST-NOPE').catch(e=>refusals.push(e.message));
@@ -538,8 +538,8 @@ test('no canonical ids in player-visible output (0.11.1): sheet, Check rows, Pus
   await api.sockets.attach(B,cinder.list(B)[0].instanceId,'ZZ').catch(e=>refusals.push(e.message));
   B.items.splice(B.items.indexOf(item),1);
   assert.ok(refusals.length>=2);
-  assertNoIds(refusals.join('\n'),'refusal messages');
-  assertNoIds(cinder.report().map(r=>`${r.name} ${r.text}`).join('\n'),'Manage → Check rows');
+  assertNoMachineText(refusals.join('\n'),'refusal messages');
+  assertNoMachineText(cinder.report().map(r=>`${r.name} ${r.text}`).join('\n'),'Manage → Check rows');
 });
 test('Manage: Unbind is a danger confirm and Cancel changes nothing; toolbar count and New Cinder stay enabled with definitions',async()=>{
   game.user=gm;

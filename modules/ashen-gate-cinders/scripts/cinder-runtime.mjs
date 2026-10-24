@@ -89,11 +89,12 @@ export function createCinders(deps){
   const bearerWant=(registry,actorId)=>boundTo(registry,actorId).map(inst=>{const def=definition(inst.definitionId);
     return {instanceId:inst.instanceId,definitionId:inst.definitionId,items:def?bearerItemsOf(def):null};});
   /** The world Item a bearer item is copied from: {doc}, or {problem} when it is missing or of the wrong kind. */
+  const KIND_WORDS={signature_active:'signature ability',signature_passive:'passive',power:'power',enhancement:'enhancement'};
   function bearerSource(sourceId,slot){
     const hit=lookup(sourceId),label=SLOT_LABEL[slot].toLowerCase();
     if(hit?.status!=='ok'||hit.document?.documentName!=='Item')return {problem:`The Cinder's ${label} is not in this world as an Item. Import it through General Manager.`};
     const kind=powerBlock(sourceOf(hit.document)?.definition)?.kind;
-    if(kind!==SLOT_KIND[slot])return {problem:`The Cinder's ${label} is ${kind?`a ${kind}`:'not a Power with a power block'}, not a ${SLOT_KIND[slot]}, so it is not given.`};
+    if(kind!==SLOT_KIND[slot])return {problem:`The Cinder's ${label} is ${kind?`a ${KIND_WORDS[kind]??'different kind of power'}`:'not a Power with a power block'}, not ${KIND_WORDS[SLOT_KIND[slot]]??'the right kind'}, so it is not given.`};
     return {doc:hit.document};
   }
   /** Make one character carry exactly the bearer items of the Cinders it bears (the registry is the truth). Idempotent: missing copies

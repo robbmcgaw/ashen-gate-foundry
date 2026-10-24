@@ -177,21 +177,21 @@ function socketView(h,fits){
   const empties=Array.from({length:h.free},(_,i)=>({index:i}));
   const spare=fits.filter(f=>!h.slots.some(x=>x.itemId===f.itemId));
   return {instanceId:h.instanceId,capacity:h.capacity,used:h.slots.filter(x=>x.active).length,locked:h.locked,canEdit:h.canEdit,
-    slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`).join(' · ')})),
+    slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`).join(' · ')})),
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
 }
 /** The Cinder sheet (0.6.0): orb, Strain ring, sockets on an orbit, and the sheet column. `c` is one api.cinder.list entry, `h` its api.sockets host. */
 export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidOf=()=>null,maxSockets=12,rotate={world:true,local:true},offer={world:true,local:true}}={}){
   const top=Math.max(1,strainState.guaranteeAt??10),art=orbArt(c),orbit=orbitModel(h,maxSockets);
-  const canEdit=Boolean(h?.canEdit),tip=x=>[x.name,...(x.modifiers??[]).map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`)].join(' · ');
+  const canEdit=Boolean(h?.canEdit),tip=x=>[x.name,...(x.modifiers??[]).map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`)].join(' · ');
   const sockets=orbit.positions.map(p=>({...p,number:p.index+1,canEdit,tip:p.empty?(canEdit?'Empty socket: attach an item, or drag one here':'Empty socket'):tip(p),
     label:p.empty?`Socket ${p.index+1}: empty`:`Socket ${p.index+1}: ${tip(p)}`}));
   // 0.11.0 (CN-09): the orbit shows numbers; the filled sockets are listed by name under the stage.
   const filled=sockets.filter(x=>!x.empty);
   const inactive=orbit.inactive.map(x=>({...x,canEdit,tip:`${tip(x)} · inactive: over capacity`}));
   const spare=fits.filter(f=>!(h?.slots??[]).some(x=>x.itemId===f.itemId)).map(f=>({...f,uuid:uuidOf(f.itemId),elsewhere:Boolean(f.attachedTo)}));
-  const effects=list=>list.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`).join(' · ');
+  const effects=list=>list.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`).join(' · ');
   const perkRows=[];
   for(const p of perks){let row=perkRows.find(r=>r.sourceId===p.sourceId);if(!row)perkRows.push(row={sourceId:p.sourceId,name:p.name,kind:'Perk',mods:[]});row.mods.push(p);}
   const rows=[...perkRows.map(r=>({name:r.name,kind:r.kind,text:effects(r.mods)})),

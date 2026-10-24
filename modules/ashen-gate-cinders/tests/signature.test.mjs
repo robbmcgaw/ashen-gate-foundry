@@ -294,7 +294,7 @@ test('a source missing or of the wrong kind never blocks a bind: it is named, an
   assert.equal(r.instance.bearer.actorId,'C');
   assert.equal(r.bearerItems.problems.length,2);
   assert.match(r.bearerItems.problems.join('\n'),/The Cinder's signature ability is not in this world/);
-  assert.match(r.bearerItems.problems.join('\n'),/The Cinder's passive is a signature_active, not a signature_passive/);
+  assert.match(r.bearerItems.problems.join('\n'),/The Cinder's passive is a signature ability, not passive/);
   assert.deepEqual(tagged(C),[]);
   const rows=cinder.report().filter(r=>r.instanceId===ash.instanceId);
   assert.equal(rows.length,2);assert.ok(rows.every(r=>!r.repair));
