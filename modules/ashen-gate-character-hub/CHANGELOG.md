@@ -1,3 +1,12 @@
+## 0.46.4 — 2026-10-24
+
+The paper-doll art stays tall. In the Full Hub the character art had become a short, wide band (about 730 x 200 in a window of 870 x 670, the character small and the slot columns far to each side). Two things caused it: the doll gave way (shrank) before the character column scrolled, so a busy column squeezed the slots and the art; and in a narrow Full window (900 px or less) the art ran the whole window width.
+
+- **Full Hub:** the doll keeps its full height (five slots at their usual size, the size from 0.44.1), so the art is no longer squeezed. When the window is too short for the whole column, the column scrolls instead of the art shrinking.
+- **Narrow Full window:** the doll is centred and no wider than seven slots, so the art sits between its slots as a compact stage instead of a wide band. Slot size and arrangement are unchanged.
+- **Compact:** unchanged (the doll still shrinks to keep the stats in view). Hide character / Show character: unchanged (shown until you hide it). Nothing else in the Overview moves.
+- No change to saved data. Mocked tests plus headless Chromium measurements; please check in Forge (Overview at about 870 x 670, then wider and popped out).
+
 ## 0.46.3 — 2026-10-24
 
 Ashen Gate ids no longer show in the Hub. Where a partner module gave a profession, skill tree or perk no name, the Hub used to fall back to its id (PROF-, tree or perk ids) in the Professions and Skill Trees tabs and the Overview's Professions box; it now shows a neutral word ("Profession", "Skill tree", "a perk"). Machine wording (snake_case kinds such as a quest's "side_quest" in the Journey) is shown as plain words too; the Hub prints no relation, status or entity-type tokens. Nothing else in the Hub displayed ids. Saved data, flags and APIs are untouched. (Mocked tests; please check the Professions and Skill Trees tabs in Forge.)
