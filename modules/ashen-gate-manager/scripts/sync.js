@@ -15,7 +15,8 @@
 import {MODULE_ID, BLOCKED_STATUSES, canonical, equal, flatten, getPath, isPlainObject, exportedFields, baselineFields, validatePackage} from './core.js';
 import {canonicalDefinition} from './source-projection.mjs';
 import {itemKeys, ITEM_FLAG, ACTOR_ITEMS_FLAG, ITEM_PLAY_STATE, ITEM_SKIP, itemLeaves, keyOf} from './actor-update.js';
-import {effectDefinition, effectCreateData, effectFields, liveEffectValue, effectFlagOf} from './item-effects.js';
+import {effectDefinition, effectCreateData, effectFields, liveEffectValue, effectFlagOf, upgradeBaseline, upgradeEffectChanges} from './item-effects.js';
+import {resultMatches, resultCreateData} from './table-results.js';
 import {wantsSmartIcon, plannerIcon} from './smart-icons.js';
 import {domainHandoff} from './delivery.js';
 import {contentHash} from './world-export.js';
@@ -186,7 +187,7 @@ function effectsPlan(defs, liveRaw) {
       if (!same(path === 'statuses' ? [...value].sort() : value, cur)) patch[path] = value;
     }
     let baselineSame = false;
-    try { baselineSame = same(JSON.parse(effectFlagOf(raw).baseline ?? 'null'), want); } catch { baselineSame = false; }
+    try { baselineSame = same(upgradeBaseline(JSON.parse(effectFlagOf(raw).baseline ?? 'null')), want); } catch { baselineSame = false; }
     if (Object.keys(patch).length || !baselineSame) out.update.push({_id: raw._id, ...patch, [`flags.${MODULE_ID}.effect.baseline`]: JSON.stringify(want), changed: Object.keys(patch)});
   }
   const inFile = new Set(defs.map(d => d.eff_id));
@@ -247,7 +248,6 @@ function planJournal(record, snap) {
   return {fields: patch, pages, changes, notes: [], contentChange: changes.length > 0};
 }
 
-const normResult = r => ({type: r.type ?? 'text', text: r.text ?? '', range: r.range ?? [1, 1], weight: r.weight ?? 1, documentCollection: r.documentCollection ?? null, documentId: r.documentId ?? null, img: r.img ?? null});
 function planTable(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
@@ -256,10 +256,9 @@ function planTable(record, snap) {
   if (Array.isArray(data.results)) {
     const sortR = list => [...list].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
     const want = sortR(objects(data.results)), have = sortR(objects(raw.results));
-    const defined = (a, b) => Object.keys(a).every(k => ['_id', '_stats', 'drawn', 'sort', 'flags'].includes(k) || same(normResult(a)[k] ?? a[k], normResult(b)[k] ?? b[k]));
-    const identical = want.length === have.length && want.every((w, i) => defined(w, have[i]));
+    const identical = want.length === have.length && want.every((w, i) => resultMatches(w, have[i], same, globalThis.game?.packs));
     if (!identical) {
-      results = {create: want.map(w => { const { _id, drawn, ...rest } = w; return {...rest, drawn: false}; }), deleteIds: have.map(h => h._id)};
+      results = {create: want.map(w => resultCreateData(w, globalThis.game?.packs)), deleteIds: have.map(h => h._id)};
       changes.push({path: 'results', label: 'results', from: `${have.length} result(s)`, to: `${want.length} result(s) (the table's draw history resets)`, gmEdited: false});
     }
   }
@@ -303,6 +302,7 @@ function planActor(record, snap) {
     }
     if (!liveItem) {
       const copy = structuredClone(def);
+      if (Array.isArray(copy.effects)) copy.effects = upgradeEffectChanges(copy.effects);
       copy.flags = {...(copy.flags ?? {}), [MODULE_ID]: {...(copy.flags?.[MODULE_ID] ?? {}), [ITEM_FLAG]: key}};
       items.create.push(copy); changes.push({path: `items.${key}`, label: `item "${def.name}"`, from: '—', to: 'added', gmEdited: false});
       return;

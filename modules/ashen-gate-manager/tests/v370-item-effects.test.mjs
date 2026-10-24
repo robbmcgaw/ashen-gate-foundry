@@ -48,7 +48,7 @@ test('modes accept Foundry numbers and readable names', () => {
   assert.deepEqual([0, 5, 2].map(normalizeMode), [0, 5, 2]);
   for (const bad of [6, -1, 2.5, '2', 'plus', null, undefined, true]) assert.equal(normalizeMode(bad), null);
   const def = effectDefinition(walk());
-  assert.deepEqual(def.changes, [{key: 'system.attributes.movement.speeds.walk', mode: 2, value: '10', priority: null}]);
+  assert.deepEqual(def.changes, [{key: 'system.attributes.movement.speeds.walk', type: 'add', value: '10', priority: null}]);
   assert.equal(def.transfer, false);
 });
 
@@ -108,7 +108,7 @@ test('import creates the effect, then re-import is idempotent (no writes)', asyn
   assert.deepEqual(await applyItemEffects(item, first, {user: GM}), {created: 1, updated: 0});
   const raw = rawOf(item, 'walk');
   assert.equal(raw.transfer, false);
-  assert.deepEqual(raw.changes, [{key: 'system.attributes.movement.speeds.walk', mode: 2, value: '10', priority: null}]);
+  assert.deepEqual(raw.changes, [{key: 'system.attributes.movement.speeds.walk', type: 'add', value: '10', priority: null}]);
   const again = planItemEffects(saddle().foundry.data.effects, liveEffects(item));
   assert.equal(again.writes, 0);
   assert.deepEqual(again.rows.map(r => [r.action, r.reason]), [['kept', 'Already matches the file.']]);
