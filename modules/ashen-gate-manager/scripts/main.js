@@ -33,7 +33,11 @@ import {cinderDefinitionChecks} from './cinder-definitions.js';
 import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
-import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
+import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
+import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, phraseOk, ledgerKey} from './sync.js';
+import {executeSync, buildSyncBackup} from './sync-apply.js';
+import {readSyncInput, joinSyncInputs} from './sync-load.js';
+import {syncView} from './sync-view.js';
 import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
@@ -254,6 +258,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
+  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences; the badge counts the GM-edited fields that will be lost), <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and the package wins: everything it defines is overwritten, your edits included. NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -306,6 +311,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
     this.zipBundle = null;
+    // 0.55.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
+    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
     this.uploadZipArtwork = true;
     this.packageSource = null;
     this.captureSelected = new Set();
@@ -656,6 +663,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       importTabsHtml: this.tab==='import'?tabRow('agm-import','Import sections',IMPORT_TABS,this.importView):'',
       importPanelAttrs: tabPanelAttrs('agm-import',this.importView),
       importPackage: this.importView==='package', importHistory: this.importView==='history',
+      syncOn: this.sync.on, syncHtml: this.sync.on&&this.tab==='import'?this.#syncHtml():'',
       itemsTabsHtml: items?tabRow('agm-items','Items sections',ITEM_VIEWS,view):'',
       itemsPanelAttrs: tabPanelAttrs('agm-items',view),
       itemsFilters: items&&Boolean(ITEM_VIEWS.find(v=>v.id===view)?.filters), itemFiltersOpen:this.itemFiltersOpen,
@@ -851,6 +859,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Every file button (kit fileButton) in the window: the main import, organize rules, codex restore and moods file. */
   async #pickFile(kind,file) {
     if(!file)return;
+    if(kind==='sync')return;
     if(kind==='import')return this.#importFile(file);
     if(kind==='rules')return this.#importRules(file).catch(err=>this.#fail(err));
     if(kind==='codex')return this.#codexImport(file).catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
@@ -980,6 +989,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       else this.librarySelected.delete(event.target.dataset.agLibrarySelect);
       void this.render();
     }));
+    this.#bindSync(root);
     root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
       if (this.busy) return;
       this.updateExisting = event.target.checked;
@@ -1185,6 +1195,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!response.ok) throw new Error(`Import template unavailable (${response.status}).`);
         downloadJson(file,await response.json());break;
       }
+      case "sync-preview": await this.#syncPreview(); break;
+      case "sync-reset": this.sync.inputs=[]; this.#syncDrop('Files cleared. Nothing in your world changed.'); await this.render(); break;
+      case "sync-cancel": this.#syncDrop('Sync cancelled. Nothing in your world changed.'); await this.render(); break;
+      case "sync-report": this.#syncReport(); break;
+      case "sync-backup": this.#syncBackupFile(); break;
+      case "sync-run": await this.#syncRun(); break;
       case "reset": this.zipBundle=null; this.#clearLoaded("Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin."); await this.render();break;
       default: throw new Error(`Unknown action: ${name}`);
     }
@@ -1412,6 +1428,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
     try {
       log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
+      await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action))
+        .map(r=>({key:ledgerKey(null,kind),id:r.id,info:{kind:r.kind,module:spec.label,name:rows.find(x=>x.id===r.id)?.name??r.id}})));
     } catch(error) { log.results.push({action:'import-aborted',status:'error',message:String(error?.message??error)}); }
     const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
     await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
@@ -1887,85 +1905,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(routeRows.length) log.results.push(...await applyRoutes(routeRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),routesApi(game),{updateExisting:this.updateExisting}));
       // Shops, services and merchant lists come after the Items their lines sell (Utilities finds them by permanent id).
       if(shopRows.length) log.results.push(...await applyShops(shopRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),shopsApi(game),{updateExisting:this.updateExisting}));
-      // Complete-world UUID index: only actual saved documents are addressable.
-      // Resolve after the *whole* batch; record order and reference cycles do not matter.
-      const uuidIndex=buildUuidIndex(allBoundDocuments());
-      // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
-      const moduleRecord=moduleRecordLookup(game);
-      for(const row of ordered) {
-        if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
-        const record=this.pkg.records.find(r=>r.id===row.id);
-        const doc=foundDocuments(row.id)[0];
-        if(!doc) continue;
-        const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
-        for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
-        if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
-        const updates={};
-        const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
-        const source=sourceFlag(doc)??{};
-        const currentIds=new Set(uuidIndex.keys());
-        updates[`flags.${MODULE_ID}.source.refs`]=projectedReferences(record.refs,currentIds);
-        const newFields={...(source.managedFields??{})};
-        updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
-        updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
-        updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
-        // Only source-provided rich-text paths receive AGREF substitution.
-        // Add a small reference section for canonical refs without explicit markers.
-        if(doc.documentName==='Item') {
-          const original=record.foundry.data?.system?.description?.value;
-          if(typeof original==='string' || bindings.length) {
-            const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-            const final=appendReferenceBlock(linked.text,bindings,linked.resolved);
-            for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-            if(doc.system?.description?.value!==final) updates['system.description.value']=final;
-            newFields['system.description.value']=final;
-            log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length,added:bindings.length-bindings.filter(b=>linked.resolved.includes(b.target_id)).length});
-          }
-        } else if(doc.documentName==='Actor') {
-          // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
-          const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
-          const keys=itemKeys(record.foundry.data?.items??[]);
-          const bio=record.foundry.data?.system?.details?.biography?.value;
-          if(created && typeof bio==='string') {
-            const resolved=resolveRichText(bio,uuidIndex);
-            updates['system.details.biography.value']=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
-          }
-          for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
-            if(!created&&!touched.has(keys[i])) continue;
-            const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
-            if(typeof html!=='string'||!embedded) continue;
-            const resolved=resolveRichText(html,uuidIndex);
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
-            if(embedded.system?.description?.value!==resolved.text) try{await embedded.update({'system.description.value':resolved.text});}catch(e){log.results.push({id:row.id,action:'actor-item-link',status:'error',message:String(e.message??e)});}
-          }
-        } else if(doc.documentName==='RollTable') {
-          const text=record.foundry.data?.description;
-          if(typeof text==='string') {
-            const resolved=resolveRichText(text,uuidIndex);
-            updates.description=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
-            for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
-          }
-        } else if(doc.documentName==='JournalEntry') {
-          const pages=record.foundry.data?.pages??[];
-          for(const [pi,pageDef] of pages.entries()) {
-            const page=doc.pages?.contents?.[pi];
-            if(!page || typeof pageDef.text?.content!=='string') continue;
-            const linked=resolveRichText(pageDef.text.content,uuidIndex);
-            const final=pi===0 ? appendReferenceBlock(linked.text,bindings,linked.resolved) : linked.text;
-            for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-            try{
-              if(page.text?.content!==final) await page.update({'text.content':final});
-              log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
-            }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
-          }
-        }
-        updates[`flags.${MODULE_ID}.source.managedFields`]=newFields;
-        try{
-          await doc.update(updates);
-          if(bindings.length) log.results.push({id:row.id,action:'uuid-bind',status:'ok',bindings:bindings.length});
-        }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
-      }
+      // 0.55.0: remember what was passed to other modules, so a later Sync from package can say what a newer package no longer carries.
+      await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action)&&HANDOFF_KINDS[r.kind])
+        .map(r=>({key:ledgerKey(this.pkg.manifest.package_id),id:r.id,info:{kind:r.kind,module:HANDOFF_KINDS[r.kind],name:this.pkg.records.find(x=>x.id===r.id)?.name??r.id}})));
+      await resolvePackageLinks({pkg:this.pkg,rows:ordered,log,plans});
       const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
       await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
       const created=log.results.filter(r=>r.status==="ok"&&r.action==="create").length;
@@ -2866,6 +2809,213 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
     toast(this.codexMessage,out.errors.length>0);await this.render();
   }
+  // ---------- Sync from package (0.55.0) ----------
+  /** The mode switch and the Sync section. Off by default; while it is on the normal import is paused, never mixed in. */
+  #bindSync(root) {
+    // The sync picker takes every chosen file at once; the shared binding above ignores it (#pickFile does nothing for 'sync').
+    const section=root.querySelector('.agm-sync');
+    if(section)bindFileButtons(section,files=>this.#syncPick(files).catch(err=>this.#fail(err)));
+    root.querySelector('[data-ag-sync-mode]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.on=Boolean(event.target.checked);
+      this.focusAfterRender='[data-ag-sync-mode]';void this.render();
+    });
+    root.querySelector('[data-ag-sync-unscoped]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.deleteUnscoped=Boolean(event.target.checked);
+      this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
+      this.focusAfterRender='[data-ag-sync-unscoped]';void this.render();
+    });
+    // The red button only wakes up when the phrase is typed; typing never re-renders, so focus stays in the box.
+    root.querySelector('[data-ag-sync-phrase]')?.addEventListener('input',event=>{
+      this.sync.phrase=event.target.value;
+      const run=root.querySelector('[data-ag-sync-run]');if(run)run.disabled=this.busy||!phraseOk(this.sync.phrase);
+    });
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while the sync writes.
+    root.querySelector('[data-ag-sync-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.sync.abort)return;
+      this.sync.abort.abort();this.sync.stopping=true;event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-sync-status]');if(el)el.textContent='Stopping after the current chunk…';
+    });
+  }
+  #syncDrop(message) {
+    Object.assign(this.sync,{set:null,plan:null,phrase:'',result:null,progress:null,stopping:false,message});
+  }
+  #syncHtml() {
+    const s=this.sync, joined=joinSyncInputs(s.inputs);
+    return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
+      deleteUnscoped:s.deleteUnscoped,plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message});
+  }
+  #syncFileButton() {
+    return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
+  }
+  /** Reads every chosen file (JSON or ZIP) without touching the world; files already chosen stay, a file picked again replaces its earlier copy. */
+  async #syncPick(files) {
+    if(this.busy)return;
+    const problems=[];
+    for(const file of files) {
+      try {
+        const input=await readSyncInput(file);
+        input.sources=input.sources.map(src=>({...src,records:src.kind==='manager'?src.payload.records.length:SPECIALIST_COUNT(src),packageId:src.kind==='manager'?src.payload.manifest?.package_id??null:null}));
+        this.sync.inputs=[...this.sync.inputs.filter(i=>i.name!==file.name),input];
+      } catch(error) { problems.push(String(error?.message??error)); }
+    }
+    this.#syncDrop(problems.length?`${problems.join(' ')} The other files were read. Nothing in your world changed.`:'Files read. Press Preview sync to see exactly what would change. Nothing in your world has changed.');
+    await this.render();
+  }
+  /** What a sync must know about the world; the planner never touches Foundry itself. */
+  #syncPlanContext() {
+    const folders=folderIndex([...(game.folders?.contents??[])]);
+    const sceneActorIds=new Set((game.scenes?.contents??[]).flatMap(scene=>(scene.tokens?.contents??[]).map(t=>t.actorId).filter(Boolean)));
+    const hotbarMacroIds=new Set((game.users?.contents??[]).flatMap(user=>Object.values(user.hotbar??{})));
+    const locApi=locationsApi(game), rteApi=routesApi(game), shpApi=shopsApi(game);
+    const locationIds=locApi?new Set(locApi.listLocations().map(l=>l.id)):null;
+    const routeIds=rteApi?new Set(rteApi.listRoutes().map(r=>r.id)):null;
+    const shopSet=shopIds(shpApi);
+    const copies=new Map();
+    const worldUuid=new Map(allBoundDocuments().filter(d=>d.documentName==='Item').map(d=>[d.uuid,sourceFlag(d).sourceId]));
+    for(const actor of (game.actors?.contents??[])) {
+      if(actor.type!=='character')continue;
+      for(const item of actor.items?.contents??[]) {
+        const id=item.getFlag?.(MODULE_ID,'source')?.sourceId??worldUuid.get(item.flags?.core?.sourceId??item._stats?.compendiumSource);
+        if(id)copies.set(id,(copies.get(id)??0)+1);
+      }
+    }
+    const handed=moduleRecordIndex(locApi,shpApi);
+    return {includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,
+      retiredIds:new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),ledger:game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{},
+      buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
+      externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
+      sceneActorIds,hotbarMacroIds,isProtectedFolder:id=>Boolean(id&&folders.isProtected(id)),
+      locationIds,routeIds,shopIds:shopSet,specialistApi:kind=>specialistApi(game,kind),moduleHas:(kind,id)=>handed(kind,id),
+      validateExtra:records=>[...cinderDefinitionChecks(game,records).errors,...modifierDefinitionChecks(game,records).errors],
+      copyCount:id=>copies.get(id)??0};
+  }
+  #syncWorld(ctx) {
+    const docs=[];
+    for(const type of MANAGED_TYPES) for(const doc of documentsOfType(type)) if(sourceFlag(doc)?.sourceId)docs.push(makeSnapshot(doc,ctx));
+    const all=MANAGED_TYPES.flatMap(type=>documentsOfType(type));
+    return {docs,characterCount:(game.actors?.contents??[]).filter(a=>a.type==='character').length,unflaggedNames:nameIndex(all)};
+  }
+  /** ZIP artwork: the same destination folder as a normal import, so the preview shows the paths the upload will give. */
+  #syncSources(joined) {
+    const assets=joined.assets;
+    if(!assets.size)return joined.sources;
+    return joined.sources.map(src=>{
+      if(src.kind!=='manager')return src;
+      const base=this.#syncArtBase(src.payload.manifest.package_id);
+      const paths=new Map([...assets.keys()].map(name=>[name,`${base}/${name}`]));
+      const records=src.payload.records.map(record=>this.uploadZipArtwork?adaptRecordArtwork(record,paths):withoutBundledArt(record,assets));
+      return {...src,payload:{...src.payload,records}};
+    });
+  }
+  #syncArtBase(packageId) { return `worlds/${game.world.id}/ashen-gate-imports/${String(packageId).toLowerCase().replace(/[^a-z0-9-]/g,'-')}`; }
+  async #syncPreview() {
+    const joined=joinSyncInputs(this.sync.inputs);
+    if(!joined.sources.length) { this.sync.message='Choose at least one package file first.'; return this.render(); }
+    this.sync.set=buildSyncSet(this.#syncSources(joined));
+    const ctx=this.#syncPlanContext();
+    this.sync.plan=planSync(this.sync.set,this.#syncWorld(ctx),ctx);
+    this.sync.phrase='';this.sync.result=null;
+    const c=this.sync.plan.counts;
+    this.sync.message=this.sync.plan.ok?`Preview: ${c.create} to create, ${c.overwrite} to overwrite, ${c.delete} to delete, ${c.untouched} untouched. Nothing has changed yet.`:'Preview stopped: see the problems below. Nothing has changed.';
+    await this.render();
+  }
+  #syncPreviewFile() {
+    const plan=this.sync.plan;
+    return {schema:'ag-sync-preview/1',created_at:new Date().toISOString(),counts:plan.counts,gm_edited_fields_lost:plan.lost,scope:plan.scope,notes:plan.notes,errors:plan.errors,
+      rows:plan.rows.map(r=>({group:r.group,id:r.id,name:r.name,kind:r.kind,reason:r.reason,refused:Boolean(r.refused),metadata_only:Boolean(r.metadataOnly),module:r.module??null,
+        changes:r.changes.map(({label,from,to,gmEdited})=>({field:label,now:from,package:to,gm_edit_replaced:gmEdited}))}))};
+  }
+  #syncReport() {
+    if(!this.sync.plan)return;
+    downloadJson(`AG_Sync_Preview_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncPreviewFile());
+    toast('Downloaded the full preview. Nothing changed.');
+  }
+  #syncBackupData(plan) {
+    let modules=null;
+    try { modules=collectModuleSections(game); } catch(error) { modules={error:String(error?.message??error)}; }
+    return buildSyncBackup(plan,{world:game.world,modules});
+  }
+  #syncBackupFile() {
+    if(!this.sync.plan?.ok)return;
+    downloadJson(`AG_Sync_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncBackupData(this.sync.plan));
+    toast('Downloaded the backup of everything this sync would overwrite or delete. Nothing changed.');
+  }
+  async #syncRun() {
+    const plan=this.sync.plan;
+    if(!plan?.ok)return;
+    if(!phraseOk(this.sync.phrase)) { toast(`Type "${SYNC_PHRASE}" to confirm.`,true); return; }
+    const c=plan.counts;
+    const yes=await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} overwritten (${plan.lost} GM-edited field(s) lost) and ${c.delete} deleted${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
+      {title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel});
+    if(!yes)return;
+    const set=this.sync.set, controller=new AbortController();
+    Object.assign(this.sync,{abort:controller,stopping:false,result:null,progress:{pct:0,label:'Starting…'}});
+    this.busy=true;await this.render();
+    const results=[];
+    const paint=({phase,label,done,total})=>{
+      const pct=total?Math.min(1,done/total):1;
+      this.sync.progress={pct,label:`${phase==='backup'?'Backup':phase==='check'?'Checking':'Sync'}: ${label}${total&&phase!=='backup'&&phase!=='check'?` (${done} of ${total})`:''}`};
+      const bar=this.element?.querySelector('[data-ag-sync-bar]');if(bar)bar.value=pct;
+      const el=this.element?.querySelector('[data-ag-sync-status]');if(el&&!this.sync.stopping)el.textContent=this.sync.progress.label;
+    };
+    const log={at:new Date().toISOString(),packageId:`${SYNC_NAME}: ${plan.scope.lines.map(l=>l.packageId).join(', ')||'specialist files'}`,packageVersion:plan.scope.lines.flatMap(l=>l.versions).join(', ')||'—',results:[]};
+    let outcome=null,failure=null;
+    try {
+      await runFolderRenames();
+      outcome=await executeSync(plan,this.#syncAdapter(set,results),{user:game.user,confirmation:this.sync.phrase,signal:controller.signal,onProgress:paint,chunk:20});
+      log.results.push(...outcome.log.filter(r=>r.status!=='note'||r.message));
+    } catch(error) {
+      failure=String(error?.message??error);
+      console.error(`[${MODULE_ID}] ${SYNC_NAME} failed`,error);
+      log.results.push({action:'sync-aborted',status:'error',message:failure,id:'—'});
+    } finally {
+      this.busy=false;this.sync.abort=null;this.sync.progress=null;this.sync.stopping=false;
+      const prior=game.settings.get(MODULE_ID,'importHistory')??[];
+      await game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40));
+    }
+    const k=outcome?.counts;
+    const lines=failure?[`${SYNC_NAME} stopped before finishing: ${failure}`,'Anything already written stays; the sync is safe to run again.']
+      :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
+        ...(outcome.cancelled?['Run the same files again to finish; what is already done is not repeated.']:[]),
+        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)).slice(0,8).map(r=>`${r.id??''} ${r.action??''}: ${r.message??r.status}`)];
+    await this.#syncPreview();
+    this.sync.result={tone:failure||k?.failed?'danger':outcome?.cancelled||k?.skipped?'warn':'ok',lines};
+    toast(lines[0],Boolean(failure||k?.failed));
+    await this.render();
+  }
+  /** The Foundry-specific half of a sync run (the planner and executor are tested without Foundry). */
+  #syncAdapter(set,results) {
+    const records=[...set.records.values()].map(r=>r.record);
+    const present=id=>{const ids=new Set(existingSourceIndex().keys());ids.add(id);return ids;};
+    return {
+      backup: async plan=>{ downloadJson(`AG_Sync_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncBackupData(plan)); },
+      replan: async ()=>{ const ctx=this.#syncPlanContext(); return planSync(set,this.#syncWorld(ctx),ctx); },
+      uploadArt: async rows=>{
+        if(!this.uploadZipArtwork)return;
+        const assets=joinSyncInputs(this.sync.inputs).assets;
+        if(!assets.size)return;
+        const byLine=new Map();
+        for(const row of rows)(byLine.get(row.manifest.package_id)??byLine.set(row.manifest.package_id,[]).get(row.manifest.package_id)).push(row.record);
+        for(const [line,recs] of byLine) {
+          const base=this.#syncArtBase(line), got=await uploadMatchingArt(assets,recs,base,entry=>results.push(entry));
+          for(const [name,path] of got) if(path!==`${base}/${name}`) throw new Error(`Foundry stored ${name} at ${path}, not where the preview said (${base}/${name}). Nothing was written; use Foundry's file browser to check the folder.`);
+        }
+      },
+      create: async row=>createRecord(row.record,{manifest:row.manifest},present(row.id),entry=>results.push({...entry,id:entry.id??row.id}),{smart:this.smartIcons}),
+      docFor: row=>foundDocuments(row.id)[0],
+      buildFlag: row=>sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),
+      bindLinks: async (rows,log)=>{
+        const plans=new Map(rows.filter(r=>r.kind==='Actor'&&r.group==='overwrite').map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
+        await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':'update',kind:r.kind})),log:{results:log},plans});
+      },
+      apis: {locations:locationsApi(game),routes:routesApi(game),shops:shopsApi(game),specialist:kind=>specialistApi(game,kind)},
+      retire: async ids=>{ const prior=new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]);for(const id of ids)prior.add(id);await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...prior].sort()); },
+      saveLedger: saveLedgerEntries,
+      pause: ()=>new Promise(resolve=>setTimeout(resolve,0))
+    };
+  }
   #fail(error) {
     console.error(`[${MODULE_ID}]`,error);
     this.message=String(error?.message??error);
@@ -2953,6 +3103,119 @@ class AshenGateCodexPlayer extends ApplicationV2 {
   }
 }
 /** 0.40.0: Codex deity links open Renown's Pantheon (api.open, feature-detected). A failure is a notice, never a crash. */
+/**
+ * After documents are written: binds [[AGREF]] markers and typed references to real UUIDs and refreshes each document's
+ * stored baseline. Shared by Import and Sync from package (0.55.0). `rows` are the written rows ({id, action}); plans holds each
+ * Actor row's plan (its touched Items).
+ */
+async function resolvePackageLinks({pkg,rows,log,plans}) {
+  // Complete-world UUID index: only actual saved documents are addressable.
+  // Resolve after the *whole* batch; record order and reference cycles do not matter.
+  const uuidIndex=buildUuidIndex(allBoundDocuments());
+  // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
+  const moduleRecord=moduleRecordLookup(game);
+  for(const row of rows) {
+    if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
+    const record=pkg.records.find(r=>r.id===row.id);
+    const doc=foundDocuments(row.id)[0];
+    if(!doc) continue;
+    const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
+    for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
+    if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
+    const updates={};
+    const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
+    const source=sourceFlag(doc)??{};
+    const currentIds=new Set(uuidIndex.keys());
+    updates[`flags.${MODULE_ID}.source.refs`]=projectedReferences(record.refs,currentIds);
+    const newFields={...(source.managedFields??{})};
+    updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
+    updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
+    updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
+    // Only source-provided rich-text paths receive AGREF substitution.
+    // Add a small reference section for canonical refs without explicit markers.
+    if(doc.documentName==='Item') {
+      const original=record.foundry.data?.system?.description?.value;
+      if(typeof original==='string' || bindings.length) {
+        const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
+        const final=appendReferenceBlock(linked.text,bindings,linked.resolved);
+        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
+        if(doc.system?.description?.value!==final) updates['system.description.value']=final;
+        newFields['system.description.value']=final;
+        log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length,added:bindings.length-bindings.filter(b=>linked.resolved.includes(b.target_id)).length});
+      }
+    } else if(doc.documentName==='Actor') {
+      // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
+      const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
+      const keys=itemKeys(record.foundry.data?.items??[]);
+      const bio=record.foundry.data?.system?.details?.biography?.value;
+      if(created && typeof bio==='string') {
+        const resolved=resolveRichText(bio,uuidIndex);
+        updates['system.details.biography.value']=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
+      }
+      for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
+        if(!created&&!touched.has(keys[i])) continue;
+        const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
+        if(typeof html!=='string'||!embedded) continue;
+        const resolved=resolveRichText(html,uuidIndex);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
+        if(embedded.system?.description?.value!==resolved.text) try{await embedded.update({'system.description.value':resolved.text});}catch(e){log.results.push({id:row.id,action:'actor-item-link',status:'error',message:String(e.message??e)});}
+      }
+    } else if(doc.documentName==='RollTable') {
+      const text=record.foundry.data?.description;
+      if(typeof text==='string') {
+        const resolved=resolveRichText(text,uuidIndex);
+        updates.description=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+        for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
+      }
+    } else if(doc.documentName==='JournalEntry') {
+      const pages=record.foundry.data?.pages??[];
+      for(const [pi,pageDef] of pages.entries()) {
+        // Sync from package (0.55.0): pages are found by name when the name is unique (a sync can add or drop pages), else by position.
+        const named=doc.pages?.contents?.filter(p=>p.name===pageDef.name)??[];
+        const page=named.length===1?named[0]:doc.pages?.contents?.[pi];
+        if(!page || typeof pageDef.text?.content!=='string') continue;
+        const linked=resolveRichText(pageDef.text.content,uuidIndex);
+        const final=pi===0 ? appendReferenceBlock(linked.text,bindings,linked.resolved) : linked.text;
+        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
+        try{
+          if(page.text?.content!==final) await page.update({'text.content':final});
+          log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
+        }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
+      }
+    }
+    updates[`flags.${MODULE_ID}.source.managedFields`]=newFields;
+    try{
+      await doc.update(updates);
+      if(bindings.length) log.results.push({id:row.id,action:'uuid-bind',status:'ok',bindings:bindings.length});
+    }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
+  }
+}
+/** Sync from package (0.55.0): ZIP artwork cannot be uploaded when the GM turned that off, so a record keeps its current image instead of a broken path. */
+function withoutBundledArt(record,assets) {
+  const data=record.foundry?.data;
+  if(!data)return record;
+  const named=value=>{const name=mediaFilename(value);return Boolean(name&&assets.has(name));};
+  if(!named(data.img)&&!named(data.prototypeToken?.texture?.src))return record;
+  const clone=structuredClone(record);
+  if(named(clone.foundry.data.img))delete clone.foundry.data.img;
+  if(named(clone.foundry.data.prototypeToken?.texture?.src))delete clone.foundry.data.prototypeToken.texture.src;
+  return clone;
+}
+const SPECIALIST_COUNT=src=>specialistCount(src.kind,src.payload);
+/** Which module-owned ids still exist, for "Not removed: remove it in <module>" (undefined when Manager cannot tell). */
+function moduleRecordIndex(locApi,shpApi) {
+  const loc=locApi?new Set(locApi.listLocations().map(l=>l.id)):null, shop=shopIds(shpApi);
+  return (kind,id)=>kind==='Location'||kind==='Route'?(loc?loc.has(id):undefined):['Shop','Service','MerchantList'].includes(kind)?(shop?shop.has(id):undefined):undefined;
+}
+/** Remembers which ids Manager passed to other modules, per package line, so a later sync can say what a newer package no longer carries. */
+async function saveLedgerEntries(entries) {
+  if(!entries.length)return;
+  const ledger=structuredClone(game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{});
+  for(const e of entries)(ledger[e.key]??={})[e.id]=e.info;
+  await game.settings.set(MODULE_ID,HANDOFF_LEDGER_SETTING,ledger);
+}
+const HANDOFF_KINDS={Location:'Locations',Route:'Locations',Shop:'Utilities',Service:'Utilities',MerchantList:'Utilities'};
 function bindDeityLinks(root){
   root?.querySelectorAll?.('[data-ag-codex-deity]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
     try{codexService().openDeity(el.dataset.agCodexDeity);}catch(err){ui.notifications?.warn?.(err.message);}}));
@@ -2998,6 +3261,8 @@ Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value,userId)=>appearanceController?.noteChange(key,value,userId)});
   game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,SYNC_RETIRED_SETTING,{name:"Ids retired by Sync from package",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,HANDOFF_LEDGER_SETTING,{name:"Records handed to other modules",scope:"world",config:false,type:Object,default:{}});
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.
   game.settings.register(MODULE_ID,MOODS_SETTING,{name:"Scene mood presets",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,LAYERS_SETTING,{name:"Scene layer presets",scope:"world",config:false,type:Array,default:[]});
