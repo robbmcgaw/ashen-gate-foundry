@@ -5,9 +5,8 @@
 import {MODULE_ID, VERSION, SHEET_LABEL, COMPACT_SETTING} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
-import {registerQuickKeys, pressQuickSlot, targetHub} from './quick-keys.mjs';
-import {hotbarLink, registerLinkSetting, linkOn} from './hotbar-link.mjs';
-import {linkHub} from './sheet.mjs';
+import {registerQuickKeys, pressQuickSlot} from './quick-keys.mjs';
+import {hotbarLink} from './hotbar-link.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
@@ -142,9 +141,6 @@ if (globalThis.Hooks) {
     journey.registerJourneySettings(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
-    // 0.42.0: per user, the quick bar linked to Foundry's hotbar page 1 (hotbar-link.mjs). Off: the link is forgotten;
-    // on: the Hub in front links now.
-    registerLinkSetting(game.settings, on => { if (on === false) hotbarLink.unlink(); else { const hub = targetHub(allHubs(), globalThis.ui?.activeWindow ?? null); if (hub) void linkHub(hub); } renderAllHubs(); });
     // Quick bar keys (0.29.4, quick-keys.mjs): 1-9 and 0 use the open Hub's quick bar; without a Hub they stay Foundry's.
     if (game.keybindings?.register) registerQuickKeys(game.keybindings, (i, event) => pressQuickSlot(i, event, allHubs(), globalThis.ui?.activeWindow ?? null),
       globalThis.CONST?.KEYBINDING_PRECEDENCE?.PRIORITY);
@@ -180,7 +176,7 @@ if (globalThis.Hooks) {
   // this user's hotbar changed (assignHotbarMacro may skip the updateUser hook, so the hotbar's redraw is watched too).
   Hooks.on('updateActor', (actor, changes) => { if (changes?.flags?.[MODULE_ID] && 'hotbar' in changes.flags[MODULE_ID]) void hotbarLink.hubChanged(actor); });
   Hooks.on('updateUser', (user, changes) => { if (user === game.user && changes && 'hotbar' in changes) void hotbarLink.foundryChanged(); });
-  Hooks.on('renderHotbar', () => { if (linkOn()) void hotbarLink.foundryChanged(); });
+  Hooks.on('renderHotbar', () => { void hotbarLink.foundryChanged(); });
   // The GM hid the quick bar from players: forget the link (the bars stay as they are).
   Hooks.on('updateSetting', setting => { if (String(setting?.key ?? '').startsWith(`${MODULE_ID}.`) && !globalThis.game?.user?.isGM && hotbarLink.linked && !canSee('hotbars')) hotbarLink.unlink(); });
   // Utilities' "Use electrum" changed: redraw so the coin boxes follow it.

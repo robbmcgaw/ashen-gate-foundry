@@ -135,8 +135,9 @@ test('Appearance with Manager: the menu lists Manager\'s skins and sizes and set
   installGlobals({user: users.owner, modules: {'ashen-gate-manager': m}});
   const {sheet, html} = await render('overview');
   assert.match(html, /data-action="more-menu"[^>]*aria-expanded="false"/);
+  assert.match(html, /data-action="look-menu" data-ag-always aria-label="Appearance" data-tooltip="[^"]+" aria-haspopup="true" aria-expanded="false"/, '0.46.0: Appearance is an icon button in the header');
   await ACTIONS['more-menu'](sheet, {dataset: {}});
-  assert.match(await sheet._renderHTML(), /agch-moremenu[\s\S]*data-action="look-menu"/, '0.33.0: Appearance… is in the ⋯ menu');
+  assert.doesNotMatch(await sheet._renderHTML(), /agch-moremenu[\s\S]*data-action="look-menu"/, '0.46.0: not in the ⋯ menu any more');
   await ACTIONS['look-menu'](sheet, {dataset: {}});
   const open = await sheet._renderHTML();
   assert.match(open, /GM default \(Standard\)/); assert.match(open, /data-action="look-skin" data-value="ag-slate"/); assert.match(open, /data-action="look-size" data-value="comfortable"/);
