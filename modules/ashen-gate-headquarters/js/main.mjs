@@ -1,5 +1,6 @@
 import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,planFacilityImport,freeSpot} from './logic.mjs';
-import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
+import {confirmDialog,confirmDanger,guardDirty,infoDialog,choiceDialog,formDialog} from './ag-dialogs.mjs';
+import {createVaultRecovery} from './vault-recovery.mjs';
 import {facilitiesPanel,facilityRow,listFacilitiesTab,plural,SUB_TABS,DEFAULT_VIEW as FAC_VIEW} from './facilities-tab.mjs';
 import {rosterGroups,stationLabels,employmentLabel,perkStatus,historyEvent,localDate,STATUS_FILTERS,DEPARTURE_REASONS,DEFAULT_VIEW as HIRE_VIEW} from './hirelings-tab.mjs';
 import {SETUP_FORM,setupChanges} from './setup-form.mjs';
@@ -110,6 +111,19 @@ function mountActorsLauncher(app,html){
 
 const roomAccess=(r)=>game.user.isGM || r?.owner_user_id===game.user.id;
 function allowedOpsError(reason){ui.notifications?.warn(`Headquarters: ${reason}`);}
+// 0.14.0: GM-only private-vault recovery. Opened on a failed start and again when the GM opens Headquarters; never automatic.
+let vaultRecovery=null;
+const toasted=new Set();
+/** A warning that can repeat (every open, every click) shows once per session. */
+function warnOnce(key,reason){if(toasted.has(key))return;toasted.add(key);allowedOpsError(reason);}
+function offerRecovery(){
+ if(!game.user?.isGM||!privateStore||privateStore.isReady())return false;
+ if(!vaultRecovery)vaultRecovery=createVaultRecovery({store:privateStore,isGM:()=>game.user?.isGM===true,dialogs:{choice:choiceDialog,form:formDialog},notify:{info:m=>ui.notifications?.info?.(m)},
+  onRecovered:()=>{embed.refreshAll();if(windowApp?.rendered&&canView())windowApp.refresh();}});
+ if(!vaultRecovery.available())return false;
+ void vaultRecovery.run().catch(error=>console.error('Headquarters vault recovery failed',error));
+ return true;
+}
 async function saveLocal(actor,op,payload){
  requireInterfaceAccess(actor,accessEnabled());
  const prior=read();
@@ -146,7 +160,7 @@ function playerTransportActor(){
  return actors.find(a=>a?.testUserPermission?.(game.user,'OWNER'))??null;
 }
 async function request(op,payload={}){
- if(game.user?.isGM&&!privateStore?.isReady()){allowedOpsError('Private Headquarters state is not initialized.');return false;}
+ if(game.user?.isGM&&!privateStore?.isReady()){if(!offerRecovery())warnOnce('not-initialized','Private Headquarters state is not initialized.');return false;}
  try{requireView();}catch(e){allowedOpsError(friendly(e));return false;}
  const gm=primaryGM();if(!gm){allowedOpsError('An active GM must be online to save changes.');return false;}
  try{
@@ -190,7 +204,7 @@ async function reconcileDepartures(snapshots,{expectedStateRevision}={}){
  return step;
 }
 function open(){
- if(game.user?.isGM&&!privateStore?.isReady()){allowedOpsError('Private Headquarters state is not ready. Finish the GM vault migration first.');return null;}
+ if(game.user?.isGM&&!privateStore?.isReady()){if(!offerRecovery())warnOnce('not-ready','Private Headquarters state is not ready. Finish the GM vault migration first.');return null;}
  try{requireView();}catch(e){allowedOpsError(friendly(e));return null;}
  // A closed ApplicationV2 instance must never be reused, including when
  // closing asynchronously after a shared editor lease release.
@@ -219,7 +233,8 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
   await super._onRender(context,options);
   if(game.user?.isGM&&!privateStore?.isReady()){
    const node=this.element?.querySelector('[data-aghq-content]');
-   if(node)node.textContent='Headquarters private state is not ready. Check Foundry notifications/console for the migration error. No private save was overwritten.';
+   if(node)node.textContent='Headquarters private state is not ready. Close this window and open Headquarters again to see the recovery options. No private save was overwritten.';
+   offerRecovery();
    return;
   }
   if(!canView()){
@@ -285,7 +300,8 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
 <h4>Benefits</h4><p>What the installed facilities offer, and whether each one is active right now.</p>
 ${gm?`<h4>Hirelings (GM)</h4><p>Add hirelings imported in General Manager to the roster, station them at a facility and tick whether they are working. A hireling who isn't working keeps their station. Permanent departure keeps their history.</p>
 <h4>Facilities (GM)</h4><p>Unlock a facility, then Acquire +1 to get a copy that can be placed. Set the guild rank at the top of the tab; the rank decides how many shared facilities fit. The Decorations sub-tab holds the artwork players can place.</p>
-<h4>GM Setup</h4><p>Player access, the Guildhall name and canvas, and the guild rank table. Hiding Headquarters from players keeps everything saved.</p>`:''}
+<h4>GM Setup</h4><p>Player access, the Guildhall name and canvas, and the guild rank table. Hiding Headquarters from players keeps everything saved.</p>
+<h4>If the private vault is lost (GM)</h4><p>If a GM-only Journal that Headquarters keeps its private details in is deleted or can't be found, a window explains it when you open Headquarters. Look again checks for the Journal and reconnects it. Pick a vault journal lets you choose it when one exists. Start a new private vault builds a fresh one from the public Guildhall copy after you type NEW VAULT; hireling rosters, notes and other private-only details can't be recovered that way. Nothing is deleted, and players never see this window.</p>`:''}
 <h4>Keyboard</h4><p>Shift+H opens Headquarters. Arrow keys move between tabs. Tab to a placed piece and press Enter to select it; its Move buttons nudge it one square.</p>`;}
  /** A hireling's display name from its imported definition, never the HIRE id. */
  hirelingName(id){try{return this.nativeHirelingRecords().records.get(id)?.name||'this hireling';}catch{return 'this hireling';}}
@@ -712,8 +728,9 @@ Hooks.once('ready',async()=>{
   privateStore=createPrivateStateStore({game,JournalEntryClass});
   if(game.user?.isGM)await privateStore.initialize();
  }catch(error){
-  ui.notifications?.error?.(`Headquarters private save initialization failed: ${friendly(error)}. Open button remains available; GM editing is blocked until recovery.`);
   console.error('Headquarters private vault initialization failed',error);
+  // A vault problem the GM can fix gets one plain dialog instead of a red toast; anything else keeps the toast.
+  if(!offerRecovery())ui.notifications?.error?.(`Headquarters private save initialization failed: ${friendly(error)}. Open button remains available; GM editing is blocked until recovery.`);
  }
  // Restore launcher immediately even when the private vault cannot initialize.
  const actorTab=ui?.sidebar?.tabs?.actors ?? ui?.actors;
