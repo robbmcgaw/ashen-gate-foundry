@@ -44,7 +44,7 @@ export async function renderBeside(sheet, app) {
  * back afterwards, so nothing changes when the Hub is not popped out, when renderChild is missing, or for windows opened
  * outside a Hub action. The kit's ag-dialogs.mjs is untouched. A window whose class is not found is simply left alone.
  */
-const HOST_CLASS_NAMES = /^(ActivityUsageDialog|ShortRestDialog|LongRestDialog|RestDialog)$/;
+const HOST_CLASS_NAMES = /^(ActivityUsageDialog|ShortRestDialog|LongRestDialog|RestDialog|CompendiumBrowser|AdvancementManager)$/;   // 0.46.0: + the compendium browser (Add…) and the advancement window (Add… / drops)
 let hosting = null;
 
 /** Renders app as a child of the Hub, once; renderChild() may call app.render() itself, which then goes straight through. */
@@ -63,9 +63,11 @@ export async function hostedRender(hub, app, original) {
 
 function dnd5eDialogClasses() {
   const out = [], apps = globalThis.dnd5e?.applications;
-  for (const ns of Object.values(apps ?? {})) {
+  const take = (name, cls) => { if (HOST_CLASS_NAMES.test(name) && typeof cls === 'function' && cls.prototype && !out.includes(cls)) out.push(cls); };
+  for (const [name, ns] of Object.entries(apps ?? {})) {
+    take(name, ns);   // a class directly under dnd5e.applications (CompendiumBrowser) ...
     if (!ns || (typeof ns !== 'object' && typeof ns !== 'function')) continue;
-    for (const [name, cls] of Object.entries(ns)) if (HOST_CLASS_NAMES.test(name) && typeof cls === 'function' && cls.prototype) out.push(cls);
+    for (const [inner, cls] of Object.entries(ns)) take(inner, cls);   // ... or one level down (actor.ShortRestDialog)
   }
   return out;
 }

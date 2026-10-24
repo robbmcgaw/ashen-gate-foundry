@@ -90,7 +90,7 @@ export async function addDocument(actor, doc, {tab = null, sheet = null, target 
   const state = tab ? addState(actor, tab) : (canEdit(actor) ? {ok: true} : refuse(`You don't own ${actor?.name ?? 'this character'}, so you can't add to it.`));
   if (!state.ok) return state;
   if (!doc || doc.documentName !== 'Item') return refuse('Drop an item.');
-  if (LEVEL_TYPES.has(doc.type)) return refuse(`${doc.name} is a ${typeName(doc.type)}. Use Level up (⋯ menu) to add a class; the other character options are on the native sheet.`);
+  if (LEVEL_TYPES.has(doc.type)) return refuse(`${doc.name} is a ${typeName(doc.type)}. Use Level up (the arrow button at the top right) to add a class; the other character options are on the native sheet.`);
   if (!types.includes(doc.type)) return refuse(`${doc.name} is a ${typeName(doc.type)}, which doesn't go in this list.`);
   if (doc.parent === actor || (doc.parent?.documentName === 'Actor' && doc.parent.id === actor.id)) return refuse(`${doc.name} is already on ${actor.name}.`);
   if (tab === 'combat' && doc.type === 'feat' && !hasAttack(doc)) return refuse(`${doc.name} has no attack. Add it from the Features tab instead.`);

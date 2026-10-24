@@ -79,7 +79,7 @@ export const canCreateScriptMacro = (user = globalThis.game?.user) => user?.isGM
 export async function askFirstLink(actor) {
   const name = esc(actor?.name ?? 'this character');
   const html = `<p>${name}'s quick bar and your Foundry hotbar (page 1, the page the number keys use) hold different things. Linking keeps slot 1-10 of both the same from now on.</p>
-    <p>Whenever you bring a character's Hub to the front, that character's quick bar is put on page 1 of your Foundry hotbar, replacing the macros there. Other hotbar pages are never touched. Turn this off in the Hub's ⋯ menu (Link quick bar to Foundry's hotbar).</p>`;
+    <p>Whenever you bring a character's Hub to the front, that character's quick bar is put on page 1 of your Foundry hotbar, replacing the macros there. Other hotbar pages are never touched.</p>`;
   return choiceDialog(`Link ${actor?.name ?? 'the'} quick bar to Foundry's hotbar?`, html, [
     {action: 'hub', label: 'Use the Hub quick bar'},
     {action: 'foundry', label: "Use Foundry's hotbar"},

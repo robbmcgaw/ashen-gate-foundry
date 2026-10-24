@@ -921,7 +921,7 @@ export function createHubSheetClass(Base) {
       this._dropHighlight(null);
       if (!zone) return null;
       event.preventDefault(); event.stopPropagation();
-      try { return report(await dropOnList(this.document, zone.dataset.itemDrop, event, {sheet: this, target: zone})); }
+      try { return report(await hostWindows(this, () => dropOnList(this.document, zone.dataset.itemDrop, event, {sheet: this, target: zone}))); }   // 0.46.0: dnd5e's advancement window opens in a popped-out Hub's window
       catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 

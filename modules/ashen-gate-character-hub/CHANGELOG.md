@@ -2,13 +2,15 @@
 
 Header navigation (Robb, after Session 0). Compact, Appearance, Pop out / Pop in and Level up are now icon buttons side by side at the top right (each has a name and a tooltip; Level up keeps its "why not" reason; Pop out is still hidden where Foundry can't detach; a popped-out Hub keeps Pop in; the group wraps in a narrow window instead of clipping). The ⋯ menu is now only Configure…, NPC Codex (when General Manager offers it) and Open native sheet, plus Restore backup… for the GM when there are level backups. "Edit name and title" is gone from the menu: the pencil beside the name stays. The Foundry hotbar link has no option any more: the Hub is always linked, the "Link quick bar to Foundry's hotbar" menu item and its setting are gone, and an old stored "off" value is ignored (nothing is rewritten; hotbar slots are untouched). Help and README updated.
 
+Pop-out follow-through for the new windows: with the Hub popped out, dnd5e's compendium browser (Browse compendiums… under Add…) and its advancement window (after an Add or a drop) now open in the Hub's own window too, and a drop on a list is hosted like a button click. Level up from its header button already opens its class picker there. Not popped out, nothing changes. Mocked tests only; please check in Forge with a popped-out Hub.
+
 ## 0.45.2 — 2026-10-24
 
 Conditions, fewer clicks and clearer feedback (builds on 0.45.1).
 
 - **Feedback.** Apply and ✕ now say what happened: "Prone put on Goblin 1." / "Goblin 1 already has Prone." / "Prone taken off Goblin 1."
 - **One click for the usual ones.** The last four conditions you put on show as buttons in the strip; click one to put it on Self or your targets (whichever the Self / Target switch is on). Remembered per browser.
-- **One shared list.** With Ashen Gate | Utilities active, the strip offers the same conditions as the Utilities tracker (Utilities 0.28.4).
+- **One shared list.** With Ashen Gate | Utilities active, the strip offers the same conditions as the Utilities tracker (Utilities 0.29.1).
 - **Monsters and other unlinked tokens.** A condition controller (Utilities → GM Setup) can now put conditions on and take them off a targeted token that is not linked to a character: the GM's client makes the change after checking again who asked, like marks. The GM can always; other players still see "Only the GM or a condition controller can change conditions on ...".
 - **Fresh chips.** When someone else changes a condition on a creature you are targeting, your Hub's chips update.
 - No change to saved data. One new per-browser setting remembers the recent conditions.
