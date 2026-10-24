@@ -36,9 +36,9 @@ export const facilities = s => new Map(s.catalog.map(d=>[d.id,d]));
 export const owned = s => new Map(s.inventory.map(d=>[d.key,d]));
 export const stageFor = (s, entry) => {
   const def=facilities(s).get(entry.facility_ref);
-  if(!def)throw Error(`Facility ${entry.facility_ref} not found.`);
+  if(!def)throw Error('A facility definition is missing from the catalog.');
   const stage=def.stages.find(t=>t.key===entry.stage_key);
-  if(!stage)throw Error(`Upgrade stage ${entry.stage_key} not found.`);
+  if(!stage)throw Error('An upgrade stage is missing from the facility definition.');
   return {def,stage};
 };
 export const getPlacement = (stage,x,y,rotation) => {
@@ -47,7 +47,7 @@ export const getPlacement = (stage,x,y,rotation) => {
   return {x:integer(x,"X coordinate"),y:integer(y,"Y coordinate"),rotation:angle,width:angle%180?stage.height:stage.width,height:angle%180?stage.width:stage.height};
 };
 export function validateDefinition(def){
-  if(!def || typeof def!=="object" || !FAC_ID.test(def.id||"") || def.entity_type!=="Facility" || !Array.isArray(def.refs) || !Array.isArray(def.provenance?.sources)) throw Error("Facility requires canonical FAC-* identity and shared metadata.");
+  if(!def || typeof def!=="object" || !FAC_ID.test(def.id||"") || def.entity_type!=="Facility" || !Array.isArray(def.refs) || !Array.isArray(def.provenance?.sources)) throw Error("Facility needs a valid source identity and shared metadata.");
   safeText(def.name,"facility name");
   if(def.visibility!=="player") throw Error("Only player-visible facility definitions can be stored. Do not import GM secrets.");
   if(!['draft','approved','proposed'].includes(def.status)||typeof def.version!=='string'||!def.version||!['generic_rules','setting_adapter'].includes(def.scope))throw Error("Invalid definition status, version or scope.");
@@ -65,8 +65,8 @@ export function planFacilityImport(payload,knownIds=new Set()){
  if(!Array.isArray(defs)||defs.length<1||defs.length>200)return {errors:['Expected a JSON array of 1–200 facility definitions (or an object with records[]).'],rows:[]};
  const errors=[],rows=[],seen=new Set();
  defs.forEach((def,i)=>{
-  try{validateDefinition(def);}catch(e){errors.push(`records[${i}] ${def?.id??'?'}: ${e.message}`);return;}
-  if(seen.has(def.id)){errors.push(`records[${i}]: duplicate id ${def.id}.`);return;}
+  try{validateDefinition(def);}catch(e){errors.push(`Facility ${i+1}${def?.name?` (${def.name})`:''}: ${e.message}`);return;}
+  if(seen.has(def.id)){errors.push(`Facility ${i+1}${def.name?` (${def.name})`:''}: appears more than once in the file.`);return;}
   seen.add(def.id);
   const exists=knownIds.has(def.id);
   rows.push({id:def.id,name:def.name,action:exists?'skip':'new',reason:exists?'Already in the catalog; kept as is.':'',definition:def});
@@ -109,14 +109,14 @@ export function applyOperation(prior,actor,op,payload={},now=Date.now()){
  const gm=!!actor?.isGM;
  if(op==="activate"){
   requireGM(actor);if(s.active)throw Error("Guildhall already active. Existing state preserved.");
-  if(!HQ_ID.test(payload.hq_ref||"")||!LOC_ID.test(payload.location_ref||""))throw Error("Use valid, existing HQ-* and LOC-* IDs.");
+  if(!HQ_ID.test(payload.hq_ref||"")||!LOC_ID.test(payload.location_ref||""))throw Error("Enter a valid Guildhall record and Location record from your source records.");
   let campaign_key=safeText(payload.campaign_key,"campaign key"),guild_key=safeText(payload.guild_key,"guild key",40);
   if(!COPY_KEY.test(guild_key))throw Error("Guild key must be lowercase letters, digits, underscores or hyphens.");
   s.active=true;s.core={guild_state:{campaign_key,guild_key,rank:1,shared_defaults:{},unlocked_facility_refs:[]},headquarters_states:[{hq_ref:payload.hq_ref,location_ref:payload.location_ref,shared_revision:0,rooms:[{key:"common",kind:"shared",owner_user_id:null,revision:0}],installations:[],staffing_slots:[]}]};updateUnlocks(s);
  }else if(op==="import_definitions"){
   // Facility definitions are library data, not campaign state: allowed before the Guildhall is activated.
   requireGM(actor);const defs=payload.definitions;if(!Array.isArray(defs)||defs.length<1||defs.length>200)throw Error("Import a JSON array of 1–200 facility definitions.");
-  const known=facilities(s);const seen=new Set();for(const def of defs){validateDefinition(def);if(known.has(def.id)||seen.has(def.id))throw Error(`Duplicate FAC ID ${def.id}; import cancelled.`);seen.add(def.id);}
+  const known=facilities(s);const seen=new Set();for(const def of defs){validateDefinition(def);if(known.has(def.id)||seen.has(def.id))throw Error(`Facility "${def.name||'Unnamed facility'}" is already in the catalog or appears twice; import cancelled.`);seen.add(def.id);}
   s.catalog.push(...clone(defs));
  }else{
   if(!s.active)throw Error("GM must activate the Guildhall first.");

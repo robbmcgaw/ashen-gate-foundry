@@ -130,3 +130,7 @@
 .aghq-embed .aghq-embed__stage{font-size:var(--ag-text-sm);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);padding:0 var(--ag-space-2)}
 .aghq-embed .aghq-embed__muted{color:var(--ag-muted);font-size:var(--ag-text-sm)}
 .aghq-embed .aghq-embed__benefits{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-4);font-size:var(--ag-text-sm)}
+.aghq-iddetails { font-size:var(--ag-text-xs); margin-top:var(--ag-space-1); }
+.aghq-iddetails summary { cursor:pointer; }
+.aghq-iddetails__body { display:flex; gap:var(--ag-space-2); align-items:center; flex-wrap:wrap; }
+.aghq-unlocks { display:flex; flex-direction:column; gap:var(--ag-space-1); }

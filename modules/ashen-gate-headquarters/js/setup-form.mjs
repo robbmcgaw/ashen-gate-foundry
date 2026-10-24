@@ -10,7 +10,7 @@ export function configPayload(data){
 /** The set_rank_table rules read from the setup form (same shape the old ranks form sent). */
 export function rankRulesPayload(data){
  return RANKS.map(rank=>({shared_facility_slots:num(data.get(`slots_${rank}`)),orders_per_downtime:num(data.get(`orders_${rank}`)),
-  unlock_refs:String(data.get(`unlock_${rank}`)||'').split(',').map(x=>x.trim()).filter(Boolean)}));
+  unlock_refs:(typeof data.getAll==='function'?data.getAll(`unlock_${rank}`):[data.get(`unlock_${rank}`)]).map(v=>String(v||'')).join(',').split(',').map(x=>x.trim()).filter(Boolean)}));
 }
 const sameConfig=(c,p)=>String(p.name??'')===String(c.name??'')&&p.width===c.bounds?.width&&p.height===c.bounds?.height
  &&String(p.background??'')===String(c.background??'')&&String(p.background_fit??'')===String(c.background_fit||'contain')

@@ -1,3 +1,10 @@
+## 0.13.2 — 2026-10-24
+
+Canonical ids (FAC-, HIRE-, HQ-, LOC-…) no longer appear in the interface. No saved-data, setting-key, flag, API or export changes; no migration.
+- **Facilities, Hirelings, Guildhall Builder, Activation:** rows and cards show names only. A GM-only **Details** fold on each facility, hireling and selected piece holds the id with **Copy ID**.
+- **GM Setup:** auto-unlocked facilities per Guild Rank are named checkboxes instead of a typed list of ids. Activation fields are labelled Guildhall record and Location record and have neutral placeholders.
+- **Messages:** import, activation, hireling and facility errors name the facility or hireling (or a neutral label) instead of its id. A missing name shows "Unnamed facility", "Unnamed hireling" or "Unnamed perk".
+
 ## 0.13.1 — 2026-10-23
 
 - Removed the Alpha wording from the interface. The module description in Setup → Add-on Modules now says what the module does: *Standalone Headquarters/Guildhall builder: facilities, decorations and hosted Hirelings on an adjustable canvas image, with compact GM controls and private Journal storage.* (before: "…Guildhall Alpha… Live GM/player acceptance pending.").
