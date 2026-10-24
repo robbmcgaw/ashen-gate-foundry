@@ -129,7 +129,7 @@ test('0.33.0: service writes only for a GM, to the NPC Actor flag; player reques
   assert.equal((await svc.handleQuery({}, {userId: 'nobody'})).ok, false);
   game.settings.get = () => false;
   assert.match((await svc.handleQuery({}, {userId: 'u1'})).message, /not shared/);
-  await assert.rejects(svc.setReveal('NPC-TEST-NOPE', 'role', {mode: 'party'}), /No NPC/);
+  await assert.rejects(svc.setReveal('NPC-TEST-NOPE', 'role', {mode: 'party'}), /not in this world/);
 });
 
 test('0.33.0: a player cannot read or write GM data and gets the codex only through the active GM', async () => {

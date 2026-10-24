@@ -83,7 +83,7 @@ test('Renown missing: deity links stay Unknown for players, plain text for the G
   const {svc} = world({renown: false});
   assert.ok(svc.forUser('u1')[0].fields[0].links.filter(l => l.kind === 'deity').every(l => l.unknown));
   const gm = gmEntry({def: def(), state: revealed()});
-  assert.deepEqual(gm.links.filter(l => l.kind === 'deity').map(l => [l.name, l.named]), [['DEITY-TEST-SUN', false], ['DEITY-TEST-MOON', false]]);
+  assert.deepEqual(gm.links.filter(l => l.kind === 'deity').map(l => [l.name, l.named]), [['Deity record (not in this world)', false], ['Deity record (not in this world)', false]]);
   assert.deepEqual(svc.deityLinks()({id: 'DEITY-TEST-SUN'}), {open: false, title: 'Renown is not active, so this deity cannot be opened.'});
   assert.throws(() => svc.openDeity('DEITY-TEST-SUN'), /Renown is not active/);
 });

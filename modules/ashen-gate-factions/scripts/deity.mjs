@@ -25,7 +25,7 @@ export function knockOnDelta(gain,resonance,damping=DAMPING_DEFAULT){
 }
 /** The knock-ons a gain with `deity` would cause, one per relation with a nonzero effect. Pure; nothing is applied. */
 export function knockOns(deity,gain,damping,names=new Map()){
-  return (deity?.deity?.relations??[]).map(r=>({deity_id:r.deity_id,name:names.get(r.deity_id)??r.deity_id,resonance:r.resonance,label:relationLabel(r.resonance),delta:knockOnDelta(gain,r.resonance,damping)})).filter(k=>k.delta!==0);
+  return (deity?.deity?.relations??[]).map(r=>({deity_id:r.deity_id,name:names.get(r.deity_id)??'Unknown deity',resonance:r.resonance,label:relationLabel(r.resonance),delta:knockOnDelta(gain,r.resonance,damping)})).filter(k=>k.delta!==0);
 }
 /** "gain 10 -> +3" for the GM slider preview. */
 export const resonancePreview=(resonance,damping,sample=10)=>{const d=knockOnDelta(sample,resonance,damping);return `gain ${sample} → ${d>0?'+':''}${d}`;};
@@ -59,7 +59,7 @@ export function makeDeity({id,trackId,name,source='New GM draft'}){
 /** Errors specific to a deity record (after upgrade). Shared checks (ladder, rewards, entries) run in validateFaction. */
 export function validateDeityParts(f){
   const e=[];if(!isDeity(f))return e;
-  if(!DEITY_ID.test(f.id??''))e.push('Deity id must look like DEITY-NAME.');
+  if(!DEITY_ID.test(f.id??''))e.push('Deity has no valid permanent id.');
   const d=f.deity;
   if(!d||typeof d!=='object')return [...e,'Deity profile missing.'];
   if(typeof d.symbol!=='string'||d.symbol.length>500||/^\s*(javascript|data|vbscript):/i.test(d.symbol))e.push('Deity symbol must be an image path (500 characters max).');
@@ -68,8 +68,8 @@ export function validateDeityParts(f){
   if(!d.saying||typeof d.saying.text!=='string'||typeof d.saying.attribution!=='string')e.push('Deity saying needs text and attribution strings.');
   const seen=new Set();
   for(const r of d.relations??[]){
-    if(!DEITY_ID.test(r?.deity_id??'')||r.deity_id===f.id)e.push('Deity relation needs another DEITY- id.');
-    else if(seen.has(r.deity_id))e.push(`Duplicate relation to ${r.deity_id}.`);
+    if(!DEITY_ID.test(r?.deity_id??'')||r.deity_id===f.id)e.push('Deity relation needs another deity.');
+    else if(seen.has(r.deity_id))e.push('Duplicate relation to the same deity.');
     seen.add(r?.deity_id);
     if(!validResonance(r?.resonance))e.push('Deity relation resonance must be a number from 0 (Dissonance) to 1 (Resonance).');
   }

@@ -126,7 +126,7 @@ async function create(data={}){
   const meta=readMeta(),taken=takenIds();
   if(data.id!==undefined&&data.id!==null&&data.id!==''){
    if(!validId(data.id,'SVC'))throw Error('Service id must be SVC- and upper-case letters, digits and single hyphens.');
-   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error(`The service id ${data.id} is already used.`);
+   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error('That service id is already used.');
   }
   const type=String(data.service?.type||'bank'),t=serviceType(type);
   const id=data.id||shopIdFromName(data.name,taken,'SVC',meta.retiredIds),now=Date.now();

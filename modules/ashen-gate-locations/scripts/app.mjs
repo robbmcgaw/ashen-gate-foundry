@@ -40,7 +40,7 @@ const refValue = (field, value) => value === '' || value == null ? null : field 
 const tierRange = t => t.tier.min === t.tier.max ? `${t.tier.min}` : `${t.tier.min}–${t.tier.max}`;
 /** A read-only summary of a template's material tables (GM only: chances are shown here, never to players). */
 export function materialsSummary(t, names = new Map()) {
-  const name = id => names.get(id) ?? id;
+  const name = id => names.get(id) ?? 'Unknown material';
   const row = e => `${name(e.materialId)}${e.quantity > 1 ? ` ×${e.quantity}` : ''}${e.chance ? ` (${e.chance}%)` : ''}`;
   const m = t.materials ?? {};
   const parts = [];
@@ -55,11 +55,12 @@ function materialNames() {
   for (const item of game.items ?? []) { const id = materialIdOf(item); if (id && !seen.has(id)) seen.set(id, item.name); }
   return seen;
 }
-/** World Items carrying a MAT-* id, for the material pickers. */
-function materialOptions() {
-  const seen = new Map();
-  for (const item of game.items ?? []) { const id = materialIdOf(item); if (id && !seen.has(id)) seen.set(id, item.name); }
-  return [...seen].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+/** A material picker (by name; the id stays in the option value). A saved id the world no longer has shows as "Unknown material". */
+function matSelect(bind, current, none) {
+  const names = materialNames();
+  const opts = [...names].sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) => `<option value="${esc(id)}"${id === current ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  const gone = current && !names.has(current) ? `<option value="${esc(current)}" selected>Unknown material</option>` : '';
+  return `<select ${bind}><option value=""${current ? '' : ' selected'}>${none}</option>${opts}${gone}</select>`;
 }
 const LEDGER_MODULE = 'ashen-gate-profession-ledger';
 /** The Ledger's Exotic API (ag-ledger-exotic/1), feature-detected. Locations works without it. */
@@ -67,7 +68,7 @@ const exoticApi = () => { const m = game.modules.get(LEDGER_MODULE); const x = m
 /** Why the Ledger could not award a material, read from Manager's source flags ('' when it looks awardable). */
 export function unavailableReason(src) {
   if (!src) return 'Not imported with General Manager';
-  if (src.status !== 'approved') return `${src.status ? src.status[0].toUpperCase() + src.status.slice(1) : 'Not approved'}: approve it in General Manager first`;
+  if (src.status !== 'approved') return `${src.status ? String(src.status).replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase()) : 'Not approved'}: approve it in General Manager first`;
   if (src.visibility !== 'player') return 'GM-only: make it player-visible in General Manager first';
   return '';
 }
@@ -154,7 +155,8 @@ function questChoices() {
 }
 /** Picker label: the play status (Hidden until revealed) and the source's own status when it is not approved (e.g. draft). */
 const questLabel = q => {
-  const notes = [q.status, q.definitionStatus && q.definitionStatus !== 'approved' ? q.definitionStatus : ''].filter(Boolean);
+  const nice = v => String(v).replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase());   // 'reveal_gated' -> 'Reveal gated'
+  const notes = [q.status, q.definitionStatus && q.definitionStatus !== 'approved' ? q.definitionStatus : ''].filter(Boolean).map(nice);
   return `${q.name}${notes.length ? ` (${notes.join(' · ')})` : ''}`;
 };
 function questName(id, choices) {
@@ -298,7 +300,7 @@ export class LocationsApp extends Base {
       const tpl = nodeTemplates();
       if (tpl.ok) rows = list = withNodeInfo(list, tpl.list);
       const questChoicesList = questChoices();
-      const qName = id => questName(id, questChoicesList) ?? id;
+      const qName = id => questName(id, questChoicesList) ?? 'Unknown quest';
       const mats = materialNames();
       if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, {questName: qName, materialName: id => mats.get(id) ?? id}), this.query));
       const searched = rows;
@@ -551,18 +553,17 @@ export class LocationsApp extends Base {
 
     const nodes = nodeTemplates();
     const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
-      <datalist id="agl-mats">${materialOptions()}</datalist>
       <ul class="ag-list agl-nodes">${d.resources.map(e => isNodeRef(e) ? this.nodeRefHtml(e, nodes, entryTools, handle) : this.nodeHtml(e, entryTools, handle)).join('')}</ul>` : '';
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
-      return `<span class="agl-entry">${go(name ?? e.questId, 'open-quest', {id: e.questId}, {icon: 'fa-solid fa-scroll'})}${name ? '' : ' <small>(not found in Quest Log)</small>'}</span>`;
+      return `<span class="agl-entry">${go(name ?? 'Unknown quest', 'open-quest', {id: e.questId}, {icon: 'fa-solid fa-scroll'})}${name ? '' : ' <small>(not found in Quest Log)</small>'}</span>`;
     });
     const linkedQuests = new Set(d.quests.map(q => q.questId));
     const questAdd = questApi()
       ? `<select id="agl-add-quests"><option value="">Choose a quest…</option>${quests.filter(q => !linkedQuests.has(q.id)).map(q => `<option value="${esc(q.id)}">${esc(questLabel(q))}</option>`).join('')}</select>${btn('add-quest', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`
       : '<p class="agl-hint">Activate Quest Log to link quests.</p>';
-    const relatedRows = rows('related', e => `<span class="agl-entry">${byId.has(e.locationId) ? go(byId.get(e.locationId), 'select', {id: e.locationId}) : `${esc(e.locationId)} <small>(deleted)</small>`}</span>`);
+    const relatedRows = rows('related', e => `<span class="agl-entry">${byId.has(e.locationId) ? go(byId.get(e.locationId), 'select', {id: e.locationId}) : '<span>Deleted location</span> <small>(deleted)</small>'}</span>`);
     const linkedRel = new Set(d.related.map(r => r.locationId));
     const relatedAdd = `<select id="agl-add-related"><option value="">Choose a location…</option>${all.filter(l => l.id !== d.id && !linkedRel.has(l.id)).map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>${btn('add-related', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`;
     const notes = d.notes.length ? d.notes.map(n => `<div class="agl-note ${n.visible ? '' : 'agl-hidden'}" data-entry="notes:${esc(n.key)}">
@@ -653,7 +654,7 @@ export class LocationsApp extends Base {
         ${d.id ? btn('preview', 'Player Preview', {kind: 'sm', icon: 'fa-solid fa-user', title: 'What players would see after Publish. Nothing is changed.'}) : ''}
         ${d.id && d.state !== 'hidden' ? btn('publish', 'Publish', {kind: 'sm', icon: 'fa-solid fa-bullhorn', title: 'Save, then show players the current content'}) : ''}
       </div>
-      <p class="agl-id">${d.id ? `ID <code>${esc(d.id)}</code> · made from the name when first saved; it never changes. Pins and player pages never carry it.` : 'The ID is made from the name when you save.'}</p>
+      ${d.id ? `<div class="agl-id">${fold({key: 'details', title: 'Details', body: `<p class="agl-hint">Internal id <code>${esc(d.id)}</code>: made from the name when first saved; it never changes. Pins and player pages never carry it.</p>${btn('copy-id', 'Copy id', {kind: 'ghost sm', icon: 'fa-solid fa-copy', data: {value: d.id}})}`})}</div>` : ''}
       ${subTabs({group: 'agl-editor', label: 'Location editor sections', tabs: EDITOR_TABS, selected: subTab})}
       ${EDITOR_TABS.map(t => `<section class="agl-subpanel" ${tabPanelAttrs('agl-editor', t.id, {hidden: t.id !== subTab})}>${panels[t.id]}</section>`).join('')}
       <footer class="ag-footer agl-footer">
@@ -783,7 +784,7 @@ export class LocationsApp extends Base {
     const byId = new Map(all.map(l => [l.id, l]));
     const parents = parentMap(all.filter(l => l.id !== d.id));
     const choices = all.filter(l => l.id !== d.id && !(d.id && wouldCycle(d.id, l.id, parents)));
-    const missing = d.parentLocationId && !byId.has(d.parentLocationId) ? `<option value="${esc(d.parentLocationId)}" selected>${esc(d.parentLocationId)} (deleted)</option>` : '';
+    const missing = d.parentLocationId && !byId.has(d.parentLocationId) ? `<option value="${esc(d.parentLocationId)}" selected>Deleted location (deleted)</option>` : '';
     const parentSel = `<select id="agl-parent" data-bind="parentLocationId"><option value="">None (top level)</option>${missing}${choices.map(l =>
       `<option value="${esc(l.id)}" ${d.parentLocationId === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>`;
     return `<section class="ag-card agl-section">
@@ -808,7 +809,7 @@ export class LocationsApp extends Base {
   /** Linked scenes: GM only, never in any player view. 0.19.0: on the Visibility & map sub-tab, not a reorderable block. */
   scenesHtml(d) {
     const linked = new Set(d.sceneUuids);
-    const sceneRows = d.sceneUuids.length ? `<ul class="ag-list agl-entries">${d.sceneUuids.map(u => `<li><span class="agl-entry">${esc(sceneName(u) ?? `${u} (missing)`)}</span>
+    const sceneRows = d.sceneUuids.length ? `<ul class="ag-list agl-entries">${d.sceneUuids.map(u => `<li><span class="agl-entry">${esc(sceneName(u) ?? 'Linked scene (missing)')}</span>
       <span class="agl-tools">${btn('open-scene', 'Open scene', {kind: 'sm', icon: 'fa-solid fa-map', data: {uuid: u}, title: 'Views the scene for you only. Players are not moved.'})}${btn('remove-scene', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {uuid: u}, title: `Unlink ${sceneName(u) ?? 'this scene'}`})}</span></li>`).join('')}</ul>` : '';
     const sceneOpts = [...(game.scenes ?? [])].filter(sc => !linked.has(sc.uuid)).sort((a, b) => a.name.localeCompare(b.name))
       .map(sc => `<option value="${esc(sc.uuid)}">${esc(sc.name)}</option>`).join('');
@@ -836,8 +837,8 @@ export class LocationsApp extends Base {
     const b = f => `data-bind="resources.${esc(e.key)}.${f}"`;
     const num = (f, v, min, max, label) => `<label class="ag-field ag-field--inline agl-mini">${label}<input type="number" min="${min}" max="${max}" step="1" ${b(f)} value="${v}"></label>`;
     const body = `<div class="agl-node__row">
-        <label class="ag-field ag-field--inline agl-mini">Common<input type="text" list="agl-mats" ${b('materialId')} value="${esc(e.materialId)}" placeholder="MAT-…"></label>${num('quantity', e.quantity, 1, 999, '×')}
-        <label class="ag-field ag-field--inline agl-mini">Rare (by 5+)<input type="text" list="agl-mats" ${b('rareMaterialId')} value="${esc(e.rareMaterialId)}" placeholder="MAT-… (optional)"></label>${num('rareQuantity', e.rareQuantity, 1, 999, '×')}
+        <label class="ag-field ag-field--inline agl-mini">Common${matSelect(b('materialId'), e.materialId, 'None')}</label>${num('quantity', e.quantity, 1, 999, '×')}
+        <label class="ag-field ag-field--inline agl-mini">Rare (by 5+)${matSelect(b('rareMaterialId'), e.rareMaterialId, 'None (optional)')}</label>${num('rareQuantity', e.rareQuantity, 1, 999, '×')}
       </div>
       <div class="agl-node__row">
         <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.finite" ${e.finite ? 'checked' : ''}> Finite</label>
@@ -891,7 +892,7 @@ export class LocationsApp extends Base {
   }
   addTemplateNode(id) {
     const nodes = nodeTemplates(), t = nodes.ok ? nodes.list.find(n => n.id === id) : null;
-    if (!t) throw new Error(nodes.ok ? `Node template ${id} no longer exists.` : nodes.message);
+    if (!t) throw new Error(nodes.ok ? `That node template no longer exists.` : nodes.message);
     return this.addNode({nodeId: t.id, tier: t.tier.min});
   }
   /**
@@ -912,9 +913,9 @@ export class LocationsApp extends Base {
         <option value="true" ${v === true ? 'selected' : ''}>${yes}</option><option value="false" ${v === false ? 'selected' : ''}>${no}</option></select>`;
     const info = t ? `<span class="agl-node__tpl"><strong>${esc(t.name)}</strong> · ${esc(activityLabel(t.activity) || 'No activity set')} · Tier ${esc(tierRange(t))}
         <small>${esc(materialsSummary(t, materialNames()))}</small></span>`
-      : nodes.ok ? `<span class="ag-badge ag-badge--warn">Node template ${esc(e.nodeId)} no longer exists</span>
+      : nodes.ok ? `<span class="ag-badge ag-badge--warn">This node template no longer exists</span>
         <small>This place keeps its own data. Nothing can be gathered here until you add another node template and remove this entry.</small>`
-      : `<span class="ag-badge">Node template ${esc(e.nodeId)}</span><small>${esc(nodes.message)}</small>`;
+      : `<span class="ag-badge">Node template</span><small>${esc(nodes.message)}</small>`;
     const body = `<div class="agl-node__row">${t ? info : ''}${t || nodes.reason !== 'absent' ? btn('open-ledger-nodes', 'Open in Ledger', {kind: 'ghost sm', icon: 'fa-solid fa-up-right-from-square', title: 'Open the Profession Ledger on its Gathering Nodes tab'}) : ''}</div>
       <div class="agl-node__row">
         <label class="ag-field ag-field--inline agl-mini">Players see DC${yesNo('dcVisible', e.dcVisible, 'Shown', 'Hidden', t?.dcVisible)}</label>
@@ -944,7 +945,7 @@ export class LocationsApp extends Base {
     const f = (x, field) => `data-exotic="${esc(e.key)}|${esc(x.materialId)}|${field}"`;
     const rows = list.map(x => {
       const c = why(x.materialId);
-      const name = names.get(x.materialId) ?? x.materialId;
+      const name = names.get(x.materialId) ?? 'Unknown material';
       return `<li class="agl-exotic">
         <span class="agl-entry">${esc(name)}${names.has(x.materialId) ? '' : ' <small>(not in this world)</small>'}</span>
         ${c ? `<span class="ag-badge${c.eligible ? ' ag-badge--ok' : ' ag-badge--warn'}">${esc(c.eligible ? 'Eligible' : c.reason)}</span>` : ''}
@@ -1175,7 +1176,7 @@ export class LocationsApp extends Base {
       const doc = items[0];
       if (section === 'resources') {
         const materialId = materialIdOf(doc);
-        if (!materialId) ui.notifications.info(`${doc.name} has no MAT-* id; added as a linked item.`);
+        if (!materialId) ui.notifications.info(`${doc.name} is not a gathering material; added as a linked item.`);
         return this.addNode({label: doc.name, materialId, uuid: doc.uuid});
       }
       // A link only. Nothing is created, copied or given to any Actor; players see just the title, text and image the GM approves here.
@@ -1354,6 +1355,7 @@ export class LocationsApp extends Base {
         return section === 'resources' ? this.addNode({label: value}) : this.addEntry(section, {label: value, uuid: '', docType: '', note: '', ...(section === 'loot' ? {status: 'available'} : {})});
       }
       case 'add-node': return this.addNodeDialog();
+      case 'copy-id': { const v = el.dataset.value; try { await (game.clipboard?.copyPlainText?.(v) ?? navigator.clipboard.writeText(v)); ui.notifications.info('Copied the id.'); } catch { ui.notifications.warn('Could not copy.'); } return; }
       case 'open-ledger-nodes': if (!openNodesTab()) ui.notifications.warn('Profession Ledger is not active.'); return;
       case 'exhaust': case 'restore': {
         const exhausted = action === 'exhaust';
@@ -1467,9 +1469,9 @@ export class LocationsApp extends Base {
     const names = new Map(api().listLocations().map(l => [l.id, l.name]));
     if (r.to) LocationsApp.treeOpen.add(r.to);
     clearTimeout(this.undoTimer);
-    this.lastMove = undo ? null : {...r, name: names.get(id) ?? id, toName: names.get(r.to) ?? r.to};
+    this.lastMove = undo ? null : {...r, name: names.get(id) ?? 'The place', toName: names.get(r.to) ?? 'the new place'};
     if (this.lastMove) this.undoTimer = setTimeout(() => { this.lastMove = null; if (this.rendered) this.render().catch(notifyError); }, 20000);
-    if (undo) ui.notifications.info(`Moved ${names.get(id) ?? id} back.`);
+    if (undo) ui.notifications.info(`Moved ${names.get(id) ?? 'the place'} back.`);
     return this.render();
   }
   /** Keyboard path for moving: pick a Region (or top level) from a list. */

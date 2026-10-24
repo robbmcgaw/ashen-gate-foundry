@@ -59,7 +59,7 @@ export function normalizeNode(raw,{locationId=null,locationName='',locationRevea
     tables:raw.tables&&typeof raw.tables==='object'?{common:nodeTable(raw.tables.common),rare:nodeTable(raw.tables.rare)}:null};
   if(node.tables?.common.length&&!node.materialId){node.materialId=node.tables.common[0].materialId;node.quantity=node.tables.common[0].quantity;}
   node.gatherable=node.available&&!node.exhausted&&Boolean(node.materialId)&&Number.isInteger(node.dc);
-  node.why=node.missingTemplate?`Node template ${node.missingTemplate} no longer exists`:!node.materialId?'No material id set: award by hand':node.exhausted?'Already gathered (exhausted)':!node.available?'Not available right now':!Number.isInteger(node.dc)?'No DC or tier set':'';
+  node.why=node.missingTemplate?'The shared gathering node used here no longer exists':!node.materialId?'No material set: award by hand':node.exhausted?'Already gathered (exhausted)':!node.available?'Not available right now':!Number.isInteger(node.dc)?'No DC or tier set':'';
   return node;
 }
 
@@ -134,7 +134,7 @@ export const canRunGathering=user=>user?.isGM===true;
  */
 export async function stackMaterial(actor,worldItem,qty,{sourceIdOf,flagScope}){
   const materialId=sourceIdOf(worldItem);
-  if(!actor||!worldItem||!MAT.test(materialId??''))throw Error('A world MAT-* material is required');
+  if(!actor||!worldItem||!MAT.test(materialId??''))throw Error('An imported world material is required');
   if(!Number.isSafeInteger(qty)||qty<1||qty>MAX_QTY)throw Error(`Gathering quantity must be 1–${MAX_QTY}`);
   const existing=Array.from(actor.items??[]).find(i=>sourceIdOf(i)===materialId&&!['feat','spell','tool'].includes(i.type));
   if(existing){
@@ -171,39 +171,41 @@ export const GATHER_FIX=Object.freeze({
  * States: ok, missing (not imported), draft (status not approved), gm-only, not-visible, duplicate, retired. `allowDraft` (GM
  * "use anyway") turns draft, gm-only and not-visible into ok. */
 export const DRAFT_STATES=Object.freeze(['draft','gm-only','not-visible']);
-export function materialProblem(id,state,{forPlayer=false,status='draft',allowDraft=false}={}){
+export function materialProblem(id,state,{forPlayer=false,status='draft',allowDraft=false,name=''}={}){
   if(!state||state==='ok'||(allowDraft&&DRAFT_STATES.includes(state)))return '';
   if(forPlayer)return state==='missing'?'The GM has not imported this material yet.':'The GM has not released this material yet.';
-  if(state==='missing')return `Material ${id} is not imported in this world: import it with General Manager.`;
-  if(state==='draft')return `Material ${id} is draft/unreleased (status: ${status}): approve it in General Manager, or ${GATHER_FIX.useDraft}.`;
-  if(state==='gm-only')return `Material ${id} is unreleased (GM-only): make it player-visible in General Manager, or ${GATHER_FIX.useDraft}.`;
-  if(state==='not-visible')return `Material ${id} is not visible to every player: check its permissions, or ${GATHER_FIX.useDraft}.`;
-  if(state==='duplicate')return `Material ${id} is imported more than once: remove the duplicate in General Manager.`;
-  if(state==='retired')return `Material ${id} is retired or superseded: restore it in General Manager.`;
-  return `Material ${id} cannot be awarded.`;
+  // The id is never shown: the material's name when known, else a neutral label.
+  const m=name?`Material “${name}”`:'This material';
+  if(state==='missing')return `${m} is not imported in this world: import it with General Manager.`;
+  if(state==='draft')return `${m} is draft/unreleased (status: ${status}): approve it in General Manager, or ${GATHER_FIX.useDraft}.`;
+  if(state==='gm-only')return `${m} is unreleased (GM-only): make it player-visible in General Manager, or ${GATHER_FIX.useDraft}.`;
+  if(state==='not-visible')return `${m} is not visible to every player: check its permissions, or ${GATHER_FIX.useDraft}.`;
+  if(state==='duplicate')return `${m} is imported more than once: remove the duplicate in General Manager.`;
+  if(state==='retired')return `${m} is retired or superseded: restore it in General Manager.`;
+  return `${m} cannot be awarded.`;
 }
 /** The reason one node cannot be gathered ('' when it can). `materialFound`: the node's MAT-* is an imported, approved, player-visible world Item.
  * 0.25.0: `materialState` (see materialProblem) says why not, and `allowDraft` lets the GM use a draft/unreleased one anyway. */
-export function nodeBlocker(node,{materialFound=true,materialState=null,materialStatus='draft',materialId=null,allowDraft=false,forPlayer=false}={}){
+export function nodeBlocker(node,{materialFound=true,materialState=null,materialStatus='draft',materialId=null,materialName='',allowDraft=false,forPlayer=false}={}){
   if(!node)return GATHER_FIX.noNode;
   if(forPlayer&&!node.id)return 'This spot cannot be requested yet: the GM needs a newer Locations module.';
   if(node.missingTemplate)return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.'
-    :`Node template ${node.missingTemplate} no longer exists: pick another node for this place in Locations, or restore it in Ledger > Gathering Nodes.`;
+    :'The gathering node this place uses no longer exists: pick another node for it in Locations, or restore it in Ledger > Gathering Nodes.';
   // A node with no material is a by-hand node (e.g. remains the GM awards at the table), not a broken one.
   if(!node.materialId)return forPlayer?'The GM handles this spot at the table: ask them.'
-    :`No material id set: award by hand.${node.note?` ${node.note}`:''} (To let the Ledger award it, set a Common material ${node.templateId?'on the template in Ledger > Gathering Nodes':'in Locations > Gathering'}.)`;
+    :`No material set: award by hand.${node.note?` ${node.note}`:''} (To let the Ledger award it, set a Common material ${node.templateId?'on the template in Ledger > Gathering Nodes':'in Locations > Gathering'}.)`;
   if(node.exhausted)return forPlayer?'Already gathered (exhausted).':'Already gathered (exhausted): untick Exhausted in Locations to gather it again.';
   if(!node.available)return forPlayer?'Not available right now.':'Marked not available: tick Available on the node in Locations.';
   if(!Number.isInteger(node.dc))return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.':'No DC or tier on this node: set one in Locations.';
   const state=materialState??(materialFound?'ok':'missing');
-  return materialProblem(materialId??node.materialId,state,{forPlayer,status:materialStatus,allowDraft});
+  return materialProblem(materialId??node.materialId,state,{forPlayer,status:materialStatus,allowDraft,name:materialName});
 }
 /** GM start: first thing that blocks, in the order a GM would fix them. */
-export function startBlocker({rosterCount=0,partyCount=0,leadInParty=false,node=null,materialFound=true,materialState=null,materialStatus='draft',materialId=null,allowDraft=false,busy=false}={}){
+export function startBlocker({rosterCount=0,partyCount=0,leadInParty=false,node=null,materialFound=true,materialState=null,materialStatus='draft',materialId=null,materialName='',allowDraft=false,busy=false}={}){
   if(!rosterCount)return GATHER_FIX.noParty;
   if(!partyCount)return GATHER_FIX.partyMissing;
   if(!leadInParty)return GATHER_FIX.noLead;
-  const why=nodeBlocker(node,{materialFound,materialState,materialStatus,materialId,allowDraft});
+  const why=nodeBlocker(node,{materialFound,materialState,materialStatus,materialId,materialName,allowDraft});
   if(why)return why;
   return busy?GATHER_FIX.busy:'';
 }

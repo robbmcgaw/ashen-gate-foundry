@@ -90,7 +90,7 @@ function sessionRow(s,m){
 export function journalListHTML(m){
  if(m.hits){
   if(!m.hits.length)return emptyState('Nothing found','No session name or journal page you can read matches that search.',{iconName:'fa-magnifying-glass'});
-  return `<div class="ag-rows agq-jhits">${m.hits.map(h=>{const s=m.sessions.find(x=>x.id===h.sessionId);return `<button type="button" class="ag-row agq-jhit" data-jaction="hit" data-id="${E(h.sessionId)}" data-target="${E(h.target)}"><span class="ag-row__main"><span class="ag-row__title">${E(s?.name??h.sessionId)}</span><span class="ag-row__meta">${E(h.label)}</span><span class="agq-jhit__snippet">${E(h.snippet)}</span></span></button>`;}).join('')}</div>`;
+  return `<div class="ag-rows agq-jhits">${m.hits.map(h=>{const s=m.sessions.find(x=>x.id===h.sessionId);return `<button type="button" class="ag-row agq-jhit" data-jaction="hit" data-id="${E(h.sessionId)}" data-target="${E(h.target)}"><span class="ag-row__main"><span class="ag-row__title">${E(s?.name??'Session')}</span><span class="ag-row__meta">${E(h.label)}</span><span class="agq-jhit__snippet">${E(h.snippet)}</span></span></button>`;}).join('')}</div>`;
  }
  if(!m.sessions.length)return emptyState('No sessions yet','Start one with New session: it gets a party journal and a journal for each player.',{iconName:'fa-book',action:m.noGM?'':jbtn('New session','new',{sm:true,icon:'fa-plus'})});
  return `<div class="ag-rows agq-jsessions">${m.sessions.map(s=>sessionRow(s,m)).join('')}</div>`;

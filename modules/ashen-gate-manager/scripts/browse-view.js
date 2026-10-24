@@ -2,6 +2,7 @@
  * Browse tab markup (0.24.0). Pure string builders over searchIndex/detailOf results, so the Node suite can check
  * what a GM sees; main.js mounts them and wires the events. Read-only: no control here edits a record.
  */
+import {tokenLabel} from './labels.js';
 import {FACETS, FACET_LABELS, SORTS, GROUPS, ownerLabel} from './browse.js';
 import {ORIGINS, RARITIES} from './item-filters.js';
 import {itemTooltipAttrs} from './item-preview.js';
@@ -25,12 +26,13 @@ export function toolbarHtml(state) {
 
 function facetSelect(f, list, current) {
   const has = current !== undefined && current !== null && current !== '' && current !== 'all';
-  const missing = has && !list.some(o => o.value === String(current)) ? `<option value="${esc(current)}" selected>${esc(f === 'owner' ? ownerLabel(current) : current)} (0)</option>` : '';
+  const missing = has && !list.some(o => o.value === String(current)) ? `<option value="${esc(current)}" selected>${esc(f === 'owner' ? ownerLabel(current) : TOKEN_FACETS.has(f) ? tokenLabel(current) : current)} (0)</option>` : '';
   if (!list.length && !has) return '';
   return `<label class="agbrowse-facet"><span>${esc(FACET_LABELS[f])}</span><select data-ag-browse-facet="${f}">
     <option value="all">All</option>${missing}${list.map(o => `<option value="${esc(o.value)}"${o.selected ? ' selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>`;
 }
 
+const TOKEN_FACETS = new Set(['entityType', 'status', 'visibility']);
 const chip = (text, tone = '') => text ? `<span class="ag-badge${tone ? ` ag-badge--${tone}` : ''}">${esc(text)}</span>` : '';
 /** Manager rarity keys (lower case) to the dnd5e keys the kit's data-rarity badge uses. */
 const DND5E_RARITY = {veryrare: 'veryRare'};
@@ -46,29 +48,35 @@ function rowHtml(e) {
   return `<li class="agbrowse-row" data-ag-browse-key="${esc(e.key)}"${e.draggable && e.uuid ? ' draggable="true"' : ''}>
     <div class="agbrowse-main">
       <button type="button" class="agbrowse-name" data-ag-browse-detail="${esc(e.key)}"${e.kind === 'Item' ? itemTooltipAttrs(e.uuid) : ''}>${esc(e.name)}</button>
-      ${e.id ? `<code>${esc(e.id)}</code>` : ''}
-      <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}${rarityPill(e.rarity)}${e.origin && e.origin !== 'ag' ? chip(ORIGINS[e.origin]) : ''}${e.coreRef ? chip('core_ref') : ''}</div>
+      ${e.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(e.id)}</code></details>` : ''}
+      <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(tokenLabel(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType))}${chip(tokenLabel(e.status), statusTone(e.status))}${chip(tokenLabel(e.visibility), visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}${rarityPill(e.rarity)}${e.origin && e.origin !== 'ag' ? chip(ORIGINS[e.origin]) : ''}${e.coreRef ? chip('Core link') : ''}</div>
       ${meta ? `<div class="agmanager-tiny">${meta}</div>` : ''}
       <div class="agmanager-tiny agbrowse-prov">${esc(e.sources.join(' • '))}${e.folder ? ` — ${esc(e.folder)}` : ''}</div>
     </div>
     <div class="agbrowse-actions">
       <button type="button" class="ag-btn ag-btn--sm" data-ag-browse-open="${esc(e.key)}">${openLabel}</button>
       ${e.moduleOpen && e.uuid ? `<button type="button" class="ag-btn ag-btn--sm" data-ag-browse-sheet="${esc(e.key)}">Sheet</button>` : ''}
-      ${e.id ? `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-browse-copy="${esc(e.id)}" aria-label="Copy id ${esc(e.id)}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button>` : ''}
+      ${e.id ? `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-browse-copy="${esc(e.id)}" aria-label="Copy id for ${esc(e.name)}" data-tooltip="Copy id" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button>` : ''}
     </div>
   </li>`;
 }
 
 function detailHtml(d) {
   if (!d) return '<p class="agmanager-tiny">Pick a name to see its details and related records.</p>';
-  const link = r => r.key ? `<button type="button" class="agbrowse-link" data-ag-browse-detail="${esc(r.key)}">${esc(r.name)}</button> <code>${esc(r.id)}</code>` : `<code>${esc(r.id)}</code> <span class="agmanager-tiny">not in the index</span>`;
+  const link = r => r.key ? `<button type="button" class="agbrowse-link" data-ag-browse-detail="${esc(r.key)}">${esc(r.name)}</button>` : `<span class="agmanager-tiny">A record that is not in the index</span>`;
+  // Ids and UUIDs are GM-only technical detail: kept in a Details fold, never in the field list.
+  const TECHNICAL = new Set(['Id', 'UUID']);
+  const TOKEN_FIELDS = new Set(['Status', 'Visibility', 'AG type', 'Document type']);
+  const fields = d.fields.filter(f => !TECHNICAL.has(f.label)).map(f => TOKEN_FIELDS.has(f.label) ? {...f, value: tokenLabel(f.value)} : f), technical = d.fields.filter(f => TECHNICAL.has(f.label));
+  const techHtml = technical.length ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><dl class="agbrowse-fields">${technical.map(f => `<dt>${esc(f.label)}</dt><dd><code class="agm-id">${esc(f.value)}</code></dd>`).join('')}</dl></details>` : '';
   const item = d.entry.kind === 'Item' && d.entry.uuid;
   return `<h3>${esc(d.entry.name)}</h3>
     ${item ? `<div class="agpreview" data-ag-item-preview="${esc(d.entry.key)}" aria-live="polite"><p class="agmanager-tiny">Loading item card…</p></div>` : ''}
-    ${item ? '<details class="agbrowse-more"><summary>Index fields</summary>' : ''}<dl class="agbrowse-fields">${d.fields.map(f => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>${item ? '</details>' : ''}
+    ${item ? '<details class="agbrowse-more"><summary>Index fields</summary>' : ''}<dl class="agbrowse-fields">${fields.map(f => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>${item ? '</details>' : ''}
+    ${techHtml}
     ${d.description ? `<p class="agbrowse-desc">${esc(d.description)}</p>` : ''}
-    <h4>Names (${d.outgoing.length})</h4>${d.outgoing.length ? `<ul>${d.outgoing.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">No related ids.</p>'}
-    <h4>Named by (${d.incoming.length})</h4>${d.incoming.length ? `<ul>${d.incoming.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">Nothing names this id.</p>'}
+    <h4>Names (${d.outgoing.length})</h4>${d.outgoing.length ? `<ul>${d.outgoing.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">No related records.</p>'}
+    <h4>Named by (${d.incoming.length})</h4>${d.incoming.length ? `<ul>${d.incoming.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">No other record names this one.</p>'}
     <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-browse-close>Close details</button>`;
 }
 

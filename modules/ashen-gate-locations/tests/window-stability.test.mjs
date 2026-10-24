@@ -101,7 +101,7 @@ test('GM quest picker lists every quest including Hidden and Draft ones; players
   const app = await windowFor({quests: []});
   const html = await app._renderHTML();
   assert.match(html, /\[TEST\] Open \(Active\)/);
-  assert.match(html, /\[TEST\] Hidden Order \(Hidden · draft\)/);
+  assert.match(html, /\[TEST\] Hidden Order \(Hidden · Draft\)/);
   // GM-only method failing falls back to the visible list rather than an empty picker, and is logged.
   const warned = [], real = console.warn;
   console.warn = (...a) => warned.push(a);

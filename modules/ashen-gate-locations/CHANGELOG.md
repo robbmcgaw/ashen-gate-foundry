@@ -1,3 +1,13 @@
+## 0.20.2 — 2026-10-24
+
+**Canonical ids and machine tokens are no longer shown.** Nobody sees `LOC-*`, `MAT-*`, `NODE-*` or `QUEST-*` text in Locations any more, GM included. Status words from other modules (such as `reveal_gated`) are shown as plain words ("Reveal gated") in the GM's quest and material pickers; players never see them.
+
+- The editor's ID line is now a **Details** fold under the place's name, with **Copy id**. It is the only place an id appears.
+- A material on a gathering node is picked **by name** from a list (it was a text box that showed `MAT-*`). A saved material the world no longer has reads "Unknown material".
+- A quest, place, scene, material or node template that can no longer be found reads "Unknown quest", "Deleted location", "Linked scene (missing)", "Unknown material" or "This node template no longer exists" instead of its id. Error and notice messages name places by their name (or say "No location found with that reference.").
+- A node with no name and a material shows "Resource" to players instead of the material id. Search by id still matches; it just is not displayed.
+- Saved data, ids, API calls and export files: unchanged. No migration.
+
 ## 0.20.1 — 2026-10-23
 
 QA pass at sandbox volume (about 110 places across the main and sandbox packs, 100+ gathering entries).

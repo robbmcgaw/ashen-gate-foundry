@@ -59,7 +59,7 @@ test('a double click unlocks once and creates one Item',async()=>{
 });
 test('a perk missing from the world is reported and nothing is unlocked',async()=>{
   const a=await fresh('GM3');await api.unlock(a,'PT-TREE-T','NODE-A');
-  await assert.rejects(()=>api.unlock(a,'PT-TREE-T','NODE-B'),/PERK-PT-MISSING is not in this world/);
+  await assert.rejects(()=>api.unlock(a,'PT-TREE-T','NODE-B'),/is not in this world/);
   assert.deepEqual(progress(a).unlocks,['NODE-A']);assert.equal(a.items.length,1);
 });
 test('if recording the unlock fails, the new Item is removed again',async()=>{

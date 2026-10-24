@@ -21,7 +21,8 @@ import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
-import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
+import {tokenLabel} from "./labels.js";
+import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES, NO_CONFIDENT_MATCH} from './smart-icons.js';
 import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
@@ -219,6 +220,10 @@ function planWithMetadata(record,matches,unmanaged,includeDrafts,pkg) {
   const keys=['entityType','status','visibility','version','provenance','refs','scope','schemaVersion','ownedResourceIds','ownerSystemId','objectiveKind','definition','sourceVersion'];
   const changed=keys.filter(key=>canonical(f?.[key]??null)!==canonical(expected[key]??null));
   if (changed.length) return {action:'metadata',patch:{},reason:`Metadata refresh: ${changed.join(', ')}. Foundry rule fields remain untouched.`};
+  // 0.54.2: an unedited description that still carries the old References list is cleaned up on the next import of that record.
+  const live=matches[0].get?.('system.description.value');
+  if (typeof live==='string' && live!==stripReferenceBlock(live) && live===f?.managedFields?.['system.description.value'])
+    return {action:'metadata',patch:{},reason:'Metadata refresh: remove the old References list from the description (not edited since import).'};
   return planned;
 }
 
@@ -266,7 +271,7 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
@@ -663,7 +668,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPage=Math.max(0,Math.min(this.libraryPage,pageCount-1));
     const libraryRows=browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
     const libraryDetail=inspectLibrary(library,this.libraryFocus);
-    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,statusTone:statusTone(row.status),focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
+    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,statusLabel:tokenLabel(row.status),statusTone:statusTone(row.status),focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
     const libraryFilterCount=[this.libraryStatus!=='all',this.libraryPackage!=='all',!this.libraryShowArchived].filter(Boolean).length;
     const menus=game.settings?.menus ? [...game.settings.menus.entries()] : [];
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
@@ -681,6 +686,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const setupSkins=this.tab==='setup'?(()=>{const st=appearanceController?.getState?.()??{};const pick=this.setupDraft?.worldSkin??st.worldDefault;
       return (appearanceController?.listSkins?.()??[]).map(skin=>({...skin,current:skin.id===st.worldDefault,selected:skin.id===pick}));})():[];
     const captureRows = allItems.filter(row => (!this.captureTaggedOnly || row.capture) && (!this.captureSearch || row.name.toLowerCase().includes(this.captureSearch.toLowerCase()) || row.type.toLowerCase().includes(this.captureSearch.toLowerCase())));
+    // Validation messages name a record by its permanent id; show the record's name for the ones in the loaded package.
+    const nameById=this.preview.filter(r=>r.id&&r.name).map(r=>[String(r.id),String(r.name)]).sort((x,y)=>y[0].length-x[0].length);
+    const named=text=>nameById.reduce((out,[id,name])=>out.includes(id)?out.split(id).join(name):out,String(text));
     return {
       ...ctx,
       version: game.modules.get(MODULE_ID)?.version ?? '',
@@ -720,14 +728,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
-      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows),
+      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows).map(c=>({...c,slug:c.id})),
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
       libraryInScope:libraryInScope.length, libraryNarrowed:libraryInScope.length!==library.length,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
       libraryEditedCount:browser.summary.edited, librarySystemCount:browser.summary.systems,
       libraryShowArchived:this.libraryShowArchived,
       librarySystemOptions:[{value:'all',label:'All systems',selected:this.librarySystem==='all'},...browser.systemOptions],
-      libraryStatusOptions:[{value:'all',label:'All statuses',selected:this.libraryStatus==='all'},...browser.statusOptions.map(r=>({...r,label:r.value}))],
+      libraryStatusOptions:[{value:'all',label:'All statuses',selected:this.libraryStatus==='all'},...browser.statusOptions.map(r=>({...r,label:tokenLabel(r.value)}))],
       libraryPackageOptions:[{value:'all',label:'All packages',selected:this.libraryPackage==='all'},...browser.packageOptions.map(r=>({...r,label:r.value}))],
       libraryPageLabel:`${browser.rows.length ? this.libraryPage*this.libraryPageSize+1 : 0}–${Math.min((this.libraryPage+1)*this.libraryPageSize,browser.rows.length)} of ${browser.rows.length}`,
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
@@ -784,10 +792,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       updateActors: this.updateActors,
       actorUpdateCount: this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').length,
       message: this.message,
-      errors: this.errors.map(message => ({message})),
-      warnings: this.warnings.map(message => ({message})),
+      errors: this.errors.map(message => ({message:named(message)})),
+      warnings: this.warnings.map(message => ({message:named(message)})),
       hasWarnings: this.warnings.length > 0,
-      moduleLinks: (this.moduleLinks ?? []).map(message => ({message})),
+      moduleLinks: (this.moduleLinks ?? []).map(message => ({message:named(message)})),
       hasModuleLinks: (this.moduleLinks?.length ?? 0) > 0,
       schemaVersion: this.specialist ? (this.specialist.payload?.schema_version ?? this.specialist.payload?.schema ?? "list") : (this.pkg?.manifest?.schema_version ?? "—"),
       hasErrors: this.errors.length > 0,
@@ -910,7 +918,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #setupSources() {
     const src=coreLinks().describeSources(), d=this.setupDraft?.sources;
     if(!d)return src;
-    return {...src,auto:d.auto,packs:(src.packs??[]).map(p=>({...p,configured:d.packs.includes(p.id)})),
+    return {...src,auto:d.auto,packs:(src.packs??[]).map(p=>({...p,slug:p.id,configured:d.packs.includes(p.id)})),
       folders:(src.folders??[]).map(f=>({...f,configured:d.folders.includes(f.id)}))};
   }
   /** Import tab file button: JSON or ZIP. */
@@ -981,6 +989,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;this.itemsView='records';
       this.itemFilters={...DEFAULT_FILTERS};this.orgPreview=null;this.librarySystem='all';this.libraryStatus='all';this.libraryPackage='all';
       this.libraryShowArchived=true;this.libraryPage=0;void this.render();
+    }));
+    // GM-only technical "Details" folds carry a Copy id button (the id itself is never shown outside the fold).
+    root.querySelectorAll('[data-ag-copy-id]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const id=el.dataset.agCopyId;
+      Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast('Id copied.'),()=>toast('Could not copy the id.',true));
     }));
     root.querySelectorAll('[data-ag-library-open]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();const row=this.managedRows().find(r=>r.uuid===el.dataset.agLibraryOpen);
@@ -1548,23 +1561,23 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const record=records.find(r=>r.id===id);
       if (isLocationRecord(record)) {
         const {action,reason}=planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? record.id, kind:'Location', lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? 'Unnamed location', kind:'Location', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       if (isRouteRecord(record)) {
         const {action,reason}=planRoute(record,{existingIds:routeIds,locationIds:endpointIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.route?.name || record.name || record.id, kind:'Route', lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.route?.name || record.name || 'Unnamed route', kind:'Route', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       if (isShopRecord(record)) {
         const {action,reason}=planShop(record,{existingIds:existingShopIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
-        this.preview.push({id:record.id, name:record.name || record.id, kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
+        this.preview.push({id:record.id, name:record.name || 'Unnamed record', kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
       // 0.52.2: a folder_path deeper than Foundry allows shows the folder it will actually file into.
       let dest=null; try{dest=folderDestination(record.foundry?.folder_path);}catch{dest=null;}
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? 'Unnamed record', kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
         effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
       this.warnings.push(...flagWarnings(record));
     }
@@ -1636,7 +1649,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         label:i.pending?'Indexing icons…':this.iconOverrides.has(row.id)?'your choice':i.source==='smart'?(ICON_CONFIDENCE[i.confidence]??'match'):i.reason===NO_CONFIDENT_MATCH?NO_CONFIDENT_MATCH:'generic icon',
         note:i.pending?'A generic icon for now; the pick appears when indexing finishes.':this.iconOverrides.has(row.id)?'Chosen with Change…':i.source==='smart'?`${i.existing?'Replaces a placeholder icon; ':''}${i.reason}.`
           :i.reason===NO_CONFIDENT_MATCH?'Nothing in Foundry\u2019s icon library fits this name well enough, so the generic icon is used. Change… picks one.':'No fitting icon found in the library.'}:null;
-      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
+      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), kind:tokenLabel(row.kind),lifecycle:tokenLabel(row.lifecycle),badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
     });
   }
   #iconIndexText() {
@@ -2245,7 +2258,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           +(shopOk||shopBad?` ${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed (reasons below)`:''}.`:'');
         this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s)${chosen?`, chose ${chosen} icon(s)`:''}; ${bad} error(s).${locText} Details are in the result panel below.`;
         this.importReports=pushReport(this.importReports,buildImportReport({file:this.packageSource??log.packageId,at:log.at,results:last.results,
-          names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??r.id])??[])}));
+          names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??''])??[])}));
         await this.render();
       }
     }
@@ -2338,8 +2351,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         sourceId:row.sourceId,entityType:row.entityType,dependentIds:dependents,embeddedCount:embedded,action});
       (check.allowed?accepted:denied).push({...row,reason:check.reason});
     }
-    if(!accepted.length){this.libraryMessage=`No ${action} eligible records. ${denied.map(r=>`${r.sourceId}: ${r.reason}`).join(' | ')}`;await this.render();return;}
-    const warning=denied.length?`\nSkipped ${denied.length}: ${denied.map(r=>r.name??r.sourceId).join(', ')}`:'';
+    if(!accepted.length){this.libraryMessage=`No ${action} eligible records. ${denied.map(r=>`${r.name??'This record'}: ${r.reason}`).join(' | ')}`;await this.render();return;}
+    const warning=denied.length?`\nSkipped ${denied.length}: ${denied.map(r=>r.name??'a record').join(', ')}`:'';
     const verb=`${action[0].toUpperCase()}${action.slice(1)}`;
     // Archive and delete use the kit danger confirm (Cancel is the default); restore is a plain confirm.
     const first=await (action==='restore'?confirmDialog:confirmDanger)(`${accepted.length} managed world document(s) will be ${action}d.${warning}
@@ -2399,7 +2412,7 @@ Existing Actor items, player progress and unmanaged content are not changed. A J
     }
     if(!candidates.length){this.libraryMessage=`Nothing eligible to replace. ${denied.join(' | ')}`;await this.render();return;}
     const yes=await confirmDanger(`Replace ${candidates.length} managed Item(s) with values from ${this.pkg.manifest.package_id}?
-This can overwrite source-owned fields you edited by hand: ${candidates.flatMap(c=>c.local.map(p=>`${c.row.name??c.row.sourceId} (${p})`)).join(', ')||'none'}.
+This can overwrite source-owned fields you edited by hand: ${candidates.flatMap(c=>c.local.map(p=>`${c.row.name??'a record'} (${p})`)).join(', ')||'none'}.
 Foundry links, other fields and Actor inventories are kept. JSON snapshots download automatically.`,
       {title:'Replace fields from the source?',yes:'Replace fields'});
     if(!yes)return;
@@ -2452,7 +2465,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const entries=[];
     for(const doc of docs) {
       const flag=sourceFlag(doc);
-      const prefix=`${flag.sourceId} (${doc.name})`;
+      const prefix=doc.name||'A managed record';
       if(counts.get(flag.sourceId)>1) entries.push({level:"error", message:`DUPLICATE: ${prefix}`});
       if(!flag.managedFields) entries.push({level:"error", message:`MISSING BASELINE: ${prefix}`});
       if(!flag.version) entries.push({level:"warning", message:`MISSING SOURCE VERSION: ${prefix}`});
@@ -2879,7 +2892,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
       else if(d.agBrowseCopy){
         const id=d.agBrowseCopy;
-        Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast(`Copied ${id}.`),()=>toast(`Could not copy ${id}.`,true));
+        Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast('Id copied.'),()=>toast('Could not copy the id.',true));
       }
       else return;
       event.preventDefault();
@@ -3086,7 +3099,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const svc=codexService();
     const plan=svc.planImport(JSON.parse(await file.text()));
     if(plan.errors.length){this.codexMessage=`${file.name} was not used: ${plan.errors.join(' ')}`;toast(this.codexMessage,true);await this.render();return;}
-    const yes=await confirmDanger(`Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s) with the ones in ${file.name}?${plan.missing.length?`\nNot in this world, skipped: ${plan.missing.join(', ')}`:''}\nNPC content is not changed; it comes from the package import.`,
+    const yes=await confirmDanger(`Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s) with the ones in ${file.name}?${plan.missing.length?`\n${plan.missing.length} NPC(s) in the file are not in this world and are skipped.`:''}\nNPC content is not changed; it comes from the package import.`,
       {title:'Restore codex reveals?',yes:`Restore ${plan.apply.length} NPC(s)`});
     if(!yes)return;
     const out=await svc.applyImport(plan);
@@ -3608,17 +3621,26 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
     updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
     updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
     updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
-    // Only source-provided rich-text paths receive AGREF substitution.
-    // Add a small reference section for canonical refs without explicit markers.
+    // Only source-provided rich-text paths receive AGREF substitution. 0.60.3: a cell marked data-ag-ref="<relation>" becomes
+    // a content link to that typed ref's target (plain text when it is missing or not player-visible); nothing else is appended.
+    const hostVisibility=record.visibility;
+    const refCells=text=>stripReferenceBlock(resolveRefCells(text,bindings,{
+      nameOf:id=>uuidIndex.get(id)?.[0]?.name??'',
+      canLink:id=>hostVisibility==='gm'||sourceFlag(foundDocuments(id)[0])?.visibility==='player'}));
     if(doc.documentName==='Item') {
       const original=record.foundry.data?.system?.description?.value;
-      if(typeof original==='string' || bindings.length) {
+      if(typeof original==='string') {
         const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-        const final=appendReferenceBlock(linked.text,bindings,linked.resolved);
+        const final=refCells(linked.text);
         for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-        if(doc.system?.description?.value!==final) updates['system.description.value']=final;
-        newFields['system.description.value']=final;
-        log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length,added:bindings.length-bindings.filter(b=>linked.resolved.includes(b.target_id)).length});
+        // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
+        // References section is cleaned up, and a cell re-resolved, only on documents nobody has changed since the import).
+        const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
+        if(row.action==='create'||live===final||live===baseline) {
+          if(live!==final) updates['system.description.value']=final;
+          newFields['system.description.value']=final;
+        }
+        log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length});
       }
     } else if(doc.documentName==='Actor') {
       // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
@@ -3627,7 +3649,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
       const bio=record.foundry.data?.system?.details?.biography?.value;
       if(created && typeof bio==='string') {
         const resolved=resolveRichText(bio,uuidIndex);
-        updates['system.details.biography.value']=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+        updates['system.details.biography.value']=refCells(resolved.text);
         for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
       }
       for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
@@ -3642,7 +3664,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
       const text=record.foundry.data?.description;
       if(typeof text==='string') {
         const resolved=resolveRichText(text,uuidIndex);
-        updates.description=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
+        updates.description=refCells(resolved.text);
         for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
       }
     } else if(doc.documentName==='JournalEntry') {
@@ -3653,10 +3675,11 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
         const page=named.length===1?named[0]:doc.pages?.contents?.[pi];
         if(!page || typeof pageDef.text?.content!=='string') continue;
         const linked=resolveRichText(pageDef.text.content,uuidIndex);
-        const final=pi===0 ? appendReferenceBlock(linked.text,bindings,linked.resolved) : linked.text;
+        const final=refCells(linked.text);
         for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
         try{
-          if(page.text?.content!==final) await page.update({'text.content':final});
+          // Rewrite only a page nobody edited: created this run, or equal to the new text once a legacy References section is removed.
+          if(page.text?.content!==final&&(row.action==='create'||stripReferenceBlock(page.text?.content)===final||page.text?.content===undefined)) await page.update({'text.content':final});
           log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
         }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
       }

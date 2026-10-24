@@ -135,7 +135,7 @@ async function create(data={}){
   const all=readAll(),meta=readMeta(),taken=all.map(s=>s.id);
   if(data.id!==undefined&&data.id!==null&&data.id!==''){
    if(!validId(data.id,'SHOP'))throw Error('Shop id must be SHOP- and upper-case letters, digits and single hyphens.');
-   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error(`The shop id ${data.id} is already used.`);
+   if(taken.includes(data.id)||meta.retiredIds.includes(data.id))throw Error('That shop id is already used.');
   }
   const id=data.id||shopIdFromName(data.name,taken,'SHOP',meta.retiredIds),now=Date.now();
   const purse=data.purse??null;
@@ -231,7 +231,7 @@ export {tip,icon,button};
 const opt=(v,label,sel)=>`<option value="${E(v)}"${String(v)===String(sel)?' selected':''}>${E(label)}</option>`;
 export const art=(merchant,cls)=>merchant?.img?`<img class="${cls}" src="${E(merchant.img)}" alt="">`:`<span class="${cls}" aria-hidden="true">${E(initials(merchant?.name))}</span>`;
 const SORT_LABELS={location:'Group by settlement',name:'Name',merchant:'Merchant',updated:'Recently changed'};
-const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):t;};
+const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):String(t||'Other').replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase());};
 const cashText=s=>s.purse?coinsText(s.purse):'Unlimited cash';
 
 /** 0.18.0: who a shop is shown to, as a badge; '' when it isn't shown. */

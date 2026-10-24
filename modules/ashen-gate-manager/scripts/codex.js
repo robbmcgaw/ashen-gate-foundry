@@ -35,6 +35,7 @@ export function isNpcDefinition(def) {
 export function isLinkId(id) {
   return typeof id === 'string' && ID_RE.test(id) && LINK_PREFIXES.includes(id.split('-')[0]);
 }
+const LINK_KIND_LABEL = {location: 'Location', npc: 'NPC', deity: 'Deity', quest: 'Quest', renown: 'Renown'};
 export function linkKind(id) {
   const p = str(id).split('-')[0];
   return p === 'LOC' ? 'location' : p === 'NPC' ? 'npc' : p === 'DEITY' ? 'deity' : ['QUEST', 'ORDER', 'CONTRACT'].includes(p) ? 'quest' : 'renown';
@@ -123,9 +124,9 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   const charName = id => characters.find(c => c.id === id)?.name ?? 'Unknown character';
   const describe = rule => rule.party ? 'Party' : rule.actors.length ? rule.actors.map(charName).join(', ') : 'Hidden';
-  const links = linksOf(def, state).map(id => { const name = nameOf(id); return {id, kind: linkKind(id), name: name ?? id, named: Boolean(name), gmAdded: state.links.includes(id)}; });
+  const links = linksOf(def, state).map(id => { const name = nameOf(id); return {id, kind: linkKind(id), name: name ?? `${LINK_KIND_LABEL[linkKind(id)] ?? 'Linked'} record (not in this world)`, named: Boolean(name), gmAdded: state.links.includes(id)}; });
   return {
-    id: def.id, uuid: npc.uuid ?? null, name: str(def.name) || str(npc.name) || def.id, img: npc.img ?? null,
+    id: def.id, uuid: npc.uuid ?? null, name: str(def.name) || str(npc.name) || 'Unnamed NPC', img: npc.img ?? null,
     status: str(def.status), discovery: state.discovery, discoveryMode: ruleMode(state.discovery), discoveryLabel: describe(state.discovery),
     fields: REVEAL_FIELDS.map(key => ({key, label: FIELD_LABELS[key], value: fieldValue(def, state, key), rule: state.fields[key],
       mode: ruleMode(state.fields[key]), who: describe(state.fields[key]),
@@ -149,7 +150,7 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
 export function playerEntry(npc, actorIds = [], {linkFor = () => null} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   if (!knowsRule(state.discovery, actorIds)) return null;
-  const out = {id: def.id, name: str(def.name) || str(npc.name) || def.id, img: npc.img ?? null, fields: []};
+  const out = {id: def.id, name: str(def.name) || str(npc.name) || 'Unnamed NPC', img: npc.img ?? null, fields: []};
   for (const key of REVEAL_FIELDS) {
     const rule = state.fields[key];
     if (!knowsRule(rule, actorIds)) continue;

@@ -41,7 +41,7 @@ test('filters: type, status, location, visibility, search',()=>{
  assert.deepEqual(filterRows(rows,{location:'LOC-MILL'}).map(r=>r.id),['QUEST-AVAIL']);
  assert.equal(filterRows(rows,{visible:'yes'}).length,3);assert.equal(filterRows(rows,{visible:'no'}).length,5);
  assert.deepEqual(filterRows(rows,{search:'escort'}).map(r=>r.id),['CONTRACT-ESCORT']);
- assert.deepEqual(listQuestsTab(data,{location:'LOC-PIER'}).locations,[['LOC-MILL','LOC-MILL'],['LOC-PIER','LOC-PIER']]);
+ assert.deepEqual(listQuestsTab(data,{location:'LOC-PIER'}).locations,[['LOC-MILL','Unnamed location'],['LOC-PIER','Unnamed location']]);
 });
 test('sort and group',()=>{
  const rows=data.map(questRow);

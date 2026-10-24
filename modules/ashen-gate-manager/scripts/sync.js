@@ -84,7 +84,7 @@ export function buildSyncSet(sources) {
         if (!prior) { if (!set.refusedIds.has(record.id)) set.records.set(record.id, {record, manifest, filename: src.filename}); continue; }
         const identical = canonical(prior.record) === canonical(record);
         set.duplicates.push({id: record.id, files: [prior.filename, src.filename], identical});
-        if (!identical) { set.records.delete(record.id); set.refusedIds.set(record.id, `${record.id} is in ${prior.filename} and ${src.filename} with different content; Sync cannot choose, so it leaves the world's copy alone.`); }
+        if (!identical) { set.records.delete(record.id); set.refusedIds.set(record.id, `${record.name ?? 'A record'} is in ${prior.filename} and ${src.filename} with different content; Sync cannot choose, so it leaves the world's copy alone.`); }
       }
     } else {
       const ids = bundleRecordIds(src.kind, src.payload);

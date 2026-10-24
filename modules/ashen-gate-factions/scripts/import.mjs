@@ -35,7 +35,7 @@ export function planImport(data,existingIds=new Set()){
     const path=`starting_state[${i}]`;
     if(!isObj(s)){errors.push(`${path}: object required.`);return;}
     closed(s,START_KEYS,path,errors);
-    if(starts.has(s.faction_id))errors.push(`${path}: duplicate faction_id ${s.faction_id}.`);
+    if(starts.has(s.faction_id))errors.push(`${path}: the same faction appears twice.`);
     starts.set(s.faction_id,s);
     if(s.party_discovered!==undefined&&typeof s.party_discovered!=='boolean')errors.push(`${path}.party_discovered: Boolean required.`);
     renownList(s.group_renown,`${path}.group_renown`,errors);
@@ -51,17 +51,17 @@ export function planImport(data,existingIds=new Set()){
   data.definitions.forEach((raw,i)=>{
     let clean;
     try{clean=sourceDefinition(raw);}catch(e){errors.push(`definitions[${i}]: ${e.message}`);return;}
-    const faults=validateFaction(clean);
-    if(faults.length){errors.push(`definitions[${i}] ${clean.id}: ${faults.join(' ')}`);return;}
-    if(seen.has(clean.id)){errors.push(`definitions[${i}]: duplicate id ${clean.id}.`);return;}
+    const nm=`"${clean.name||'Unnamed'}"`,faults=validateFaction(clean);
+    if(faults.length){errors.push(`definitions[${i}] ${nm}: ${faults.join(' ')}`);return;}
+    if(seen.has(clean.id)){errors.push(`definitions[${i}]: duplicate ${nm}.`);return;}
     const deity=clean.entity_type==='Deity';
-    if(deity&&data.schema_version!==IMPORT_SCHEMA){errors.push(`definitions[${i}] ${clean.id}: deities need schema_version ${IMPORT_SCHEMA}.`);return;}
-    if(deity&&starts.get(clean.id)?.group_renown?.length)errors.push(`starting_state ${clean.id}: deities have no group Renown; use actors[].renown.`);
+    if(deity&&data.schema_version!==IMPORT_SCHEMA){errors.push(`definitions[${i}] ${nm}: deities need schema_version ${IMPORT_SCHEMA}.`);return;}
+    if(deity&&starts.get(clean.id)?.group_renown?.length)errors.push(`starting_state for ${nm}: deities have no group Renown; use actors[].renown.`);
     seen.add(clean.id);
     const exists=existingIds.has(clean.id);
     rows.push({id:clean.id,name:clean.name,kind:deity?'deity':'faction',action:exists?'skip':'new',reason:exists?'Already in this world; kept as is.':'',definition:clean,start:exists?null:starts.get(clean.id)??null});
   });
-  for(const id of starts.keys())if(!seen.has(id))errors.push(`starting_state: ${id} has no matching definition.`);
+  let orphan=0;for(const id of starts.keys())if(!seen.has(id))orphan++;if(orphan)errors.push(`starting_state: ${orphan} ${orphan===1?'entry has':'entries have'} no matching definition.`);
   return {errors,rows};
 }
 /**

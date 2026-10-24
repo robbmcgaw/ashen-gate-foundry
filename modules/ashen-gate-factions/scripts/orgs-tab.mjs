@@ -21,7 +21,7 @@ export function chipBadge(chip){return chip==='Revealed to party'?'ag-badge--ok'
 /** One row per faction: everything the GM roster shows, hidden or not. */
 export function orgRow({faction,score=0,rank='',folderName=''}){
  const d=faction.discovery??{};
- const row={id:faction.id,name:faction.name||faction.id,leader:faction.leader||'',tags:[...(faction.tags??[])],
+ const row={id:faction.id,name:faction.name||'Unnamed faction',leader:faction.leader||'',tags:[...(faction.tags??[])],
   chip:visibilityChip(faction),badgeClass:chipBadge(visibilityChip(faction)),characters:(d.actors??[]).length,placeholder:Boolean(d.placeholder),
   selective:faction.field_reveals?.mode==='selective',score:Number(score)||0,rank:rank||'',
   folder:folderName||OTHER_FOLDER,objectives:objectiveRefs(faction).length};
@@ -69,7 +69,7 @@ export const unlockLabel=(unlock,threshold,unit='Renown')=>`${UNLOCKS[unlock]??U
 const BEHAVIORS={one_time:'One time',repeatable_service:'Repeatable service',passive:'Passive'};
 export const behaviorLabel=b=>BEHAVIORS[b]??BEHAVIORS.one_time;
 const RELATIONS={associated_objective:'Associated with',offers_objective:'Offers'};
-export const objectiveLabel=(relation,mode)=>`${RELATIONS[relation]??relation} · ${mode==='required'?'Required':'Optional'}`;
+export const objectiveLabel=(relation,mode)=>`${RELATIONS[relation]??'Related to'} · ${mode==='required'?'Required':'Optional'}`;
 /** Link-mode button (FR-07): names what the button does, not the current state. */
 export const linkModeAction=mode=>mode==='preview'?'Switch to document link':'Switch to preview';
 const REF_STATUS={resolved:'Found in Quest Log',unverified:'Unverified',invalid_ref:'Invalid id'};

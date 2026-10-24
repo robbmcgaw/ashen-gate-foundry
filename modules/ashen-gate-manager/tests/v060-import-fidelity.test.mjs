@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {folderSegments,validateImportPresentation,iconFallback,chooseIcon,markerTargets,buildUuidIndex,resolveUuid,resolveRichText,resolveTypedRefs,appendReferenceBlock} from '../scripts/import-fidelity.js';
+import {folderSegments,validateImportPresentation,iconFallback,chooseIcon,markerTargets,buildUuidIndex,resolveUuid,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from '../scripts/import-fidelity.js';
 import {ensureFolder} from '../scripts/folders.js';
 import {validatePackage} from '../scripts/core.js';
 const r=(id,type='Item',folder_path='Ashen Gate/Professions/Recipes/Blacksmithing',text='')=>({id,entity_type:'Recipe',status:'draft',version:'0.1.0',provenance:{sources:['Synthetic contract fixture']},visibility:'gm',refs:[],foundry:{document_type:type,folder_path,data:type==='Item'?{name:id,type:'feat',system:{description:{value:text}}}:{name:id,pages:[{name:'Notes',type:'text',text:{content:text}}]}}});
@@ -82,14 +82,33 @@ test('markers inside HTML attributes or malformed placeholders are rejected befo
   assert.match(validateImportPresentation(r('REC-DEMO','Item',undefined,'<a title="[[AGREF:MAT-IRON]]">hi</a>'))[0],/HTML tag/);
   assert.match(validateImportPresentation(r('REC-DEMO','Item',undefined,'[[AGREF:MAT-IRON'))[0],/invalid AGREF/);
 });
-test('typed refs absent from body create a click-through References section, not invented rule text',()=>{
-  const text=appendReferenceBlock('<p>Authored text.</p>',[{target_id:'MAT-IRON',uuid:'Item.MATIRON',relation:'requires_material'}]);
-  assert.match(text,/Authored text/);assert.match(text,/@UUID\[Item.MATIRON\]/);assert.match(text,/References/);
-  assert.equal((text.match(/@UUID/g)||[]).length,1);
+test('0.54.2: the legacy References section is stripped exactly, idempotently, and nothing else',()=>{
+  const block='\n<section class="ag-managed-links" data-ag-managed-links="1"><h4>References</h4><ul><li><span>also_available_as_journal:</span> @UUID[Item.X]{ITEM-HANDOUT-A}</li></ul></section>';
+  const html='<p>Authored text.</p>';
+  assert.equal(stripReferenceBlock(html+block),html);
+  assert.equal(stripReferenceBlock(stripReferenceBlock(html+block)),html);
+  assert.equal(stripReferenceBlock(html),html);
+  assert.equal(stripReferenceBlock('<section class="mine"><h4>References</h4></section>'),'<section class="mine"><h4>References</h4></section>');
+  assert.equal(stripReferenceBlock(undefined),undefined);
 });
 test('0.2 package with paths validates; path-less legacy projection still validates unchanged',()=>{
   const record=r('REC-DEMO');const p={manifest:{schema_version:'ag-foundry-import/0.2',package_id:'AG-DEMO',version:'0.1.0'},records:[record]};
   assert.deepEqual(validatePackage(p),[]);
   delete record.foundry.folder_path;assert.deepEqual(validatePackage(p),[]);
   record.foundry.folder_path='Ashen Gate/../Danger';assert.match(validatePackage(p).join(' '),/folder_path/);
+});
+
+test('0.60.3: resolveRefCells links a marked cell, falls back to plain text, keeps the marker, appends nothing', () => {
+  const bindings = [{target_id: 'REC-A', uuid: 'Item.rec1', relation: 'created_by'}, {target_id: 'PROF-B', uuid: 'Item.prof1', relation: 'gathered_by'}];
+  const nameOf = id => ({'REC-A': 'Iron Caltrops', 'PROF-B': 'Blacksmithing'}[id] ?? '');
+  const html = '<table><tr><th>Recipe</th><td data-ag-ref="created_by">Iron Caltrops</td></tr></table><p>Text</p>';
+  const linked = resolveRefCells(html, bindings, {nameOf, canLink: () => true});
+  assert.equal(linked, '<table><tr><th>Recipe</th><td data-ag-ref="created_by">@UUID[Item.rec1]{Iron Caltrops}</td></tr></table><p>Text</p>');
+  assert.equal(resolveRefCells(linked, bindings, {nameOf, canLink: () => true}), linked, 're-resolving a resolved cell is stable');
+  assert.equal(resolveRefCells(html, bindings, {nameOf, canLink: () => false}), html, 'not linkable: plain text');
+  assert.equal(resolveRefCells(html, [], {nameOf, canLink: () => true}), html, 'target missing: plain text, no broken link');
+  assert.equal(resolveRefCells('<td data-ag-ref="created_by">REC-A</td>', bindings, {nameOf, canLink: () => true}), '<td data-ag-ref="created_by">@UUID[Item.rec1]{Iron Caltrops}</td>', 'an id typed as the label is replaced by the name');
+  assert.equal(resolveRefCells('<td data-ag-ref="created_by">REC-A</td>', [], {nameOf, canLink: () => true}), '<td data-ag-ref="created_by"></td>', 'no id is ever shown');
+  const none = '<p>No marker.</p>';
+  assert.equal(resolveRefCells(none, bindings, {nameOf, canLink: () => true}), none, 'no marker: nothing appended');
 });

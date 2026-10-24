@@ -49,8 +49,8 @@ test('Group by Reveal status: Hidden, Unidentified, Revealed, with counts', () =
 
 test('the GM list at 110 places groups by region, searches and filters by template profession, and renders quickly', async () => {
   const game = installFoundry();
-  const mod = {version: '0.20.1', active: true};
-  mod.api = createApi({version: '0.20.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
+  const mod = {version: '0.20.2', active: true};
+  mod.api = createApi({version: '0.20.2', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
   const ledger = {active: true, api: {gathering: {templates: {contract: 'ag-gathering-nodes/1', list: () => structuredClone(TEMPLATES), playerView: () => null}}}};
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : id === 'ashen-gate-profession-ledger' ? ledger : null};
   for (const l of make(110)) await mod.api.saveLocation(l);
