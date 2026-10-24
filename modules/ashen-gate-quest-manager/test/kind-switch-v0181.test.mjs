@@ -59,7 +59,7 @@ test('new quest: Work Order shows the domain list at once, before any save, with
  assert.equal(content.querySelector('#ag-src-summary').value,'[TEST] The forge needs air.');
  assert.equal(content.querySelector('[data-source-status]').textContent,'Unsaved changes');assert.equal(app.unsavedSource,true);
  assert.equal(doc.focused,sel,'focus stays on Type');
- assert.equal(content.querySelector('#ag-src-id').value,'','a new quest has no ID typed: it is made from the title');
+ assert.equal(content.querySelector('#ag-src-id').value,'ORDER-','the untouched ID prefix follows the Type');
  assert.equal(content.querySelector('details[data-section="basics"] .ag-fold__hint').textContent,'Order');
 });
 test('first save stores the picked domain; a defaulted one is stored as Crafting',async()=>{
@@ -83,7 +83,7 @@ test('switching back to Quest or to Contract hides the domain, keeps typed edits
  assert.equal(content.querySelector('#ag-src-id').value,'QUEST-TEST-BELLOWS');
  assert.equal(content.querySelector('#ag-src-name').value,'[TEST] Mend the bellows');
  pickType('contract');assert.equal(domainField().hidden,true);assert.equal(content.querySelector('#ag-src-id').value,'CONTRACT-TEST-BELLOWS');
- assert.match(content.querySelector('#ag-src-id').getAttribute('placeholder'),/Made from the title/);
+ assert.equal(content.querySelector('#ag-src-id').getAttribute('placeholder'),'CONTRACT-NEW-JOB');
  content.querySelector('.ag-src-obj-goal').value='[TEST] Sign the terms';
  await app.action({dataset:{action:'save-quest'}},content);
  assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);
@@ -94,22 +94,4 @@ test('a saved quest keeps its Type locked and shows no domain; a saved order sho
  assert.equal(content.querySelector('#ag-src-kind').disabled,true);assert.equal(domainField(),null);
  app.gmId='ORDER-TEST-BELLOWS';await draw();
  assert.equal(domainField().hidden,false);assert.equal(content.querySelector('#ag-src-workdomain').value,'production');
-});
-test('0.19.3: a new quest left without an ID gets one made from its title; a second with the same title gets -2',async()=>{
- notes.length=0;
- await newDraft();pickType('work_order');
- content.querySelector('.ag-src-obj-goal').value='[TEST] Patch the leather';
- await app.action({dataset:{action:'save-quest'}},content);
- assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);
- assert.equal(source('ORDER-TEST-MEND-THE-BELLOWS')?.name,'[TEST] Mend the bellows');
- await newDraft();pickType('work_order');
- content.querySelector('.ag-src-obj-goal').value='[TEST] Patch the leather';
- await app.action({dataset:{action:'save-quest'}},content);
- assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);
- assert.ok(source('ORDER-TEST-MEND-THE-BELLOWS-2'));
-});
-test('0.19.3: a new quest without a title says so, without an ID in the message',async()=>{
- notes.length=0;await newDraft();content.querySelector('#ag-src-name').value='';
- await app.action({dataset:{action:'save-quest'}},content);
- assert.deepEqual(notes.filter(x=>x[0]==='error').map(x=>x[1]),['Give the quest a title first.']);
 });

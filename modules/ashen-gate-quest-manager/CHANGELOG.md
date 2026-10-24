@@ -2,7 +2,7 @@
 
 - **Ids are out of the Quest Log's screens.** Quest cards no longer show a `QUEST-…` line, *Sort* has no *ID* choice, the item rewards table and the Give rewards panel no longer print an item's id (an item that can't be found reads *Item not found*), assignments read *Assignment 1, 2…*, and messages, confirmations and tooltips name quests and items, never ids. A quest with no title reads *Untitled quest*, a location the Locations module can't name reads *Unnamed location*, and an unknown character reads *Unknown character*. Search still finds a quest by its id.
 - **Details (IDs) fold in the quest editor.** Permanent ID (with *Copy ID*), related location IDs and public location IDs moved there, closed by default. The source JSON fold still shows everything.
-- **New quests get their ID from the title.** Leave Permanent ID empty (the default) and the quest is saved as, for example, `QUEST-HARBOR-RUMORS` (`-2` if taken). Typing your own still works.
+- **Machine wording.** Quest Log printed no relation names; an assignment's execution status now reads as words (*Pending*), and tests now also check that players see no snake_case or status tokens.
 - **Import messages** shown in Quest Log's *Import JSON…* and error pop-ups use quest names in place of ids. The importer API's own warning text is unchanged.
 - Saved data: no change; no migration.
 

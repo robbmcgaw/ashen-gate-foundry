@@ -30,7 +30,7 @@ function actorsOwned(){return [...game.actors].filter(a=>isPlayerCharacter(a,has
 function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(hideIds(err.message??String(err)));}
 function dialogDownload(name,text,type='application/json'){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function blankTemplate(){return {
- id:'',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',
+ id:'QUEST-',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',
  provenance:{sources:['GM-authored world draft; not approved canon']},visibility:'reveal_gated',refs:[],
  name:'',public_summary:'',source:{description:'GM to specify source'},
  objectives:[{key:'first',goal:'',visibility:'player'}],locations:[],parameters:{},outcomes:{}
@@ -119,10 +119,10 @@ function gmNotesSection(source,state){
  return `<label class="ag-field">GM-only notes<textarea id="ag-gm-notes" rows="3">${E(state.gmNotes||'')}</textarea></label>
  <label class="ag-field">GM-only source / issuer notes<textarea id="ag-src-description" rows="2">${E(source.source?.description??'')}</textarea></label>`;
 }
-// IDs live only here: a closed fold the GM opens on purpose. A new quest's ID is made from its title when left empty.
+// IDs live only here: a closed fold the GM opens on purpose.
 function detailsSection(source,state,existing){
  return `<p class="ag-field__hint">Permanent IDs, for linking and troubleshooting. You do not need them to run a quest; they are never renamed after creation.</p>
- <div class="ag-form-grid"><label class="ag-field">Permanent ID<input id="ag-src-id" value="${existing?E(source.id):''}" ${existing?'readonly':''} placeholder="Made from the title when left empty"></label>
+ <div class="ag-form-grid"><label class="ag-field">Permanent ID<input id="ag-src-id" value="${E(source.id)}" ${existing?'readonly':''} placeholder="${KIND_PREFIX[source.objective_kind]||'QUEST'}-NEW-JOB"></label>
  ${existing?`<div class="ag-field"><span>&nbsp;</span>${safeButton('Copy ID','copy-id',{sm:true,icon:'fa-copy',data:{id:source.id}})}</div>`:''}</div>
  <div class="ag-form-grid"><label class="ag-field">Related location IDs<textarea id="ag-src-locations" rows="2">${E((source.locations||[]).filter(x=>typeof x==='string').join('\n'))}</textarea><span class="ag-field__hint">Optional, one per line.</span></label>
  <label class="ag-field">Public location IDs<textarea id="ag-public-locations" rows="2">${E((state.publicLocationIds||[]).join('\n'))}</textarea><span class="ag-field__hint">One per line.</span></label></div>`;
@@ -134,25 +134,16 @@ function jsonSection(source){
 // 0.17.0 Delegated assignments: their own section with their own footer; they never go through Save changes (QL-02, QL-07).
 function assignmentsSection(source){
  const list=listAssignments({objectiveId:source.id});
- const rows=list.length?`<div class="ag-rows agq-assignments">${list.map((a,i)=>`<div class="ag-row"><span class="ag-row__main"><span class="ag-row__title">Assignment ${i+1}</span><span class="ag-row__meta">${E(a.execution_status)}</span></span><span class="ag-row__end">${safeButton('Load into editor','edit-assignment',{sm:true,icon:'fa-pen',data:{id:a.id},title:`Load assignment ${i+1} into the assignment editor below`})}${safeButton(`Delete assignment ${i+1}`,'remove-assignment',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',data:{id:a.id},title:'Delete this assignment'})}</span></div>`).join('')}</div>`:'<p class="ag-field__hint">No delegated assignments.</p>';
+ const rows=list.length?`<div class="ag-rows agq-assignments">${list.map((a,i)=>`<div class="ag-row"><span class="ag-row__main"><span class="ag-row__title">Assignment ${i+1}</span><span class="ag-row__meta">${E(String(a.execution_status).replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase()))}</span></span><span class="ag-row__end">${safeButton('Load into editor','edit-assignment',{sm:true,icon:'fa-pen',data:{id:a.id},title:`Load assignment ${i+1} into the assignment editor below`})}${safeButton(`Delete assignment ${i+1}`,'remove-assignment',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',data:{id:a.id},title:'Delete this assignment'})}</span></div>`).join('')}</div>`:'<p class="ag-field__hint">No delegated assignments.</p>';
  return `<div class="agq-assign" data-assignments><p class="ag-field__hint">Separate execution records, not HQ staffing. They save with Save assignment, not with Save changes.</p>${rows}
  <label class="ag-field">Assignment JSON<textarea id="ag-assignment-json" rows="8" class="agq-code" spellcheck="false">${E(JSON.stringify(blankAssignment(source.id),null,2))}</textarea></label>
  <footer class="ag-footer agq-assign__footer">${safeButton('Cancel','cancel-assignment',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-assign-status>New assignment</span>${safeButton('Save assignment','save-assignment',{icon:'fa-floppy-disk'})}</footer></div>`;
-}
-// A new quest left without an ID gets one made from its title (QUEST-HARBOR-RUMORS, -2 if taken); the GM never has to type one.
-function idFromTitle(name,kind){
- const slug=String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48).replace(/-+$/,'');
- if(!slug)throw new Error('Give the quest a title first.');
- const taken=new Set(allPrivate().map(x=>x.source.id)),base=`${KIND_PREFIX[kind]||'QUEST'}-${slug}`;
- let id=base,n=2;while(taken.has(id))id=`${base}-${n++}`;
- return id;
 }
 function sourceFromForm(root,current){
  const src=structuredClone(current||blankTemplate());
  src.id=root.querySelector('#ag-src-id').value.trim().toUpperCase();
  src.objective_kind=root.querySelector('#ag-src-kind').value;
  src.name=root.querySelector('#ag-src-name').value.trim();
- if(!current&&!src.id)src.id=idFromTitle(src.name,src.objective_kind);
  src.public_summary=root.querySelector('#ag-src-summary').value.trim();
  src.source={...src.source,description:root.querySelector('#ag-src-description').value.trim()};
  src.visibility=root.querySelector('#ag-src-visibility').value;
@@ -414,6 +405,7 @@ class QuestLogApplication extends Base {
   for(const f of root.querySelectorAll('[data-kind-field]')){f.hidden=f.dataset.kindField!==kind;if(f.hidden)f.setAttribute?.('hidden','');else f.removeAttribute?.('hidden');}
   const id=root.querySelector('#ag-src-id'),next=KIND_PREFIX[kind];
   if(id&&next&&id.getAttribute?.('readonly')==null){
+   id.setAttribute?.('placeholder',`${next}-NEW-JOB`);
    const m=String(id.value).match(/^(QUEST|ORDER|CONTRACT)-(.*)$/i);if(m&&m[1].toUpperCase()!==next)id.value=`${next}-${m[2]}`;
   }
   const hint=root.querySelector('details[data-section="basics"] .ag-fold__hint');if(hint)hint.textContent=KIND_LABELS[kind]||kind;

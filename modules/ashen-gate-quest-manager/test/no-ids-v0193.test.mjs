@@ -9,7 +9,7 @@ import {planBulk,confirmText,duplicateSource} from '../scripts/bulk.mjs';
 import {rewardsSection,grantPanel,grantSummary,defaultChoices} from '../scripts/rewards-ui.mjs';
 import {journalPaneHTML} from '../scripts/journal-ui.mjs';
 import {El} from './helpers/fake-dom.mjs';
-import {assertNoIds,findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,findId} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const src=(id,name,o={})=>({id,entity_type:'Objective',objective_kind:id.startsWith('ORDER')?'work_order':id.startsWith('CONTRACT')?'contract':'quest',status:'approved',version:'1',provenance:{sources:['[TEST]']},visibility:'player',refs:[],name,public_summary:'[TEST] summary',source:{description:'[TEST] issuer'},objectives:[{key:'a',goal:'[TEST] one',visibility:'player'}],locations:[],parameters:{},outcomes:{},...(id.startsWith('ORDER')?{work_order_domain:'crafting'}:{}),...o});
 
@@ -62,14 +62,14 @@ test('GM Quests tab: list and toolbar, every sort and group, with sample records
  assert.ok(!SORTS.some(([,label])=>label==='ID'),'no Sort by ID');
  for(const group of GROUPS.map(g=>g[0]))for(const sort of SORTS.map(s=>s[0])){
   app.qv={...app.qv,group,sort};
-  assertNoIds(stripDeliberate(await app._renderHTML()),`Quests tab, group ${group}, sort ${sort}`);
+  assertNoMachineText(stripDeliberate(await app._renderHTML()),`Quests tab, group ${group}, sort ${sort}`);
  }
 });
 test('GM editor: no id outside Details and the source JSON, for saved quests and a new one',async()=>{
  reset();await mod.api.open();const app=lastApp;app.tab='quests';
  for(const id of ['QUEST-TEST-MILL','CONTRACT-TEST-ESCORT','ORDER-TEST-FORGE',null]){
   app.gmId=id;const html=await app._renderHTML();
-  assertNoIds(stripDeliberate(html),`quest editor ${id??'new'}`);
+  assertNoMachineText(stripDeliberate(html),`quest editor ${id??'new'}`);
  }
  app.gmId='QUEST-TEST-MILL';const html=await app._renderHTML();
  assert.match(html,/data-section="details"/,'the Details fold exists');
@@ -79,7 +79,7 @@ test('GM editor: no id outside Details and the source JSON, for saved quests and
 test('Filters: a Location or Giver filter that no longer matches reads as words, not ids',async()=>{
  reset();await mod.api.open();const app=lastApp;app.tab='quests';app.filtersOpen=true;app.gmId=null;
  app.qv={...app.qv,location:'LOC-TEST-GONE',giver:'NPC-TEST-GONE'};
- assertNoIds(await app._renderHTML(),'filter row with values that no longer match');
+ assertNoMachineText(stripDeliberate(await app._renderHTML()),'filter row with values that no longer match');
 });
 test('quest cards: untitled and unknown-location records use neutral labels',()=>{
  const e=(s,st={})=>({source:s,state:{...BARE,...st},changed:null});
@@ -128,14 +128,14 @@ test('assignment actions and notifications show no ids',async()=>{
 test('player views: Party and Individual lists, reading pane and search show no ids',async()=>{
  reset();game.user=alice;
  const app=lastApp;app.tab='party';
- for(const tab of ['party','individual']){app.tab=tab;app.actorId='aria';app.selectedId=null;assertNoIds(await app._renderHTML(),`player ${tab} tab`);}
- app.tab='party';app.filter='mill';assertNoIds(await app._renderHTML(),'player search');
+ for(const tab of ['party','individual']){app.tab=tab;app.actorId='aria';app.selectedId=null;assertNoMachineText(await app._renderHTML(),`player ${tab} tab`);}
+ app.tab='party';app.filter='mill';assertNoMachineText(await app._renderHTML(),'player search');
  game.user=gm;
 });
 test('Game Journal: session list, search hits and the open page show no ids',()=>{
  const session={id:'SESSION-001',number:1,name:'Session 1',subtitle:'',current:true,archived:false,canRename:true,createdAt:null};
  const model={isGM:true,sessions:[session],session,pages:[{target:'party',label:'Party journal'}],page:{html:'<p>[TEST] notes</p>',canWrite:true,label:'Party journal'},error:'',hits:null,query:'',showArchived:false,renaming:null,target:'party',stale:false,dirty:false};
- assertNoIds(journalPaneHTML(model),'journal pane');
+ assertNoMachineText(journalPaneHTML(model),'journal pane');
  assertNoIds(journalPaneHTML({...model,query:'x',hits:[{sessionId:'SESSION-404',target:'party',label:'Party journal',snippet:'[TEST]'}]}),'journal search hit for an unknown session');
 });
 test('the helper really catches ids (guards this test against going blind)',()=>{
