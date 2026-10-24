@@ -1,3 +1,13 @@
+## 0.30.0 — 2026-10-24
+
+The conditions overlay now lists every player character and lets you change conditions from it.
+
+- **A card for every player character**, including those with no conditions (the name, a small portrait if there is one, and "No conditions"). Conditions are compact chips; a chip's remove button works as before. Other characters that carry a condition are still listed.
+- **Select a card** (a button; it shows a check and a heavier outline, and says it is pressed to screen readers; click it again to clear). The overlay header then offers a condition list (the same shared list as the tracker's Apply, Exhaustion included) and **Apply** for that character, with a line saying who you are changing.
+- **Who can use it:** the GM and condition controllers on every player character; everyone else on their own character and on any non-player character. For another player's character an ordinary player sees the cards and the header controls disabled with "Only the GM or a condition controller can change another player's conditions." Apply and Remove still go through the same checked path as the tracker (on the GM client for players), so the header is never the only guard. Player Access still hides all of it.
+- Opacity slider, position, size, pop-out and show/hide are unchanged. Cards are sized to their content, names wrap rather than truncate, and the header keeps a constant height so nothing jumps when you select.
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.29.2 — 2026-10-24
 
 Who may change conditions, as the GM decided: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character.** The GM can change everything.
