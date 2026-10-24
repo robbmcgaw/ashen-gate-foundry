@@ -1,6 +1,7 @@
 ## 0.28.4 — 2026-10-24
 
 - **No raw ids on screen.** A deleted shop or service on a merchant list now reads "Deleted shop or service" instead of its `SHOP-…` / `SVC-…` id. The Import JSON preview no longer lists `ITEM-…` / `REC-…` ids or shop ids: missing items show as "Item line 1…", and a new **Copy missing item ids** button puts the ids on your clipboard for importing with General Manager. Warnings and errors (a skipped import record, merchant-list "Not opened", "id is already used", unknown list entries on import, export notes) name the shop or just count entries. Search still finds a shop by its id.
+- **No machine tokens either.** An item type Foundry has no label for (for example `some_type`) now shows as plain words in the shop views. Utilities prints no refs, relations or status tokens; the new test checks the Shops views for them.
 - No change to saved data, settings, ids, exports or the API shape; nothing to migrate.
 
 ## 0.28.3 — 2026-10-24

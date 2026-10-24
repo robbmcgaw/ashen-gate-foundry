@@ -3,7 +3,7 @@
 // Mocked Foundry globals: proves the markup text, not the live Foundry UI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assertNoIds,findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,findId} from '../../../scripts/test-helpers/no-ids.mjs';
 import {ID} from '../scripts/core.mjs';
 
 const handlers={once:new Map()};const settings=new Map();const hooks=new Map();
@@ -90,14 +90,14 @@ test('Shops views (GM and player) show names, never ids',async()=>{
   'import preview':gmView.shopsView({shopSub:'list',shopImport:{fileName:'x.json',mode:'create',ignored:0,results:[
     {id:'SHOP-TEST-IMP',type:'Shop',name:'',result:'created',lines:{imported:1,skipped:['REC-A','REC-B','REC-C','REC-D'].map(ref=>({ref,reason:'Item not found in this world.'}))},notes:[]},
     {id:'MLIST-TEST-IMP',type:'MerchantList',name:'[TEST] Imported list',result:'skipped',reason:'x',notes:['1 entry is not in this world or this file; the list shows it as missing.']}]}}),
- }))assert.ok(html.length>50,where),assertNoIds(html,`GM ${where}`);
+ }))assert.ok(html.length>50,where),assertNoMachineText(html,`GM ${where}`);
  assert.match(gmView.shopsView({shopSub:'list',shopSearch:kettle.id,shopSort:'name'}),/\[TEST\] Kettle/,'search by id still finds it');
  await api.merchants.setVisible(list.id,true);await api.present(kettle.id,{mode:'all'});await api.present(bank.id,{mode:'all'});await trade.syncPlayerView();
  const player=await as(alice,()=>trade.playerShopsView({playerShopSub:'open'}));
  const lists=await as(alice,()=>trade.playerShopsView({playerShopSub:'lists'}));
  const shop=await as(alice,()=>trade.shopViewHTML(trade.viewOf(kettle.id),{actorId:'kestrel'}));
  const svc=await as(alice,()=>trade.shopViewHTML(trade.viewOf(bank.id),{actorId:'kestrel'}));
- for(const [where,html] of Object.entries({'open shops':player,'merchant lists':lists,'shop':shop,'service':svc}))assert.ok(html.length>50,where),assertNoIds(html,`player ${where}`);
+ for(const [where,html] of Object.entries({'open shops':player,'merchant lists':lists,'shop':shop,'service':svc}))assert.ok(html.length>50,where),assertNoMachineText(html,`player ${where}`);
 });
 test('notifications and messages name things, not ids',async()=>{
  notes.length=0;

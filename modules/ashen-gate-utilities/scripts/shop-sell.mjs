@@ -169,7 +169,7 @@ export async function sell(req={}){
 }
 
 /* ---------- Player shop window: the Sell sub-view and the Sell dialog ---------- */
-const typeLabel=t=>{const l=globalThis.CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):t||'Other';};
+const typeLabel=t=>{const l=globalThis.CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):String(t||'Other').replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase());};
 /** Buy / Sell switch for a shop that buys from players. */
 export const modeSwitch=(view,mode)=>`<div class="ag-segmented agu-shop-mode" role="radiogroup" aria-label="Buy or sell">${[['buy','Buy'],['sell','Sell']].map(([id,label])=>`<button type="button" role="radio" data-shop-mode="${id}" aria-checked="${mode===id}">${label}</button>`).join('')}</div>`;
 /** The Sell sub-view: where the coins go, then the character's items (sellable first, refused ones greyed with the reason). */

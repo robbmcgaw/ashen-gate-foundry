@@ -45,7 +45,7 @@ export function playerGate(user=game.user){if(user?.isGM)return;if(!access())thr
 export const shopsVisible=()=>isGM()||(access()&&shopsOn());
 
 /* ---------- The player projection (GM client) ---------- */
-const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):t;};
+const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):String(t||'Other').replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase());};
 /** The linked place's name, only while Locations says it is revealed to everyone. */
 function revealedPlace(id){
  if(!id)return null;const api=locationsApi();if(!api)return null;
