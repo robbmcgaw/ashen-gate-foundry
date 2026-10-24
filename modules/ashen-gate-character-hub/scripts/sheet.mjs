@@ -41,6 +41,7 @@ import * as look from './look.mjs';
 import {openCodex} from './codex.mjs';
 import {configChoices} from './character.mjs';
 import {renameAsk} from './name-title.mjs';
+import {startAdd, dropOnList} from './item-add.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /**
@@ -134,6 +135,8 @@ export const ACTIONS = {
   'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e),
   'roll-death': (s, t, e) => act.rollDeathSave(s.document, e),
   'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e, t),
+  // 0.45.0: Add item… / spell… / feature… / attack…: dnd5e's compendium browser or a new blank item (item-add.mjs checks who may).
+  'item-add': async (s, t) => { const r = await startAdd(s.document, t.dataset.tab, {sheet: s}); focusAdd(s, t.dataset.tab); return r; },
   'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id, s),
   'item-qty': (s, t) => { const item = s.document.items?.get?.(t.dataset.id); return items.setQuantity(s.document, t.dataset.id, Number(item?.system?.quantity ?? 0) + Number(t.dataset.step)); },
   'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
@@ -166,6 +169,10 @@ export const ACTIONS = {
 export function linkHub(sheet, link = hotbarLink) {
   if (!sheet?.hubContext?.editable) return null;
   return link.activate(sheet.document);
+}
+/** After an add the focus goes back to the tab's Add button (the dialog that had it is gone, and the list redraws). */
+export function focusAdd(sheet, tab) {
+  try { sheet.element?.querySelector?.(`[data-action="item-add"][data-tab="${tab}"]`)?.focus?.(); } catch { /* focus is a courtesy */ }
 }
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
@@ -713,12 +720,13 @@ export function createHubSheetClass(Base) {
       });
       content.addEventListener?.('submit', ev => ev.preventDefault());
       content.addEventListener?.('dragover', ev => {
-        if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop]')) ev.preventDefault();
-        this._dropHighlight(ev.target?.closest?.('[data-cinder-drop]'));
+        if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop], [data-item-drop]')) ev.preventDefault();
+        this._dropHighlight(ev.target?.closest?.('[data-cinder-drop], [data-item-drop]'));
       });
-      content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop]')) this._dropHighlight(null); });
+      content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop], [data-item-drop]')) this._dropHighlight(null); });
       content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
-        : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
+        : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev)
+        : ev.target?.closest?.('[data-item-drop]') ? this._onListDrop(ev) : this._onCompanionDrop(ev));
       content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
     }
 
@@ -901,6 +909,16 @@ export function createHubSheetClass(Base) {
       if (!slot) return null;
       event.preventDefault(); event.stopPropagation();
       try { return report(await hotbar.setHotbarSlot(this.document, slot.dataset.hotbarSlot, await droppedItem(event, ['Item', 'Macro']))); }
+      catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
+    }
+
+    /** Drops on the Combat, Inventory, Magic or Features list add the Item the way the native sheet does (item-add.mjs). */
+    async _onListDrop(event) {
+      const zone = event.target?.closest?.('[data-item-drop]');
+      this._dropHighlight(null);
+      if (!zone) return null;
+      event.preventDefault(); event.stopPropagation();
+      try { return report(await dropOnList(this.document, zone.dataset.itemDrop, event, {sheet: this, target: zone})); }
       catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 
