@@ -1022,7 +1022,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Every file button (kit fileButton) in the window: the main import, organize rules, codex restore and moods file. */
   async #pickFile(kind,file,files=[file]) {
     if(!file)return;
-    if(kind==='sync')return;
+    if(kind==='sync')return this.#syncPick(files).catch(err=>this.#fail(err));
     if(kind==='assets')return this.#assetsUpload(files).catch(err=>this.#fail(err));
     if(kind==='import')return this.#importFile(file);
     if(kind==='rules')return this.#importRules(file).catch(err=>this.#fail(err));
@@ -1901,7 +1901,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const source=sourceFlag(doc);
       return {uuid:doc.uuid,documentName:doc.documentName,type:doc.type,name:doc.name,sourceId:source.sourceId,img:doc.img,
         tokenImg:doc.documentName==='Actor'?(doc.prototypeToken?.texture?.src??''):undefined,
-        flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img};
+        flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img,
+        baselineTokenImg:doc.documentName==='Actor'?source?.managedFields?.['prototypeToken.texture.src']:undefined};
     });
   }
   #assetSource() {
@@ -3527,9 +3528,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   // ---------- Sync from package (0.56.0) ----------
   /** The mode switch and the Sync section. Off by default; while it is on the normal import is paused, never mixed in. */
   #bindSync(root) {
-    // The sync picker takes every chosen file at once; the shared binding above ignores it (#pickFile does nothing for 'sync').
-    const section=root.querySelector('.agm-sync');
-    if(section)bindFileButtons(section,files=>this.#syncPick(files).catch(err=>this.#fail(err)));
+    // The sync picker is bound once, by the shared binding in _onRender (#pickFile sends 'sync' to #syncPick). A second binding on the same input
+    // would read input.files after the first one had cleared it, and a real file dialog would then pick nothing (0.60.14).
     root.querySelector('[data-ag-sync-mode]')?.addEventListener('change',event=>{
       if(this.busy)return;
       this.sync.on=Boolean(event.target.checked);

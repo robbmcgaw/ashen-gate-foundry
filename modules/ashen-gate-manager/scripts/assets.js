@@ -260,7 +260,13 @@ const isNpcActor = d => d.documentName === 'Actor' && d.type === 'npc';
 const kindWord = d => (d.documentName === 'RollTable' ? 'roll table' : d.documentName === 'JournalEntry' ? 'journal' : d.documentName.toLowerCase());
 
 /** An Actor whose token image differs from its portrait was set apart on purpose. */
-const tokenSetApart = doc => doc.documentName === 'Actor' && norm(doc.tokenImg) && !isPlaceholderIcon(doc.tokenImg) && !samePath(doc.tokenImg, doc.img);
+const tokenSetApart = doc => doc.documentName === 'Actor' && norm(doc.tokenImg) && !isPlaceholderIcon(doc.tokenImg) && !samePath(doc.tokenImg, doc.img) && !tokenIsImported(doc);
+/** The token still shows the image the import gave it (same path, or the same file name after the import moved it into the world), so nobody set it apart. */
+function tokenIsImported(doc) {
+  const base = norm(doc.baselineTokenImg);
+  if (!base) return false;
+  return samePath(doc.tokenImg, base) || baseName(doc.tokenImg).toLowerCase() === baseName(base).toLowerCase();
+}
 function stateFor(doc) {
   const state = imageState(doc);
   return AUTO_TICK.has(state) && tokenSetApart(doc) ? 'edited' : state;
@@ -298,7 +304,7 @@ export function planAssetLinks(docs, files) {
   const idMatches = matchFilesToIds(files, new Set(bound.map(d => d.sourceId)));
   const idPaths = new Set([...idMatches.values()].flatMap(h => [h.file.path, ...h.others.map(o => o.path)]));
   const rows = [], covered = new Set(), idDone = new Set();
-  const make = (fields, extra) => ({key: fields.uuid, alsoFound: [], needsPick: false, pickBy: '', candidates: [], chosen: '', ...fields, ...extra});
+  const make = (fields, extra) => ({key: fields.uuid, alsoFound: [], alsoFits: [], needsPick: false, pickBy: '', candidates: [], chosen: '', ...fields, ...extra});
 
   // 1. permanent-id files
   for (const doc of linkable) {
@@ -334,11 +340,12 @@ export function planAssetLinks(docs, files) {
     const top = Math.max(...edges.map(e => e.level.rank));
     const best = edges.filter(e => e.level.rank === top);
     const doc = best[0].rec.doc;
+    const weaker = edges.filter(e => e.level.rank < top).map(e => e.file.name);
     if (best.length === 1) {
-      rows.push(make(rowFields(doc, best[0].file), {matchKind: best[0].level.kind, reason: best[0].level.reason, rank: top}));
+      rows.push(make(rowFields(doc, best[0].file), {alsoFits: weaker, matchKind: best[0].level.kind, reason: best[0].level.reason, rank: top}));
     } else {
       const candidates = best.map(e => ({value: e.file.path, label: e.file.name, fields: rowFields(doc, e.file), level: e.level})).sort((a, b) => a.label.localeCompare(b.label));
-      rows.push(make({...BLANK_FIELDS, uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name}, {key: doc.uuid, matchKind: best[0].level.kind,
+      rows.push(make({...BLANK_FIELDS, uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name}, {alsoFits: weaker, key: doc.uuid, matchKind: best[0].level.kind,
         reason: 'More than one file fits this record. Pick the right one.', rank: top, needsPick: true, pickBy: 'record', candidates}));
     }
   }
@@ -426,7 +433,7 @@ export function assignRecord(row, doc) {
   const path = row?.to || row?.filePath;
   if (!row || !path || !doc || !LINKABLE_KINDS.includes(doc.documentName) || !doc.uuid) return null;
   const fields = rowFields(doc, {name: row.fileName, path});
-  Object.assign(row, fields, {needsPick: false, pickBy: '', chosen: '', alsoFound: [], reassigned: true, filePath: path,
+  Object.assign(row, fields, {needsPick: false, pickBy: '', chosen: '', alsoFound: [], alsoFits: [], reassigned: true, filePath: path,
     reason: 'You chose this record', matchKind: 'chosen'});
   if (samePath(doc.img, path)) { row.checked = false; row.noteText = 'This record already shows this file.'; }
   return row;
