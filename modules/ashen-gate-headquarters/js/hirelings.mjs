@@ -20,7 +20,7 @@ export function stationed(state,id){
   return matches;
 }
 export function registerHireling(state,id){
-  if(!HIRE_REF.test(id||''))throw Error('Hireling must use canonical HIRE-* source ID.');
+  if(!HIRE_REF.test(id||''))throw Error('Choose an imported hireling.');
   const p=ensurePersonnel(state);
   if(p.hirelings.some(x=>x.hireling_ref===id))throw Error('Hireling is already in the roster.');
   const entry={hireling_ref:id,working:true,employment_status:'active',history:[]};
