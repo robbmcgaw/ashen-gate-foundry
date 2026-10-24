@@ -9,10 +9,12 @@ export function validateObjectiveRef(input){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new TypeError('Objective reference must be an object.');
   const {relation,target_id,mode}=input;
   if(!OBJECTIVE_RELATIONS.includes(relation))throw new Error('Unsupported Objective relation.');
-  if(typeof target_id!=='string'||!OBJECTIVE_ID.test(target_id))throw new Error('Objective ID must be a canonical QUEST-*, ORDER-* or CONTRACT-* ID.');
+  if(typeof target_id!=='string'||!OBJECTIVE_ID.test(target_id))throw new Error('Enter the id of a quest, work order or contract (copy it from Quest Log).');
   if(!OBJECTIVE_MODES.includes(mode))throw new Error('Objective reference mode must be required or optional.');
   return {relation,target_id,mode};
 }
+/** Plain-language kind of an Objective id, for display instead of the id. */
+export const objectiveKind=id=>/^QUEST-/.test(id??'')?'Quest':/^ORDER-/.test(id??'')?'Work order':/^CONTRACT-/.test(id??'')?'Contract':'Objective';
 export function objectiveRefs(faction){return (faction?.refs??[]).filter(r=>OBJECTIVE_RELATIONS.includes(r?.relation));}
 export function addObjectiveRef(faction,ref){
   const clean=validateObjectiveRef(ref);
@@ -33,7 +35,7 @@ export function checkObjectiveRefs(faction){
   for(const r of objectiveRefs(faction)){
     try{validateObjectiveRef(r)}catch(e){errs.push(e.message)}
     const k=`${r.relation}:${r.target_id}`;
-    if(seen.has(k))errs.push(`Duplicate Objective relationship: ${k}`);
+    if(seen.has(k))errs.push('Duplicate Objective relationship.');
     seen.add(k);
   }
   return errs;

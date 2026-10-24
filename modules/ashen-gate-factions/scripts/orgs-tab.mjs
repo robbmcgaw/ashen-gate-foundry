@@ -21,7 +21,7 @@ export function chipBadge(chip){return chip==='Revealed to party'?'ag-badge--ok'
 /** One row per faction: everything the GM roster shows, hidden or not. */
 export function orgRow({faction,score=0,rank='',folderName=''}){
  const d=faction.discovery??{};
- const row={id:faction.id,name:faction.name||faction.id,leader:faction.leader||'',tags:[...(faction.tags??[])],
+ const row={id:faction.id,name:faction.name||'Unnamed faction',leader:faction.leader||'',tags:[...(faction.tags??[])],
   chip:visibilityChip(faction),badgeClass:chipBadge(visibilityChip(faction)),characters:(d.actors??[]).length,placeholder:Boolean(d.placeholder),
   selective:faction.field_reveals?.mode==='selective',score:Number(score)||0,rank:rank||'',
   folder:folderName||OTHER_FOLDER,objectives:objectiveRefs(faction).length};

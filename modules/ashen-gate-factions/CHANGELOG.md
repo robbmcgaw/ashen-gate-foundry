@@ -1,3 +1,12 @@
+## 0.16.1 — 2026-10-24
+
+Canonical ids are hidden from the UI. No changes to saved data, ids, flags, the API or export files.
+
+- **Related quests and contracts** (Factions tab, Links) shows each reference as Quest, Work order or Contract plus its relationship, not the id. The GM can open **Details** on a row for the id and **Copy id**; the Remove button and its confirmation no longer name the id. Adding a reference still means pasting an id.
+- **Item rewards** show a *Permanent id* badge instead of the id; **Details** (GM) holds the id and **Copy id**. The GM Setup check for permanent ids lists faction and reward names only.
+- Messages and notifications (import problems, deity relation problems, invalid or duplicate references, Undo favour, request lists) use names, or a neutral label such as *Unnamed faction* or *Unknown deity*. Searching the roster by id still matches.
+- New test `no-ids-ui.test.mjs`.
+
 ## 0.16.0 — 2026-10-22
 
 - **Delete folder…** (GM): each row in *Manage folders* now has a Delete folder… button. It asks "Delete folder “<name>”?", says how many factions (and deities) will move to *Other factions* and that they are not deleted, and Cancel is the default. Deleting a folder never deletes a faction or deity, or touches its Renown, discovery or rewards; everything in it moves to *Other factions*. Keyboard focus moves to the next folder's Delete folder… (or the New folder name when none are left).
