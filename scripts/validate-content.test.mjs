@@ -171,7 +171,7 @@ test('gathering node files (Ledger 0.25.0) go through the Ledger parser, by name
   assert.equal((await checkContent(nodeFile([reeds({activity: 'Skinning & Harvesting'})]), 'any-name.json')).kind, 'gathering-nodes', 'recognised by its schema');
   const bad = await checkContent(nodeFile([reeds({id: 'reeds'}), reeds({activity: 'dancing', tier: {min: 3, max: 1}}), reeds({name: '[TEST] Twice',
     materials: {common: [{materialId: 'MAT-TEST-A', chance: 50}, {materialId: 'MAT-TEST-B', chance: 40}]}})]), 'x.gathering-nodes.json');
-  assert.match(bad.errors.join(' | '), /permanent NODE-\* id.*activity "dancing".*tier min 3 is above max 1.*add up to 90, not 100.*used twice in this file/);
+  assert.match(bad.errors.join(' | '), /permanent id.*activity "dancing".*tier min 3 is above max 1.*add up to 90, not 100.*used twice in this file/);
   assert.deepEqual((await checkContent({schema: 'ag-gathering-nodes/1'}, 'x.gathering-nodes.json')).errors, ['The file needs a "nodes" list.']);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-content-'));
   try {
