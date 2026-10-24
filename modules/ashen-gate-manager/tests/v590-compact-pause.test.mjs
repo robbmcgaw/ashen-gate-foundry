@@ -58,7 +58,7 @@ test('GM Setup reads the box and saves only on change, GM only, no migration nee
 // ---- the mirror ----
 function fakeDoc(){
   const byId=new Map();
-  const mk=tag=>({tag,children:[],dataset:{},attrs:{},id:'',className:'',textContent:'',hidden:false,
+  const mk=tag=>({tag,children:[],dataset:{},attrs:{},id:'',className:'',textContent:'',
     setAttribute(k,v){this.attrs[k]=v;},append(...c){this.children.push(...c);}});
   const body=mk('body');body.append=function(...c){this.children.push(...c);c.forEach(x=>byId.set(x.id,x));};
   return {documentElement:mk('html'),body,createElement:mk,getElementById:id=>byId.get(id)??null};
@@ -81,9 +81,9 @@ test('the mirror only reads state: it adds one listener and removes it, never to
   const src=read('../scripts/pause-indicator.js').replace(/\/\*[\s\S]*?\*\//g,'');
   assert.doesNotMatch(src,/togglePause|game\.togglePause|\.paused\s*=[^=]|#pause|getElementById\(['"]pause/);
 });
-test('the indicator has the word Paused, an aria-hidden icon, status role, is created once and starts hidden',()=>{
+test('the indicator has the word Paused, an aria-hidden icon, status role, is created once',()=>{
   const doc=fakeDoc();const a=ensurePausePill(doc),b=ensurePausePill(doc);
-  assert.equal(a,b);assert.equal(a.id,PAUSE_PILL_ID);assert.equal(a.attrs.role,'status');assert.equal(a.hidden,true);
+  assert.equal(a,b);assert.equal(a.id,PAUSE_PILL_ID);assert.equal(a.attrs.role,'status');assert.equal(a.hidden,undefined,'never the hidden attribute: Foundry makes [hidden] display:none !important, which beats the show rule');
   const [icon,label]=a.children;assert.equal(label.textContent,'Paused');assert.equal(icon.attrs['aria-hidden'],'true');
   assert.equal(ensurePausePill({}),null);
 });
@@ -97,6 +97,7 @@ test('every rule is scoped to html[data-ag-pause="compact"] and to the pause mar
   const sels=[...css.matchAll(/([^{}@;]+)\{/g)].map(m=>m[1].trim());
   assert.ok(sels.length>=3);
   for(const sel of sels)for(const part of sel.split(',').map(x=>x.trim())){
+    if(part==='#ag-pause-pill')continue; // the one unscoped rule: display:none by default, so nothing shows with the setting off
     assert.ok(part.startsWith('html[data-ag-pause="compact"]'),`unscoped: ${part}`);
     assert.match(part,/#pause\b|#ag-pause-pill/,`not pause markup: ${part}`);
   }
@@ -119,4 +120,9 @@ test('GM Setup shows the control in the Game pause section, reflecting the draft
   assert.match(tpl,/aria-label="Game pause"[\s\S]*data-ag-setup-pause \{\{#if compactPause\}\}checked\{\{\/if\}\}> Show the pause as a small indicator/);
   assert.match(read('../scripts/main.js'),/compactPause: this\.tab === "setup" \? Boolean\(this\.setupDraft\?\.compactPause \?\? /);
   assert.match(read('../scripts/main.js'),/installPauseMirror\(\{game,hooks:Hooks,doc:document\}\)/);
+});
+test('regression: the indicator is not hidden by the hidden attribute and has a show rule that out-specifies the default hide',()=>{
+  assert.match(css,/^#ag-pause-pill \{ display: none; \}/m);
+  assert.doesNotMatch(read('../scripts/pause-indicator.js').replace(/\/\*[\s\S]*?\*\//g,''),/\.hidden\s*=|setAttribute\??\.?\(\s*['"]hidden/);
+  assert.doesNotMatch(css,/\[hidden\]/);
 });

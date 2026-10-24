@@ -21,7 +21,6 @@ export function ensurePausePill(doc) {
   const pill = doc.createElement('div');
   pill.id = PAUSE_PILL_ID;
   pill.setAttribute?.('role', 'status');
-  pill.hidden = true; // shown only by styles/pause.css, and only while the GM setting is on and the game is paused
   const icon = doc.createElement('i');
   icon.className = 'fa-solid fa-pause';
   icon.setAttribute?.('aria-hidden', 'true');
