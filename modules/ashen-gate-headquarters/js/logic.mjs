@@ -232,7 +232,7 @@ export function applyOperation(prior,actor,op,payload={},now=Date.now()){
    else if(op==="rotate_decoration")d.rotation=(d.rotation+90)%360;
    else {const x=integer(payload.x,"X"),y=integer(payload.y,"Y");if(x+d.width>s.personal_layouts[room.key].bounds.width||y+d.height>s.personal_layouts[room.key].bounds.height)throw Error("Decoration is outside room bounds.");d.x=x;d.y=y;}
    room.revision++;
-  }else throw Error(`Unsupported operation ${op}.`);
+  }else throw Error('That change is not supported.');
  }
  s.state_revision++;
  return s;

@@ -6,7 +6,7 @@ import {emptyState,applyOperation,freeSpot} from '../js/logic.mjs';
 import {buildPlayerView} from '../js/player-view.mjs';
 import {rankRulesPayload} from '../js/setup-form.mjs';
 import {planFacilityImport} from '../js/logic.mjs';
-import {assertNoIds,findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,findId} from '../../../scripts/test-helpers/no-ids.mjs';
 import {embedHTML} from '../js/embed.mjs';
 
 const hooks={once:{},on:{}};
@@ -58,7 +58,7 @@ globalThis.FormData=class{constructor(form){this.v=form.values;}get(k){return k 
 const submit=async(a,name,values)=>{reset();const form={dataset:{aghqForm:name},values};await a.submit({target:{closest:()=>form},preventDefault(){}});};
 const ANY_ID=/\b(?:HIRE|HQ|FAC|LOC)-[A-Z0-9]+(?:-[A-Z0-9]+)*/;
 const seen=html=>`${html}`.replace(/<details class="aghq-iddetails"[\s\S]*?<\/details>/g,'');
-const noIds=(html,where)=>{assertNoIds(seen(html),where);assert.equal(seen(html).replace(/<[^>]*>/g,' ').match(ANY_ID),null,`${where} shows an id`);};
+const noIds=(html,where)=>{assertNoMachineText(seen(html),where);assert.equal(seen(html).replace(/<[^>]*>/g,' ').match(ANY_ID),null,`${where} shows an id`);};
 const views=['activation','builder','quarters','benefits','hirelings','facilities','manage'];
 
 test('every main view hides canonical ids for the GM (ids live only in Details folds)',()=>{
@@ -113,4 +113,17 @@ test('GM Setup rank unlocks are named checkboxes that still save the same refs',
   assert.match(html,/type="checkbox" name="unlock_1" value="FAC-DEMO-FORGE"[^>]*> \[?[^<]*/);
   const data={getAll:k=>k==='unlock_2'?['FAC-DEMO-FORGE','FAC-DEMO-DESK']:[],get:()=>null};
   assert.deepEqual(rankRulesPayload(data)[1].unlock_refs,['FAC-DEMO-FORGE','FAC-DEMO-DESK']);
+});
+
+test('machine tokens (statuses, stage keys, relations, recipients) never show as raw text',()=>{
+  const full=read();
+  full.catalog=full.catalog.map(d=>({...d,status:'reveal_gated',stages:d.stages.map(t=>({...t,label:'',benefits:(t.benefits??[]).map(b=>({...b,recipient:'also_available_as_journal'}))}))}));
+  for(const user of [gm,player]){
+    game.user=user;
+    try{for(const tab of ['builder','quarters','benefits','hirelings','facilities','manage']){const a=app();a.tab=tab;a.selectedCopy='copy_a';noIds(a.page(full),`${user.isGM?'GM':'player'} ${tab} with raw tokens`);}}
+    finally{game.user=gm;}
+  }
+  const actor={id:'a1',name:'[TEST] Hero',testUserPermission:(u)=>u.id==='p1'};
+  assertNoMachineText(embedHTML({canOpen:()=>true,isGM:()=>false,userOwns:()=>true,actorById:()=>actor,view:()=>buildPlayerView(full,actor,[gm,player]),open(){}},'a1'),'embed with raw tokens');
+  assert.throws(()=>step(read(),'no_such_op'),e=>!/no_such_op/.test(e.message));
 });

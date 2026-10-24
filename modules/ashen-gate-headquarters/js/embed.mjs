@@ -25,7 +25,7 @@ export function embedHTML(deps, actorId) {
   const view = deps.view(actor);
   if (!view?.active) return `<div class="aghq-embed__body"><div class="ag-empty">The Guildhall isn't open yet.</div>${openBtn()}</div>`;
   const group = (label, rows) => rows.length ? `<h4>${esc(label)} <small>${rows.length}</small></h4><ul class="aghq-embed__list">${rows.map(f => `<li>
-      <div class="aghq-embed__head"><strong>${esc(f.name)}</strong>${f.stage ? `<span class="aghq-embed__stage">${esc(f.stage)}</span>` : ''}${f.roomOwner ? `<span class="aghq-embed__muted">${esc(f.roomOwner)}'s room</span>` : ''}</div>
+      <div class="aghq-embed__head"><strong>${esc(f.name)}</strong>${f.stage ? `<span class="aghq-embed__stage">${esc(/^[a-z0-9]+([_-][a-z0-9]+)+$/.test(f.stage)?f.stage.replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase()):f.stage)}</span>` : ''}${f.roomOwner ? `<span class="aghq-embed__muted">${esc(f.roomOwner)}'s room</span>` : ''}</div>
       ${f.benefits?.length ? `<ul class="aghq-embed__benefits">${f.benefits.map(b => `<li><strong>${esc(b.name)}</strong>${b.description ? ` <span class="aghq-embed__muted">${esc(b.description)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     </li>`).join('')}</ul>` : '';
   const shared = view.facilities.filter(f => f.room === 'shared'), personal = view.facilities.filter(f => f.room !== 'shared');

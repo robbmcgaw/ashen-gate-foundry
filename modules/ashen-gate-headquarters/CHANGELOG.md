@@ -3,6 +3,7 @@
 Canonical ids (FAC-, HIRE-, HQ-, LOC-…) no longer appear in the interface. No saved-data, setting-key, flag, API or export changes; no migration.
 - **Facilities, Hirelings, Guildhall Builder, Activation:** rows and cards show names only. A GM-only **Details** fold on each facility, hireling and selected piece holds the id with **Copy ID**.
 - **GM Setup:** auto-unlocked facilities per Guild Rank are named checkboxes instead of a typed list of ids. Activation fields are labelled Guildhall record and Location record and have neutral placeholders.
+- **Machine tokens:** a stage, status, placement or benefit recipient without a friendly label shows plain words (for example "Room owner") instead of the stored token such as room_owner; an unsupported change says so without naming the internal operation.
 - **Messages:** import, activation, hireling and facility errors name the facility or hireling (or a neutral label) instead of its id. A missing name shows "Unnamed facility", "Unnamed hireling" or "Unnamed perk".
 
 ## 0.13.1 — 2026-10-23

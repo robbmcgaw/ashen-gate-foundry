@@ -1,6 +1,6 @@
 // Facilities tab (GM-only): rows, chips, filter, sort, group, and markup. No Foundry globals.
 import {subTabs,tabPanelAttrs,fold} from './ag-html.mjs';
-import {idDetails} from './id-details.mjs';
+import {idDetails,plainToken} from './id-details.mjs';
 export const CHIPS=Object.freeze(['Locked','Unlocked','Acquired']);
 export const SORTS=Object.freeze([['name','Name A-Z'],['status','Status'],['id','ID'],['owned','Copies owned']]);
 export const GROUPS=Object.freeze([['status','Status'],['definition','Definition status'],['none','No grouping']]);
@@ -30,7 +30,7 @@ export function groupRows(rows,group='status'){
  if(group==='none')return rows.length?[{key:'all',label:'All facilities',rows}]:[];
  const keyOf=r=>group==='definition'?r.definitionStatus:r.chip;
  const keys=group==='definition'?[...new Set(rows.map(keyOf))].sort():CHIPS;
- return keys.map(k=>({key:k,label:group==='definition'?(DEF_STATUS[k]??k):k,rows:rows.filter(r=>keyOf(r)===k)})).filter(g=>g.rows.length);
+ return keys.map(k=>({key:k,label:group==='definition'?(DEF_STATUS[k]??plainToken(k)):k,rows:rows.filter(r=>keyOf(r)===k)})).filter(g=>g.rows.length);
 }
 export function listFacilitiesTab(rows,view={}){
  const f={...DEFAULT_VIEW,...view},shown=sortRows(filterRows(rows,f),f.sort);
@@ -58,7 +58,7 @@ export function facilityCard(r){
  const act=!r.active?'<span class="aghq-hint">Activate the Guildhall first</span>'
   :!r.unlocked?`<button class="ag-btn ag-btn--sm" data-action="unlock-facility" data-id="${esc(r.id)}" type="button"><i class="fa-solid fa-lock-open" aria-hidden="true"></i> Unlock</button>`
   :`<button class="ag-btn ag-btn--sm" data-action="acquire" data-id="${esc(r.id)}" type="button"><i class="fa-solid fa-plus" aria-hidden="true"></i> Acquire +1</button>`;
- return `<li class="ag-row aghq-catalogrow"><span class="ag-row__icon"><i class="fa-solid fa-warehouse" aria-hidden="true"></i></span><div class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">v${esc(r.version)} · ${esc(DEF_STATUS[r.definitionStatus]??r.definitionStatus)} · ${esc(r.placements.map(p=>PLACE[p]??p).join(' / '))} · ${plural(r.stages,'stage')}</span>
+ return `<li class="ag-row aghq-catalogrow"><span class="ag-row__icon"><i class="fa-solid fa-warehouse" aria-hidden="true"></i></span><div class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">v${esc(r.version)} · ${esc(DEF_STATUS[r.definitionStatus]??plainToken(r.definitionStatus))} · ${esc(r.placements.map(p=>PLACE[p]??plainToken(p)).join(' / '))} · ${plural(r.stages,'stage')}</span>
 ${idDetails(r.id)}<span class="aghq-badges"><span class="${BADGE[r.chip]??'ag-badge'}">${esc(r.chip)}</span><span class="ag-badge">Owned ${r.owned}</span><span class="ag-badge">Installed ${r.installed}</span></span></div><div class="ag-row__end">${act}</div></li>`;
 }
 /** Guild row above the sub-tabs: rank, capacity and the GM's Set rank (asks first). Only once the Guildhall is active. */
