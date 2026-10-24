@@ -1,3 +1,14 @@
+## 0.45.0 — 2026-10-24
+
+Add attacks, items, spells and features from the Hub (Robb: only the native dnd5e sheet could). Tests use mocked Foundry and dnd5e and cannot judge the real compendium browser or advancement window; please check each tab in Forge as a player and as the GM.
+
+- **An Add button on four tabs**, at the right end of the toolbar: **Add attack…** (Combat), **Add item…** (Inventory, character view), **Add spell…** (Magic, also when the character has no spells yet) and **Add feature…** (Features). It asks **Browse compendiums…** or **Create new…**. Owner or GM only: anyone else sees it disabled with the reason, and the action refuses them too. A tab the GM has hidden from players refuses players as before.
+- **Browse compendiums…** opens dnd5e's own compendium browser locked to the right types: Inventory weapon, equipment, consumable, tool, loot and container; Magic spell; Features feat; Combat weapon and feat (a feat with no attack activity is refused with a pointer to Features, as the browser cannot filter on activities). The pick is added as dnd5e's own drop does: Foundry's `fromCompendium`, dnd5e's per-type `onDropCreate` (spell method and preparation), and dnd5e's advancement window when the item has advancement. A container brings what is inside it.
+- **Create new…** asks for a name (and a type where the tab has several), creates a blank item and opens its sheet beside the Hub, in the Hub's own window when it is popped out.
+- **Drag and drop**: drop an Item from the sidebar, a compendium or another character onto the Combat, Inventory, Magic or Features list and it is added the same way (Inventory's Party stash view is not a drop target). Classes, subclasses, species and backgrounds are refused with a pointer to Level up (⋯ menu) or the native sheet; level-up itself is unchanged. The quick bar's slot drops work exactly as before.
+- A quiet note says what was added; a refusal or failure says why. Focus returns to the Add button.
+- Help and the README describe it. Saved data: nothing migrates; items are added to the character like any other.
+
 ## 0.44.3 — 2026-10-24
 
 Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)

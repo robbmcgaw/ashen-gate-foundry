@@ -320,7 +320,10 @@
 .agch-app .agch-sticky { position: sticky; top: 0; z-index: 5; margin: 0 0 var(--ag-space-2); padding: var(--ag-space-2) 0 var(--ag-space-1);
   background: var(--agch-bg); border-bottom: 1px solid var(--ag-border); }
 /* The band brings its own top padding, so the list's padding never leaves a gap above it where cards show through. */
-.agch-app .agch-body:has(> .agch-sticky:first-child) { padding-top: 0; }
+.agch-app .agch-body:has(> .agch-sticky:first-child, > .agch-itemzone > .agch-sticky:first-child) { padding-top: 0; }
+/* 0.45.0: a list that takes dropped Items; the zone fills the tab so a drop anywhere on it counts. */
+.agch-app .agch-itemzone { min-height: 100%; }
+.agch-app .agch-itemzone.is-drop { outline: 2px solid var(--ag-focus); outline-offset: calc(-1 * var(--ag-space-1)); background: var(--ag-accent-soft); }
 .agch-app .agch-sticky > :last-child { margin-bottom: 0; }
 .agch-app .agch-purse { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2) var(--ag-space-3); }
 .agch-app .agch-purse > .agch-currency { flex: 1 1 auto; }
