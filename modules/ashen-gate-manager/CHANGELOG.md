@@ -1,3 +1,10 @@
+## 0.60.9 — 2026-10-24
+
+- **Assets: matching images to records by name.** After you drop images on the Assets bar (or Choose files…), Manager now previews which records they fit, and **Find matching files** does the same for a folder. A file named after a record's permanent id still wins. Otherwise it guesses from the file name: the whole name, then first and last name, then a single first or last name (Actors only; at least 3 letters, not a very common word). Case, `_ - .`, sizes, trailing numbers and words like portrait, token, final, img and copy are ignored, as are titles (Mr, Dame, the) in the record name. Each row says why it fits, strongest first, NPCs first. Guesses start ticked unless the record's image was set in Foundry.
+- **Never guessed between.** A file that fits several records equally, or a record that fits several files, shows as an unticked row with a list to pick from. Picking ticks it (unless the image was set in Foundry).
+- **Existing Actors can be linked here.** Only the portrait and the prototype token image change (the token ring and everything else are untouched), and only when the row is ticked and you press Link. The table shows the old images. A record or token image that changed since the preview is skipped. No rename, move or delete.
+- Saved data: no change; no migration.
+
 ## 0.60.8 — 2026-10-24
 
 - **Small pause indicator also removes Foundry's pause screen effect.** With *Show the pause as a small indicator* on, the teal glow around the screen edges (and the dimmed side panels) is switched off while the game is paused, so only the small Paused label remains. With the setting off, or the game running, nothing changes. The effect's exact source could not be checked in a live Foundry, so this targets the usual layers; if a glow remains, the README (Pause glow) says how to find it, and a GM can run `game.modules.get('ashen-gate-manager').api.pauseGlowReport()` while paused.
