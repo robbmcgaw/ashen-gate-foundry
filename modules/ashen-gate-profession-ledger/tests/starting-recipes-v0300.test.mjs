@@ -48,7 +48,7 @@ const npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false,items:[alchemy
 const loner=makeActor('loner','[TEST] Hireling',{owner:false,items:[alchemy()]});
 const backup=makeActor('bak','[TEST] Ana - level 3',{items:[alchemy()],backup:true});
 const all=[ana,bo,cy,npc,loner,backup];
-const ledgerModule={active:true,version:'0.31.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.31.4',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -203,4 +203,24 @@ test('0.31.0: no rowIds (or null) still means every new row; an empty list means
   assert.equal(writes.length,0,'a row that is already known grants nothing');
   await api.grantStartingRecipes({preview:false,rowIds:null});
   assert.deepEqual(known(bo),['REC-TEST-POULTICE']);
+});
+
+test('0.31.4: a granted starting recipe reads as known in Individual, Party and Catalog, never "Not found by the party yet"',async()=>{
+  reset();
+  await api.grantStartingRecipes({preview:false});
+  values.libraryData={schema:'ag-ledger/0.1',recipes:[],materials:[]};
+  const render=async(view,actorId)=>{const app=api.open({view,actorId});app.view=view;if(actorId)app.actorId=actorId;return (await app._prepareContext({})).html;};
+  const rowOf=(html,name)=>{const i=html.indexOf(name);assert.ok(i>=0,`${name} is listed`);return html.slice(i,i+1500);};
+  for(const view of ['individual','party','catalog']){
+    const html=await render(view,'ana');
+    const salve=rowOf(html,'[TEST] Salve');
+    assert.match(salve,/Known by \[TEST\] Ana/,`${view}: granted starting recipe shows Known by`);
+    assert.doesNotMatch(salve.split('[TEST] Tea')[0],/Not found by the party yet/,`${view}: no "not found" on a starting recipe`);
+  }
+  // a recipe nobody knows or holds is still "not found" in the GM catalog
+  const catalog=await render('catalog');
+  assert.match(rowOf(catalog,'[TEST] Bomb'),/Not found by the party yet/);
+  // Individual view of a character whose recipes were learned (not granted) agrees
+  const ind=await render('individual','ana');
+  assert.match(rowOf(ind,'[TEST] Tea'),/Known by \[TEST\] Ana/);
 });

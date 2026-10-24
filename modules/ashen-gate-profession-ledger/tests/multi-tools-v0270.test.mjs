@@ -42,7 +42,7 @@ const actor=(id,{tools={},items=[]}={})=>({id,name:`[TEST] ${id}`,type:'characte
 const kitCarrier=actor('carrier',{items:[{id:'k',name:'Herbalism Kit',type:'tool',system:{quantity:1,type:{baseItem:'herb'}}}]});
 const leather=actor('leather',{tools:{leatherworker:1}}),mason=actor('mason',{tools:{mason:1}}),plain=actor('plain');
 const all=[kitCarrier,leather,mason,plain];
-const ledgerModule={active:true,version:'0.31.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.31.4',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:[gm,alice],get:id=>[gm,alice].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=structuredClone(v);}}};

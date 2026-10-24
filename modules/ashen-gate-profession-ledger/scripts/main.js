@@ -22,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.3';
+const VERSION='0.31.4';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1058,12 +1058,12 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   const profs=professionsOf(actor),mats=materialsOf(actor,lib);
   const known=knownRecipesOf(actor);
   const knownRows=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).map(recipe=>({group:professionLabel(recipe),recipe,
-    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),showStatus:game.user.isGM})}));
+    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM})}));
   const hiddenKnown=known.length-knownRows.length;
   const toLearn=recipeItems(actor).map(item=>{
     const id=agSourceId(item),def=partyRecipeDefinition(id,lib);
     const recipe=def??{id,name:recipeTitle(item.name),ingredients:[],hasStructuredIngredients:false,sourceVisibility:sourceVisibility(item)};
-    return recipeRow({...recipe,status:itemStatus(item)},lib,{actor,learnItem:item,showStatus:game.user.isGM,available:Boolean(def)});
+    return recipeRow({...recipe,status:itemStatus(item)},lib,{actor,learnItem:item,knownBy:known.includes(id)?[actor]:[],foundBy:[actor],showStatus:game.user.isGM,available:Boolean(def)});
   });
   return `<div class="agl-character ${surface==='sheet'?'agl-on-sheet':''}">
     <section class="agl-col-side">
