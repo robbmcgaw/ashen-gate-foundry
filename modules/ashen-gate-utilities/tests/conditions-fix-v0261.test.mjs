@@ -54,9 +54,9 @@ const optionIds=html=>[...(/<select id="agu-condition-status">([\s\S]*?)<\/selec
 test('the Apply list renders from the V14 record: every native status once, Strain left out, one option selected',async()=>{
  const app=await api.open();app.tab='conditions';app.actorId='a1';
  const html=await app._renderHTML();
- assert.deepEqual(optionIds(html),['prone','blinded','stable']);
+ assert.deepEqual(optionIds(html),['blinded','prone','stable'],'0.29.1: A to Z by name, the one list the Hub also offers');
  assert.equal((/<select id="agu-condition-status">[\s\S]*?<\/select>/.exec(html)[0].match(/ selected/g)||[]).length,1,'exactly one selected option');
- assert.equal(browserValue(html),'prone','first status by default, not the last');
+ assert.equal(browserValue(html),'blinded','first status by default, not the last');
 });
 test('the chosen status survives a re-render and is the one Apply passes to toggleStatusEffect',async()=>{
  wren.statuses=new Set();wren.toggled.length=0;

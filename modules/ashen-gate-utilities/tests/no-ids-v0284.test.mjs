@@ -1,4 +1,4 @@
-// 0.28.4: Ashen Gate canonical ids (SHOP-, SVC-, MLIST-, ITEM-, REC-, LOC-…) are never shown in the Shops views, the
+// 0.30.1: Ashen Gate canonical ids (SHOP-, SVC-, MLIST-, ITEM-, REC-, LOC-…) are never shown in the Shops views, the
 // import preview or the notifications; they stay in data-* wiring and the stored records. Uses assertNoIds.
 // Mocked Foundry globals: proves the markup text, not the live Foundry UI.
 import test from 'node:test';
@@ -40,7 +40,7 @@ const actors=[kestrel,wren,stash];actors.get=id=>actors.find(a=>a.id===id);
 const chat=[];globalThis.ChatMessage={create:async d=>{chat.push(d);return d;},getSpeaker:()=>({})};
 globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0,OBSERVER:2}};
 globalThis.fromUuid=async()=>null;
-const modules=new Map([[ID,{id:ID,active:true,version:'0.28.4'}]]);
+const modules=new Map([[ID,{id:ID,active:true,version:'0.30.1'}]]);
 let locs=[{id:'LOC-TEST-TOWN',name:'[TEST] Testford',revealed:false,published:null}];
 modules.set('ashen-gate-locations',{active:true,api:{listLocations:({revealedOnly}={})=>locs.filter(l=>!revealedOnly||l.revealed)}});
 const sent=[];let socketFn=null;

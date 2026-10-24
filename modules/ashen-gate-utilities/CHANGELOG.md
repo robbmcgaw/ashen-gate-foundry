@@ -1,8 +1,42 @@
-## 0.28.4 — 2026-10-24
+## 0.30.1 — 2026-10-24
 
 - **No raw ids on screen.** A deleted shop or service on a merchant list now reads "Deleted shop or service" instead of its `SHOP-…` / `SVC-…` id. The Import JSON preview no longer lists `ITEM-…` / `REC-…` ids or shop ids: missing items show as "Item line 1…", and a new **Copy missing item ids** button puts the ids on your clipboard for importing with General Manager. Warnings and errors (a skipped import record, merchant-list "Not opened", "id is already used", unknown list entries on import, export notes) name the shop or just count entries. Search still finds a shop by its id.
 - **No machine tokens either.** An item type Foundry has no label for (for example `some_type`) now shows as plain words in the shop views. Utilities prints no refs, relations or status tokens; the new test checks the Shops views for them.
 - No change to saved data, settings, ids, exports or the API shape; nothing to migrate.
+
+## 0.30.0 — 2026-10-24
+
+The conditions overlay now lists every player character and lets you change conditions from it.
+
+- **A card for every player character**, including those with no conditions (the name, a small portrait if there is one, and "No conditions"). Conditions are compact chips; a chip's remove button works as before. Other characters that carry a condition are still listed.
+- **Select a card** (a button; it shows a check and a heavier outline, and says it is pressed to screen readers; click it again to clear). The overlay header then offers a condition list (the same shared list as the tracker's Apply, Exhaustion included) and **Apply** for that character, with a line saying who you are changing.
+- **Who can use it:** the GM and condition controllers on every player character; everyone else on their own character and on any non-player character. For another player's character an ordinary player sees the cards and the header controls disabled with "Only the GM or a condition controller can change another player's conditions." Apply and Remove still go through the same checked path as the tracker (on the GM client for players), so the header is never the only guard. Player Access still hides all of it.
+- Opacity slider, position, size, pop-out and show/hide are unchanged. Cards are sized to their content, names wrap rather than truncate, and the header keeps a constant height so nothing jumps when you select.
+- No change to saved data or settings; nothing to migrate.
+
+## 0.29.2 — 2026-10-24
+
+Who may change conditions, as the GM decided: **players and the GM can change conditions on every actor that is not a player's character, and players can change their own character.** The GM can change everything.
+
+- **Players:** your own character, and any monster, NPC or creature, whether it is linked to a character or an unlinked token. Another player's character is refused with "... is another player's character: only the GM can change its conditions." Player Access still gates all of it.
+- **No more locks.** The per-character *Unlock for Owner* / *Locked* control and the GM Setup switch *Players apply and remove conditions on their own characters* are gone from the screens: owners always manage their own character now. Their saved values are kept and harmless (nothing reads them; `api.conditions.setUnlocked` / `ownersManage` still exist).
+- **Condition controllers** keep one meaning: a controller can also change other players' characters, like the GM. Help and GM Setup say so.
+- **Exhaustion is back on the shared list** (the tracker's Apply list and the Character Hub's), applied and removed as before.
+- New for partners: `api.conditions.canChangeActor(actor, statusId, apply, userId)` answers the same question for any Actor document (the Hub uses it for unlinked tokens), and `api.conditions.isPlayerCharacter(actor)`. The tracker's Apply, Remove and the API calls all use this one rule.
+- No saved data is deleted or rewritten.
+
+## 0.29.1 — 2026-10-24
+
+- **One conditions list.** The Conditions tracker's Apply list and the Character Hub's conditions strip now offer the same conditions (the Hub reads Utilities' list when Utilities is active): every native status by name, A to Z, without the read-only Strain chip and without Exhaustion (it has levels; use the pill beside HP in the Hub). Before, the two lists differed. New `api.conditions.choices()` returns it as `[{id, label, img}]`.
+- No change to saved data or settings; nothing to migrate.
+
+## 0.29.0 — 2026-10-24
+
+- **Party stash: Delete…** Every item row in *Party Inventory → Items* (and in the Character Hub's *Inventory → Party stash*, which shows the same list) now has a **Delete…** button next to Take. For a stack it first asks how many (the full number deletes the whole stack), then shows "Delete <item>?" saying it cannot be undone and that Take is the way to keep it; **Cancel is the default**. A container is deleted whole, and the confirmation says that everything inside goes with it.
+- **Who can delete:** the GM, and any player who can take from the stash (Player Access and the stash on, and a character they own). It is checked on the GM client, not only by hiding the button. There is no party vote for a delete.
+- **Recorded:** each delete is a *Deleted* entry in the stash History (who, what, how many, and how many were left), visible to everyone who can see the History. Take and Add to stash are unchanged.
+- API: `api.stash.deleteItem(itemId, quantity?)` (additive; the stash contract id is unchanged).
+- No change to saved data or settings; nothing to migrate.
 
 ## 0.28.3 — 2026-10-24
 
