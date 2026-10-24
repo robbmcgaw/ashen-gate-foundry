@@ -2,7 +2,8 @@
 // Foundry UI or Foundry's own server-side ownership checks.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {sessionId,nextNumber,freeId,cleanTitle,readSession,sortSessions,currentSession,personalOwnership,partyOwnership,entryOwnership,
- canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME} from '../scripts/journal-core.mjs';
+ canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME,
+ autoFormatHtml,cleanDate,sessionHeading,sessionDate,autoDate,gmOwnership,GM_TARGET,canDelete} from '../scripts/journal-core.mjs';
 import {createJournalStore,JournalConflict} from '../scripts/journal-store.mjs';
 import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys} from '../scripts/journal-ui.mjs';
 import {El} from './helpers/fake-dom.mjs';
@@ -69,6 +70,7 @@ function fakeEntry(data,world){
  const entry={id:`j${world.entries.length+1}`,name:data.name,ownership:data.ownership,flags:structuredClone(data.flags),folder:data.folder,pages:[],updates:[],
   getFlag(m,k){return this.flags?.[m]?.[k];},testUserPermission(u,l){return permits(this.ownership,u,l);},
   async update(change){this.updates.push(change);if(change.name)this.name=change.name;for(const [k,v] of Object.entries(change))if(k.startsWith('flags.')){const [,m,key]=k.split('.');this.flags[m][key]=structuredClone(v);}world.changed();},
+  async delete(){world.entries.splice(world.entries.indexOf(entry),1);world.changed();},
   async createEmbeddedDocuments(type,list,opts){assert.equal(type,'JournalEntryPage');assert.equal(opts?.renderSheet,false);for(const p of list)entry.pages.push(fakePage(p,world,entry));world.changed();}};
  for(const p of data.pages??[])entry.pages.push(fakePage(p,world,entry));
  return entry;
@@ -103,8 +105,8 @@ test('GM New session: one entry, a party page and a page for each player, never 
  assert.equal(id,'SESSION-001');
  const [e]=w.entries;assert.equal(e.name,'Game Journal — Session 1');assert.equal(e.folder,'folder-gj');assert.deepEqual(e.ownership,{default:2});
  assert.deepEqual(e.getFlag(MOD,'session'),{v:1,id:'SESSION-001',number:1,name:'Session 1',subtitle:'',createdAt:'2026-10-22T00:00:00.000Z',createdBy:'gm',archived:false});
- assert.deepEqual(e.pages.map(p=>[p.name,p.ownership]),[['Party journal',{default:3}],["Alice's journal",{default:0,alice:3,bob:0}],["Bob's journal",{default:0,alice:0,bob:3}]]);
- assert.deepEqual(e.pages.map(p=>p.getFlag(MOD,'journalPage')),[{session:'SESSION-001',kind:'party'},{session:'SESSION-001',kind:'user',userId:'alice'},{session:'SESSION-001',kind:'user',userId:'bob'}]);
+ assert.deepEqual(e.pages.map(p=>[p.name,p.ownership]),[['Party journal',{default:3}],['GM-only notes',{default:0,alice:0,bob:0}],["Alice's journal",{default:0,alice:3,bob:0}],["Bob's journal",{default:0,alice:0,bob:3}]]);
+ assert.deepEqual(e.pages.map(p=>p.getFlag(MOD,'journalPage')),[{session:'SESSION-001',kind:'party'},{session:'SESSION-001',kind:'gm'},{session:'SESSION-001',kind:'user',userId:'alice'},{session:'SESSION-001',kind:'user',userId:'bob'}]);
  await w.call('gm',s=>s.create({name:'The road',subtitle:'Rain'}));
  const list=await w.call('gm',s=>s.list());
  assert.deepEqual(list.map(x=>[x.id,x.name,x.subtitle,x.current]),[['SESSION-002','The road','Rain',true],['SESSION-001','Session 1','',false]]);
@@ -127,7 +129,7 @@ test('writes go straight to the page (no GM needed) and are cleaned; others are 
  w.users.get('gm').active=false;// the GM logs off
  const saved=await w.call('alice',s=>s.write(id,'me','<p onclick="x">Found a <b>key</b></p><script>x</script>',{base:''}));
  assert.equal(saved,'<p>Found a <strong>key</strong></p>');
- const alicePage=w.entries[0].pages[1];assert.deepEqual(alicePage.writes.map(x=>x.by),['alice']);
+ const alicePage=w.entries[0].pages.find(p=>p.getFlag(MOD,'journalPage').userId==='alice');assert.deepEqual(alicePage.writes.map(x=>x.by),['alice']);
  await w.call('bob',s=>s.write(id,'party','<p>Bob was here</p>',{base:''}));
  assert.equal(w.entries[0].pages[0].text.content,'<p>Bob was here</p>');
  await assert.rejects(w.call('bob',s=>s.write(id,'alice','<p>hijack</p>')),/can't write/);
@@ -291,5 +293,187 @@ test('0.17.0 QJ-02/QJ-04: radios and the formatting toolbar move with the arrow 
  ul.fire('keydown',{key:'Home'});assert.equal(bold.getAttribute('tabindex'),'0');
  showPressed(root,cmd=>cmd==='insertUnorderedList');
  assert.equal(bold.getAttribute('aria-pressed'),'false');assert.equal(ul.getAttribute('aria-pressed'),'true');assert.equal(h2.getAttribute('aria-pressed'),null);
- assert.deepEqual(Object.keys(PRESSABLE).sort(),['bold','italic','ol','ul','underline']);
+ assert.deepEqual(Object.keys(PRESSABLE).sort(),['bold','italic','ol','strike','ul','underline']);
+});
+
+// ---- 0.20.0 ----
+test('0.20.0 sanitizer keeps divider, highlight and strikethrough; nothing else new',()=>{
+ assert.equal(sanitizeHtml('<p>a</p><hr class="x"><p><mark style="color:red">hi</mark> <strike>old</strike></p><blockquote>q</blockquote>'),'<p>a</p><hr><p><mark>hi</mark> <s>old</s></p><blockquote>q</blockquote>');
+ assert.equal(sanitizeHtml('x</hr>y'),'xy','a stray closing hr is dropped');
+ assert.equal(htmlToMarkdown('<p>a</p><hr><p><mark>b</mark></p>'),'a\n\n---\n\nb');
+ assert.equal(htmlToText('<p>a</p><hr><p>b</p>'),'a\nb');
+});
+
+test('0.20.0 session heading: "Session N - name", no prefix when there is no number or the name already says it',()=>{
+ assert.equal(sessionHeading({number:3,name:'Market day'}),'Session 3 - Market day');
+ assert.equal(sessionHeading({number:3,name:'Session 3'}),'Session 3');
+ assert.equal(sessionHeading({name:'Market day'}),'Market day');
+ assert.equal(sessionHeading({number:0,name:'Odd'}),'Odd');
+ const html=journalPaneHTML({isGM:false,sessions:[],pages:[],hits:null,query:'',showArchived:false,renaming:null,target:'me',stale:false,dirty:false,
+  session:{id:'SESSION-003',number:3,name:'Market day',subtitle:'Rain',createdAt:'2026-10-22T12:00:00.000Z',archived:false},page:{html:'',canWrite:true,label:'My journal',missing:false},error:'',gm:null});
+ assert.match(html,/<h2 class="agq-detail__title">Session 3 - Market day<\/h2>/);
+});
+
+test('0.20.0 the date: automatic by default, the GM can set it, a player cannot; saved sessions keep working',async()=>{
+ assert.equal(cleanDate(' 2026-10-24 '),'2026-10-24');assert.equal(cleanDate(''),'');assert.equal(cleanDate(undefined),'');
+ for(const bad of ['2026-02-30','24/10/2026','2026-1-1','tomorrow'])assert.throws(()=>cleanDate(bad),/looks like/);
+ assert.equal(autoDate('2026-10-22T12:00:00.000Z').length,10);
+ assert.equal(sessionDate({createdAt:'2026-10-22T12:00:00.000Z',date:'2026-09-01'}),'2026-09-01');
+ assert.equal(readSession({v:1,id:'SESSION-001',number:1,date:'garbage'}).date,undefined,'a bad stored date is ignored, the session still loads');
+ assert.equal(readSession({v:1,id:'SESSION-001',number:1,date:'2026-09-01'}).date,'2026-09-01');
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Night'}));w.store('gm');
+ assert.equal(w.entries[0].getFlag(MOD,'session').date,undefined,'new sessions store no date: it stays automatic');
+ await w.call('gm',s=>s.rename(id,{name:'Night',subtitle:'',date:'2026-09-01'}));
+ assert.equal(w.entries[0].getFlag(MOD,'session').date,'2026-09-01');
+ assert.equal((await w.call('gm',async s=>s.get(id))).canSetDate,true);assert.equal((await w.call('alice',async s=>s.get(id))).canSetDate,false);
+ // A rename without a date keeps it; an empty date goes back to automatic.
+ await w.call('gm',s=>s.rename(id,{name:'Night 2'}));assert.equal(w.entries[0].getFlag(MOD,'session').date,'2026-09-01');
+ await w.call('gm',s=>s.rename(id,{name:'Night 2',date:''}));assert.equal('date' in w.entries[0].getFlag(MOD,'session'),false);
+ await w.call('gm',s=>s.rename(id,{name:'Night 3',date:'2026-09-02'}));
+ // A player may rename but not change the date, even over the socket.
+ await assert.rejects(w.call('alice',s=>s.rename(id,{name:'Night 3',date:'2026-12-25'})),/Only the GM/);
+ assert.equal(w.entries[0].getFlag(MOD,'session').date,'2026-09-02');
+ await assert.rejects(w.call('gm',s=>s.rename(id,{name:'Night 3',date:'2026-02-31'})),/looks like/);
+});
+
+test('0.20.0 GM-only notes: a player read, write, list, search and export never reach them',async()=>{
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Night'}));w.store('gm');
+ await w.call('gm',s=>s.write(id,GM_TARGET,'<p>The mayor is the cultist ZZSECRET</p>',{base:''}));
+ await w.call('bob',s=>s.write(id,'party','<p>Party text</p>',{base:''}));
+ const gmPage=w.entries[0].pages.find(p=>p.name==='GM-only notes');
+ assert.deepEqual(gmPage.ownership,{default:0,alice:0,bob:0},'Foundry itself gives players nothing on this page');
+ const back=await w.call('gm',async s=>s.read(id,GM_TARGET));assert.equal(back.html,'<p>The mayor is the cultist ZZSECRET</p>');assert.equal(back.canWrite,true);
+ assert.equal((await w.call('gm',async s=>s.read(id,'party'))).html,'<p>Party text</p>','not mixed into the party page');
+ assert.ok(!(await w.call('gm',async s=>s.pages(id))).some(p=>p.target===GM_TARGET),'it is a section, not a journal in the picker');
+ for(const who of ['alice','bob']){
+  await assert.rejects(w.call(who,async s=>s.read(id,GM_TARGET)),/can't read/);
+  await assert.rejects(w.call(who,s=>s.write(id,GM_TARGET,'<p>overwrite</p>')),/can't write/);
+  assert.ok(!(await w.call(who,async s=>s.pages(id))).some(p=>/GM/.test(p.label)||p.target===GM_TARGET));
+  assert.deepEqual(await w.call(who,async s=>s.search('ZZSECRET')),[],'search never finds it');
+  assert.equal(JSON.stringify(await w.call(who,async s=>s.read(id,'party'))).includes('ZZSECRET'),false);
+  await assert.rejects(w.call(who,async s=>s.exportMarkdown(id)),/GM permission/);
+ }
+ assert.equal(gmPage.text.content,'<p>The mayor is the cultist ZZSECRET</p>','untouched by the refused writes');
+ // Even if the Foundry grant were widened by hand, the rules still refuse a player.
+ gmPage.ownership={default:3};
+ await assert.rejects(w.call('alice',async s=>s.read(id,GM_TARGET)),/can't read/);
+ await assert.rejects(w.call('alice',s=>s.write(id,GM_TARGET,'<p>x</p>')),/can't write/);
+ // The GM finds it in search; the GM's Markdown export leaves it out unless asked.
+ assert.equal((await w.call('gm',async s=>s.search('ZZSECRET'))).length,1);
+ assert.doesNotMatch(await w.call('gm',async s=>s.exportMarkdown(id)),/ZZSECRET/);
+ assert.match(await w.call('gm',async s=>s.exportMarkdown(id,{includeGmNotes:true})),/ZZSECRET/);
+ // Nothing that went over the socket carries page text.
+ assert.ok(!JSON.stringify(w.bus).includes('ZZSECRET'));
+ // An archived session keeps its GM notes read only.
+ await w.call('gm',s=>s.archive(id));
+ await assert.rejects(w.call('gm',s=>s.write(id,GM_TARGET,'<p>late</p>')),/archived/);
+ assert.equal(canReadPage({id:'a'},{kind:'gm'}),false);assert.equal(canWritePage({id:'a'},{kind:'gm'},{archived:false}),false);
+ assert.deepEqual(gmOwnership([{id:'gm',isGM:true},{id:'a'}]),{default:0,a:0});
+});
+
+test('0.20.0 GM-only notes UI: the GM sees the section on the party journal; a player\'s page never has it',async()=>{
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Night'}));
+ await w.call('gm',s=>s.write(id,GM_TARGET,'<p>ZZSECRET</p>',{base:''}));
+ const html=who=>{const me=w.users.get(who);return w.as(who,()=>{globalThis.game.user=me;const jv=newJournalView(me.isGM);jv.sessionId=id;
+  return journalPaneHTML(buildJournalModel(w.store(who),jv,me));});};
+ const gm=html('gm');assert.match(gm,/id="agq-journal-gm"/);assert.match(gm,/GM-only notes/);assert.match(gm,/Players cannot see this/);assert.match(gm,/ZZSECRET/);
+ for(const who of ['alice','bob']){const p=html(who);assert.doesNotMatch(p,/agq-journal-gm|ZZSECRET|GM-only/);}
+});
+
+test('0.20.0 migration: sessions made before the GM-only page get one, once; re-running adds nothing',async()=>{
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({}));
+ const e=w.entries[0];e.pages.splice(e.pages.findIndex(p=>p.name==='GM-only notes'),1);// a 0.19 session
+ assert.equal(e.pages.length,3);
+ assert.equal(await w.call('gm',s=>s.ensurePages()),1);assert.equal(e.pages.length,4);
+ assert.equal(await w.call('gm',s=>s.ensurePages()),0);assert.equal(e.pages.length,4);
+ assert.equal(await w.call('alice',s=>s.ensurePages()),0,'only a GM client adds pages');
+ assert.deepEqual(e.pages.at(-1).ownership,{default:0,alice:0,bob:0});
+ // Existing pages are untouched, and the older session still reads and writes.
+ await w.call('alice',s=>s.write(id,'me','<p>mine</p>',{base:''}));
+ assert.equal((await w.call('alice',async s=>s.read(id,'me'))).html,'<p>mine</p>');
+});
+
+test('0.20.0 delete from the archive: GM only, archived sessions only, not a socket operation',async()=>{
+ const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Old'}));await w.call('gm',s=>s.create({name:'New'}));w.store('gm');
+ await w.call('alice',s=>s.write(id,'me','<p>my notes</p>',{base:''}));
+ await assert.rejects(w.call('alice',s=>s.remove(id)),/GM permission/);
+ await assert.rejects(w.call('gm',s=>s.remove(id)),/Archive a session before deleting/,'a live session cannot be deleted');
+ await w.call('gm',s=>s.archive(id));
+ await assert.rejects(w.call('alice',s=>s.remove(id)),/GM permission/,'a player cannot delete, archived or not');
+ const before=w.entries.length;
+ w.current=w.users.get('gm');
+ await w.store('gm').onSocket({type:'journal-request',requestId:'d1',userId:'alice',op:'remove',id},'alice');
+ assert.equal(w.entries.length,before);assert.match(w.bus.at(-1).message,/Unknown Game Journal request/);
+ assert.equal(canDelete({isGM:false},{archived:true}),false);assert.equal(canDelete({isGM:true},{archived:false}),false);assert.equal(canDelete({isGM:true},{archived:true}),true);
+ assert.equal((await w.call('gm',async s=>s.list({archived:true}))).find(s=>s.id===id).canDelete,true);
+ assert.equal((await w.call('alice',async s=>s.get('SESSION-002'))).canDelete,false);
+ assert.equal(await w.call('gm',s=>s.remove(id)),id);
+ assert.deepEqual(w.entries.map(e=>e.getFlag(MOD,'session').id),['SESSION-002'],'the other session is untouched');
+ await assert.rejects(w.call('gm',s=>s.remove(id)),/not available/);
+});
+
+test('0.20.0 Delete session… is offered to the GM on an archived session only, as a danger button',()=>{
+ const base={isGM:true,sessions:[],pages:[],hits:null,query:'',showArchived:true,renaming:null,target:'party',stale:false,dirty:false,error:'',gm:null,page:{html:'',canWrite:false,label:'Party journal',missing:false}};
+ const s={id:'SESSION-001',number:1,name:'Old',subtitle:'',createdAt:'2026-10-22T12:00:00.000Z',archived:true,canDelete:true};
+ const gm=journalPaneHTML({...base,session:s});
+ assert.match(gm,/<button[^>]*ag-btn--danger[^>]*data-jaction="delete"|<button[^>]*data-jaction="delete"[^>]*ag-btn--danger/);
+ assert.match(gm,/Delete session…/);
+ assert.doesNotMatch(journalPaneHTML({...base,isGM:false,session:{...s,canDelete:false}}),/data-jaction="delete"/);
+ assert.doesNotMatch(journalPaneHTML({...base,session:{...s,archived:false,canDelete:false}}),/data-jaction="delete"/);
+});
+
+test('0.20.0 toolbar: the new formats map to commands the editor and sanitizer support',()=>{
+ const ids=FORMATS.map(f=>f.id);
+ for(const id of ['bold','italic','underline','strike','highlight','h1','h2','h3','ul','ol','quote','hr'])assert.ok(ids.includes(id),id);
+ for(const f of FORMATS)assert.ok(f.label&&(f.icon||f.text),`${f.id} has a label and a visible mark`);
+ assert.deepEqual(FORMAT_COMMANDS.quote,['formatBlock','<blockquote>']);assert.deepEqual(FORMAT_COMMANDS.hr,['insertHorizontalRule']);
+ assert.equal(sanitizeHtml('<h1>T</h1><blockquote>q</blockquote><hr><strike>s</strike>'),'<h1>T</h1><blockquote>q</blockquote><hr><s>s</s>');
+ const html=journalPaneHTML({isGM:false,sessions:[],pages:[],hits:null,query:'',showArchived:false,renaming:null,target:'me',stale:false,dirty:false,error:'',gm:null,
+  session:{id:'SESSION-001',number:1,name:'N',subtitle:'',createdAt:'',archived:false},page:{html:'',canWrite:true,label:'My journal',missing:false}});
+ assert.match(html,/data-jaction="autoformat"/);assert.match(html,/Auto format…/);assert.match(html,/data-jaction="autoformat-undo"[^>]*hidden/);
+});
+
+test('Auto format: bullets and numbers become lists, spacing and blank lines are tidied, no words change',()=>{
+ const r=autoFormatHtml('<p>Hello ,world.It works  fine </p><p>• rope</p><p>• lamp</p><p>1. open</p><p>2) close</p>');
+ assert.equal(r.html,'<p>Hello, world. It works fine</p><ul><li>rope</li><li>lamp</li></ul><ol><li>open</li><li>close</li></ol>');
+ assert.ok(r.ok&&r.changes.length>=3);
+ const t=autoFormatHtml('Gear:<br>- rope<br>- lamp<br><br><br><br>Done  here ,ok');
+ assert.equal(t.html,'<h3>Gear</h3><ul><li>rope</li><li>lamp</li></ul><p>Done here, ok</p>');
+ assert.ok(t.changes.some(c=>/blank/.test(c)));
+ const letters=h=>(htmlToText(h).match(/\p{L}+/gu)??[]).join('');
+ for(const h of ['<p>Gear:<br>- a<br>- b</p><p>NEXT STEPS</p><p>x ,y</p>','<p>•  one</p><p>•two</p>'])assert.equal(letters(autoFormatHtml(h).html),letters(sanitizeHtml(h)));
+});
+
+test('Auto format is conservative: leaves clean text, existing formatting and doubtful lines alone',()=>{
+ for(const keep of ['<p>Already clean.</p>','<h2>Day one</h2><p>We met <strong>Mara</strong>.</p><ul><li>rope</li></ul><blockquote>Hold.</blockquote><hr>',
+  '<p>-5 degrees at night</p>','<p>A single - dash line</p>','<p>1. only one numbered line</p>','<p>1. one</p><p>3. three</p>','<p>3.5 gold, 12:30 sharp</p>','<p>See example.com/a?b=c</p>',
+  '<p>NPC</p><p>x</p>','<p>THE END.</p>','<p>Last line:</p>','<p>A very long line that ends in a colon but is far more than eight words so it stays text:</p><p>x</p>']){
+  const r=autoFormatHtml(keep);assert.equal(r.html,sanitizeHtml(keep),keep);assert.deepEqual(r.changes,[],keep);
+ }
+ assert.equal(autoFormatHtml('<p>THE ROAD NORTH</p><p>We left.</p>').html,'<h3>THE ROAD NORTH</h3><p>We left.</p>');
+ assert.equal(autoFormatHtml('<p>Plans:</p><p>We left.</p>').html,'<h3>Plans</h3><p>We left.</p>');
+ assert.equal(autoFormatHtml('<p>Plans for <em>now</em>:</p><p>We left.</p>').html,'<p>Plans for <em>now</em>:</p><p>We left.</p>');
+ assert.equal(autoFormatHtml('<p>one <strong>bold</strong> ,two<br>next line</p>').html,'<p>one <strong>bold</strong>, two<br>next line</p>');
+ assert.doesNotMatch(autoFormatHtml('<p onclick="x">a</p><script>x</script>').html,/script|onclick/);
+ assert.deepEqual(autoFormatHtml(''),{html:'',changes:[],ok:true});
+});
+
+test('Auto format in the window: asks first, applies, and Undo auto format puts the page back; cancel changes nothing',async()=>{
+ const {installJournal}=await import('../scripts/journal-ui.mjs');
+ const asked=[];let yes=true;
+ class App{async render(){}}
+ installJournal(App,{store:{},danger:async()=>false,confirm:async(m,o)=>{asked.push([m,o]);return yes;},notify:e=>{throw e;},info:m=>asked.push(['info',m]),download(){}});
+ const app=new App();app.jv=newJournalView(true);
+ const ed={id:'agq-journal-editor',innerHTML:'<p>• rope</p><p>• lamp</p>',style:{},getAttribute:()=>'true',focus(){},isConnected:true};
+ const undo={hidden:true},root={querySelector:sel=>sel==='#agq-journal-editor'?ed:sel==='[data-jaction="autoformat-undo"]'?undo:null};
+ app.jRoot=root;app.journalStatus=()=>{};
+ yes=false;await app.autoFormatJournal(root);
+ assert.equal(ed.innerHTML,'<p>• rope</p><p>• lamp</p>','cancel leaves the text alone');assert.equal(app.jv.dirty,false);
+ assert.match(asked[0][0],/bulleted list/);assert.equal(asked[0][1].title,'Auto format this page?');
+ yes=true;await app.autoFormatJournal(root);
+ assert.equal(ed.innerHTML,'<ul><li>rope</li><li>lamp</li></ul>');assert.equal(app.jv.dirty,true,'unsaved until saved: the usual Unsaved changes rules apply');assert.equal(undo.hidden,false);
+ app.undoAutoFormat(root);
+ assert.equal(ed.innerHTML,'<p>• rope</p><p>• lamp</p>');assert.equal(undo.hidden,true);
+ ed.innerHTML='<p>Already clean.</p>';asked.length=0;await app.autoFormatJournal(root);
+ assert.deepEqual(asked,[['info','Nothing to tidy: this page is already clean.']]);
 });
