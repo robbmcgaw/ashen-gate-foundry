@@ -17,14 +17,13 @@ test('lock helpers: locked by default, unlock and relock',()=>{
  assert.deepEqual(withUnlocked(u,'a1',false),{});
  assert.throws(()=>withUnlocked({},'',true),/id required/);
 });
-test('removal decision: GM always, owner only when unlocked, native only, never for others',()=>{
- const actor=mkActor('a1','Wren','alice',['prone','thinking']);const nativeIds=['prone'];
- const d=(user,statusId,unlocks={})=>removalDecision({user,actor,statusId,unlocks,nativeIds});
+test('removal decision (0.29.2): GM always, owner on their own character, native only, never for another player\'s',()=>{
+ const actor=mkActor('a1','Wren','alice',['prone','thinking']);const nativeIds=['prone'];const users=[gm,alice,bob];
+ const d=(user,statusId)=>removalDecision({user,actor,statusId,nativeIds,users});
  assert.equal(d(gm,'prone').ok,true);assert.equal(d(gm,'thinking').ok,true,'GM can always remove Custom');
- assert.match(d(alice,'prone').reason,/locked/);
- assert.equal(d(alice,'prone',{a1:true}).ok,true);
- assert.match(d(alice,'thinking',{a1:true}).reason,/Custom/);
- assert.match(d(bob,'prone',{a1:true}).reason,/do not own/);
+ assert.equal(d(alice,'prone').ok,true,'no unlock needed');
+ assert.match(d(alice,'thinking').reason,/Custom/);
+ assert.match(d(bob,'prone').reason,/another player's character/);
  assert.match(d(gm,'blinded').reason,/does not have/);
  assert.match(removalDecision({user:null,actor,statusId:'prone'}).reason,/Unknown user/);
 });
@@ -59,21 +58,22 @@ const lastReceipt=()=>sent.filter(([,m])=>m.type==='receipt').at(-1)?.[1];
 const deliver=async(msg,senderId=msg.userId)=>{await socketHandler(msg,senderId);await new Promise(r=>setTimeout(r,5));};
 
 test('module socket channel is registered',()=>{assert.equal(typeof socketHandler,'function');});
-test('GM client rejects a player removal while the character is locked',async()=>{
+test('GM client lets an owner remove a native condition from their own character',async()=>{
  game.user=gm;
  await deliver({type:'remove-status',requestId:'r1',userId:'alice',actorId:'a1',statusId:'prone'});
- assert.deepEqual(wren.toggled,[]);assert.equal(lastReceipt().ok,false);assert.match(lastReceipt().message,/locked/);assert.equal(lastReceipt().userId,'alice');
+ assert.deepEqual(wren.toggled,[['prone',false]]);assert.equal(lastReceipt().ok,true);assert.equal(lastReceipt().userId,'alice');
 });
-test('only a GM can unlock, and the GM client then removes for the owner',async()=>{
+test('only a GM can set the old unlock (kept harmlessly); it changes nothing about who may remove',async()=>{
  game.user=alice;await assert.rejects(api.conditions.setUnlocked('a1',true),/GM only/);
  game.user=gm;await api.conditions.setUnlocked('a1',true);assert.equal(api.conditions.isUnlocked('a1'),true);
+ wren.statuses.add('prone');wren.toggled.length=0;
  await deliver({type:'remove-status',requestId:'r2',userId:'alice',actorId:'a1',statusId:'prone'});
  assert.deepEqual(wren.toggled,[['prone',false]]);assert.equal(lastReceipt().ok,true);
 });
-test('unlocking one character does not let another player remove its conditions',async()=>{
+test('another player cannot remove a player character\'s conditions',async()=>{
  wren.statuses.add('prone');wren.toggled.length=0;
  await deliver({type:'remove-status',requestId:'r3',userId:'bob',actorId:'a1',statusId:'prone'});
- assert.deepEqual(wren.toggled,[]);assert.match(lastReceipt().message,/do not own/);
+ assert.deepEqual(wren.toggled,[]);assert.match(lastReceipt().message,/another player's character/);
 });
 test('a forged requester id is rejected when the sender id disagrees',async()=>{
  await deliver({type:'remove-status',requestId:'r4',userId:'alice',actorId:'a1',statusId:'prone'},'bob');
@@ -88,10 +88,10 @@ test('non-primary GM clients and player clients ignore removal requests',async()
  await deliver({type:'remove-status',requestId:'r6',userId:'bob',actorId:'b1',statusId:'blinded'});
  assert.equal(sent.length,before);assert.deepEqual(ash.toggled,[]);game.user=gm;
 });
-test('player API refuses locally when locked and asks the GM when unlocked',async()=>{
+test('player API asks the GM for their own character and refuses locally for another player\'s',async()=>{
+ game.user=alice;
+ await assert.rejects(api.conditions.remove('b1','blinded'),/another player's character/);
  game.user=bob;
- await assert.rejects(api.conditions.remove('b1','blinded'),/locked/);
- game.user=gm;await api.conditions.setUnlocked('b1',true);game.user=bob;
  const pending=api.conditions.remove('b1','blinded');
  const [,req]=sent.at(-1);assert.equal(req.type,'remove-status');assert.equal(req.userId,'bob');assert.deepEqual(ash.toggled,[],'player client never edits the Actor itself');
  await socketHandler({type:'receipt',requestId:req.requestId,userId:'bob',ok:true,message:'Removed Blinded from Ash.'});
@@ -104,17 +104,17 @@ test('players get the same conditions view, with Remove only where permitted and
  let html=await app._renderHTML();
  assert.ok(html.includes('Party Characters')&&html.includes('Wren')&&html.includes('Ash'),'sees visible party characters');
  assert.ok(html.includes('data-status="prone"'));assert.ok(!html.includes('data-status="thinking"'),'no Remove for Custom');
- assert.ok(!html.includes('toggle-lock'));assert.ok(html.includes('Unlocked'));
+ assert.ok(!html.includes('toggle-lock'));assert.ok(!html.includes('Unlocked'));
  app.actorId='b1';html=await app._renderHTML();assert.ok(!html.includes('data-action="remove-status"'),'not owner: no Remove');
- game.user=gm;html=await app._renderHTML();assert.ok(html.includes('data-action="toggle-lock"'));assert.ok(html.includes('Lock Conditions'));
+ game.user=gm;html=await app._renderHTML();assert.ok(!html.includes('toggle-lock'),'the lock control is gone for the GM too');
 });
-test('overlay: bold name per character, bulleted conditions, × only where removal is permitted',async()=>{
+test('overlay: a card per character with condition chips, × only where removal is permitted',async()=>{
  game.user=alice;
  const overlay=await api.conditions.openOverlay();assert.equal(game.settings.get(ID,'overlayOpen'),true);
  const html=await overlay._renderHTML();
- assert.match(html,/<h3>Wren<\/h3><ul><li><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
- assert.match(html,/<li><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
- assert.match(html,/<h3>Ash<\/h3><ul><li><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
+ assert.match(html,/<span class="agu-ov-name">Wren<\/span>[\s\S]*<li class="agu-ov-chip"><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
+ assert.match(html,/<li class="agu-ov-chip"><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
+ assert.match(html,/<span class="agu-ov-name">Ash<\/span>[\s\S]*?<li class="agu-ov-chip"><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
  game.user=gm;const gmHtml=await overlay._renderHTML();assert.equal((gmHtml.match(/data-ov-remove/g)||[]).length,3,'GM can remove everything');
  game.user=alice;
 });

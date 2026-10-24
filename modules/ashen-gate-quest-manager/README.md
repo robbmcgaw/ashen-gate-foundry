@@ -11,15 +11,16 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 
 Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting, production or creative work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
 
-## Game Journal (0.16.0)
+## Game Journal (0.16.0, updated 0.21.0)
 
 - **New session** (GM or a player; a player needs a GM connected) creates *Session N* (`SESSION-001`, `SESSION-002`, …) with a party journal and one journal per player user. Name and optional subtitle can be changed by the GM and by whoever started it.
 - Players switch between **My journal** and **Party journal**; the GM picks the party journal or any player's journal (read only) from **Journal**. Search covers session names and the pages the viewer may read.
-- Toolbar: bold, italic, underline, heading, subheading, normal text, bulleted and numbered lists. Stored as HTML with those tags only (no attributes, no links, images or scripts).
+- Toolbar: bold, italic, underline, strikethrough, highlight, title heading, heading, subheading, normal text, bulleted and numbered lists, quote and divider. Stored as HTML with those tags only (no attributes, no links, images or scripts). **Auto format…** previews a conservative tidy-up (spacing, blank lines, bullet and numbered lines to lists, punctuation spacing, lone `Title:`/ALL CAPS lines to headings) and **Undo auto format** reverses it.
+- GM only: **GM-only notes** under the party journal (its own page, NONE for every player; refused to players in the API and left out of Export This Session by default); the session **Date** (set in the rename form; automatic until changed); **Delete session…** on an archived session. The title reads *Session N - name*.
 - Saves on leaving the book, on **Save** / Ctrl+S, and before switching or closing. A page someone else saved meanwhile asks before it is replaced.
-- GM: **Export Markdown**; **Archive session** (hidden from players, read only, nothing deleted) and **Restore session**.
+- Export: **Export Journal** (your own journal, or for the GM the player journal on screen), **Export Group Journal**, and for the GM **Export GM Journal** each download every session (the GM: archived ones too) oldest first as one Markdown file; **Export This Session** (GM) downloads only the open session. GM: **Archive session** (hidden from players, read only, nothing deleted) and **Restore session**.
 - Storage: one JournalEntry per session in *Ashen Gate / Quests / Game Journal*. Entry: OBSERVER for everyone. Party page: OWNER for everyone. A player's page: OWNER for that player, NONE for the other players. Foundry's own ownership lets players write their pages with no GM connected, and stops them writing anyone else's; Quest Log's API checks the same rules before every read and write. These entries are also listed in Foundry's Journal sidebar under that folder (a player opening one sees the party page and their own only).
-- API `api.journal` (`ag-quest-journal/1`): `isAvailable()`, `list({archived})`, `get(id)`, `pages(id)`, `read(id, target)`, `write(id, target, html, {base, force})`, `create({name, subtitle})`, `rename(id, {name, subtitle})`, `search(query)`; GM only: `archive(id)`, `restore(id)`, `exportMarkdown(id)`. `target` is `'me'`, `'party'` or a player's user id.
+- API `api.journal` (`ag-quest-journal/1`): `isAvailable()`, `list({archived})`, `get(id)`, `pages(id)`, `read(id, target)`, `write(id, target, html, {base, force})`, `create({name, subtitle})`, `rename(id, {name, subtitle})`, `search(query)`; GM only: `archive(id)`, `restore(id)`, `remove(id)` (archived sessions only), `exportMarkdown(id, {includeGmNotes})`. `rename` also takes `date` (`YYYY-MM-DD`, GM only). `target` is `'me'`, `'party'` or a player's user id; `'gm-notes'` is the GM-only page (GM only).
 
 ## Item rewards (0.11.0)
 

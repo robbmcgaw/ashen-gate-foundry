@@ -148,7 +148,7 @@ test('GM-NV-04/05: sample files and Adopt & tag are in Developer Tools; one draf
 test('GM-A11-01/03, GM-CO-08: every file picker is a kit fileButton (a real button and a visually hidden input)', () => {
   assert.doesNotMatch(tpl, /<input type="file"/);
   for (const k of ['import', 'rules', 'codex', 'moods']) assert.match(tpl, new RegExp(`\\{\\{\\{fileButtons\\.${k}\\}\\}\\}`), k);
-  assert.match(main, /bindFileButtons\(root,\(files,wrap\)=>this\.#pickFile\(wrap\.dataset\.agFileKind,files\[0\]\)\)/);
+  assert.match(main, /bindFileButtons\(root,\(files,wrap\)=>this\.#pickFile\(wrap\.dataset\.agFileKind,files\[0\],files\)\)/);
   assert.doesNotMatch(read('../styles/manager.css'), /input\{display:none\}/);
 });
 

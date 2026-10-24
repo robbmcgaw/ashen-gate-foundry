@@ -1,0 +1,239 @@
+/*
+ * Ashen Gate chat reskin (Manager 0.58.0). Presentation only: Foundry's and dnd5e's own chat messages, buttons, roll
+ * privacy and context menu are untouched; this only restyles them.
+ * Every rule is scoped to html[data-ag-chat="on"], which Manager's appearance controller writes (the "Style chat"
+ * client setting, on by default). Colours come from the base --ag-* tokens that every skin already sets, so all
+ * skins get a matching chat with no per-skin variants. Chat tokens are --agc-* and live only on that attribute.
+ * Written for Foundry V14 / dnd5e 6.0.6 chat markup; selectors for markup that is not present simply match nothing.
+ */
+html[data-ag-chat="on"] {
+  --agc-card: var(--ag-surface-raised);
+  --agc-card-edge: color-mix(in srgb, var(--ag-border) 70%, transparent);
+  --agc-well: var(--ag-surface-sunken);
+  --agc-ink: var(--ag-text);
+  --agc-quiet: color-mix(in srgb, var(--ag-muted) 70%, var(--ag-text));
+  --agc-accent-ink: color-mix(in srgb, var(--ag-accent) 80%, var(--ag-text));
+  --agc-danger-ink: color-mix(in srgb, var(--ag-danger) 80%, var(--ag-text));
+  --agc-ok-ink: color-mix(in srgb, var(--ag-ok) 80%, var(--ag-text));
+  --agc-warn-ink: color-mix(in srgb, var(--ag-warn) 80%, var(--ag-text));
+  --agc-btn-h: 2.25rem;
+  --agc-radius: var(--ag-radius);
+  --agc-gap: var(--ag-space-3);
+}
+
+/* ---------- Message list: steady rhythm, scrolls as before ---------- */
+html[data-ag-chat="on"] :is(#chat, .chat-popout) :is(.chat-log, .chat-scroll) { scrollbar-color: var(--ag-border) transparent; scrollbar-width: thin; }
+html[data-ag-chat="on"] .chat-message {
+  background: var(--agc-card);
+  color: var(--agc-ink);
+  border: 1px solid var(--agc-card-edge);
+  border-left-width: .25rem;
+  border-left-color: var(--ag-border);
+  border-radius: var(--agc-radius);
+  box-shadow: none;
+  margin: 0 0 var(--ag-space-3);
+  padding: var(--ag-space-3) var(--ag-space-4);
+  font-family: var(--ag-font-body);
+  font-size: var(--ag-text-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+html[data-ag-chat="on"] .chat-message:hover { border-color: var(--ag-border); border-left-color: var(--ag-border); }
+
+/* Header: portrait, name, then quiet player name, time and kebab on one line */
+html[data-ag-chat="on"] .chat-message .message-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ag-space-3);
+  min-height: 0;
+  margin: 0 0 var(--ag-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+html[data-ag-chat="on"] .chat-message .message-header .message-sender { display: flex; align-items: center; gap: var(--ag-space-3); flex: 1 1 auto; min-width: 0; }
+html[data-ag-chat="on"] .chat-message .message-header :is(img, .avatar) {
+  flex: 0 0 auto;
+  width: 2rem; height: 2rem; /* ag-lint-allow: portrait is a fixed square */
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius-sm);
+  object-fit: cover;
+}
+html[data-ag-chat="on"] .chat-message .message-header :is(.message-sender .title, .name-stacked .title, h4, .message-sender > .name) {
+  color: var(--agc-ink);
+  font-family: var(--ag-font-display);
+  font-size: var(--ag-text-lg);
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: normal;
+}
+html[data-ag-chat="on"] .chat-message .message-header :is(.subtitle, .message-sender .player, .name-stacked .subtitle) {
+  color: var(--agc-quiet);
+  font-size: var(--ag-text-xs);
+  font-style: normal;
+}
+html[data-ag-chat="on"] .chat-message .message-header .message-metadata { display: flex; align-items: center; gap: var(--ag-space-2); flex: 0 0 auto; color: var(--agc-quiet); font-size: var(--ag-text-xs); }
+html[data-ag-chat="on"] .chat-message .message-header .message-timestamp { color: var(--agc-quiet); }
+html[data-ag-chat="on"] .chat-message .message-header :is(.message-menu, .message-delete, [data-action="toggleMessageMenu"], [data-action="menu"]) { opacity: .75; }
+html[data-ag-chat="on"] .chat-message:is(:hover, :focus-within) .message-header :is(.message-menu, .message-delete, [data-action="toggleMessageMenu"], [data-action="menu"]) { opacity: 1; }
+html[data-ag-chat="on"] .chat-message .message-content { color: var(--agc-ink); }
+html[data-ag-chat="on"] .chat-message .message-content > :is(p, div):first-child { margin-top: 0; }
+html[data-ag-chat="on"] .chat-message .message-content a { color: var(--agc-accent-ink); text-decoration: underline; }
+
+/* ---------- Whisper, blind and self-roll: the line style changes as well as the colour ---------- */
+html[data-ag-chat="on"] .chat-message.whisper { border-left-style: dashed; border-left-color: var(--ag-accent); }
+html[data-ag-chat="on"] .chat-message.blind { border-left-style: dotted; border-left-color: var(--ag-warn); }
+html[data-ag-chat="on"] .chat-message.whisper:not(.blind) .message-header .whisper-to,
+html[data-ag-chat="on"] .chat-message .message-header .whisper-to { color: var(--agc-accent-ink); font-size: var(--ag-text-xs); font-style: italic; }
+html[data-ag-chat="on"] .chat-message:is(.emote, .ooc) { background: var(--agc-well); }
+html[data-ag-chat="on"] .chat-message.emote .message-content { font-style: italic; }
+html[data-ag-chat="on"] .chat-message.ooc { border-left-style: double; }
+
+/* ---------- Roll card: small formula, large total, crit and fumble labelled ---------- */
+html[data-ag-chat="on"] .chat-message .dice-roll { margin: var(--ag-space-2) 0 0; }
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-formula {
+  background: none; border: 0; padding: 0;
+  color: var(--agc-quiet);
+  font-family: var(--ag-font-mono);
+  font-size: var(--ag-text-xs);
+  text-align: left;
+}
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total {
+  display: flex; align-items: center; justify-content: center; gap: var(--ag-space-3);
+  margin: var(--ag-space-2) 0 0;
+  padding: var(--ag-space-2) var(--ag-space-4);
+  background: var(--agc-well);
+  color: var(--agc-ink);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--agc-radius);
+  font-family: var(--ag-font-display);
+  font-size: var(--ag-text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: none;
+}
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.critical { border: 2px solid var(--ag-ok); color: var(--agc-ok-ink); }
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.fumble { border: 2px dashed var(--ag-danger); color: var(--agc-danger-ink); }
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.critical::after,
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.fumble::after { font-size: var(--ag-text-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.critical::after { content: "Critical"; }
+html[data-ag-chat="on"] .chat-message .dice-roll .dice-total.fumble::after { content: "Fumble"; }
+/* Individual dice: natural 20 bold and boxed, natural 1 underlined, dropped dice struck through (advantage / disadvantage) */
+html[data-ag-chat="on"] .chat-message .dice-tooltip { color: var(--agc-ink); }
+html[data-ag-chat="on"] .chat-message .dice-tooltip :is(.die, .roll).max { font-weight: 700; outline: 2px solid var(--ag-ok); outline-offset: -2px; }
+html[data-ag-chat="on"] .chat-message .dice-tooltip :is(.die, .roll).min { font-weight: 700; outline: 2px dashed var(--ag-danger); outline-offset: -2px; }
+html[data-ag-chat="on"] .chat-message .dice-tooltip :is(.discarded, .rerolled) { text-decoration: line-through; opacity: .6; }
+
+/* ---------- dnd5e item, attack, damage, save and check cards ---------- */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card { display: flex; flex-direction: column; gap: var(--agc-gap); margin: 0; padding: 0; background: none; border: 0; color: var(--agc-ink); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-header { margin: 0; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-header :is(.summary, header) { display: flex; align-items: center; gap: var(--ag-space-3); padding: 0; background: none; border: 0; cursor: pointer; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-header :is(.summary, header):focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-header :is(.title, .name-stacked .title) { font-family: var(--ag-font-display); font-size: var(--ag-text-lg); font-weight: 650; color: var(--agc-ink); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-header .subtitle { color: var(--agc-quiet); font-size: var(--ag-text-xs); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(img.gold-icon, .card-header img) { width: 2rem; height: 2rem; border-radius: var(--ag-radius-sm); border: 1px solid var(--ag-border); object-fit: cover; flex: 0 0 auto; } /* ag-lint-allow: item icon is a fixed square */
+/* The description opens only when asked; when open it is capped and scrolls, so one card never fills the sidebar. */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .collapsible:not(.collapsed) > .collapsible-content :is(.wrapper, .details, .card-content) { max-height: 16rem; overflow-y: auto; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .collapsible-content { color: var(--agc-ink); font-size: var(--ag-text-md); line-height: 1.5; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .collapsible-content :is(p, blockquote) { margin: 0 0 var(--ag-space-3); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .collapsible > :is(.summary, header) :is(i.fa-chevron-down, .fa-chevron-down) { color: var(--agc-quiet); }
+
+/* Tags: one quiet wrapped line, plain text with separators, never truncated */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.pills, .tags, ul.pills) { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--ag-space-2); margin: 0; padding: 0; list-style: none; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.pill, .tag, li.pill) {
+  display: inline; flex: 0 1 auto;
+  max-width: none; height: auto; min-width: 0;
+  padding: 0; margin: 0;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  color: var(--agc-quiet);
+  font-size: var(--ag-text-xs); line-height: 1.5;
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.pill, .tag, li.pill) + :is(.pill, .tag, li.pill)::before { content: "\00b7"; margin-right: var(--ag-space-2); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.pill, .tag) :is(.label, span) { white-space: normal; overflow: visible; text-overflow: clip; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.pills, .tags) > :is(.pill, .tag).target,
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .target :is(.name, .label) { color: var(--agc-ink); font-size: var(--ag-text-md); font-weight: 600; }
+
+/* Result: roll boxes read large; rolls under one item sit close together */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-tray, .dice-row) { margin: 0; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .dice-roll .dice-total { font-size: var(--ag-text-xl); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .dice-roll .dice-total :is(.value, .total) { font-size: var(--ag-text-xl); line-height: 1; }
+html[data-ag-chat="on"] .chat-message:has(.dnd5e2.chat-card) + .chat-message:has(.dnd5e2.chat-card) { margin-top: calc(-1 * var(--ag-space-2)); border-top-left-radius: 0; border-top-right-radius: 0; }
+
+/* Actions last: Attack, Damage, Critical, Save, Consume, Apply and the damage-application controls.
+   Real buttons with their own labels, at least 36px tall, stacked full width on the narrow sidebar. */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .card-footer .buttons, .effects-tray .effects, .damage-application, .card-tray .buttons) {
+  display: flex; flex-wrap: wrap; gap: var(--ag-space-3); margin: 0; padding: 0;
+}
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card > .card-buttons { order: 99; }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .damage-application, .card-tray, .card-footer) button:not(.unbutton) {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--ag-space-2);
+  flex: 1 1 8rem;
+  min-height: var(--agc-btn-h);
+  margin: 0;
+  padding: var(--ag-space-2) var(--ag-space-4);
+  background: var(--ag-surface);
+  color: var(--agc-ink);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius-control);
+  font-family: var(--ag-font-body);
+  font-size: var(--ag-text-md);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: none;
+}
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .damage-application, .card-tray, .card-footer) button:not(.unbutton):hover {
+  background: color-mix(in srgb, var(--ag-accent) 18%, var(--ag-surface));
+  border-color: var(--ag-accent);
+  color: var(--agc-ink);
+}
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .damage-application, .card-tray, .card-footer) button:not(.unbutton):focus-visible {
+  outline: 3px solid var(--ag-focus); outline-offset: 2px;
+}
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .damage-application, .card-tray, .card-footer) button:not(.unbutton):active { background: color-mix(in srgb, var(--ag-accent) 30%, var(--ag-surface)); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card :is(.card-buttons, .damage-application, .card-tray, .card-footer) button:not(.unbutton):disabled { opacity: .55; cursor: not-allowed; }
+/* The first action on a card is the primary one */
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-buttons > button:first-child:not(.unbutton) { background: var(--ag-accent); color: var(--ag-accent-contrast); border-color: var(--ag-accent); }
+html[data-ag-chat="on"] .chat-message .dnd5e2.chat-card .card-buttons > button:first-child:not(.unbutton):hover { background: color-mix(in srgb, var(--ag-accent) 85%, var(--ag-text)); }
+
+/* ---------- Chat input: compact roll mode row, tidy message box, Format toolbar only when focused ---------- */
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-form { gap: var(--ag-space-2); padding: var(--ag-space-3) var(--ag-space-4); background: var(--ag-surface); border-top: 1px solid var(--ag-border); }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-controls { display: flex; align-items: center; gap: var(--ag-space-2); margin: 0; }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-controls :is(button, .roll-type-select button, .roll-type-select label) {
+  min-height: var(--ag-control-h-sm); min-width: var(--ag-control-h-sm);
+  background: var(--ag-surface-raised); color: var(--agc-ink);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control);
+  box-shadow: none;
+}
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-controls :is(button:hover, .roll-type-select button:hover) { border-color: var(--ag-accent); }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-controls :is(button:focus-visible, .roll-type-select button:focus-visible) { outline: 2px solid var(--ag-focus); outline-offset: 1px; }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-controls :is(.active, [aria-pressed="true"], [aria-checked="true"], .roll-type-select .selected) {
+  background: var(--ag-accent-contrast); color: var(--agc-accent-ink);
+  border: 2px solid var(--ag-accent);
+}
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-form :is(textarea, prose-mirror, .editor-content, .chat-input) {
+  background: var(--agc-well); color: var(--agc-ink);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-field);
+  font-family: var(--ag-font-body); font-size: var(--ag-text-md);
+}
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-form :is(textarea, prose-mirror):focus-within { border-color: var(--ag-accent); outline: 2px solid var(--ag-focus); outline-offset: 1px; }
+/* The editor's Format toolbar stays out of the way until the message box has focus. */
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-form prose-mirror:not(:focus-within) :is(menu.editor-menu, .editor-menu, .editor-toolbar) { display: none; }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .chat-form prose-mirror :is(menu.editor-menu, .editor-menu) { background: var(--ag-surface-raised); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
+
+/* ---------- Dice tray (the Dice Tray module, when installed) ---------- */
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .dice-tray { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); color: var(--agc-ink); }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .dice-tray :is(button, .dice-tray__button) {
+  min-height: var(--ag-control-h); min-width: var(--ag-control-h);
+  background: var(--ag-surface-raised); color: var(--agc-ink);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); box-shadow: none;
+}
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .dice-tray :is(button, .dice-tray__button):hover { border-color: var(--ag-accent); background: color-mix(in srgb, var(--ag-accent) 18%, var(--ag-surface-raised)); }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .dice-tray :is(button, .dice-tray__button):focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 1px; }
+html[data-ag-chat="on"] :is(#chat, .chat-popout) .dice-tray :is(input, .dice-tray__input) { background: var(--agc-well); color: var(--agc-ink); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ag-chat="on"] :is(#chat, .chat-popout, #chat-notifications) :is(.chat-message, button, prose-mirror, .collapsible-content) { transition: none !important; animation: none !important; }
+}
