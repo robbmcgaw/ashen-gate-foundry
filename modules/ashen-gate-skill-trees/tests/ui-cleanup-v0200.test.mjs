@@ -161,7 +161,7 @@ test('template: kit notices and folds, mode toggles in the canvas bar, Reset in 
   const reset=tpl.slice(tpl.indexOf('data-ag-fold-key="reset"')-60,tpl.indexOf('data-act="reset-tree"'));
   assert.match(reset,/<details class="ag-fold agst-reset"[^]*Reset this tree…/,'ST-11');
   assert.match(tpl,/data-act="undo" \{\{#unless canUndoEdit\}\}disabled/);
-  assert.match(tpl,/data-act="export" data-tree="\{\{id\}\}" aria-label="Export \{\{name\}\}"/);
+  assert.match(await fs.readFile(new URL('../scripts/library.mjs',import.meta.url),'utf8'),/data-act="export" data-tree="\$\{esc\(r\.id\)\}" aria-label="Export \$\{esc\(r\.name\)\}"/);
   assert.doesNotMatch(tpl,/<summary[^>]*>(?:(?!<\/summary>)[^])*<button/,'no control inside a summary');
   assert.match(src,/class="ag-btn ag-btn--sm" data-agst-open-tree[^`]*<i class="fa-solid fa-diagram-project" aria-hidden="true">/,'ST-14');
   assert.doesNotMatch(src,/v0\.6|Tree View/,'ST-15');

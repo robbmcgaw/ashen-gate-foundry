@@ -15,12 +15,13 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mj
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton} from './ag-html.mjs';
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
-import {treePicker,libraryGroups,libraryItems,walletLine,professionGroups} from './groups.mjs';
+import {treePicker,walletLine,professionGroups} from './groups.mjs';
+import {buildLibrary,renderLibraryHtml,renderFiltersFold,cleanFilters,validSort,validGroup,libraryCountText,filtersTitle,groupOptions,sortOptions,pickerGroups} from './library.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.21.2';
+const VERSION='0.22.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -190,7 +191,10 @@ async function publishPublic(){
 async function saveTrees(trees,{previous=null,checkPurchased=true}={}){
   if(!game.user.isGM)throw Error('GM only');
   const store=gmPrivate();if(!store)throw Error('Initialize the private GM store first');
-  const normalized=trees.map(normalizeTree);
+  const before=previous??readPrivate(),stamp=new Date().toISOString();
+  // 0.22.0: updatedAt is when a layout last changed (for "Recently edited"); an unchanged layout keeps its stamp.
+  const sameTree=(a,b)=>JSON.stringify({...a,updatedAt:null})===JSON.stringify({...b,updatedAt:null});
+  const normalized=trees.map(normalizeTree).map(t=>{const was=before.find(x=>x.id===t.id);return was&&sameTree(was,t)?t:{...t,updatedAt:stamp};});
   const check=validatePackage({schema:SCHEMA,trees:normalized});
   if(check.errors.length)throw Error(check.errors.slice(0,5).join('; '));
   if(checkPurchased){
@@ -628,17 +632,6 @@ const relationText=r=>[r.all.length?`Requires ${r.all.map(x=>x.name).join(' and 
   ...r.any.map(g=>`Requires one of ${g.nodes.map(x=>x.name).join(' or ')}`),
   r.excludes.length?`Cannot be taken with ${r.excludes.map(x=>x.name).join(', ')}`:''].filter(Boolean).join('. ');
 
-const PROVIDER_TEXT={profession:'Profession',cinder_milestone:'Cinder',generic_points:'Generic points'};
-const STATUS_VIEW={draft:{text:'Draft',cls:''},test:{text:'Test',cls:'ag-badge--warn'},approved:{text:'Approved',cls:'ag-badge--ok'}};
-/** Tree Library rows (GM): one per private layout, sorted by name; search text is the lower-case name. */
-function libraryRows(trees,selectedId){
-  return trees.map(t=>{const n=asArray(t.nodes).length,st=STATUS_VIEW[t.status]??{text:String(t.status??''),cls:''};
-    return {id:t.id,name:t.name||'Unnamed tree',search:String(t.name||t.id).toLowerCase(),kind:PROVIDER_TEXT[t.provider?.kind]??'Generic points',
-      nodeText:`${n} perk${n===1?'':'s'}`,statusText:st.text,statusClass:st.cls,playerVisible:t.visibility==='player',
-      visibilityText:t.visibility==='player'?'Player-visible':'GM only',selected:t.id===selectedId};})
-    .sort((a,b)=>a.name.localeCompare(b.name));
-}
-const countText=(shown,total)=>shown===total?`${total} tree${total===1?'':'s'}`:`${shown} of ${total} trees`;
 const plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
 const awardLabel=n=>`Award ${plural(Number.isFinite(n)&&n>0?n:0,'point')}`;
 /** Sidebar and Tree Library sub-tabs (0.20.0): group → the app field and per-user memory key that hold the choice. */
@@ -668,6 +661,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};
     // 0.20.0: remembered per user (kit uiState): the sidebar and Tree Library sub-tabs and the open folds.
     this.ui=uiState(MODULE);this.sideTab=this.ui.get('sideTab','perk',SIDE_TABS.map(t=>t.id));this.libraryTab=this.ui.get('libraryTab','trees',LIBRARY_TABS.map(t=>t.id));
+    // 0.22.0: Tree Library sort, grouping and filters are remembered per user; the search text is not.
+    this.lib={query:'',sort:validSort(this.ui.get('libSort','name')),groupBy:validGroup(this.ui.get('libGroup','type')),filters:cleanFilters(this.ui.get('libFilters',{}))};this._libraryTrees=[];this._libraryUnbind=null;
     this._unbind=[];this._pendingMove=null;this._moveTimer=null;
     // GM Setup draft (Player Access): "Unsaved changes" in the footer, and a question before a tab switch or close drops it.
     this.guard=guardDirty({status:()=>this.element?.querySelector?.('[data-agst-setup-status]')});}
@@ -730,8 +725,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       .sort((a,b)=>a.name.localeCompare(b.name)):[];
     const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
-    const libraryTrees=gm&&this.activeTab==='library'?libraryRows(readPrivate(),this.treeId):[];
-    const libraryList=gm&&this.activeTab==='library'?libraryItems(libraryGroups(libraryTrees,readPrivate(),g=>this._libraryWallet(g))):[];
+    // 0.22.0: GM-only (readPrivate is empty for players): the whole library is built from the stored layouts, resolved so level ranges include perk tiers.
+    const libraryTrees=gm&&this.activeTab==='library'?readPrivate().map(t=>{try{return resolved(t);}catch{return t;}}):[];
+    this._libraryTrees=libraryTrees;
+    const libraryModel=this._libraryModel();
     const picker=treePicker(this.trees,this.treeId,ref=>this.ui.get(`profTree:${ref}`,null));
     if(picker.tabs)this.ui.set(`profTree:${picker.tabs.sourceRef}`,picker.tabs.selected); // the tree last open in this profession, per user
     const side=subTabView('agst-side','Skill tree menu sections',sideTabsFor(gm),this.sideTab);this.sideTab=side.pick;
@@ -741,7 +738,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryLink:linkButton('Tree Library',{data:{act:'tab-library'}}),
       canUndoEdit:this.undo.length>0,canRedoEdit:this.redo.length>0,
       linkFromName:this.linkFrom?nodes.find(n=>n.id===this.linkFrom)?.name??'':'',gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryTrees,libraryList,libraryCountText:countText(libraryTrees.length,libraryTrees.length),playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
+      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryCountText:libraryCountText(libraryModel.shown,libraryModel.total),libraryHtml:renderLibraryHtml(libraryModel,{openByDefault:libraryTrees.length<=12}),libraryFilters:renderFiltersFold(this.lib.filters),libraryQuery:this.lib.query,libraryGroupOptions:groupOptions(this.lib.groupBy),librarySortOptions:sortOptions(this.lib.sort),libraryHasTrees:libraryTrees.length>0,playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
       hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level,siblings}).ok,
       canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level,siblings,access,accessLabel:proficiencyLabel}).ok,
       // The requirement line, unless it is already the Unlock reason shown just above it.
@@ -763,7 +760,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       actorName:actor?.name??'',
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
-      trees:picker.options,treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
+      trees:picker.options,treeGroups:pickerGroups(picker.options,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
       treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
       nodes,sizeClass:`agst-size-${size}`,nodeSize:size,bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
@@ -780,8 +777,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       setupReport,hasSetupReport:setupReport.length>0,missingGrants:missing,missingGrantsText:`${plural(missing,'unlocked perk')} ${missing===1?'is':'are'}`};
   }
   /** Tree Library line for a profession with several trees: the shared wallet once, for the character picked in Skill Trees. */
+  /** The Tree Library as folders for the current search, filters, sort and grouping (pure helper in library.mjs). */
+  _libraryModel(){
+    const {query,filters,sort,groupBy}=this.lib;
+    return buildLibrary(this._libraryTrees,{query,filters,sort,groupBy,selectedId:this.treeId,walletText:g=>this._libraryWallet(g)});
+  }
   _libraryWallet(group){
-    const actor=this.actor,base='1 point per profession level, '+PROFESSION_MAX_LEVEL+' at most, shared by '+group.trees.length+' trees';
+    const actor=this.actor,base='1 point per profession level, '+PROFESSION_MAX_LEVEL+' at most, shared by '+group.size+' trees';
     if(!actor)return `Shared wallet: ${base}.`;
     const w=walletFor(actor,group.sourceRef);
     return w?`Shared wallet (${base}). ${walletLine(actor.name,w)}.`:`Shared wallet: ${base}.`;
@@ -820,7 +822,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(el.id==='agst-actor-choice'){this.actorId=el.value;this.render();}
     },listenerOptions);
     root.querySelector('#agst-feature-search')?.addEventListener('input',e=>{this.search=e.target.value;const cards=root.querySelectorAll('.agst-feature');for(const c of cards)c.hidden=!`${c.textContent}`.toLowerCase().includes(this.search.toLowerCase());},listenerOptions);
-    this._wireLibrarySearch(root,listenerOptions);
+    this._wireLibrary(root,listenerOptions);
     root.querySelector('[data-agst-setup]')?.addEventListener('change',()=>this._onSetupChange(),listenerOptions);
     if(this._setupDirty())this.guard.markDirty();
     const shell=root.querySelector('.agst-shell');
@@ -921,17 +923,40 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(el.tagName.toLowerCase()==='path')el.setAttribute('d',line.d);else{el.setAttribute('x',line.mx);el.setAttribute('y',line.my);}
     }
   }
-  /** Tree Library search: filters the rows as you type (no re-render) and keeps the count in step. */
-  _wireLibrarySearch(root,listenerOptions){
-    const input=root.querySelector('[data-agst-library-search]');if(!input)return;
-    const rows=[...root.querySelectorAll('[data-agst-library-row]')],count=root.querySelector('[data-agst-library-count]'),none=root.querySelector('[data-agst-library-nomatch]');
-    const apply=()=>{const q=input.value.trim().toLowerCase();let shown=0;
-      for(const row of rows){row.hidden=Boolean(q)&&!row.dataset.search.includes(q);if(!row.hidden)shown++;}
-      // 0.21.0: a profession heading shows while any of its trees does.
-      for(const head of root.querySelectorAll('[data-agst-library-group]'))head.hidden=!rows.some(r=>r.dataset.agstLibraryIn===head.dataset.agstLibraryGroup&&!r.hidden);
-      if(count)count.textContent=countText(shown,rows.length);if(none)none.hidden=!(rows.length&&!shown);};
-    input.addEventListener('input',apply,listenerOptions);
-    root.querySelector('[data-agst-library-clear]')?.addEventListener('click',()=>{input.value='';apply();input.focus();},listenerOptions);
+  /**
+   * Tree Library search, filters, sort and grouping (0.22.0). Changing any of them rebuilds only the folder list (no window
+   * re-render), so the search box keeps focus; the focused row button is found again afterwards. Folder open state is the kit's
+   * per-user fold memory.
+   */
+  _wireLibrary(root,listenerOptions){
+    const region=root.querySelector('[data-agst-library-region]');if(!region)return;
+    const input=root.querySelector('[data-agst-library-search]'),count=root.querySelector('[data-agst-library-count]');
+    const refresh=()=>{
+      const active=globalThis.document?.activeElement,key=region.contains?.(active)?active.closest?.('[data-act]'):null;
+      const model=this._libraryModel();
+      this._libraryUnbind?.();
+      region.innerHTML=renderLibraryHtml(model,{openByDefault:this._libraryTrees.length<=12});
+      this._libraryUnbind=bindFolds(region,this.ui);
+      if(count)count.textContent=libraryCountText(model.shown,model.total);
+      const title=root.querySelector('[data-ag-fold-key="lib-filters"] .ag-fold__title');if(title)title.textContent=filtersTitle(this.lib.filters);
+      if(key){const again=[...region.querySelectorAll(`[data-act="${key.dataset.act}"]`)].find(b=>b.dataset.tree===key.dataset.tree);again?.focus?.({preventScroll:true});}
+    };
+    this._libraryUnbind=null; // the folds were bound with the rest of the window; only rebuilt lists are bound here
+    this._unbind.push(()=>{this._libraryUnbind?.();this._libraryUnbind=null;});
+    const clearAll=()=>{
+      this.lib.query='';this.lib.filters=cleanFilters({});this.ui.set('libFilters',this.lib.filters);
+      if(input)input.value='';
+      for(const sel of root.querySelectorAll('[data-agst-library-filter]'))sel.value='all';
+      refresh();
+    };
+    input?.addEventListener('input',()=>{this.lib.query=input.value;refresh();},listenerOptions);
+    root.querySelector('[data-agst-library-sort]')?.addEventListener('change',e=>{this.lib.sort=validSort(e.target.value);this.ui.set('libSort',this.lib.sort);refresh();},listenerOptions);
+    root.querySelector('[data-agst-library-group]')?.addEventListener('change',e=>{this.lib.groupBy=validGroup(e.target.value);this.ui.set('libGroup',this.lib.groupBy);refresh();},listenerOptions);
+    for(const sel of root.querySelectorAll('[data-agst-library-filter]'))sel.addEventListener('change',()=>{
+      this.lib.filters=cleanFilters({...this.lib.filters,[sel.dataset.agstLibraryFilter]:sel.value});this.ui.set('libFilters',this.lib.filters);refresh();},listenerOptions);
+    root.querySelector('[data-agst-library-clear-filters]')?.addEventListener('click',clearAll,listenerOptions);
+    // The "Clear search and filters" button lives in the rebuilt region, so listen on the region.
+    region.addEventListener('click',e=>{if(e.target.closest?.('[data-agst-library-clear]')){clearAll();input?.focus?.();}},listenerOptions);
   }
   /** GM Setup form values as shown (not yet saved). */
   _readSetup(){
@@ -1075,7 +1100,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <li><strong>Edit</strong> (GM): with Edit layout on, Tree settings, Appearance, Undo/Redo and the Perks list.</li></ul>
       <p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p>
       <h3>Editing a tree (GM)</h3><p>Turn on <strong>Edit layout</strong> above the canvas. Add perks from the Edit tab (drag, or press Add). Move a node by dragging it, by focusing it and using the arrow keys (Shift for bigger steps), or with Move node. <strong>Connect prerequisite</strong> adds a required arrow; Esc or Cancel connecting stops. <strong>Player preview</strong> shows what players see.</p>
-      <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree with Open and Export, Export all trees and New tree. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager.</p>
+      <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree in folders by type (Crafting, Gathering, Cinder powers and so on) with a count each; open or close a folder to remember it. Search, Sort, Folders and Filters narrow the list. Each tree has Open and Export; Export all trees and New tree are at the top. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager.</p>
       <h3>GM Setup</h3><p>Player access (saved with Save Changes) and Developer Tools.</p>
       <h3>Profession trees</h3><p>Profession trees get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again: the banner’s <strong>Review</strong> button (or the whisper’s) lists them, to keep or remove each.</p>
       <h3>Professions with several trees</h3><p>A profession can have more than one tree (for example one per craft). Its trees share one wallet: 1 point per profession level, 16 at most, whichever tree the points go into. The Tree list shows the profession once; the tabs below it switch between its trees, and the Character tab shows how many points each tree uses. A tree can ask for a tool or skill proficiency: players without one can browse it but not pick from it (the Profession Ledger checks it); the GM can still unlock and grant.</p>`);

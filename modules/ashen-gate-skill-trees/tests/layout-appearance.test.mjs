@@ -106,7 +106,7 @@ test('template and styles: sidebar, canvas, tooltip, band and background hooks e
   const hbs=await readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const css=await readFile(new URL('../styles/trees.css',import.meta.url),'utf8');
   for(const hook of ['agst-sidebar','agst-canvas-pane','agst-tip','agst-tier','data-act="toggle-sidebar"','data-act="appearance"','{{sizeClass}}','{{bg.style}}','<span class="ag-header__brand">Ashen Gate</span> | Skill Trees</h1>','<span class="ag-version">v{{moduleVersion}}</span>','data-act="help"'])assert.ok(hbs.includes(hook),hook);
-  for(const act of ['grant','reset-tree','purchase','request','refund','assign-perk','edit-node','link','remove-node','tree-settings','undo','redo','player-preview','edit-mode','add-perk','publish','export','export-all','give-missing','backup-progress','create-tree','setup-save','setup-cancel'])assert.ok(hbs.includes(`data-act="${act}"`),act);
+  for(const act of ['grant','reset-tree','purchase','request','refund','assign-perk','edit-node','link','remove-node','tree-settings','undo','redo','player-preview','edit-mode','add-perk','publish','export','export-all','give-missing','backup-progress','create-tree','setup-save','setup-cancel'])assert.ok((hbs+await readFile(new URL('../scripts/library.mjs',import.meta.url),'utf8')).includes(`data-act="${act}"`),act);
   assert.doesNotMatch(css,/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
   assert.match(css,/@container \(max-width: 759px\)/);
 });
