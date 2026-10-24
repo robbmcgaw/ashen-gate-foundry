@@ -6,7 +6,7 @@
 // the book (its own page, never sent to players).
 import {cleanText as E} from './core.mjs';
 import {emptyState} from './gm-panels.mjs';
-import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename} from './journal-core.mjs';
+import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock} from './journal-core.mjs';
 
 const KINDS={primary:'ag-btn ag-btn--primary',secondary:'ag-btn',danger:'ag-btn ag-btn--danger',ghost:'ag-btn ag-btn--ghost'};
 const tip=t=>t?` data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`:'';
@@ -37,6 +37,11 @@ export const FORMAT_COMMANDS=Object.freeze({bold:['bold'],italic:['italic'],unde
 /** Buttons that show whether the text at the caret has their format (aria-pressed, from document.queryCommandState). */
 export const PRESSABLE=Object.freeze({bold:'bold',italic:'italic',underline:'underline',strike:'strikeThrough',ul:'insertUnorderedList',ol:'insertOrderedList'});
 
+/** Shows Remove quote formatting only while the page's first block is a quote. */
+export function syncQuoteButton(root,ed){
+ const b=root?.querySelector?.('[data-jaction="unquote"]');if(!b||!ed)return;
+ b.hidden=!(ed.firstElementChild?.nodeName==='BLOCKQUOTE');
+}
 export const newJournalView=isGM=>({sessionId:null,target:isGM?'party':'me',query:'',showArchived:false,renaming:null,base:'',dirty:false,gmBase:'',gmDirty:false,stale:false,key:''});
 /** True when the page or the GM-only notes have text that is not saved yet. */
 export const anyDirty=jv=>!!(jv?.dirty||jv?.gmDirty);
@@ -52,6 +57,54 @@ export function toggleHighlight(ed,doc=globalThis.document){
  doc.execCommand('hiliteColor',false,FORMAT_COMMANDS.highlight[1]);
  for(const sp of [...ed.querySelectorAll('span[style]')])if(/background/i.test(sp.getAttribute('style')))swapTag(sp,'mark',doc);
  return 'added';
+}
+const BLOCK=new Set(['P','H1','H2','H3','H4','UL','OL','BLOCKQUOTE','HR','DIV']);
+const isBlock=n=>n?.nodeType===1&&BLOCK.has(n.nodeName);
+const hasContent=run=>run.some(n=>n.nodeType===3?!!n.textContent.trim():n.nodeName!=='BR');
+/** Consecutive loose nodes (text, inline tags, br) between blocks, as runs; blocks stay as they are. */
+function groupRuns(nodes){
+ const out=[];let run=null;
+ for(const n of nodes){if(isBlock(n)){run=null;out.push(n);}else{if(!run){run=[];out.push({run});}run.push(n);}}
+ return out;
+}
+function paragraphOf(run,doc){if(!hasContent(run))return null;const p=doc.createElement('p');for(const n of run)p.appendChild(n);return p;}
+/** Takes one quote (and any quote inside it) off: its content becomes ordinary blocks, in place. Returns the last block. */
+function unwrapQuote(bq,doc){
+ for(const c of [...bq.childNodes])if(c.nodeName==='BLOCKQUOTE')unwrapQuote(c,doc);
+ const parent=bq.parentNode;let last=null;
+ for(const item of groupRuns([...bq.childNodes])){const node=item.run?paragraphOf(item.run,doc):item;if(node){parent.insertBefore(node,bq);last=node;}}
+ parent.removeChild(bq);return last;
+}
+function caretAtEnd(node,doc){
+ try{const sel=doc.getSelection?.(),r=doc.createRange?.();if(!sel||!r||!node)return;r.selectNodeContents(node);r.collapse(false);sel.removeAllRanges();sel.addRange(r);}catch{}
+}
+/** The editor's page starts as one normal paragraph while it is empty (never a quote, never loose text). Returns true if it seeded. */
+export function ensureParagraph(ed,doc=globalThis.document){
+ if(!ed||!isBlankPage(ed.innerHTML))return false;
+ if(ed.innerHTML!==SEED_HTML)ed.innerHTML=SEED_HTML;
+ try{const sel=doc?.getSelection?.(),r=doc?.createRange?.();if(sel&&r&&ed.firstChild){r.setStart(ed.firstChild,0);r.collapse(true);sel.removeAllRanges();sel.addRange(r);}}catch{}
+ return true;
+}
+/** Back to truly empty when nothing was typed (so the placeholder shows and nothing is saved). */
+export function tidyBlank(ed){if(ed&&ed.innerHTML!==''&&isBlankPage(ed.innerHTML))ed.innerHTML='';}
+/** Text typed straight into the page (no block around it) gets a normal paragraph. */
+export function wrapBareText(ed,doc=globalThis.document){
+ if(!ed||![...ed.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()))return false;
+ try{doc.execCommand('formatBlock',false,'<p>');}catch{return false;}return true;
+}
+/** Quote is a real toggle. With the selection in a quote: takes the quote off (every level, text kept). Otherwise puts all the
+    blocks the selection touches into ONE quote (never a quote inside a quote). Returns 'removed', 'added' or 'none'. */
+export function toggleQuote(ed,doc=globalThis.document){
+ const sel=doc?.getSelection?.();if(!sel||!sel.rangeCount||!ed?.contains?.(sel.anchorNode))return 'none';
+ if(isBlankPage(ed.innerHTML)){ed.innerHTML=SEED_HTML;caretAtEnd(ed.firstChild,doc);}
+ const range=sel.getRangeAt(0),touched=[...ed.childNodes].filter(n=>range.intersectsNode(n));
+ if(!touched.length)return 'none';
+ const quotes=touched.filter(n=>n.nodeName==='BLOCKQUOTE');
+ if(quotes.length){let last=null;for(const q of quotes)last=unwrapQuote(q,doc)??last;caretAtEnd(last,doc);return 'removed';}
+ const bq=doc.createElement('blockquote');ed.insertBefore(bq,touched[0]);
+ for(const item of groupRuns(touched)){const node=item.run?paragraphOf(item.run,doc):item;if(node)bq.appendChild(node);}
+ if(!bq.firstChild){ed.removeChild(bq);return 'none';}
+ caretAtEnd(bq.lastChild,doc);return 'added';
 }
 function unwrap(el){const p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el);}
 function swapTag(el,name,doc){const m=doc.createElement(name);while(el.firstChild)m.appendChild(el.firstChild);el.parentNode.replaceChild(m,el);}
@@ -128,7 +181,7 @@ export function journalDetailHTML(m){
   m.isGM&&p&&!p.missing&&p.target!=='party'?notice('info','fa-eye',"You are reading a player's own journal. Only they can write it."):'',
   m.stale?notice('warn','fa-rotate','Someone else saved this page while you were writing. Save asks before replacing their text.'):''
  ].join('');
- const autoButtons=`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat" tabindex="-1"${tip('Tidy spaces, blank lines, lists and punctuation. You see what changes first, and can undo it.')}>${icon('fa-wand-magic-sparkles')} Auto format…</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat-undo" tabindex="-1" hidden>${icon('fa-rotate-left')} Undo auto format</button>`;
+ const autoButtons=`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat" tabindex="-1"${tip('Tidy spaces, blank lines, lists and punctuation. You see what changes first, and can undo it.')}>${icon('fa-wand-magic-sparkles')} Auto format…</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat-undo" tabindex="-1" hidden>${icon('fa-rotate-left')} Undo auto format</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="unquote" tabindex="-1"${m.page&&firstBlockIsQuote(m.page.html??'')?'':' hidden'}${tip('The first block of this page is a quote. Take the quote formatting off it; its text stays.')}>${icon('fa-quote-right')} Remove quote formatting</button>`;
  // One Tab stop for the formatting toolbar (Left/Right/Home/End move along it); toggles carry aria-pressed.
  const canEdit=canWrite||!!m.gm?.canWrite;
  const tools=canEdit?`<div class="agq-jtools" role="toolbar" aria-label="Formatting">${FORMATS.map((f,i)=>`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm ag-btn--icon agq-jtool" data-format="${f.id}" aria-label="${E(f.label)}"${tip(f.key?`${f.label} (${f.key})`:f.label)} tabindex="${i?-1:0}"${PRESSABLE[f.id]?' aria-pressed="false"':''}>${f.icon?icon(f.icon):`<span aria-hidden="true">${E(f.text)}</span>`}</button>`).join('')}<span class="agq-jtools__sep" aria-hidden="true"></span>${autoButtons}</div>`:'';
@@ -184,9 +237,12 @@ export function installJournal(App,ctx){
    const markDirty=ed=>{if(ed===gmEd)jv.gmDirty=true;else jv.dirty=true;this.journalStatus('Unsaved changes');if(ed===main)fitSpread(ed,{grow:true});};
    for(const ed of editable){
     // Enter starts a paragraph, not a div (Chromium's default).
-    ed.addEventListener('focus',()=>{try{document.execCommand('defaultParagraphSeparator',false,'p');}catch{}},{once:true});
+    ed.addEventListener('focus',()=>{try{document.execCommand('defaultParagraphSeparator',false,'p');}catch{}ensureParagraph(ed);});
     ed.addEventListener('focusin',()=>{this.jActive=ed;});
-    ed.addEventListener('input',()=>markDirty(ed));
+    let fixing=false;
+    ed.addEventListener('input',()=>{
+     if(!fixing){fixing=true;try{wrapBareText(ed);}finally{fixing=false;}}
+     markDirty(ed);syncQuoteButton(root,ed);});
     // Pasted text keeps only the formatting the journal allows.
     ed.addEventListener('paste',e=>{const data=e.clipboardData;if(!data)return;e.preventDefault();
      const html=data.getData('text/html'),text=data.getData('text/plain');
@@ -195,6 +251,7 @@ export function installJournal(App,ctx){
     ed.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key?.toLowerCase()==='s'){e.preventDefault();e.stopPropagation();this.saveJournal(root).catch(ctx.notify);}});
     // Save on blur: leaving the page for anything but its own toolbar saves it.
     ed.addEventListener('focusout',e=>{if(e.relatedTarget&&(root.querySelector('.agq-jtools')?.contains(e.relatedTarget)||editable.includes(e.relatedTarget)))return;
+     tidyBlank(ed);
      if(anyDirty(jv))this.saveJournal(root).catch(ctx.notify);else if(jv.refreshPending){jv.refreshPending=false;this.externalRender=true;this.render();}});
    }
    for(const b of root.querySelectorAll('[data-format]')){
@@ -202,6 +259,7 @@ export function installJournal(App,ctx){
     b.addEventListener('click',()=>{const ed=this.jActive??editable[0];const f=b.dataset.format;
      ed.focus();
      if(f==='highlight')toggleHighlight(ed);
+     else if(f==='quote')toggleQuote(ed);
      else{const [cmd,arg]=FORMAT_COMMANDS[f]??[];if(!cmd)return;document.execCommand(cmd,false,arg);}
      markDirty(ed);showPressed(root);});
    }
@@ -224,11 +282,17 @@ export function installJournal(App,ctx){
   async autoFormatJournal(root=this.jRoot){
    const jv=this.journalView(),ed=this.jActive?.isConnected!==false&&this.jActive||root?.querySelector?.('#agq-journal-editor');
    if(!ed||ed.getAttribute?.('contenteditable')!=='true')return;
-   const res=autoFormatHtml(ed.innerHTML);
+   let res=autoFormatHtml(ed.innerHTML);
    if(!res.ok)return void ctx.info('Auto format left this page alone: it could not tidy it without risking your words.');
-   if(!res.changes.length)return void ctx.info('Nothing to tidy: this page is already clean.');
-   const before=ed.innerHTML;
-   if(!await (ctx.confirm??ctx.danger)(`Auto format will:\n${res.changes.map(c=>`• ${c}`).join('\n')}\nNo words are removed. Afterwards, Undo auto format puts the page back as it is now.`,{title:'Auto format this page?',yes:'Apply auto format',no:'Cancel'}))return;
+   if(!res.changes.length&&!res.firstQuote)return void ctx.info('Nothing to tidy: this page is already clean.');
+   const before=ed.innerHTML,list=res.changes.map(c=>`• ${c}`).join(' ')||'Nothing else to tidy.';
+   if(res.firstQuote&&ctx.form){
+    // The first block is a quote: offer un-quoting as its own explicit choice, off unless ticked.
+    const got=await ctx.form('Auto format this page?',[{name:'unquote',type:'checkbox',value:'1',label:'Un-quote the first block',hint:`The first block of this page is a quote. Tick this to take the quote formatting off it (its text stays). Auto format will: ${list} No words are removed; Undo auto format puts the page back.`}],{ok:'Apply auto format',cancel:'Cancel'});
+    if(!got)return;
+    if(got.unquote)res=autoFormatHtml(ed.innerHTML,{unquoteFirst:true});
+    if(!res.ok||!res.changes.length)return void ctx.info('Nothing to change.');
+   }else if(!await (ctx.confirm??ctx.danger)(`Auto format will:\n${res.changes.map(c=>`• ${c}`).join('\n')}\nNo words are removed. Afterwards, Undo auto format puts the page back as it is now.`,{title:'Auto format this page?',yes:'Apply auto format',no:'Cancel'}))return;
    jv.autoUndo={ed,html:before};
    ed.innerHTML=res.html;
    if(ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
@@ -236,12 +300,27 @@ export function installJournal(App,ctx){
    const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=false;
    ed.focus?.();
   },
+  /** Remove quote formatting: asks, then takes the quote off the page's first block (text stays). Undo auto format reverses it. */
+  async unquoteJournal(root=this.jRoot){
+   const jv=this.journalView(),ed=this.jActive?.isConnected!==false&&this.jActive||root?.querySelector?.('#agq-journal-editor');
+   if(!ed||ed.getAttribute?.('contenteditable')!=='true')return;
+   const res=unquoteFirstBlock(ed.innerHTML);
+   if(!res.changed)return void ctx.info('The first block of this page is not a quote.');
+   if(!await (ctx.confirm??ctx.danger)('The first block of this page is a quote. Remove the quote formatting from it? Its text stays as ordinary paragraphs. Undo auto format puts it back.',{title:'Remove quote formatting?',yes:'Remove quote formatting',no:'Cancel'}))return;
+   jv.autoUndo={ed,html:ed.innerHTML};
+   ed.innerHTML=res.html;
+   if(ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
+   this.journalStatus('Unsaved changes');fitSpread(ed,{grow:true});
+   const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=false;
+   syncQuoteButton(root,ed);ed.focus?.();
+  },
   undoAutoFormat(root=this.jRoot){
    const jv=this.journalView(),u=jv.autoUndo;if(!u?.ed||u.ed.isConnected===false)return;
    u.ed.innerHTML=u.html;jv.autoUndo=null;
    if(u.ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
    this.journalStatus('Unsaved changes');fitSpread(u.ed,{grow:true});
    const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=true;
+   syncQuoteButton(root,u.ed);
   },
   /** Saves the open page if it has unsaved changes. Resolves false when it could not (the text stays in the page). */
   async saveJournal(root=this.jRoot){
@@ -289,6 +368,7 @@ export function installJournal(App,ctx){
    if(action==='save')return void await this.saveJournal(root);
    if(action==='discard'){if(anyDirty(jv)&&!await ctx.danger('Discard your unsaved changes to this page?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'}))return;jv.dirty=false;jv.gmDirty=false;jv.stale=false;jv.key='';return void await this.render();}
    if(action==='autoformat')return void await this.autoFormatJournal(root);
+   if(action==='unquote')return void await this.unquoteJournal(root);
    if(action==='autoformat-undo')return void this.undoAutoFormat(root);
    if(action==='rename-cancel'){jv.renaming=null;return void await this.render();}
    if(action==='rename-save'){

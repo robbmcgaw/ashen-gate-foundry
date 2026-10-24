@@ -139,7 +139,7 @@ export function sanitizeHtml(html){
  }
  out.push(escText(s.slice(last)));
  const clean=out.join('').trim();
- return /^(?:<p>)?(?:<br>|\s|&nbsp;)*(?:<\/p>)?$/.test(clean)?'':clean;
+ return /^(?:<(?:p|blockquote)>)*(?:<br>|\s|&nbsp;)*(?:<\/(?:p|blockquote)>)*$/.test(clean)?'':clean;
 }
 const ENTITY={amp:'&',lt:'<',gt:'>',quot:'"','#39':"'",nbsp:' '};
 const decode=t=>t.replace(/&(amp|lt|gt|quot|#39|nbsp);/g,(_,k)=>ENTITY[k]);
@@ -153,7 +153,7 @@ export function htmlToText(html){
 /** Stored HTML as Markdown: headings, bold, italics, lists, quotes. Underline and highlight have no Markdown form; their text is kept. */
 export function htmlToMarkdown(html,{shift=0}={}){
  const s=sanitizeHtml(html);
- const lists=[],lines=[];let line='',prefix='';
+ const lists=[],lines=[];let line='',prefix='',quote=0;
  const flush=()=>{const text=decode(line).replace(/[ \t]+$/g,'');if(text.trim()||prefix)lines.push(prefix+text);line='';prefix='';};
  const gap=()=>{if(lines.length&&lines.at(-1)!=='')lines.push('');};
  let last=0;
@@ -161,7 +161,12 @@ export function htmlToMarkdown(html,{shift=0}={}){
   line+=s.slice(last,m.index);last=m.index+m[0].length;
   const [,close,tag]=m;
   if(/^h[1-4]$/.test(tag)){if(close)flush();else{flush();gap();prefix='#'.repeat(Math.min(6,Number(tag[1])+shift))+' ';}continue;}
-  if(tag==='p'||tag==='blockquote'){if(close){flush();if(!lists.length)lines.push('');}else{flush();if(!lists.length)gap();if(tag==='blockquote')prefix='> ';}continue;}
+  if(tag==='blockquote'){
+   if(close){flush();quote=Math.max(0,quote-1);if(lines.at(-1)==='>')lines.pop();if(!lists.length)lines.push('');}
+   else{flush();if(!lists.length&&!quote)gap();quote++;prefix='> ';}
+   continue;}
+  if(tag==='p'&&quote){if(close){flush();lines.push('>');}else{line='';prefix='> ';}continue;}
+  if(tag==='p'){if(close){flush();if(!lists.length)lines.push('');}else{flush();if(!lists.length)gap();}continue;}
   if(tag==='ul'||tag==='ol'){flush();if(close){lists.pop();if(!lists.length)lines.push('');}else{if(!lists.length)gap();lists.push({tag,n:0});}continue;}
   if(tag==='li'){if(close)flush();else{flush();const l=lists.at(-1)??{tag:'ul',n:0};l.n++;prefix='  '.repeat(Math.max(0,lists.length-1))+(l.tag==='ol'?`${l.n}. `:'- ');}continue;}
   if(tag==='hr'){flush();gap();lines.push('---','');continue;}
@@ -225,6 +230,31 @@ function snippet(text,at,len,pad=40){
  return `${a>0?'…':''}${text.slice(a,b).replace(/\s+/g,' ')}${b<text.length?'…':''}`;
 }
 
+/* ---- Quotes at the start of a page (0.21.2) ---- */
+/** True when the page has no text, no divider and no list: nothing for a stray empty block to protect. */
+export const isBlankPage=html=>sanitizeHtml(html)==='';
+/** What an editable page holds while it is empty and focused: one normal paragraph for the first line to land in. */
+export const SEED_HTML='<p><br></p>';
+const BLOCK_TAG=/<(\/?)(p|h[1-4]|ul|ol|blockquote|hr)>/g;
+/** True when the first block of the page is a quote. */
+export const firstBlockIsQuote=html=>/^<blockquote>/.test(sanitizeHtml(html));
+/** Takes the quote formatting off the first block (all nested levels), keeping every word: its content becomes
+    ordinary paragraphs, or nothing when the quote was empty. Everything after the first block is untouched. */
+export function unquoteFirstBlock(html){
+ const src=sanitizeHtml(html);
+ if(!/^<blockquote>/.test(src))return {html:src,changed:false};
+ let depth=0,end=-1;
+ for(const m of src.matchAll(BLOCK_TAG)){
+  if(m[2]!=='blockquote'&&depth===0)continue;
+  if(m[2]!=='blockquote')continue;
+  depth+=m[1]?-1:1;if(depth===0){end=m.index+m[0].length;break;}
+ }
+ const first=end<0?src:src.slice(0,end),rest=end<0?'':src.slice(end);
+ const inner=first.replace(/<\/?blockquote>/g,'');
+ const out=topBlocks(inner).map(g=>g.kind==='raw'?g.html:g.html.replace(/<br>|\s|&nbsp;/g,'')?`<p>${g.html.trim()}</p>`:'').join('');
+ return {html:sanitizeHtml(out+rest),changed:true};
+}
+
 /* ---- Auto format: a conservative tidy-up of pasted or typed text ---- */
 // Works on the sanitized HTML of one page. It never joins or splits sentences and never rewrites words: it normalises
 // spaces and blank lines, turns bullet and numbered lines into real lists, fixes spacing around punctuation, and makes
@@ -270,8 +300,10 @@ function topBlocks(src){
  return groups;
 }
 /** {html, changes:[sentence], ok}. `changes` is empty when there is nothing to tidy; ok is false if it refused to change anything. */
-export function autoFormatHtml(input){
- const src=sanitizeHtml(input),groups=topBlocks(src);
+export function autoFormatHtml(input,{unquoteFirst=false}={}){
+ const original=sanitizeHtml(input),firstQuote=firstBlockIsQuote(original);
+ const unq=unquoteFirst&&firstQuote?unquoteFirstBlock(original):null;
+ const src=unq?unq.html:original,groups=topBlocks(src);
  const tally={space:0,punct:0,blank:0,bullets:0,numbers:0,heads:[]};
  // Stage 1: raw blocks and tidied paragraphs (a blank line ends a paragraph), each line classified.
  const items=[];
@@ -317,9 +349,10 @@ export function autoFormatHtml(input){
  });
  flushList();
  const html=out.join('');
- if(html===src)return {html:src,changes:[],ok:true};
- if(lettersOf(html)!==lettersOf(src))return {html:src,changes:[],ok:false};
+ if(html===original)return {html:original,changes:[],ok:true,firstQuote};
+ if(lettersOf(html)!==lettersOf(original))return {html:original,changes:[],ok:false,firstQuote};
  const n=(k,w)=>`${k} ${w}${k===1?'':'s'}`,changes=[];
+ if(unq?.changed)changes.push('Remove the quote formatting from the first block.');
  if(tally.bullets)changes.push(`Make ${n(tally.bullets,'bullet line')} into a bulleted list.`);
  if(tally.numbers)changes.push(`Make ${n(tally.numbers,'numbered line')} into a numbered list.`);
  if(tally.heads.length)changes.push(`Make ${tally.heads.length===1?'this line a heading':'these lines headings'}: ${tally.heads.map(h=>`"${h}"`).join(', ')}.`);
@@ -327,5 +360,5 @@ export function autoFormatHtml(input){
  if(tally.space)changes.push(`Trim extra and trailing spaces in ${n(tally.space,'line')}.`);
  if(tally.blank)changes.push('Remove extra blank lines.');
  if(!changes.length)changes.push('Tidy the layout.');
- return {html,changes,ok:true};
+ return {html,changes,ok:true,firstQuote};
 }
