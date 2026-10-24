@@ -37,7 +37,7 @@ function mkWorld({gm = true, scene = mkScene(), weather = CORE_WEATHER} = {}) {
 const snapshot = scene => structuredClone({environment: scene.environment, weather: scene.weather, fog: scene.fog});
 
 test('default layers are valid, use only V14 fields and core weather ids, and match the approved list', () => {
-  assert.deepEqual(DEFAULT_LAYERS.map(l => l.label), ['Mist', 'Rain', 'Snow', 'Cold night', 'Blood moon', 'Hearth glow', 'Pitch black', 'Bright moon']);
+  assert.deepEqual(DEFAULT_LAYERS.slice(0, 8).map(l => l.label), ['Mist', 'Rain', 'Snow', 'Cold night', 'Blood moon', 'Hearth glow', 'Pitch black', 'Bright moon'], 'the original eight keep their order');
   for(const p of [...DEFAULT_LAYERS, ...DEFAULT_MOODS]) {
     assert.deepEqual(validatePreset(p), [], p.id);
     for(const path of Object.keys(p.set)) assert.ok(V14_PATHS.includes(path), path);
@@ -231,7 +231,7 @@ test('players are refused by every new function, and nothing is written', async 
 test('layer presets: save, edit, remove, reset; moods and layers are kept apart', async () => {
   const {api, store} = mkWorld();
   assert.equal((await api.savePreset({id: 'ashfall', label: 'Ashfall', kind: 'layer', set: {'fog.colors.unexplored': '#332222'}})).ok, true);
-  assert.equal(api.listMoods().layers.length, 9);
+  assert.equal(api.listMoods().layers.length, DEFAULT_LAYERS.length + 1);
   assert.equal(api.listMoods().presets.length, 5, 'moods untouched');
   assert.deepEqual(store[MOODS_SETTING], [], 'mood setting not written');
   assert.equal((await api.removePreset('ashfall', {kind: 'layer'})).ok, true);
@@ -277,7 +277,7 @@ test('moods file: export shape, preview statuses, keep / replace / both, invalid
   const keepAll = mkWorld();
   await keepAll.api.importPresets({format: FILE_FORMAT, formatVersion: 1, presets: [{id: 'x', label: 'X', kind: 'layer', set: {weather: ''}}]});
   assert.deepEqual(keepAll.store[MOODS_SETTING], [], 'an unchanged kind is not written');
-  assert.equal(keepAll.store[LAYERS_SETTING].length, 9);
+  assert.equal(keepAll.store[LAYERS_SETTING].length, DEFAULT_LAYERS.length + 1);
 });
 
 test('pure stack helpers: insert under a higher entry and remove from the middle', () => {

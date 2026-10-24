@@ -46,6 +46,7 @@ General Manager 0.35.0 and later. Scenes tab → **Export & import** (rail) save
 | `presets[].label` | yes | Non-empty text shown on the button |
 | `presets[].kind` | no | `mood` (default): the base look, one per scene. `layer`: stacks on top. Any other value is invalid and the preset is skipped (Manager 0.41.2+) |
 | `presets[].set` | yes | At least one field from the table below → value |
+| `presets[].flashing` | no | `true` marks a preset as flashing or strobing; it refuses to apply while the world's No flashing switch is on (Manager 0.60.11+). Absent means false |
 | `presets[].transitionMs` | no | Whole milliseconds 0–60000. Fades darkness when the Live transition is "Preset default" |
 
 A preset that breaks any rule above is **skipped** on import with the reason (bad id, missing label, bad `kind`, bad `transitionMs`, empty `set`), and so is one whose `set` has a path not in the table below or a value of the wrong type or out of range; the rest still import. Other keys on a preset are ignored and not imported. The same kind and id twice inside the file (Manager 0.41.2+): the first one is imported and each later one shows as **Skipped** in the preview with `Id <id> is used twice in this file`. Import is all or nothing: every changed list is checked before anything is saved, and if saving one kind fails the other is put back, so a file is never half imported. A preset whose weather id is not in the target world imports but is marked unavailable and refuses to apply until edited.

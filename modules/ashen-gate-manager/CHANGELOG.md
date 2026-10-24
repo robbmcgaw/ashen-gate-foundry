@@ -1,3 +1,18 @@
+## 0.60.11 — 2026-10-24
+
+Scenes, second iteration. Everything is previewable and undoable, nothing is written without Apply, GM only.
+
+- **Eight new layers.** Blight: **Ash fall**, **Blight haze**, **Ember glow**, **Heat shimmer**. Atmosphere: **Fog bank**, **Candlelit interior**, **Underwater murk**. (Ash fall uses core snow weather under a grey tint, and Heat shimmer is a warm tint only: Foundry has no ash or heat-distortion effect.) Worlds with a saved list do not get them silently: Moods & layers shows "Add shipped presets", which adds only what is missing and never changes your own presets.
+- **Time of day blend** (Live > Fine-tune): pick two moods and drag the slider; on release the controls below fill with the blend. It is a draft until *Apply to scene*.
+- **Random weather** (Live): a seeded proposal (same seed, same result), shown as text first. It only adds layers (one weather and up to two others, Blight ones a little more often), optionally a new mood if "Keep the current mood" is off. *Apply this roll* does it; *Discard* drops it.
+- **Looks** (new Scenes sub-tab): save a scene's mood and layers under a name, preview what it would do to chosen scenes or every scene in a folder, then *Apply look*. Rows say Will change, Nothing to change, or Cannot apply and why. **Undo last batch** puts every scene back (a value you changed since is kept). A look can link a playlist; it starts or stops only if you tick that when applying.
+- **Default look per scene** (Looks, off by default): with "Restore default looks when a scene is activated" on, activating a scene that has a default look applies it (no music, no fade, and not if it already shows it).
+- **No flashing** switch (Live): presets can be marked "Flashing or strobing"; while the switch is on they refuse to apply and never come up in Random weather. None of the shipped presets flash (Manager has no lightning or strobe effect); the switch covers presets you or an imported file mark.
+- **Macro API:** `game.modules.get('ashen-gate-manager').api.scenes.apply("Name")` applies a look, mood or layer by name (looks first). Also `names`, `listLooks`, `saveLook`, `removeLook`, `previewLook`, `applyLook`, `undoLastBatch`, `setDefaultLook`, `setAutoLook`, `getCalm`, `setCalm`, `planPreset`, `addNewDefaults`.
+- Moods files may carry `"flashing": true` on a preset (optional; older files import as before).
+- Saved data: three new world settings (looks, default-look switch, No flashing) and an optional `defaultLook` flag on a scene you choose; nothing existing is rewritten; no migration.
+- Tested with mocked Foundry only (logic, not the live Forge UI or how the effects look).
+
 ## 0.60.10 — 2026-10-24
 
 - **Fix: Preview sync no longer stops with "Cannot read properties of null (reading 'type')".** Sync read the type of embedded Items, effects, pages and table results (and of the item list saved at the last import) without allowing for an empty or missing entry, so one odd entry in one document stopped the whole preview. Those lists now skip empty entries.

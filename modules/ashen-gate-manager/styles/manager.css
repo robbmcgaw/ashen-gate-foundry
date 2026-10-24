@@ -260,6 +260,7 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 .agscenes-field.is-touched>span{color:var(--ag-accent-ink)}
 .agscenes-color{display:inline-flex;align-items:center;gap:var(--ag-space-2)}
 .agscenes-color input[type=color]{width:calc(var(--ag-control-h-sm) * 1.5);height:var(--ag-control-h-sm);padding:0}
+.agscenes-picklist{display:flex;flex-direction:column;gap:var(--ag-space-1);max-height:14rem;overflow:auto}
 .agscenes-stack{position:sticky;top:0;display:flex;flex-direction:column;gap:var(--ag-space-2);margin:0}
 .agscenes-entry{display:flex;flex-direction:column;gap:var(--ag-space-1);padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken);word-break:break-word}
 .agscenes-entry.is-mood{border-color:color-mix(in srgb,var(--ag-accent) 45%,var(--ag-border))}
