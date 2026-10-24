@@ -1,3 +1,8 @@
+## 0.60.5 — 2026-10-24
+
+- **Scene moods and layers: the id is made from the label.** The new mood / layer editor no longer asks for an *Id*. It is made from the label when you save (lower-case words joined by dashes, `-2`, `-3`... if taken) and does not change later. *Advanced: set id (optional)* is still there for a new one. A duplicate also gets a made id instead of a typed `-copy`.
+- Saved data: no change; existing moods and layers keep their ids. No migration.
+
 ## 0.60.4 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

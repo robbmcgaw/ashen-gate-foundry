@@ -125,6 +125,15 @@ export function sameValue(a, b) {
 }
 
 /** Checks a preset's shape and values; returns a list of problems (empty = valid). */
+/** A mood/layer id from its label: lower-case letters, digits and dashes, at most 40, unique among `taken` (`-2`, `-3`...). Made once, when the preset is created. */
+export function presetIdFromLabel(label, taken = []) {
+  const used = new Set([...(taken ?? [])].map(String));
+  let slug = String(label ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36).replace(/-+$/, '');
+  if (!slug) slug = 'preset';
+  if (!used.has(slug)) return slug;
+  for (let n = 2; ; n++) if (!used.has(`${slug}-${n}`)) return `${slug}-${n}`;
+}
+
 export function validatePreset(preset) {
   const problems = [];
   if(!preset || typeof preset !== 'object') return ['Preset must be an object.'];

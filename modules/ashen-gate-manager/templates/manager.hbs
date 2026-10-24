@@ -986,7 +986,7 @@
       <div class="ag-section__head"><h3 class="ag-section__title">{{#if moods.edit.isNew}}New {{moods.edit.noun}}{{else}}Edit {{moods.edit.noun}}: {{moods.edit.label}}{{/if}}</h3>
         {{#unless moods.edit.isNew}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-remove"><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove {{moods.edit.noun}}…</button>{{/unless}}</div>
       <div class="ag-form-grid">
-        {{#if moods.edit.isNew}}<label class="ag-field">Id <input type="text" data-ag-mood-id value="{{moods.edit.id}}" placeholder="e.g. foggy-dawn" maxlength="40"></label>{{/if}}
+        {{#if moods.edit.isNew}}<label class="ag-field">Advanced: set id (optional) <input type="text" data-ag-mood-id value="{{moods.edit.id}}" placeholder="e.g. foggy-dawn" maxlength="40" autocomplete="off"><span class="ag-field__hint">Leave empty to make it from the label. Lower-case letters, digits and dashes; it cannot change later.</span></label>{{/if}}
         <label class="ag-field">Label <input type="text" data-ag-mood-label value="{{moods.edit.label}}"></label>
         <label class="ag-field">Transition <select data-ag-mood-edit-transition>{{#each moods.edit.transitions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
       </div>
