@@ -1,5 +1,5 @@
 /**
- * Sync from package (0.55.0): reading the files the GM chose. Several ZIPs and JSON files are read in one go and form one
+ * Sync from package (0.56.0): reading the files the GM chose. Several ZIPs and JSON files are read in one go and form one
  * sync set, so "missing from the package" is judged against the union of all of them. Reading never writes to the world;
  * each ZIP keeps the reader's own limits (50 import files, 500 entries, 60 MB).
  */

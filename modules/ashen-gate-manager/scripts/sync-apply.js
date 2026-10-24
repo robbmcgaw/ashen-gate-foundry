@@ -1,5 +1,5 @@
 /**
- * Sync from package (0.55.0): writing. Every function checks the caller and the target here, in the data layer, so a
+ * Sync from package (0.56.0): writing. Every function checks the caller and the target here, in the data layer, so a
  * refusal does not depend on what the window hides. Documents are duck-typed (update / updateEmbeddedDocuments / ...),
  * so the Node suite drives these with in-memory documents.
  *
@@ -34,7 +34,7 @@ export function assertSyncTarget(doc, user, id, {deleting = false} = {}) {
 }
 
 /** Overwrites one document with the package's version of it. Embedded changes first, the source flag last. */
-export async function writeOverwrite(doc, row, {user, flag}) {
+export async function writeOverwrite(doc, row, {user, flag, extra = {}}) {
   assertSyncTarget(doc, user, row.id);
   const ops = row.ops, kind = doc.documentName;
   if (kind === 'Actor') {
@@ -58,7 +58,7 @@ export async function writeOverwrite(doc, row, {user, flag}) {
     if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create));
     if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds);
   }
-  const update = {...ops.fields, [`flags.${MODULE_ID}.source`]: flag};
+  const update = {...ops.fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
   if (kind === 'Actor') update[`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`] = {version: 1};
   await doc.update(update);
 }
@@ -141,7 +141,7 @@ const chunked = async (list, size, signal, run, pause, progress) => {
 
 /**
  * Runs a previewed plan. `adapter` supplies the Foundry-specific parts:
- *   backup(plan), uploadArt(rows), replan() → plan, create(row) → doc, docFor(row) → doc, buildFlag(row) → flag,
+ *   [extraUpdate(doc, row) → fields written with the document, e.g. the ownership rule], backup(plan), uploadArt(rows), replan() → plan, create(row) → doc, docFor(row) → doc, buildFlag(row) → flag,
  *   bindLinks(rows, log), apis → {locations, routes, shops, specialist(kind)}, retire(ids), saveLedger(entries), pause()
  * Returns {cancelled, log, counts, completed}. The log's counts equal the preview's when nothing fails.
  */
@@ -176,7 +176,7 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   }, adapter.pause);
   if (r.cancelled) return result(plan, log, true);
   r = await chunked(overwrites, chunk, signal, async row => {
-    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row)}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
+    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), extra: adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
     mark('overwrite', row.name)();
   }, adapter.pause);
   if (r.cancelled) return result(plan, log, true);

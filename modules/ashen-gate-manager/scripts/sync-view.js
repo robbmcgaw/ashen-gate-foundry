@@ -1,5 +1,5 @@
 /**
- * Sync from package (0.55.0): the window section, as HTML text so the Node suite can check what the GM is told.
+ * Sync from package (0.56.0): the window section, as HTML text so the Node suite can check what the GM is told.
  * The wiring (file picker, buttons, progress) is in main.js; every control here carries a data attribute it binds.
  */
 import {SYNC_NAME, SYNC_PHRASE, phraseOk} from './sync.js';

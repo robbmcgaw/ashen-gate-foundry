@@ -539,8 +539,8 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.55.0');
-  assert.match(read('../CHANGELOG.md'), /^## 0\.55\.0 /);
+  assert.equal(manifest.version, '0.56.0');
+  assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /);
 });
 
 test('duplicates sharing an id are never deleted; "also delete" is ignored without a Manager package', async () => {
@@ -610,4 +610,15 @@ test('by default an edited record the files no longer carry is kept, not deleted
   assert.match(view(plan), /Kept: edited in your world, no longer in the package/);
   const wins = makeWorld({docs: [edited, legacy], overwriteEdited: true}).plan(set);
   assert.deepEqual(sorted(wins.rows.filter(r => r.group === 'delete')), ['MAT-EDITED', 'MAT-LEGACY']);
+});
+
+test('a sync write carries the adapter\'s ownership update with the document (same rule as the importer)', async () => {
+  const world = makeWorld({docs: [flagged(item('MAT-A', 'A'), M1)]});
+  const set = set1([item('MAT-A', 'A2')]);
+  const out = await world.run(set, {}, {extraUpdate: () => ({'ownership.default': 2, [`flags.${MODULE_ID}.ownershipBaseline`]: 2})});
+  assert.equal(out.counts.failed, 0);
+  assert.equal(world.docs[0].raw.ownership.default, 2);
+  assert.equal(world.docs[0].raw.flags[MODULE_ID].ownershipBaseline, 2);
+  const main = read('../scripts/main.js');
+  assert.match(main, /extraUpdate: \(doc,row\)=>\{const levels=CONST\.DOCUMENT_OWNERSHIP_LEVELS;return releasable\(doc,/, 'sync reuses releasable() instead of a second copy of the rule');
 });

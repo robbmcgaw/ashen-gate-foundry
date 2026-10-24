@@ -1,5 +1,5 @@
 /**
- * Sync from package (0.55.0): planning. One or more package files (a sync set) replace the content Manager imported
+ * Sync from package (0.56.0): planning. One or more package files (a sync set) replace the content Manager imported
  * earlier, as if the new files were literally the old ones. Pure logic: Foundry documents arrive as the snapshots
  * makeSnapshot() builds, so the Node suite covers it; the writes are in sync-apply.js.
  *

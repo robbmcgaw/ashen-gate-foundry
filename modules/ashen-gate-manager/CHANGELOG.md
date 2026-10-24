@@ -1,4 +1,4 @@
-## 0.55.0 — 2026-10-24
+## 0.56.0 — 2026-10-24
 
 **Sync from package** (Import tab). One switch, off by default, that makes the world match the package files you choose, as if they were literally the old ones. It is separate from *Update existing actors* and *Also apply updates*, which keep your edits; while Sync is on the normal import is paused, so the two never mix.
 
@@ -11,7 +11,17 @@
 - **Safe to interrupt and repeat.** A typed confirmation (*Replace content from package*), a red *Replace N records and delete M* button, an automatic JSON backup of everything overwritten or deleted (and the other modules' exports) before the first write, and a world check just before writing. Work runs in chunks of 20 with a progress bar and *Cancel sync*. Deletes run last and only when nothing before them failed. Running the same files again changes nothing; a cancelled or failed run is finished by running it again. Rich-text links and other values Foundry stores differently from the package are remembered, so they are not reported as changes forever.
 - ZIP artwork uploads to the same folders as a normal import (when *Upload matching ZIP portraits* is on).
 - Page links in a Journal are now found by page name when the name is unique (a sync can add or drop pages).
+- A record a sync creates, or writes because its content or metadata changed, gets the 0.55.0 ownership rule through the same functions the importer uses (`initialOwnership`, `releasable`): approved + player-visible Items, Journals and Actors become readable by players (Observer), a default is only ever raised. Records whose content already matches are not written; *Release player-visible records…* covers those.
 - Saved data: two new hidden world settings, `syncRetiredIds` and `handoffLedger`, both empty by default; no migration. The source flag gains an optional `syncMemo` text on documents a sync writes. Existing documents are untouched until you run a sync. (Tests are mocked; please check on a copy of a world in Forge.)
+
+## 0.55.0 — 2026-10-24
+
+Fix: after an import, every gathering node material, recipe and similar record showed **Unreleased** in Profession Ledger. Manager created every imported world document hidden from players (default ownership None), even when the record is approved and player-visible, and the Ledger rightly treated a record players cannot read as not released.
+
+- **Imports are readable by players when the record says so.** An Item, Journal entry or Actor whose record is `approved` with `player` visibility is now created with default ownership Observer. GM-only (`gm`), `reveal_gated` and not-approved records stay None, and Tables and Macros are unchanged. A re-import raises a None default to Observer under the same rule; it never lowers anything, never touches per-user ownership, and leaves alone a default you lowered on purpose after Manager released the record.
+- **Worlds imported before 0.55.0 need a one-time release.** Open **Items → Checks → Release player-visible records…**, press *Find hidden player-visible records*, read the counts and examples, then *Release*. It sets only the default ownership to Observer for approved, player-visible records, in chunks with a progress bar and Cancel, and running it again does nothing. Records that were not imported by Manager are not touched.
+- **Pre-session check** has a new *Player visibility* line (WARN while approved, player-visible records are still hidden, with the id list and where to fix it).
+- Help and README explain the rule. Saved data: only `ownership.default` and a small `ownershipBaseline` flag on documents you release or import; nothing else changes. Tests are mocked; please check in Forge (see the PR).
 
 ## 0.54.1 — 2026-10-23
 

@@ -14,6 +14,7 @@ import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces, CODEX_SURFACE} from "./player-access.js";
 import {followHubVisibility} from "./hub-visibility.js";
+import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG} from "./release.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
@@ -172,10 +173,13 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     data.img=icon.img;
     if(icon.source!=='authored') report({id:record.id,action:icon.source==='smart'?'icon-smart':'icon-fallback',status:'ok',icon:icon.img,reason:icon.reason,original:icon.original??null});
   }
-  data.ownership = {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE};
+  // 0.55.0: approved + player-visible Items, Journals and Actors start readable by players (Observer); everything else stays None.
+  const ownershipLevel=initialOwnership({status:record.status,visibility:record.visibility},kind,CONST.DOCUMENT_OWNERSHIP_LEVELS);
+  data.ownership = {default: ownershipLevel};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
   // Items keep only allow-listed flags (0.37.0); Manager's own namespace is always written from the record.
   data.flags = {...(kind==='Actor'?data.flags??{}:kind==='Item'?allowedItemFlags(data.flags):{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds),
+    [BASELINE_FLAG]:ownershipLevel,
     ...(icon?{iconSource:icon.source,iconPath:icon.img}:{})}};
   if(kind==='Item') {
     if(Array.isArray(data.effects)&&data.effects.length) data.effects=record.foundry.data.effects.map(effectCreateData);
@@ -191,7 +195,10 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
 }
 async function updateRecord(record, pkg, doc, patch, availableIds) {
   const update = {...patch};
-  update[`flags.${MODULE_ID}.source`] = sourceMetadata(record, pkg, availableIds);
+  const source=sourceMetadata(record, pkg, availableIds);
+  update[`flags.${MODULE_ID}.source`] = source;
+  // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
+  if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
   await doc.update(update);
   return doc;
 }
@@ -252,9 +259,10 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
+  '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
@@ -311,7 +319,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
     this.zipBundle = null;
-    // 0.55.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
+    // 0.56.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
     this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
     this.uploadZipArtwork = true;
     this.packageSource = null;
@@ -363,6 +371,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.cleanPreview = null;
     this.cleanUnticked = new Set();
     this.cleanStatus = "";
+    this.releasePreview = null;
+    this.releaseMessage = "";
+    this.releaseAbort = null;
+    this.releasePct = 0;
     this.clPreview = null;
     this.clTicked = new Set();
     this.clLinkOnly = new Set();
@@ -771,6 +783,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       smartIcons: this.smartIcons, repickIcons: this.repickIcons, iconStatus: this.#iconStatusText(),
       hasIconRows: this.preview.some(row=>row.icon),
       icons: items&&view==='checks'?this.#iconScanContext():null,
+      release: items&&view==='checks'?this.#releaseContext():null,
       audit: this.auditEntries.map(entry=>({...entry,tone:entry.level==='error'?'danger':entry.level==='warning'?'warn':''})),
       hasAudit: this.auditEntries.length > 0,
       history: [...history].reverse().map(run=>{const results=(run.results??[]).map(r=>({...r,tone:RESULT_TONE(r.status)}));
@@ -1059,6 +1072,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.cleanAbort.abort();event.currentTarget.disabled=true;
       const el=root.querySelector('[data-ag-clean-status]');if(el)el.textContent='Cancelling after the current chunk…';
     });
+    root.querySelector('[data-ag-release-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.releaseAbort)return;
+      this.releaseAbort.abort();event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-release-status]');if(el)el.textContent='Cancelling after the current chunk…';
+    });
     root.querySelectorAll('[data-ag-cl-tick]').forEach(el=>el.addEventListener('change',e=>{
       const id=e.target.dataset.agClTick;if(e.target.checked)this.clTicked.add(id);else this.clTicked.delete(id);void this.render();
     }));
@@ -1147,6 +1165,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": await this.#coreLinkAction(name); break;
       case "setup-save": await this.#saveSetup(); break;
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
+      case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
@@ -1616,6 +1635,49 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconMessage=rows.length?`${rows.length} world Item(s) and Actor(s) have a placeholder icon; ${suggested} have a suggestion${index?'':' (the icon library could not be read, so pick icons with Change…)'}. Player characters start unticked. Nothing has changed yet.`
       :'No world Item or Actor has a placeholder icon. Nothing changed.';
   }
+  /** Release player-visible records (0.55.0): the Checks-view section's state. */
+  #releaseContext() {
+    const p=this.releasePreview;
+    return {scan:Boolean(p),total:p?.total??0,kinds:p?.kinds??[],alreadyReleased:p?.alreadyReleased??0,examples:p?.examples??[],
+      more:p?Math.max(0,p.total-p.examples.length):0,running:Boolean(this.releaseAbort),pct:this.releasePct,message:this.releaseMessage};
+  }
+  async #releaseAction(name) {
+    const say=(text,error=false)=>{this.releaseMessage=text;toast(text,error);};
+    if(!game.user?.isGM)return say('Only the GM can release records.',true);
+    const sourceOf=doc=>sourceFlag(doc);
+    const docs=()=>allBoundDocuments().filter(d=>['Item','JournalEntry','Actor'].includes(d.documentName));
+    switch(name){
+      case 'release-scan': {
+        this.releasePreview=previewRelease(docs(),sourceOf,CONST.DOCUMENT_OWNERSHIP_LEVELS);
+        this.releaseMessage=`${releasePreviewText(this.releasePreview)} Nothing has changed yet.`;
+        break;
+      }
+      case 'release-cancel': this.releasePreview=null;this.releaseMessage='Release preview cleared. Nothing changed.';break;
+      case 'release-commit': {
+        const p=this.releasePreview;
+        if(!p?.total)return say('Find the hidden records first.',true);
+        const kinds=p.kinds.map(k=>`${k.count} ${k.label.toLowerCase()}`).join(', ');
+        const yes=await confirmDialog(`Make ${p.total} record(s) readable by players (${kinds})?\nOnly the default ownership changes, from None to Observer. GM-only and draft records, other ownership entries and everything else on the documents stay as they are. Running it again later does nothing.`,
+          {title:'Release player-visible records?',yes:`Release ${p.total} record(s)`});
+        if(!yes)return;
+        this.releaseAbort=new AbortController();this.releasePct=0;this.busy=true;
+        await this.render();
+        const update=(pct,text)=>{this.releaseMessage=text;this.releasePct=pct;
+          const el=this.element?.querySelector('[data-ag-release-status]');if(el)el.textContent=text;
+          const bar=this.element?.querySelector('[data-ag-release-bar]');if(bar)bar.value=pct;};
+        try{
+          const out=await applyRelease(p,sourceOf,{signal:this.releaseAbort.signal,levels:CONST.DOCUMENT_OWNERSHIP_LEVELS,
+            write:(kind,updates)=>CONFIG[kind].documentClass.updateDocuments(updates),
+            onProgress:({done,total})=>update(total?done/total:1,`Released ${done} of ${total}…`)});
+          this.releasePreview=null;say(out.message,out.skipped>0);
+        }catch(error){
+          console.error(`[${MODULE_ID}] Release failed`,error);this.releasePreview=null;say(`Release stopped: ${error.message??error}. Records already released stay released; run the scan again.`,true);
+        }finally{this.busy=false;this.releaseAbort=null;}
+        break;
+      }
+    }
+    await this.render();
+  }
   #iconScanContext() {
     const undo=game.settings.get(MODULE_ID,ICON_UNDO_SETTING);
     const rows=this.iconScan?.rows??[];
@@ -1905,7 +1967,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(routeRows.length) log.results.push(...await applyRoutes(routeRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),routesApi(game),{updateExisting:this.updateExisting}));
       // Shops, services and merchant lists come after the Items their lines sell (Utilities finds them by permanent id).
       if(shopRows.length) log.results.push(...await applyShops(shopRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),shopsApi(game),{updateExisting:this.updateExisting}));
-      // 0.55.0: remember what was passed to other modules, so a later Sync from package can say what a newer package no longer carries.
+      // 0.56.0: remember what was passed to other modules, so a later Sync from package can say what a newer package no longer carries.
       await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action)&&HANDOFF_KINDS[r.kind])
         .map(r=>({key:ledgerKey(this.pkg.manifest.package_id),id:r.id,info:{kind:r.kind,module:HANDOFF_KINDS[r.kind],name:this.pkg.records.find(x=>x.id===r.id)?.name??r.id}})));
       await resolvePackageLinks({pkg:this.pkg,rows:ordered,log,plans});
@@ -2809,7 +2871,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
     toast(this.codexMessage,out.errors.length>0);await this.render();
   }
-  // ---------- Sync from package (0.55.0) ----------
+  // ---------- Sync from package (0.56.0) ----------
   /** The mode switch and the Sync section. Off by default; while it is on the normal import is paused, never mixed in. */
   #bindSync(root) {
     // The sync picker takes every chosen file at once; the shared binding above ignores it (#pickFile does nothing for 'sync').
@@ -3012,6 +3074,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       create: async row=>createRecord(row.record,{manifest:row.manifest},present(row.id),entry=>results.push({...entry,id:entry.id??row.id}),{smart:this.smartIcons}),
       docFor: row=>foundDocuments(row.id)[0],
       buildFlag: row=>sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),
+      // The importer's own ownership rule (release.js): an update raises a plain None default to Observer for approved, player-visible records.
+      extraUpdate: (doc,row)=>{const levels=CONST.DOCUMENT_OWNERSHIP_LEVELS;return releasable(doc,sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),levels)?{'ownership.default':levels.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:levels.OBSERVER}:{};},
       bindLinks: async (rows,log)=>{
         const plans=new Map(rows.filter(r=>r.kind==='Actor'&&r.group==='overwrite').map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
         await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':'update',kind:r.kind})),log:{results:log},plans});
@@ -3111,7 +3175,7 @@ class AshenGateCodexPlayer extends ApplicationV2 {
 /** 0.40.0: Codex deity links open Renown's Pantheon (api.open, feature-detected). A failure is a notice, never a crash. */
 /**
  * After documents are written: binds [[AGREF]] markers and typed references to real UUIDs and refreshes each document's
- * stored baseline. Shared by Import and Sync from package (0.55.0). `rows` are the written rows ({id, action}); plans holds each
+ * stored baseline. Shared by Import and Sync from package (0.56.0). `rows` are the written rows ({id, action}); plans holds each
  * Actor row's plan (its touched Items).
  */
 async function resolvePackageLinks({pkg,rows,log,plans}) {
@@ -3177,7 +3241,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
     } else if(doc.documentName==='JournalEntry') {
       const pages=record.foundry.data?.pages??[];
       for(const [pi,pageDef] of pages.entries()) {
-        // Sync from package (0.55.0): pages are found by name when the name is unique (a sync can add or drop pages), else by position.
+        // Sync from package (0.56.0): pages are found by name when the name is unique (a sync can add or drop pages), else by position.
         const named=doc.pages?.contents?.filter(p=>p.name===pageDef.name)??[];
         const page=named.length===1?named[0]:doc.pages?.contents?.[pi];
         if(!page || typeof pageDef.text?.content!=='string') continue;
@@ -3197,7 +3261,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
     }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
   }
 }
-/** Sync from package (0.55.0): ZIP artwork cannot be uploaded when the GM turned that off, so a record keeps its current image instead of a broken path. */
+/** Sync from package (0.56.0): ZIP artwork cannot be uploaded when the GM turned that off, so a record keeps its current image instead of a broken path. */
 function withoutBundledArt(record,assets) {
   const data=record.foundry?.data;
   if(!data)return record;
