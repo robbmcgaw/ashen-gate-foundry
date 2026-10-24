@@ -1,3 +1,8 @@
+## 0.60.4 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.60.3 — 2026-10-25
 
 Hide ids from the UI. Permanent record ids (REC-, MAT-, NPC-, DEITY- and the rest) no longer show in Manager's rows, lists, tooltips, labels or messages; names show instead.

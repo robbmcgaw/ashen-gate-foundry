@@ -1,3 +1,12 @@
+## 0.23.0 — 2026-10-24
+
+Pick links by name; IDs are made for you.
+- **The permanent ID is made from the title.** A new quest, work order or contract gets `QUEST-`, `ORDER-` or `CONTRACT-` plus its title, with `-2`, `-3`... added if that is taken. It never changes after creation, so renaming the quest leaves it alone. You no longer type it. It shows read-only in *Details (IDs)*; a new quest also has *Advanced: set ID (optional)*, checked for prefix, characters and that it is not already used.
+- **New *Links* section.** Quest giver (NPC), Faction, Locations, Locations shown to players and Prerequisite quests are searchable pickers that list records by name (with a type hint, grouped, and a clear *None*). The Quest giver, Faction and Prerequisite links are saved as typed references, Locations in the quest's location list, and *Shown to players* in the quest's campaign state, exactly where those links were kept before.
+- **Broken links say so.** A linked record that no longer exists shows *Missing: <last known name>* with *Replace...* and *Remove*, never an ID. If the partner module (Locations, General Manager, Renown) is off, its links are kept and shown read-only.
+- **Details (IDs)** no longer holds the location ID text boxes; use *Links*.
+- Saved data: no change to quests already saved; their IDs and links keep working. The quest's campaign state gains an optional `linkNames` (last known names). No migration.
+
 ## 0.22.2 — 2026-10-24
 
 The Journal's top is two slim rows, so the page gets the room.
@@ -29,6 +38,7 @@ GM Quests list: group headers fold.
 - **Remembered per user, per Group by choice.** Opening or closing a group is saved for you only, separately for each way of grouping. With more than 12 quests in all, groups start closed (except the one holding the quest you have open); with 12 or fewer they start open.
 - Picking a quest, the editor beside the list, scroll place and keyboard focus behave as before.
 - Saved data: no change to quests or settings; the open/closed choices are browser-only UI memory. No migration.
+
 ## 0.21.1 — 2026-10-24
 
 - **Ids are out of the Quest Log's screens.** Quest cards no longer show a `QUEST-…` line, *Sort* has no *ID* choice, the item rewards table and the Give rewards panel no longer print an item's id (an item that can't be found reads *Item not found*), assignments read *Assignment 1, 2…*, and messages, confirmations and tooltips name quests and items, never ids. A quest with no title reads *Untitled quest*, a location the Locations module can't name reads *Unnamed location*, and an unknown character reads *Unknown character*. Search still finds a quest by its id.

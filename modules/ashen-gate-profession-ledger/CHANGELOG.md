@@ -1,3 +1,8 @@
+## 0.32.3 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.32.2 — 2026-10-24
 
 - **Fix: a recipe's tool is met by any tool GM Setup allows for its profession.** An Inscription recipe said "Calligrapher's Supplies: doesn't carry this" even when the character carried Cartographer's Tools or Painter's Supplies, because the card only looked for the profession's single check tool. Now a recipe that needs one tool of its profession lists them all (for example "Tool: Calligrapher's Supplies, Cartographer's Tools or Painter's Supplies"), shows which one is carried ("Cartographer's Tools: carried"), and otherwise says "Needs one of: …". This uses the same Tools list GM Setup shows (your edits, baseline file, imported content, then the built-in default). Individual, Party, Recipe Catalog, the Tidy5e Professions tab and the Character Hub embed all use the same check. A recipe that needs two or more tools still needs all of them, and professions with a single tool read as before.

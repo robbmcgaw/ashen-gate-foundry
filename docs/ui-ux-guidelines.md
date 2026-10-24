@@ -464,6 +464,17 @@ An action that needs the saved record can pass its own `ask` (for example a `cho
 
 ---
 
+
+## 17b. Ids and record pickers (kit 2.3)
+
+The GM never types or pastes a permanent id. Source: Robb, 2026-10-24.
+
+1. **A record's own id is made for the GM** from its name with the right prefix: `generateId(prefix, name, taken)` (`QUEST-THE-GATE`, then `-2`, `-3`… if taken). It is made once, when the record is created, and never changes, so renaming the record leaves it alone. It shows only in a GM-only Details fold, read-only. "Advanced: set ID" exists for creating only; check it with `checkNewId(id, {prefixes, taken})` (prefix, upper-case letters/digits/single hyphens, not used).
+2. **A link to another record is a picker**, never a text box for an id: `refPicker()` for one record, `refList()` for several, both wired by `bindRefPickers()` / `bindRefLists()` after render. Build the options with `pickerOptions(records, {kinds, gm, exclude})`: only the kinds the field accepts, grouped (`group`) with a kind hint (`hint`), GM-only records (`gm: true`) only when `gm` is true, sorted by name. The picker types ahead, takes Up/Down/Enter/Escape, and has a **None** choice (`none: null` for a required link). It shows the current link by name and stores the id in a hidden input (`id` you pass; read it with `.value`, or `readRefList(el)` for a list).
+3. **A broken link says so**: `Missing: <last known name>` with **Replace…**, never the id (`missingLabel()`). Keep the last known name beside the link (Quest Log keeps `state.linkNames`). When the partner module that lists the records is off, show the links read-only (`refList({locked})`) instead of calling them missing.
+4. A choice fires a bubbling `change` on the hidden input, so a form's "Unsaved changes" tracking sees it; a list calls `bindRefLists(root, onChange)`.
+5. Test it: id generation (prefix, unique, unchanged after a rename), option kinds/grouping/GM-only filtering, a stored id still resolves, a missing link, and `assertNoIds` on the markup.
+
 ## Sources
 
 Read directly or from the official source repositories (w3c/wcag, w3c/aria-practices, primer/design,

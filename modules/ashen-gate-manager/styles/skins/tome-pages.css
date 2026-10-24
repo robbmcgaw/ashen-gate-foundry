@@ -325,3 +325,5 @@ html[data-ag-skin="ag-tome-pages"] .ag-siderail > button { border-radius: var(--
 html[data-ag-skin="ag-tome-pages"] .ag-devtools { border: 1px dashed color-mix(in srgb, var(--agx-ink) 45%, transparent); border-radius: 0; font-style: italic; }
 html[data-ag-skin="ag-tome-pages"] .application.ag-dialog .form-footer { border-top: 1px solid color-mix(in srgb, var(--agx-ink) 45%, transparent); padding-top: var(--ag-space-3); }
 html[data-ag-skin="ag-tome-pages"] :is(#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip) { border-color: color-mix(in srgb, var(--agx-ink) 55%, transparent); font-family: var(--ag-font-body); }
+
+/* Kit 2.3.0 parts .ag-picker (record picker) and .ag-reflist (list of links) keeps the kit look in this skin; it reads the skin tokens. */

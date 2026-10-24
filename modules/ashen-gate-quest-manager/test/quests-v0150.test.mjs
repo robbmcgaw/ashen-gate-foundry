@@ -79,7 +79,7 @@ test('remembered view: sub-view, sort, group and section open state, with safe d
  assert.equal(v.nav,'orders');assert.equal(v.sort,'changed');assert.equal(v.group,'giver');
  assert.equal(v.sections.rewards,true);assert.equal(v.sections.basics,false);assert.equal('bogus' in v.sections,false);assert.equal('search' in v,false);
  assert.deepEqual(gmViewState({nav:'x',sort:1,group:[]}),gmViewState({}));
- assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Audience','Objectives','Rewards','Campaign status and reveal','GM notes','Details (IDs)','Advanced: source JSON','Assignments (saved separately)']);
+ assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Links','Audience','Objectives','Rewards','Campaign status and reveal','GM notes','Details (IDs)','Advanced: source JSON','Assignments (saved separately)']);
  // 0.17.0 QL-02: only Basics, Audience and Objectives start open; a flag saved before 0.17.0 keeps its choices and the new
  // sections take their defaults.
  assert.deepEqual(EDITOR_SECTIONS.filter(s=>s[2]).map(s=>s[0]),['basics','audience','objectives']);
@@ -234,7 +234,7 @@ test('window: sub-views with counts; picking one is remembered for this GM and c
 test('editor: collapsible sections remember open/closed; one sticky save bar shows a clear unsaved state',async()=>{
  reset();const app=lastApp;app.tab='quests';app.gmId='QUEST-TEST-B';app.unsavedSource=false;await draw(app);
  const secs=content.querySelectorAll('details[data-section]');
- assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['audience',true],['objectives',true],['rewards',false],['status',false],['gmnotes',false],['details',false],['json',false],['assignments',false]]);
+ assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['links',false],['audience',true],['objectives',true],['rewards',false],['status',false],['gmnotes',false],['details',false],['json',false],['assignments',false]]);
  const rewards=content.querySelector('[data-section="rewards"]');rewards.open=true;rewards.fire('toggle');
  assert.equal(gm.flags.gmView.sections.rewards,true);
  await draw(app);assert.equal(content.querySelector('[data-section="rewards"]').open,true,'kept open after a redraw');
@@ -283,7 +283,7 @@ test('a new quest is created as a GM-only draft: Hidden, unpublished, whatever i
  reset();const app=lastApp;await app.action({dataset:{action:'new'}},content);await draw(app);
  assert.match(content.innerHTML,/data-action="save-quest" class="ag-btn ag-btn--primary">Create quest</);
  assert.match(content.innerHTML,/a new quest is saved Hidden unless you choose another status/);
- content.querySelector('#ag-src-id').value='QUEST-TEST-NEW';content.querySelector('#ag-src-name').value='[TEST] New';
+ content.querySelector('#ag-src-id-custom').value='QUEST-TEST-NEW';content.querySelector('#ag-src-name').value='[TEST] New';
  content.querySelector('#ag-src-visibility').value='player';content.querySelector('.ag-src-obj-goal').value='[TEST] first';
  await app.action({dataset:{action:'save-quest'}},content);
  assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);

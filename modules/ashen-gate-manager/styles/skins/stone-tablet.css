@@ -290,3 +290,5 @@ html[data-ag-skin="ag-stone-tablet"] .ag-siderail > button { border-radius: 0; }
 html[data-ag-skin="ag-stone-tablet"] .ag-devtools { border: 2px dashed color-mix(in srgb, var(--ag-warn) 45%, #000); border-radius: 0; box-shadow: var(--agx-inset); }
 html[data-ag-skin="ag-stone-tablet"] .application.ag-dialog .form-footer { border-top: 3px groove color-mix(in srgb, var(--ag-border) 70%, #000); padding-top: var(--ag-space-3); }
 html[data-ag-skin="ag-stone-tablet"] :is(#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip) { border-color: #111412; border-radius: 0; box-shadow: var(--agx-bevel), var(--ag-shadow); }
+
+/* Kit 2.3.0 parts .ag-picker (record picker) and .ag-reflist (list of links) keeps the kit look in this skin; it reads the skin tokens. */

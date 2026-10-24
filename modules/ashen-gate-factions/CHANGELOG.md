@@ -1,3 +1,8 @@
+## 0.16.2 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.16.1 — 2026-10-24
 
 Canonical ids and stored tokens are hidden from the UI. No changes to saved data, ids, flags, the API or export files.

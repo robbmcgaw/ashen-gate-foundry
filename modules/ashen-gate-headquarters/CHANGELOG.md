@@ -1,3 +1,8 @@
+## 0.13.3 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.13.2 — 2026-10-24
 
 Canonical ids (FAC-, HIRE-, HQ-, LOC-…) no longer appear in the interface. No saved-data, setting-key, flag, API or export changes; no migration.
