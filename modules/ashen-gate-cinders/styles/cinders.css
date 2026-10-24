@@ -124,3 +124,17 @@ button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surfac
 .agc-chat h3{margin:0 0 var(--ag-space-1)}
 .agc-chat p{margin:var(--ag-space-1) 0;overflow-wrap:anywhere}
 .agc-backfire{color:var(--ag-danger)}
+
+/* 0.12.0: the Stages… editor */
+.agc-stage-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--ag-space-3)}
+.agc-stage{display:flex;flex-wrap:wrap;gap:var(--ag-space-3);align-items:flex-start;padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius-md,6px)}
+.agc-stage__fields{flex:1 1 14rem;min-width:0}
+.agc-stage__thumb{flex:none;width:6rem;height:6rem;display:flex;align-items:center;justify-content:center;border:1px dashed var(--ag-border);border-radius:var(--ag-radius-md,6px);overflow:hidden}
+.agc-stage__thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.agc-stage__empty{font-size:var(--ag-font-sm,.85em);color:var(--ag-muted,inherit);text-align:center}
+.agc-stage__title{margin:0 0 var(--ag-space-2)}
+.agc-stage__path{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center}
+.agc-stage__path input{flex:1 1 12rem;min-width:0}
+.agc-stage__tools{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--ag-space-2);align-items:stretch}
+.agc-stage-actions{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center;margin-top:var(--ag-space-3)}
+@media (prefers-reduced-motion:reduce){.agc-stage *{transition:none!important;animation:none!important}}
