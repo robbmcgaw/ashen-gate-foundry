@@ -34,6 +34,8 @@ export const MEMO_KEY = 'syncMemo';
 /** Per ZIP the reader keeps its 50-file limit; a sync may join several ZIPs (Robb's pack is two: main 47 + sandbox 22). */
 export const SYNC_MAX_FILES = 150;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+/** A list from a document or flag that may be missing, null or hold null entries (a damaged or hand-edited world): only the object entries. */
+const objects = list => (Array.isArray(list) ? list : []).filter(v => v && typeof v === 'object');
 const same = (a, b) => equal(a ?? null, b ?? null);
 const emptyObject = v => isPlainObject(v) && !Object.keys(v).length;
 const show = value => { const t = JSON.stringify(value ?? null); return t.length > 160 ? `${t.slice(0, 157)}…` : t; };
@@ -105,7 +107,7 @@ export function makeSnapshot(doc, ctx = {}) {
   const kind = doc.documentName;
   return {
     doc, documentName: kind, id: doc.id, uuid: doc.uuid, name: doc.name, type: doc.type, flag,
-    get raw() { return raw ??= doc.toObject(); },
+    get raw() { return raw ??= doc.toObject?.() ?? {}; },
     coreLink: doc.getFlag?.(MODULE_ID, 'coreLink') ?? null,
     archived: Boolean(doc.getFlag?.(MODULE_ID, 'lifecycle')?.archived),
     keep: Boolean(doc.getFlag?.(MODULE_ID, 'keepFolder')),
@@ -163,7 +165,7 @@ export function incomingFields(record) {
 }
 /** A Journal's pages by name key (a repeat gets #2, #3): {key: {name, text}}. */
 export function pageFields(record) {
-  const pages = record.foundry.data.pages ?? [], keys = nameKeys(pages.map(p => p.name));
+  const pages = objects(record.foundry.data.pages), keys = nameKeys(pages.map(p => p.name));
   return Object.fromEntries(keys.map((k, i) => [k, pages[i]]));
 }
 
@@ -172,7 +174,7 @@ const refuse = reason => ({refuse: reason});
 const nameKeys = names => { const seen = new Map(); return names.map(n => { const c = (seen.get(n) ?? 0) + 1; seen.set(n, c); return c === 1 ? n : `${n}#${c}`; }); };
 
 function effectsPlan(defs, liveRaw) {
-  const live = liveRaw ?? [], ours = live.filter(e => effectFlagOf(e)?.effId);
+  const live = objects(liveRaw), ours = live.filter(e => effectFlagOf(e)?.effId);
   const out = {create: [], update: [], delete: [], notes: []};
   for (const def of defs) {
     const found = ours.filter(e => effectFlagOf(e).effId === def.eff_id);
@@ -205,7 +207,7 @@ function planItem(record, snap) {
   if (kept.length) notes.push(`${kept.length} field(s) adopted from a 2024 core item are kept (Core links owns them)`);
   const removed = Object.keys(baseline).filter(p => !own(fields, p) && !coreOwned(p) && p !== 'img');
   if (removed.length) notes.push(`${removed.length} field(s) the package no longer defines are left as they are`);
-  const defs = Array.isArray(data.effects) ? data.effects : [];
+  const defs = objects(data.effects);
   const fx = effectsPlan(defs, raw.effects);
   if (fx.create.length) changes.push({path: 'effects', label: 'effects', from: '—', to: `${fx.create.length} new`, gmEdited: false});
   for (const u of fx.update) if (u.changed.length) changes.push({path: 'effects', label: `effect ${u._id}`, from: 'edited or older', to: u.changed.join(', '), gmEdited: true});
@@ -218,12 +220,12 @@ function planJournal(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
   const {changes, patch} = diffFields(raw, fields, {baseline, memo});
-  const defs = data.pages ?? [], keys = nameKeys(defs.map(p => p.name));
-  const live = raw.pages ?? [], liveKeys = nameKeys(live.map(p => p.name));
+  const defs = objects(data.pages), keys = nameKeys(defs.map(p => p.name));
+  const live = objects(raw.pages), liveKeys = nameKeys(live.map(p => p.name));
   const liveByKey = new Map(liveKeys.map((k, i) => [k, live[i]]));
-  const baseKeys = nameKeys((snap.flag?.pagesDefinition ?? []).map(p => p.name));
+  const basePages = objects(snap.flag?.pagesDefinition), baseKeys = nameKeys(basePages.map(p => p.name));
   const pages = {create: [], update: [], delete: []};
-  const baseByKey = new Map(baseKeys.map((k, i) => [k, snap.flag.pagesDefinition[i]]));
+  const baseByKey = new Map(baseKeys.map((k, i) => [k, basePages[i]]));
   defs.forEach((def, i) => {
     const key = keys[i], page = liveByKey.get(key);
     if (!page) { pages.create.push({name: def.name, type: 'text', text: structuredClone(def.text), sort: (i + 1) * 100000}); changes.push({path: `pages.${key}`, label: `page "${def.name}"`, from: '—', to: 'new page', gmEdited: false}); return; }
@@ -253,7 +255,7 @@ function planTable(record, snap) {
   let results = null;
   if (Array.isArray(data.results)) {
     const sortR = list => [...list].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
-    const want = sortR(data.results), have = sortR(raw.results ?? []);
+    const want = sortR(objects(data.results)), have = sortR(objects(raw.results));
     const defined = (a, b) => Object.keys(a).every(k => ['_id', '_stats', 'drawn', 'sort', 'flags'].includes(k) || same(normResult(a)[k] ?? a[k], normResult(b)[k] ?? b[k]));
     const identical = want.length === have.length && want.every((w, i) => defined(w, have[i]));
     if (!identical) {
@@ -282,12 +284,12 @@ function planActor(record, snap) {
   const fields = incomingFields(record);
   const {changes, patch} = diffFields(raw, fields, {baseline, memo});
   const notes = [];
-  if (Array.isArray(data.effects) && data.effects.length) notes.push('Actor-level effects are not synced (conditions are play state)');
+  if (objects(data.effects).length) notes.push('Actor-level effects are not synced (conditions are play state)');
   // Embedded Items: the package's own (marked) Items follow it; anything the GM added stays.
-  const defs = data.items ?? [], keys = itemKeys(defs);
-  const baseDefs = Array.isArray(baseline.items) ? baseline.items : [];
+  const defs = objects(data.items), keys = itemKeys(defs);
+  const baseDefs = objects(baseline.items);
   const baseByKey = new Map(itemKeys(baseDefs).map((k, i) => [k, baseDefs[i]]));
-  const liveItems = raw.items ?? [], marked = new Map(liveItems.filter(keyOf).map(i => [keyOf(i), i]));
+  const liveItems = objects(raw.items), marked = new Map(liveItems.filter(keyOf).map(i => [keyOf(i), i]));
   const unmarked = (type, name) => liveItems.filter(i => !keyOf(i) && i.type === type && i.name === name);
   const legacy = !raw.flags?.[MODULE_ID]?.[ACTOR_ITEMS_FLAG];
   const items = {create: [], update: [], adopt: [], delete: []};
@@ -364,7 +366,7 @@ function deletable(snap, dependents) {
   if (snap.keep) return 'marked Keep here';
   if (snap.inProtectedFolder) return 'in a protected folder';
   if (snap.documentName === 'Actor') {
-    if (snap.type !== 'npc') return snap.type === 'character' ? 'a character sheet: never touched' : `a ${snap.type} Actor: only NPC Actors are removed`;
+    if (snap?.type !== 'npc') return snap?.type === 'character' ? 'a character sheet: never touched' : `a ${snap.type} Actor: only NPC Actors are removed`;
     if (snap.playerOwned) return 'owned by a player';
     if (snap.onScene) return 'has tokens on a scene: remove the tokens first';
   }
@@ -382,7 +384,8 @@ function deletable(snap, dependents) {
  */
 export function planSync(set, world, ctx = {}) {
   const errors = [...set.errors], rows = [], notes = [];
-  const docs = world.docs ?? [];
+  const docs = (world.docs ?? []).filter(Boolean);
+  const failures = [];
   const bySource = new Map();
   for (const snap of docs) { const id = snap.flag?.sourceId; if (id) (bySource.get(id) ?? bySource.set(id, []).get(id)).push(snap); }
   // A Map, because contract (0.2) packages resolve cross-file refs through checkContractGraph, which ignores a plain Set.
@@ -434,7 +437,7 @@ export function planSync(set, world, ctx = {}) {
     const snaps = bySource.get(id) ?? [];
     if (BLOCKED_STATUSES.has(record.status)) { rows.push(untouched(id, name, kind, `${record.status} records are not synced; any world copy is left as it is.`, base)); continue; }
     if (record.status !== 'approved' && !ctx.includeDrafts) { rows.push(untouched(id, name, kind, 'Unapproved record; the Import profile leaves drafts out. Any world copy is left as it is.', base)); continue; }
-    if (record.foundry.document_type === 'Actor' && record.foundry.data.type === 'character') { rows.push(untouched(id, name, kind, 'Player characters are never created or changed by Sync.', {...base, refused: true})); continue; }
+    if (record.foundry.document_type === 'Actor' && record.foundry.data?.type === 'character') { rows.push(untouched(id, name, kind, 'Player characters are never created or changed by Sync.', {...base, refused: true})); continue; }
     if (snaps.length > 1) { rows.push(untouched(id, name, kind, `${snaps.length} world documents share this id; resolve that in Foundry first.`, {...base, refused: true})); continue; }
     if (!snaps.length) {
       if (ctx.retiredIds?.has(id)) { rows.push(untouched(id, name, kind, 'This id was deleted by an earlier sync and stays retired (ids are never reused). Give the record a new id.', {...base, refused: true})); continue; }
@@ -446,25 +449,31 @@ export function planSync(set, world, ctx = {}) {
     const snap = snaps[0];
     if (snap.documentName !== record.foundry.document_type) { rows.push(untouched(id, name, kind, `The world document is a ${snap.documentName}, not a ${record.foundry.document_type}.`, {...base, refused: true})); continue; }
     if (snap.archived) { rows.push(untouched(id, name, kind, 'Archived in Manager; restore it before it can be synced.', {...base, refused: true})); continue; }
-    const p = PLANNERS[record.foundry.document_type](record, snap);
-    if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
-    const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
-    if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
-    const lost = lostOf(p.changes);
-    const edited = p.contentChange ? editedFields(record, snap, p.changes) : [];
-    if (edited.length && !ctx.overwriteEdited) {
-      // Edited in this world since the import: left alone, with what would differ available on expand.
-      rows.push(untouched(id, name, kind, `Kept: edited in your world (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to replace it with the package's version.`,
-        {...base, keptEdited: true, changes: p.changes, editedFields: edited, snap}));
-      have.add(id); continue;
+    try {
+      const p = PLANNERS[record.foundry.document_type](record, snap);
+      if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
+      const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
+      if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
+      const lost = lostOf(p.changes);
+      const edited = p.contentChange ? editedFields(record, snap, p.changes) : [];
+      if (edited.length && !ctx.overwriteEdited) {
+        // Edited in this world since the import: left alone, with what would differ available on expand.
+        rows.push(untouched(id, name, kind, `Kept: edited in your world (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to replace it with the package's version.`,
+          {...base, keptEdited: true, changes: p.changes, editedFields: edited, snap}));
+        have.add(id); continue;
+      }
+      if (!p.contentChange) {
+        rows.push({group: 'overwrite', metadataOnly: true, key: rowKey('overwrite', kind, id), id, name, kind, reason: `Content already matches; refreshes ${meta.join(', ')}.`, changes: [], lost: 0, snap, ops: p, ...base});
+        plan.metadataRefreshes++; continue;
+      }
+      rows.push({group: 'overwrite', key: rowKey('overwrite', kind, id), id, name, kind, reason: `${p.changes.length} difference(s) from the package${lost ? `, ${lost} of them replace a GM edit` : ''}.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`,
+        changes: p.changes, lost: Math.max(lost, edited.length), snap, ops: p, ...base});
+      kinds.overwrite++; plan.lost += Math.max(lost, edited.length);
+    } catch (error) {
+      // One document that cannot be compared must not stop the whole preview: it is left exactly as it is (never written, never deleted).
+      failures.push({id, name, step: 'compare', message: String(error?.message ?? error), stack: error?.stack ?? null});
+      rows.push(untouched(id, name, kind, `Could not compare this record with the world copy (${String(error?.message ?? error)}); it is left as it is.`, {...base, refused: true, failed: true}));
     }
-    if (!p.contentChange) {
-      rows.push({group: 'overwrite', metadataOnly: true, key: rowKey('overwrite', kind, id), id, name, kind, reason: `Content already matches; refreshes ${meta.join(', ')}.`, changes: [], lost: 0, snap, ops: p, ...base});
-      plan.metadataRefreshes++; continue;
-    }
-    rows.push({group: 'overwrite', key: rowKey('overwrite', kind, id), id, name, kind, reason: `${p.changes.length} difference(s) from the package${lost ? `, ${lost} of them replace a GM edit` : ''}.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`,
-      changes: p.changes, lost: Math.max(lost, edited.length), snap, ops: p, ...base});
-    kinds.overwrite++; plan.lost += Math.max(lost, edited.length);
   }
 
   // 3. records other modules own: passed on in update mode, never deleted from here
@@ -489,7 +498,7 @@ export function planSync(set, world, ctx = {}) {
     const id = s.flag?.sourceId;
     if (!id || doomed.has(id)) continue; // a document that is itself going away cannot block
     if (set.records.has(id)) continue;   // the package's own refs are validated above
-    for (const ref of s.flag.refs ?? []) { const target = typeof ref === 'string' ? ref : ref?.id ?? ref?.target_id; if (target && doomed.has(target)) (dependents.get(target) ?? dependents.set(target, []).get(target)).push(id); }
+    for (const ref of Array.isArray(s.flag.refs) ? s.flag.refs : []) { const target = typeof ref === 'string' ? ref : ref?.id ?? ref?.target_id; if (target && doomed.has(target)) (dependents.get(target) ?? dependents.set(target, []).get(target)).push(id); }
   }
   let outOfScope = 0, noLine = 0;
   for (const s of docs) {
@@ -500,22 +509,30 @@ export function planSync(set, world, ctx = {}) {
   }
   for (const snap of candidates) {
     const f = snap.flag, kind = snap.documentName;
-    const edited = ctx.overwriteEdited ? [] : editedFields(null, snap);
-    const block = (bySource.get(f.sourceId)?.length ?? 0) > 1 ? `${bySource.get(f.sourceId).length} world documents share this id; resolve that in Foundry first` : deletable(snap, dependents);
-    if (block) { rows.push(untouched(f.sourceId, snap.name, kind, `Not removed: ${block}.`, {kept: true, snap})); continue; }
-    if (edited.length) {
-      rows.push(untouched(f.sourceId, snap.name, kind, `Kept: edited in your world, no longer in the package (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to delete it too.`,
-        {keptEdited: true, keptRemoved: true, snap, editedFields: edited}));
-      continue;
+    try {
+      const edited = ctx.overwriteEdited ? [] : editedFields(null, snap);
+      const block = (bySource.get(f.sourceId)?.length ?? 0) > 1 ? `${bySource.get(f.sourceId).length} world documents share this id; resolve that in Foundry first` : deletable(snap, dependents);
+      if (block) { rows.push(untouched(f.sourceId, snap.name, kind, `Not removed: ${block}.`, {kept: true, snap})); continue; }
+      if (edited.length) {
+        rows.push(untouched(f.sourceId, snap.name, kind, `Kept: edited in your world, no longer in the package (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to delete it too.`,
+          {keptEdited: true, keptRemoved: true, snap, editedFields: edited}));
+        continue;
+      }
+      const copies = ctx.copyCount?.(f.sourceId) ?? 0;
+      rows.push({group: 'delete', key: rowKey('delete', kind, f.sourceId), id: f.sourceId, name: snap.name, kind, snap, changes: [], lost: 0,
+        reason: `Imported by Manager from ${f.packageId ?? 'an earlier import'} and not in this sync.${copies ? ` ${copies} copy/copies on character sheets stay exactly as they are.` : ''}`, copies});
+    } catch (error) {
+      // Never delete a document that could not be checked.
+      failures.push({id: f.sourceId, name: snap.name, step: 'delete check', message: String(error?.message ?? error), stack: error?.stack ?? null});
+      rows.push(untouched(f.sourceId, snap.name, kind, `Not removed: could not be checked (${String(error?.message ?? error)}).`, {kept: true, snap, failed: true}));
     }
-    const copies = ctx.copyCount?.(f.sourceId) ?? 0;
-    rows.push({group: 'delete', key: rowKey('delete', kind, f.sourceId), id: f.sourceId, name: snap.name, kind, snap, changes: [], lost: 0,
-      reason: `Imported by Manager from ${f.packageId ?? 'an earlier import'} and not in this sync.${copies ? ` ${copies} copy/copies on character sheets stay exactly as they are.` : ''}`, copies});
   }
   plan.outOfScope = {records: outOfScope, withoutLine: noLine};
   if (noLine && !unscoped) notes.push(`${noLine} Manager-imported record(s) have no package line (imported by an older version). They are kept; tick "Also delete records not in these files" to let Sync remove those that no file mentions.`);
   if (unscoped && noLine) notes.push(`"Also delete records not in these files" is on: Manager-imported records without a package line that no chosen file mentions are deleted (${candidates.filter(c => !c.flag.packageId || c.flag.packageId === 'unknown').length} of them are in the Delete list or marked Not removed).`);
   plan.kinds = kinds;
+  plan.failures = failures;
+  if (failures.length) notes.unshift(`${failures.length} record(s) could not be compared and were left exactly as they are (${failures.slice(0, 3).map(x => `${x.id}: ${x.message}`).join('; ')}${failures.length > 3 ? '; …' : ''}). Nothing was written for them.`);
   return finish(plan);
 }
 
