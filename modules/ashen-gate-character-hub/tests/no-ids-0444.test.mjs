@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users} from './foundry-mock.mjs';
 import {PANELS, panelState, knownProfessions} from '../scripts/partners.mjs';
-import {assertNoIds} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds, assertNoMachineText} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const mods = () => ({
   'ashen-gate-profession-ledger': {active: true, api: {
@@ -15,14 +15,14 @@ const mods = () => ({
     pointsSummary: () => [{treeId: 'TREE-TEST-A', earned: 1, spent: 0, available: 1, wallet: 'w'}, {treeId: 'TREE-TEST-B', earned: 2, spent: 0, available: 2, wallet: 'w'}],
     open: () => {}}},
   'ashen-gate-factions': {active: true, api: {getFactions: () => [{id: 'FAC-TEST', name: '', group: {score: 1}}], open: () => {}}},
-  'ashen-gate-quest-manager': {active: true, api: {listVisible: () => [{id: 'QUEST-TEST', name: '[TEST] Quest', status: 'Active', scope: 'party', objectives: []}], open: () => {}}},
+  'ashen-gate-quest-manager': {active: true, api: {listVisible: () => [{id: 'QUEST-TEST', name: '[TEST] Quest', status: 'Active', scope: 'party', kind: 'side_quest', relation: 'also_available_as_journal', objectives: []}], open: () => {}}},
   'ashen-gate-locations': {active: true, api: {listLocations: () => [{id: 'LOC-TEST-MILL', name: '[TEST] Millbrook'}], open: () => {}}}
 });
 
 test('partner panels never show ids, even when a partner omits names', () => {
   installGlobals({user: users.owner, modules: mods()});
   const actor = makeActor();
-  for (const panel of PANELS) assertNoIds(panelState(panel, actor).html, `${panel.label} panel`);
+  for (const panel of PANELS) assertNoMachineText(panelState(panel, actor).html, `${panel.label} panel`);
   const rows = knownProfessions(actor) ?? [];
-  assertNoIds(rows.map(r => r.name).join(' '), 'Overview professions box');
+  assertNoMachineText(rows.map(r => r.name).join(' '), 'Overview professions box');
 });
