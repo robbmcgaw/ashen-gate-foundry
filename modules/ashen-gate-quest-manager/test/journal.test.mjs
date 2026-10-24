@@ -2,7 +2,7 @@
 // Foundry UI or Foundry's own server-side ownership checks.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {sessionId,nextNumber,freeId,cleanTitle,readSession,sortSessions,currentSession,personalOwnership,partyOwnership,entryOwnership,
- canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME,
+ canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME,journalMarkdown,journalFilename,
  autoFormatHtml,cleanDate,sessionHeading,sessionDate,autoDate,gmOwnership,GM_TARGET,canDelete} from '../scripts/journal-core.mjs';
 import {createJournalStore,JournalConflict} from '../scripts/journal-store.mjs';
 import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys} from '../scripts/journal-ui.mjs';
@@ -247,17 +247,17 @@ test('markup: sidebar newest first, toggle, toolbar, book; GM view of a player p
  assert.match(html,/id="agq-journal-editor" contenteditable="true"[^>]*>(<p>Hello <strong>you<\/strong><\/p>)<\/div>/);
  assert.match(html,/Discard changes[\s\S]*data-journal-status>Saved<[\s\S]*Save<\/button>/,'Discard left, Save right');
  assert.doesNotMatch(html,/data-action=/,'journal controls never go through the GM action handler');
- assert.doesNotMatch(html,/Export Markdown|Archive session|agq-journal-archived/,'no GM tools for players');
+ assert.doesNotMatch(html,/Export This Session|Export GM Journal|Archive session|agq-journal-archived/,'no GM tools for players');
  // Bob is not the creator: no rename pencil.
  assert.doesNotMatch(journalPaneHTML(w.as('bob',()=>buildJournalModel(w.store('bob'),newJournalView(false),w.users.get('bob')))),/data-jaction="rename"/);
  const gv={...newJournalView(true),target:'alice'};
  const gh=journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm'))));
  assert.match(gh,/Whose journal<select id="agq-journal-who"><option value="party" >Party journal<\/option><option value="alice" selected>Alice&#39;s journal/);
  assert.match(gh,/contenteditable="false"/);assert.doesNotMatch(gh,/data-format=|data-journal-status/);
- assert.match(gh,/Only they can write it/);assert.match(gh,/Export Markdown/);assert.match(gh,/Archive session/);assert.match(gh,/data-jaction="rename"/);
+ assert.match(gh,/Only they can write it/);assert.match(gh,/Export This Session/);assert.match(gh,/Archive session/);assert.match(gh,/data-jaction="rename"/);
  // QJ-03 Session actions sit on their own line under the session title, Archive session last.
- assert.match(gh,/<\/header><div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">[^]*Export Markdown[^]*Archive session<\/button><\/div>/);
- assert.doesNotMatch(gh.slice(gh.indexOf('agq-jhead__tools'),gh.indexOf('</header>')),/Export Markdown|Archive session/);
+ assert.match(gh,/<\/header><div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">[^]*Export This Session[^]*Archive session<\/button><\/div>/);
+ assert.doesNotMatch(gh.slice(gh.indexOf('agq-jhead__tools'),gh.indexOf('</header>')),/Export This Session|Export Journal|Archive session/);
  gv.renaming='SESSION-002';
  assert.match(journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm')))),/id="agq-jr-name" maxlength="80" value="Second"[\s\S]*id="agq-jr-subtitle"[^>]*value="The gate"/);
 });
@@ -476,4 +476,100 @@ test('Auto format in the window: asks first, applies, and Undo auto format puts 
  assert.equal(ed.innerHTML,'<p>• rope</p><p>• lamp</p>');assert.equal(undo.hidden,true);
  ed.innerHTML='<p>Already clean.</p>';asked.length=0;await app.autoFormatJournal(root);
  assert.deepEqual(asked,[['info','Nothing to tidy: this page is already clean.']]);
+});
+
+// ---- 0.21.0 Export a whole journal ----
+async function exportWorld(){
+ const w=makeWorld();
+ const s1=await w.call('gm',s=>s.create({name:'Market day'})),s2=await w.call('gm',s=>s.create({name:'The road'})),s3=await w.call('gm',s=>s.create({name:'Gate'}));
+ await w.call('gm',s=>s.rename(s2,{name:'The road',date:'2026-09-02'}));
+ await w.call('alice',s=>s.write(s1,'me','<h1>Day</h1><p>ALICE-ONE</p>',{base:''}));
+ await w.call('alice',s=>s.write(s3,'me','<p>ALICE-THREE</p>',{base:''}));
+ await w.call('bob',s=>s.write(s2,'me','<p>BOB-TWO</p>',{base:''}));
+ await w.call('bob',s=>s.write(s1,'party','<p>PARTY-ONE</p>',{base:''}));
+ await w.call('gm',s=>s.write(s2,'party','<p>PARTY-TWO</p>',{base:''}));
+ await w.call('gm',s=>s.write(s1,GM_TARGET,'<p>GMSECRET-ONE</p>',{base:''}));
+ await w.call('gm',s=>s.write(s2,GM_TARGET,'<p>GMSECRET-TWO</p>',{base:''}));
+ await w.call('gm',s=>s.archive(s1));
+ return {w,s1,s2,s3};
+}
+
+test('journalFilename and journalMarkdown: session order, headings, same body format',()=>{
+ assert.equal(journalFilename('My World!','group',{date:new Date('2026-10-24T12:00:00Z')}),'My-World-group-journal-2026-10-24.md');
+ assert.equal(journalFilename('w','player',{who:"Zoë O'Neil",date:new Date('2026-10-24T12:00:00Z')}),'w-player-zoe-o-neil-journal-2026-10-24.md');
+ assert.equal(journalFilename('','gm',{date:new Date('2026-10-24T12:00:00Z')}),'world-gm-journal-2026-10-24.md');
+ const md=journalMarkdown('T',[{session:{id:'SESSION-001',number:1,name:'Session 1',subtitle:'',createdAt:'2026-10-01T00:00:00Z',archived:true},html:'<h1>Big</h1><p>a</p>'},
+  {session:{id:'SESSION-002',number:2,name:'The road',subtitle:'Rain',date:'2026-09-02'},html:''}],{note:'n'});
+ assert.equal(md,'# T\n\nn\n\n## Session 1\n\nSESSION-001 · started 2026-10-01 · archived\n\n### Big\n\na\n\n## Session 2 - The road\n\n*Rain*\n\nSESSION-002 · dated 2026-09-02\n\n*(empty)*\n');
+ assert.equal(htmlToMarkdown('<h1>x</h1>'),'# x','default heading levels unchanged');
+});
+
+test('0.21.0 exports: one file per journal, every session in order, archived included for the GM',async()=>{
+ const {w}=await exportWorld();
+ const gmAlice=await w.call('gm',async s=>s.exportJournal('player',{userId:'alice'}));
+ assert.equal(gmAlice.count,3);assert.equal(gmAlice.who,'Alice');
+ assert.deepEqual([...gmAlice.markdown.matchAll(/^## (.*)$/gm)].map(m=>m[1]),['Session 1 - Market day','Session 2 - The road','Session 3 - Gate'],'oldest first');
+ assert.match(gmAlice.markdown,/ALICE-ONE[^]*ALICE-THREE/);assert.match(gmAlice.markdown,/SESSION-001 · started 2026-10-22 · archived/,'archived is marked');
+ assert.match(gmAlice.markdown,/dated 2026-09-02/);assert.match(gmAlice.markdown,/archived sessions included \(1\)/);
+ assert.doesNotMatch(gmAlice.markdown,/BOB-TWO|PARTY|GMSECRET/);
+ assert.match(gmAlice.markdown,/### Day/,'page headings sit under the session heading');
+ const group=await w.call('gm',async s=>s.exportJournal('group'));
+ assert.match(group.markdown,/PARTY-ONE[^]*PARTY-TWO/);assert.doesNotMatch(group.markdown,/ALICE|BOB|GMSECRET/);
+ const gmj=await w.call('gm',async s=>s.exportJournal('gm'));
+ assert.match(gmj.markdown,/GMSECRET-ONE[^]*GMSECRET-TWO/);assert.equal(gmj.count,3);assert.doesNotMatch(gmj.markdown,/ALICE|PARTY/);
+ await assert.rejects(w.call('gm',async s=>s.exportJournal('player',{userId:'gm'})),/Pick a player/);
+ await assert.rejects(w.call('gm',async s=>s.exportJournal('player',{userId:'nobody'})),/Pick a player/);
+ await assert.rejects(w.call('gm',async s=>s.exportJournal('nonsense')),/Unknown/);
+});
+
+test('0.21.0 a player exports only what they could read: own journal, the group journal, no archived, never the GM journal',async()=>{
+ const {w}=await exportWorld();
+ const mine=await w.call('alice',async s=>s.exportJournal('player'));
+ assert.equal(mine.count,2,'the archived session is hidden from players');assert.match(mine.markdown,/ALICE-THREE/);assert.doesNotMatch(mine.markdown,/ALICE-ONE|archived/);
+ assert.equal((await w.call('alice',async s=>s.exportJournal('player',{userId:'alice'}))).count,2);
+ assert.equal((await w.call('alice',async s=>s.exportJournal('player',{userId:'me'}))).count,2);
+ await assert.rejects(w.call('alice',async s=>s.exportJournal('player',{userId:'bob'})),/can't read/);
+ await assert.rejects(w.call('alice',async s=>s.exportJournal('player',{userId:'gm'})),/Pick a player/);
+ const grp=await w.call('alice',async s=>s.exportJournal('group'));assert.match(grp.markdown,/PARTY-TWO/);assert.doesNotMatch(grp.markdown,/PARTY-ONE|GMSECRET|BOB/);
+ for(const who of ['alice','bob']){
+  await assert.rejects(w.call(who,async s=>s.exportJournal('gm')),/GM permission/);
+  await assert.rejects(w.call(who,async s=>s.exportJournal('gm',{userId:who})),/GM permission/);
+ }
+ // Foundry's own grant still applies: a personal page closed by hand stays closed.
+ w.entries[1].pages.find(p=>p.name==="Alice's journal").ownership={default:0,alice:0,bob:0};
+ await assert.rejects(w.call('alice',async s=>s.exportJournal('player')),/can't read/);
+ // Hidden by the GM: no export at all.
+ w.access=false;await assert.rejects(w.call('alice',async s=>s.exportJournal('group')),/hidden/);
+});
+
+test('0.21.0 no socket message exports anything or carries page text; a forged export request is refused',async()=>{
+ const {w}=await exportWorld();
+ const gmSide=w.store('gm');w.store('alice');
+ const forged={type:'journal-request',requestId:'x1',userId:'alice',kind:'gm'};
+ for(const op of ['exportJournal','export','export-gm','exportMarkdown']){
+  w.bus.length=0;
+  await w.as('gm',()=>gmSide.onSocket({...forged,op},'alice'));
+  const receipt=w.bus.find(m=>m.type==='journal-receipt');
+  assert.ok(receipt&&receipt.ok===false&&/Unknown Game Journal request/.test(receipt.message),op);
+  assert.ok(!JSON.stringify(w.bus).includes('GMSECRET'));
+ }
+ w.bus.length=0;await w.call('alice',async s=>s.exportJournal('group'));await w.call('gm',async s=>s.exportJournal('gm'));
+ assert.equal(w.bus.length,0,'exporting sends nothing over the socket');
+});
+
+test('0.21.0 buttons: Export Journal only on a player journal, Export GM Journal never drawn for players',async()=>{
+ const {w,s2}=await exportWorld();
+ const pane=(user,jv)=>journalPaneHTML(w.as(user,()=>buildJournalModel(w.store(user),jv,w.users.get(user))));
+ const btn=(h,action)=>(h.match(new RegExp(`<button[^>]*data-jaction="${action}"[^>]*>`))||[''])[0];
+ let h=pane('alice',{...newJournalView(false),sessionId:s2,target:'me'});
+ assert.match(btn(h,'export-player'),/data-tooltip="Download every session of your journal/);assert.doesNotMatch(btn(h,'export-player'),/disabled/);
+ assert.match(h,/Export Group Journal/);assert.doesNotMatch(h,/Export GM Journal|export-gm|Export This Session|agq-jexport-hint/);
+ h=pane('alice',{...newJournalView(false),sessionId:s2,target:'party'});
+ assert.match(btn(h,'export-player'),/disabled[^>]*data-tooltip="Switch to My journal to export it\."/);assert.match(h,/Export Journal is off: Switch to My journal to export it\./);
+ h=pane('gm',{...newJournalView(true),sessionId:s2,target:'party'});
+ assert.match(btn(h,'export-player'),/disabled/);assert.match(h,/Pick a player&#39;s journal under Whose journal/);assert.match(h,/Export GM Journal/);assert.match(h,/Export Group Journal/);
+ h=pane('gm',{...newJournalView(true),sessionId:s2,target:'bob'});
+ assert.doesNotMatch(btn(h,'export-player'),/disabled/);assert.match(h,/Download every session of Bob&#39;s journal, archived sessions included/);
+ assert.doesNotMatch(h,/Export Journal is off/);
+ for(const t of ['me','party'])assert.doesNotMatch(pane('bob',{...newJournalView(false),sessionId:s2,target:t}),/export-gm|GM Journal|gm-notes/);
 });

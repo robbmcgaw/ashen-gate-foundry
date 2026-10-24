@@ -11,7 +11,7 @@
 // allowed to use the journal, and (for a rename) the session's creator.
 import {JOURNAL_CONTRACT,SESSION_ID,MAX_HTML,GM_TARGET,gmOwnership,canDelete,canSetDate,nextNumber,freeId,cleanTitle,readSession,newSession,sortSessions,currentSession,
  entryOwnership,partyOwnership,personalOwnership,pageFlag,readPageFlag,canUseJournal,canReadPage,canWritePage,canRename,
- sanitizeHtml,searchJournal,sessionMarkdown} from './journal-core.mjs';
+ sanitizeHtml,searchJournal,sessionMarkdown,journalMarkdown,canExportKind} from './journal-core.mjs';
 
 export const JOURNAL_SOCKET_TYPES=Object.freeze({request:'journal-request',receipt:'journal-receipt'});
 const OPS=new Set(['create','rename']);
@@ -213,10 +213,39 @@ export function createJournalStore(deps){
    .sort((a,b)=>a.party?-1:b.party?1:a.label.localeCompare(b.label));
   return sessionMarkdown(r.session,list);
  }
+ /**
+  * One journal across every session, in session order, as Markdown (the same body format as exportMarkdown).
+  * kind 'player': opts.userId is whose journal (a player: only their own; the GM: any player's). 'group': the party
+  * journal. 'gm': the GM-only notes, GM only. Archived sessions are included for the GM; a player never sees them, so
+  * they are not exported either. Every page is checked like a read: nobody exports what they cannot open.
+  * Returns {markdown, label, who, count}. Not a socket operation: it only reads what this client may already read.
+  */
+ function exportJournal(kind,opts={}){
+  const me=deps.me();assertAllowed(me);
+  if(!canExportKind(me,kind))throw new Error(kind==='gm'?'GM permission required.':'Unknown journal to export.');
+  let matches,title,who='';
+  if(kind==='gm'){matches=x=>x.kind==='gm';title='GM-only notes';}
+  else if(kind==='group'){matches=x=>x.kind==='party';title='Party journal';}
+  else{
+   const uid=opts?.userId==null||opts.userId==='me'?me.id:String(opts.userId),owner=userById(uid);
+   if(!owner||owner.isGM)throw new Error('Pick a player whose journal to export.');
+   if(!canReadPage(me,{kind:'user',userId:uid}))throw new Error("You can't read that journal page.");
+   matches=x=>x.kind==='user'&&x.userId===uid;who=owner.name;title=uid===me.id?'My journal':`${owner.name}'s journal`;
+  }
+  const sections=[];
+  for(const r of rows().filter(r=>!r.session.archived||me.isGM).sort((a,b)=>a.session.number-b.session.number)){
+   const found=pagesOf(r.entry).find(x=>matches(x.flag));
+   if(found&&(!canReadPage(me,found.flag)||!foundryAllows(found.page,me,'OBSERVER')))throw new Error("You can't read that journal page.");
+   sections.push({session:r.session,html:found?.page.text?.content??''});
+  }
+  const archived=sections.filter(x=>x.session.archived).length;
+  const note=`${sections.length} session${sections.length===1?'':'s'}${me.isGM?`, archived sessions included${archived?` (${archived})`:''}`:''}, oldest first.`;
+  return {markdown:journalMarkdown(`${title} — every session`,sections,{note}),label:title,who,count:sections.length};
+ }
  const isJournalDoc=doc=>!!readSession(flagOf(doc,'session'))||!!readPageFlag(flagOf(doc,'journalPage'));
 
  return {contract:JOURNAL_CONTRACT,allowed,list,get,pages,read,write,
   create:(input={})=>request('create',input),rename:(id,input={})=>request('rename',{...input,id}),
-  archive:id=>setArchived(id,true),restore:id=>setArchived(id,false),remove,ensurePages,search,exportMarkdown,onSocket,isJournalDoc,
+  archive:id=>setArchived(id,true),restore:id=>setArchived(id,false),remove,ensurePages,search,exportMarkdown,exportJournal,onSocket,isJournalDoc,
   sortSessions};
 }

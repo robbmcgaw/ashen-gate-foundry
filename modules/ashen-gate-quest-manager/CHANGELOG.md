@@ -1,3 +1,13 @@
+## 0.21.0 — 2026-10-24
+
+Export a whole journal in one file (Journal tab).
+- **Export Journal.** Downloads every session of the player journal you are looking at as one Markdown file, with each session's number, name and date as a heading, oldest first. A player gets it on their own journal (*My journal*); the GM gets it on the player journal picked under *Whose journal*. On the party journal it is switched off and says why (hover, and a line under the buttons).
+- **Export Group Journal.** The party journal of every session in one file. Anyone who can read the party journal can export it.
+- **Export GM Journal.** (GM only.) Your GM-only notes from every session in one file. The button is not drawn for players, and the API refuses a player (`api.journal.exportJournal('gm')`); it is not a socket request, so no message carries page text.
+- Each button asks first and says what it covers: for the GM that is every session including archived ones; a player gets the sessions they can see (archived sessions are hidden from players, so they are not exported). Files are named `<world>-player-<name>-journal-YYYY-MM-DD.md`, `<world>-group-journal-...` and `<world>-gm-journal-...`. Nobody can export a page they cannot read, and the Markdown is the same as before (a heading inside a page sits two levels lower under its session heading).
+- **Renamed: Export Markdown is now Export This Session** (GM), so it is not confused with the new buttons. It still downloads only the open session with the party journal and every player's journal. `api.journal.exportMarkdown` is unchanged.
+- Saved data: no change; no migration. New API call `api.journal.exportJournal(kind, {userId})`.
+
 ## 0.20.0 — 2026-10-24
 
 The Game Journal (Journal tab), a focused pass.
