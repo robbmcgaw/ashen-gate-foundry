@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.29.2';
+export const VERSION = '0.30.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -327,6 +327,30 @@ export const overlayBackground = (v, surface = '#17191d') => `color-mix(in srgb,
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
   return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id, actor), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
     .filter(g => g.conditions.length);
+}
+
+/**
+ * 0.30.0 overlay cards: one card per player character, conditions or not (plus any other character that has a condition,
+ * as before). Each card: {actorId, name, img, conditions:[{id, label, custom, readOnly, removable}]}, in the given order.
+ */
+export function overlayCards(actors, {users, label = id => id, isNative = () => true, canRemove = () => false} = {}) {
+  return actors.filter(a => a && ((a.statuses?.size ?? a.statuses?.length ?? 0) > 0 || isPlayerCharacter(a, users)))
+    .map(actor => ({actorId: actor.id, name: actor.name, img: typeof actor.img === 'string' ? actor.img : '',
+      conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id, actor), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}));
+}
+export const OVERLAY_OTHER_PC_REASON = "Only the GM or a condition controller can change another player's conditions.";
+/**
+ * 0.30.0: the overlay header controls for the selected card. `enabled` says whether this user may change conditions on
+ * `actor` at all (the same conditionRole the tracker, Apply and Remove use); `reason` is shown beside the disabled controls.
+ * It only shapes the UI: Apply and Remove still go through applyDecision / removalDecision on every call.
+ */
+export function overlayControlState({actor, user, playerAccess = true, controllers = {}, users} = {}) {
+  if (!actor) return {enabled: false, reason: 'Select a character to change its conditions.'};
+  if (!user) return {enabled: false, reason: 'Unknown user.'};
+  if (!user.isGM && playerAccess !== true) return {enabled: false, reason: 'Utilities access is hidden by the GM.'};
+  const r = conditionRole({user, actor, controllers, users});
+  if (r.role) return {enabled: true, reason: ''};
+  return {enabled: false, reason: isPlayerCharacter(actor, users) && !isLevelBackup(actor) ? OVERLAY_OTHER_PC_REASON : r.reason};
 }
 
 /* ---- v0.5.0: party stash rows and the take-out consent poll ---- */

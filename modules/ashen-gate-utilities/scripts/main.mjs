@@ -1,4 +1,4 @@
-import {ID,VERSION,isPlayerCharacter,sharedConditionChoices,unknownStatusLabel,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,planStashDelete,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
+import {ID,VERSION,isPlayerCharacter,overlayCards,overlayControlState,sharedConditionChoices,unknownStatusLabel,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,planStashDelete,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
@@ -621,18 +621,44 @@ function applyOverlayOpacity(app,value=overlayOpacity()){const v=clampOverlayOpa
 const liveOverlayOpacity=app=>{const f=app?.element?.querySelector?.('[data-ov-opacity]');return f?clampOverlayOpacity(f.value):overlayOpacity();};
 function overlayFadeHTML(){const tipText='Overlay background opacity (only for you): 0-100 %. Text and the header stay solid.';
  return `<label class="agu-ov-fade" ${tip(tipText)}><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="0" max="100" step="5" value="${overlayOpacity()}" data-ov-opacity aria-label="${E(tipText)}"></label>`;}
-function overlayHTML(){
- const groups=conditionGroups(partyCharacters(),{label:(id,a)=>statusLabel(a,id),isNative:id=>Boolean(statusConfig(id)),canRemove:(a,id)=>canRemove(a,id)});
- return `<div class="agu-overlay">${overlayFadeHTML()}${groups.length?groups.map(g=>`<section class="agu-ov-group"><h3>${E(g.name)}</h3><ul>${g.conditions.map(c=>`<li><span>${E(c.label)}${c.custom?' <small>(Custom)</small>':''}${c.readOnly?` <small ${tip(READ_ONLY_STATUS_HINT)}>(Read only)</small>`:''}</span>${c.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(g.actorId)}" data-status="${E(c.id)}" ${tip(`Remove ${c.label}`)} aria-label="Remove ${E(c.label)} from ${E(g.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}</li>`).join('')}</ul></section>`).join(''):empty('No conditions','No party character has a condition right now.')}</div>`;
+/** 0.30.0: the selected card's actor and the header controls' state (see overlayControlState); Apply also needs the pick to be applicable. */
+function overlayState(app){
+ const cards=overlayCards(partyCharacters(),{users:[...game.users]}),actor=cards.some(c=>c.actorId===app?.selectedId)?game.actors.get(app.selectedId):null;
+ const choices=conditionChoices(),pick=choices.some(x=>x.id===app?.statusPick)?app.statusPick:choices[0]?.id;
+ const ctl=overlayControlState({actor,user:game.user,playerAccess:isGM()||game.settings.get(ID,'playerAccessEnabled')===true,controllers:getControllers(),users:[...game.users]});
+ let applyOk=false,reason=ctl.reason;
+ if(ctl.enabled&&pick){const d=applyDecision({user:game.user,actor,statusId:pick,...conditionRules()});applyOk=d.ok;if(!d.ok)reason=d.reason;}
+ return {actor,choices,pick,enabled:ctl.enabled,applyOk,reason};
+}
+function overlayHTML(app){
+ const st=overlayState(app);
+ const cards=overlayCards(partyCharacters(),{users:[...game.users],label:(id,a)=>statusLabel(a,id),isNative:id=>Boolean(statusConfig(id)),canRemove:(a,id)=>canRemove(a,id)});
+ const target=st.actor?(st.enabled&&st.applyOk?`Changing conditions for ${st.actor.name}.`:st.reason||`Changing conditions for ${st.actor.name}.`):'Select a character to change its conditions.';
+ const head=`<div class="agu-ov-head">${overlayFadeHTML()}<div class="agu-ov-controls"><select id="agu-ov-status" class="agu-ov-status" aria-label="${E(st.actor?`Condition to apply to ${st.actor.name}`:'Condition to apply')}" aria-describedby="agu-ov-target" ${st.enabled?'':'disabled'}>${st.choices.map(x=>option(x.id,x.label,st.pick)).join('')}</select>${btn('ov-apply','Apply',{kind:'primary sm',disabled:!st.applyOk,attrs:'data-ov-apply aria-describedby="agu-ov-target"'})}</div><p class="ag-field__hint agu-ov-target" id="agu-ov-target" role="status">${E(target)}</p></div>`;
+ const card=c=>{const sel=st.actor?.id===c.actorId;
+  return `<div class="agu-ov-card${sel?' is-selected':''}"><button type="button" class="agu-ov-pick" data-ov-select data-actor="${E(c.actorId)}" aria-pressed="${sel}">${c.img?`<img class="agu-ov-portrait" src="${E(c.img)}" alt="">`:''}<span class="agu-ov-name">${E(c.name)}</span>${sel?'<i class="fa-solid fa-check agu-ov-check" aria-hidden="true"></i>':''}</button>`
+  +(c.conditions.length?`<ul class="agu-ov-chips">${c.conditions.map(x=>`<li class="agu-ov-chip"><span>${E(x.label)}${x.custom?' <small>(Custom)</small>':''}${x.readOnly?` <small ${tip(READ_ONLY_STATUS_HINT)}>(Read only)</small>`:''}</span>${x.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(c.actorId)}" data-status="${E(x.id)}" ${tip(`Remove ${x.label}`)} aria-label="Remove ${E(x.label)} from ${E(c.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}</li>`).join('')}</ul>`:'<p class="agu-ov-none">No conditions</p>')+'</div>';};
+ return `<div class="agu-overlay">${head}${cards.length?`<div class="agu-ov-cards">${cards.map(card).join('')}</div>`:empty('No characters to show','Party characters appear here once your GM shares them with you.')}</div>`;
 }
 const savedOverlayPosition=()=>{const p=game.settings.get(ID,'overlayPosition')||{};return Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(p[k])).map(k=>[k,p[k]]));};
 let positionTimer=null;
 class ConditionsOverlay extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-conditions-overlay',classes:['ag-app','agu-overlay-app'],window:{title:'Party Conditions',resizable:true,minimizable:false},position:{width:240,height:'auto'}};
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');return overlayHTML();}
+ selectedId=null;statusPick=null;
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');return overlayHTML(this);}
+ /** 0.30.0: click a card to select it, click it again to clear. Only state; nothing is changed on the character. */
+ selectCard(id){this.selectedId=this.selectedId===id?null:id;return this.render();}
+ /** 0.30.0: Apply the picked condition to the selected card through the same checked path as the tracker (applyCondition). Refusals throw. */
+ async applySelected(){const actor=game.actors.get(this.selectedId),pick=this.statusPick||conditionChoices()[0]?.id;
+  if(!actor)throw Error('Select a character first.');if(!pick)throw Error('Choose a condition first.');
+  const message=await applyCondition(actor.id,pick);ui.notifications?.info(message);return message;}
  _replaceHTML(html,content){const active=globalThis.document?.activeElement,key=active&&content.contains?.(active)?focusKey(active):null;
   content.innerHTML=html;guardKeys(content);applyOverlayOpacity(this);restoreFocus(content,key);
   const fade=content.querySelector('[data-ov-opacity]');
+  for(const b of content.querySelectorAll('[data-ov-select]'))b.addEventListener('click',()=>{this.selectCard(b.dataset.actor).catch(error);});
+  const pickEl=content.querySelector('#agu-ov-status');if(pickEl)pickEl.addEventListener('change',()=>{this.statusPick=pickEl.value;this.render().catch(error);});
+  const applyEl=content.querySelector('[data-ov-apply]');
+  if(applyEl)applyEl.addEventListener('click',()=>{if(applyEl.disabled)return;const key=focusKey(applyEl);applyEl.disabled=true;this.applySelected().catch(error).finally(()=>{this.render().catch(error);refocusSoon(content,[key]);});});
   if(fade){fade.addEventListener('input',()=>applyOverlayOpacity(this,fade.value));fade.addEventListener('change',()=>{game.settings.set(ID,'overlayOpacity',applyOverlayOpacity(this,fade.value))?.catch?.(error);});}
   // 0.27.1: after the remove (and its confirm, confirmed or cancelled) focus goes back to the button while it is still there.
   for(const b of content.querySelectorAll('[data-ov-remove]'))b.addEventListener('click',()=>{const key=focusKey(b);b.disabled=true;removeFromUI(game.actors.get(b.dataset.actor),b.dataset.status).catch(error).finally(()=>{b.disabled=false;refocusSoon(content,[key]);});});

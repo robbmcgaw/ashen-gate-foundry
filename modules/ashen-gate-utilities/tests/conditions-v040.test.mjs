@@ -108,13 +108,13 @@ test('players get the same conditions view, with Remove only where permitted and
  app.actorId='b1';html=await app._renderHTML();assert.ok(!html.includes('data-action="remove-status"'),'not owner: no Remove');
  game.user=gm;html=await app._renderHTML();assert.ok(!html.includes('toggle-lock'),'the lock control is gone for the GM too');
 });
-test('overlay: bold name per character, bulleted conditions, × only where removal is permitted',async()=>{
+test('overlay: a card per character with condition chips, × only where removal is permitted',async()=>{
  game.user=alice;
  const overlay=await api.conditions.openOverlay();assert.equal(game.settings.get(ID,'overlayOpen'),true);
  const html=await overlay._renderHTML();
- assert.match(html,/<h3>Wren<\/h3><ul><li><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
- assert.match(html,/<li><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
- assert.match(html,/<h3>Ash<\/h3><ul><li><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
+ assert.match(html,/<span class="agu-ov-name">Wren<\/span>[\s\S]*<li class="agu-ov-chip"><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
+ assert.match(html,/<li class="agu-ov-chip"><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
+ assert.match(html,/<span class="agu-ov-name">Ash<\/span>[\s\S]*?<li class="agu-ov-chip"><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
  game.user=gm;const gmHtml=await overlay._renderHTML();assert.equal((gmHtml.match(/data-ov-remove/g)||[]).length,3,'GM can remove everything');
  game.user=alice;
 });
