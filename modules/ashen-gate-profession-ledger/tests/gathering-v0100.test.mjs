@@ -382,7 +382,7 @@ test('recipes: tool, workstation or the profession’s tool; warning when not ca
  const h=await html('individual');
  const row=name=>h.slice(h.indexOf(`<strong>${name}</strong>`),h.indexOf('</article>',h.indexOf(`<strong>${name}</strong>`)));
  assert.match(row('[TEST] Brew'),/Alchemist’s Supplies.*doesn’t carry this/);
- assert.match(row('[TEST] Stew'),/Workstation: \[TEST\] Kitchen/);assert.doesNotMatch(row('[TEST] Stew'),/Alchemist/,'workstation recipes need no tool');
+ assert.match(row('[TEST] Stew'),/Station<\/span> <span>\[TEST\] Kitchen/);assert.doesNotMatch(row('[TEST] Stew'),/Alchemist/,'workstation recipes need no tool');
  assert.match(row('[TEST] Tonic'),/Alchemist’s Supplies/,'no tool given: the profession’s tool');
  belwar.nextRoll=14;rolls.length=0;
  // 0.22.0: advantage tools configured for a crafting profession are ignored (Belwar is proficient with this one).

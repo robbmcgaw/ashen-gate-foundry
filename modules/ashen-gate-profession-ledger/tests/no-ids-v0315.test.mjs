@@ -1,6 +1,6 @@
-// 0.31.5: Ashen Gate canonical ids (REC-*, MAT-*, PROF-*, NODE-*, LOC-* …) are never shown in the Ledger UI. Renders the main
+// 0.32.1: Ashen Gate canonical ids (REC-*, MAT-*, PROF-*, NODE-*, LOC-* …) are never shown in the Ledger UI. Renders the main
 // views with sample records (as a player and as the GM) and checks the visible text, tooltips, aria-labels and placeholders.
-// The GM's closed "Details" fold on a row is the one place an id may appear; it is cut out before the GM check.
+// The GM sees no ids on rows either; the node editor keeps a closed Details fold with the id field.
 // Mocked Foundry: logic and markup only, not the live UI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,7 +42,7 @@ const actor={id:'bard',name:'[TEST] Bard',type:'character',hasPlayerOwner:true,i
   testUserPermission:()=>true,setFlag:async()=>{},system:{skills:{},tools:{},abilities:{}}};
 const nodeTemplate={id:'NODE-TEST-REEDS',name:'[TEST] River Reeds',activity:'herbalism',tier:{min:1,max:2},materials:{common:[{materialId:'MAT-TEST-HERB',quantity:1}],rare:[],exotic:[{materialId:'MAT-TEST-MOSS',mode:'discovery'}]}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.31.5'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.32.1'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[actor],get:id=>id==='bard'?actor:undefined},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -64,12 +64,10 @@ test('player views show no ids (recipe list rows included)',async()=>{
   assert.doesNotMatch(row,/REC-ALCHEMY-FIELD-MEDIC-S-SALVE<|agl-id/,'the id line under a recipe row is gone');
 });
 
-test('GM views show no ids outside the Details fold',async()=>{
+test('GM views show no ids',async()=>{
   game.user=gm;app.actorId='bard';
   for(const view of [...VIEWS,'nodes']){assertNoMachineText(withoutDetails(await html(view)),`GM ${view} view`);}
-  const h=await html('catalog');
-  assert.match(h,/<details class="agl-details agl-id-details"><summary>Details<\/summary>/,'the GM still reaches the id from a recipe row');
-  assert.doesNotMatch(h,/<small class="agl-id">/);
+  assert.doesNotMatch(await html('catalog'),/<small class="agl-id">/);
 });
 
 test('GM node editor, node list and import preview show no ids',async()=>{

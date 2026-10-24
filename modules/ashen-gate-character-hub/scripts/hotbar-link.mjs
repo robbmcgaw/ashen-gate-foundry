@@ -14,7 +14,8 @@
  *   - The first link of a character whose two bars differ asks once per character and user (remembered on the User:
  *     flags['ashen-gate-character-hub'].hotbarLink[actorId]). After that, bringing the character's Hub to the front puts
  *     its quick bar on Foundry's page 1.
- *   - Per-user client setting "Link quick bar to Foundry's hotbar" (default on). Off: nothing here runs.
+ *   - Always on (0.46.0): there is no option. A `linkFoundryHotbar` value stored by 0.42.0-0.45.x is no longer read or
+ *     registered, so it is ignored and left where it is; hotbar slot data is never touched by that.
  */
 import {MODULE_ID, esc} from './constants.mjs';
 import {canEdit} from './actions.mjs';
@@ -22,15 +23,8 @@ import {canSee} from './visibility.mjs';
 import {hotbarSlots, writeHotbarSlots, HOTBAR_SLOTS} from './hotbar.mjs';
 import {choiceDialog} from './ag-dialogs.mjs';
 
-export const LINK_SETTING = 'linkFoundryHotbar';
 export const LINK_FLAG = 'hotbarLink';
 export const LINK_CHOICES = ['hub', 'foundry', 'both'];
-
-export function registerLinkSetting(settings, onChange = () => {}) {
-  settings.register(MODULE_ID, LINK_SETTING, {scope: 'client', config: false, type: Boolean, default: true, onChange});
-}
-export function linkOn() { try { return globalThis.game?.settings?.get?.(MODULE_ID, LINK_SETTING) !== false; } catch { return true; } }
-export const setLinkOn = on => globalThis.game.settings.set(MODULE_ID, LINK_SETTING, on === true);
 
 /** The command dnd5e 6 writes for an item macro (documents/macro.mjs create5eMacro, type "Item"). */
 export const UNSAFE_NAME = /["\\`\r\n\u2028\u2029]|\$\{/;
@@ -85,7 +79,7 @@ export const canCreateScriptMacro = (user = globalThis.game?.user) => user?.isGM
 export async function askFirstLink(actor) {
   const name = esc(actor?.name ?? 'this character');
   const html = `<p>${name}'s quick bar and your Foundry hotbar (page 1, the page the number keys use) hold different things. Linking keeps slot 1-10 of both the same from now on.</p>
-    <p>Whenever you bring a character's Hub to the front, that character's quick bar is put on page 1 of your Foundry hotbar, replacing the macros there. Other hotbar pages are never touched. Turn this off in the Hub's ⋯ menu (Link quick bar to Foundry's hotbar).</p>`;
+    <p>Whenever you bring a character's Hub to the front, that character's quick bar is put on page 1 of your Foundry hotbar, replacing the macros there. Other hotbar pages are never touched.</p>`;
   return choiceDialog(`Link ${actor?.name ?? 'the'} quick bar to Foundry's hotbar?`, html, [
     {action: 'hub', label: 'Use the Hub quick bar'},
     {action: 'foundry', label: "Use Foundry's hotbar"},
@@ -161,9 +155,9 @@ export function createHotbarLink(env = {}) {
      * when the bars differ, it asks (`ask(actor)` → 'hub' | 'foundry' | 'both' | null) and remembers the answer.
      */
     activate(actor, {ask = askFirstLink} = {}) {
-      if (!linkOn() || !eligible(actor) || linked === actor || declined.has(actor.id)) return Promise.resolve(null);
+      if (!eligible(actor) || linked === actor || declined.has(actor.id)) return Promise.resolve(null);
       return run(async () => {
-        if (!linkOn() || linked === actor || declined.has(actor.id)) return null;   // a click while the question was open
+        if (linked === actor || declined.has(actor.id)) return null;   // a click while the question was open
         const u = user(), remembered = u?.flags?.[MODULE_ID]?.[LINK_FLAG]?.[actor.id];
         let choice = 'hub';
         const {differ, foundryEmpty} = this.compare(actor);
@@ -179,7 +173,7 @@ export function createHotbarLink(env = {}) {
     },
     /** The linked character's quick bar changed (any client): copy the slots that changed to Foundry. */
     hubChanged(actor) {
-      if (!linkOn() || actor !== linked) return Promise.resolve(null);
+      if (actor !== linked) return Promise.resolve(null);
       return run(async () => {
         if (actor !== linked || !eligible(actor)) return null;
         const hub = hotbarSlots(actor);
@@ -190,7 +184,7 @@ export function createHotbarLink(env = {}) {
     },
     /** This user's Foundry hotbar changed or was redrawn: copy the page-1 slots that changed into the Hub. */
     foundryChanged() {
-      if (!linkOn() || !linked) return Promise.resolve(null);
+      if (!linked) return Promise.resolve(null);
       return run(async () => {
         const actor = linked;
         if (!actor || !eligible(actor)) return null;
@@ -201,7 +195,7 @@ export function createHotbarLink(env = {}) {
         return true;
       });
     },
-    /** The setting was turned off (or the GM hid the quick bar): forget the link. The bars stay as they are. */
+    /** The GM hid the quick bar: forget the link. The bars stay as they are. */
     unlink() { linked = null; lastFoundry = null; lastHub = null; declined.clear(); },
     /** Waits for the queued work (tests). */
     idle: () => queue

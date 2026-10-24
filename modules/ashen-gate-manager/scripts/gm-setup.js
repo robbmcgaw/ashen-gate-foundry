@@ -15,8 +15,10 @@ export function readGmSetupForm(root) {
   const radio = skin?.querySelector?.('[role="radio"][aria-checked="true"]');
   const skinValue = !skin ? undefined : radio ? radio.dataset?.agSkinValue : skin.value;
   const auto = q('[data-ag-setup-auto]');
+  const pause = q('[data-ag-setup-pause]');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
+    ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
       auto: auto.checked !== false,
@@ -47,6 +49,12 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, appea
     else if (values.worldSkin !== appearance.getState().worldDefault) {
       await appearance.setWorldDefault(values.worldSkin);
       saved.push('world appearance');
+    }
+  }
+  if (values.compactPause !== undefined && appearance?.setCompactPause) {
+    if (Boolean(values.compactPause) !== Boolean(appearance.getState().compactPause)) {
+      await appearance.setCompactPause(values.compactPause);
+      saved.push(values.compactPause ? 'pause shown as a small indicator' : 'pause shown as the large banner');
     }
   }
   if (values.codexAccess !== undefined) {

@@ -254,7 +254,7 @@ test('conditions strip (0.34.0): active ones as chips with ✕, every condition 
   const html = await sheet._renderHTML();
   assert.doesNotMatch(html, /data-action="condition"|data-action="cond-add"|agch-conds__list/, 'the old Conditions box is gone');
   assert.match(html, /agch-hotbar--conds[\s\S]*Prone<button type="button" class="agch-placed__off" data-action="cond-remove" data-uuid="Actor\.actor1" data-status="prone"/);
-  assert.match(html, /<option value="blinded">Blinded<\/option><option value="poisoned">Poisoned<\/option><option value="prone">Prone<\/option>/);
+  assert.match(html, /<option value="blinded">Blinded<\/option><option value="exhaustion">[^<]*<\/option><option value="poisoned">Poisoned<\/option><option value="prone">Prone<\/option>/);
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor({statuses: ['prone']})})._renderHTML();
   assert.doesNotMatch(view, /data-action="cond-remove"/, 'observers cannot take one off');

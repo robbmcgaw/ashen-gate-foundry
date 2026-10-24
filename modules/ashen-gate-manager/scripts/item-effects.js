@@ -152,6 +152,9 @@ const liveValue = (raw, path) => {
   if (path === 'statuses') return [...(v ?? [])].sort();
   return v;
 };
+/** Sync from package (0.55.0): the comparable leaves of an effect definition, and one live leaf normalized the same way. */
+export const effectFields = fieldsOf;
+export const liveEffectValue = liveValue;
 const blank = v => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
 const fileValue = (path, v) => path === 'statuses' ? [...v].sort() : v;
 
@@ -161,6 +164,7 @@ export function effectCreateData(e) {
   return {...structuredClone(def), flags: {[MODULE_ID]: {[EFFECT_FLAG]: {effId: e.eff_id, baseline: JSON.stringify(def)}}}};
 }
 const flagOf = raw => raw?.flags?.[MODULE_ID]?.[EFFECT_FLAG] ?? null;
+export const effectFlagOf = flagOf;
 const baselineOf = raw => { try { return JSON.parse(flagOf(raw)?.baseline ?? 'null'); } catch { return null; } };
 
 /**

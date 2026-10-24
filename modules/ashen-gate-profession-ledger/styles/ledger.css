@@ -62,7 +62,18 @@
 .agl-recipe-title strong{font-size:var(--ag-text-lg)}
 .agl-recipe-mark{color:var(--ag-accent)}
 .agl-recipe-actions{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
-.agl-recipe-body{display:flex;gap:var(--ag-space-5);flex-wrap:wrap;font-size:var(--ag-text-md)}
+/* 0.32.0: header badges, then Needs → Makes, then the tool or station, then the quieter text. Kit tokens only. */
+.agl-recipe-badges{display:inline-flex;align-items:center;gap:var(--ag-space-1);flex-wrap:wrap}
+.agl-recipe-flow{display:grid;grid-template-columns:minmax(0,1.4fr) auto minmax(0,1fr);gap:var(--ag-space-3);align-items:start;font-size:var(--ag-text-md);padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken)}
+.agl-recipe-arrow{color:var(--ag-muted);align-self:center}
+.agl-recipe-needs,.agl-recipe-makes{min-width:0;overflow-wrap:anywhere}
+.agl-qty{font-variant-numeric:tabular-nums;font-weight:600}
+.agl-recipe-station{display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-4);align-items:center;font-size:var(--ag-text-md)}
+.agl-station{display:inline-flex;align-items:center;gap:var(--ag-space-1);flex-wrap:wrap}
+.agl-station > i{color:var(--ag-muted)}
+.agl-label--inline{display:inline;margin:0}
+.agl-item-link{text-align:left;overflow-wrap:anywhere}
+@container (max-width:34rem){.agl-recipe-flow{grid-template-columns:1fr}.agl-recipe-arrow{transform:rotate(90deg);justify-self:start}}
 .agl-ings{list-style:none;margin:0;padding:0}
 .agl-ing small{color:var(--ag-muted)}
 .agl-ing.ok::before{content:'✓ ';color:var(--ag-ok)}

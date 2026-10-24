@@ -7,6 +7,7 @@
 import {inspectPlayerModule} from './player-access.js';
 import {coreRefOf, LINK_FLAG} from './core-links.js';
 import {recipeKind} from './profession-records.js';
+import {previewRelease, playerVisible} from './release.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 export const STATUS = Object.freeze({pass: 'PASS', warn: 'WARN', fail: 'FAIL', na: 'N-A'});
@@ -67,6 +68,24 @@ export function visibleToPlayers(doc, users, parentVisible = false) {
   if (own.default === -1 && parentVisible) return true;
   if ((own.default ?? 0) >= OBSERVER) return true;
   return users.some(u => typeof doc?.testUserPermission === 'function' ? doc.testUserPermission(u, 'OBSERVER') : (own[u.id] ?? 0) >= OBSERVER);
+}
+
+// ---------- Player visibility ----------
+/** Approved, player-visible Manager records whose world document players cannot read: partners show these as "Unreleased". */
+function checkPlayerVisibility(game) {
+  const C = 'Player visibility';
+  const docs = [];
+  for (const [kind, coll] of [['Item', game.items], ['JournalEntry', game.journal], ['Actor', game.actors]])
+    for (const doc of listOf(coll)) {
+      const source = doc?.flags?.[MODULE_ID]?.source;
+      if (source?.sourceId) docs.push({documentName: doc.documentName ?? kind, ownership: doc.ownership, flags: doc.flags, name: doc.name, id: doc.id, source});
+    }
+  const wanted = docs.filter(d => playerVisible(d.source, d.documentName));
+  if (!wanted.length) return [row(C, STATUS.na, 'No approved, player-visible Manager records in the world.')];
+  const preview = previewRelease(docs, d => d.source);
+  if (!preview.total) return [row(C, STATUS.pass, `All ${plural(wanted.length, 'approved, player-visible record')} can be read by players.`)];
+  const parts = preview.kinds.map(k => `${k.count} ${k.label.toLowerCase()}`).join(', ');
+  return [row(C, STATUS.warn, `${plural(preview.total, 'approved, player-visible record')} cannot be read by players (${parts}), so partner modules show them as Unreleased: ${capList(preview.examples.map(e => e.id))}. Fix: Manager → Items → Checks → Release player-visible records….`)];
 }
 
 // ---------- 1. Module versions ----------
@@ -419,7 +438,7 @@ function checkImports() {
 }
 
 const GROUPS = ['Module versions', 'GM storage', 'Player Access', 'Test data', 'Leak scan', 'Migration', 'Environment',
-  'Recipes', 'Skill trees', 'Core links', 'Profession Ledger', 'Quest rewards', 'Imports'];
+  'Recipes', 'Skill trees', 'Core links', 'Profession Ledger', 'Quest rewards', 'Imports', 'Player visibility'];
 /** Plain-text report: header, one line per result under its check, summary line. */
 export function reportText({rows, summary, world, date}) {
   const lines = [`Ashen Gate pre-session check — ${world}, ${date}`];
@@ -445,7 +464,7 @@ export async function runPreSessionCheck(game, {now = new Date()} = {}) {
     ['Player Access', () => checkPlayerAccess(game)], ['Test data', () => checkTestData(game, ctx)],
     ['Leak scan', () => checkLeaks(game, ctx)], ['Migration', () => checkMigration(game, ctx)], ['Environment', () => checkEnvironment(game)],
     ['Recipes', () => checkRecipes(game, ctx)], ['Skill trees', () => checkSkillTrees(game, ctx)], ['Core links', () => checkCoreLinks(game, ctx)],
-    ['Profession Ledger', () => checkLedger(game)], ['Quest rewards', () => checkQuestRewards(game, ctx)], ['Imports', () => checkImports()]];
+    ['Profession Ledger', () => checkLedger(game)], ['Quest rewards', () => checkQuestRewards(game, ctx)], ['Imports', () => checkImports()], ['Player visibility', () => checkPlayerVisibility(game)]];
   for (const [name, step] of steps) {
     try { rows.push(...await step()); }
     catch (error) { rows.push(row(name, STATUS.fail, `This check could not run: ${errText(error)}.`)); }

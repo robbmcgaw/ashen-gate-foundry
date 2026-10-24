@@ -24,7 +24,7 @@ import {saveBackup} from './level-backup.mjs';
 
 export const ADD_CLASS = '__add-class';
 const refuse = error => ({ok: false, error});
-const setting = (key, fallback) => { try { return globalThis.game?.settings?.get?.('dnd5e', key) ?? fallback; } catch { return fallback; } };
+export const setting = (key, fallback) => { try { return globalThis.game?.settings?.get?.('dnd5e', key) ?? fallback; } catch { return fallback; } };
 const dnd5eApps = () => globalThis.dnd5e?.applications ?? {};
 /** dnd5e's level-up manager class, or null. */
 export const advancementManager = () => dnd5eApps().advancement?.AdvancementManager ?? null;
@@ -49,7 +49,7 @@ export const levelChoices = classes => [...classes.map(c => ({value: c.id, label
   {value: ADD_CLASS, label: 'Add a class (multiclass)'}];
 
 /** Shows dnd5e's advancement window; `then` runs once it completes (never when it is cancelled). */
-async function showManager(manager, sheet, then) {
+export async function showManager(manager, sheet, then) {
   const H = globalThis.Hooks;
   let doneId = null, closeId = null;
   const off = () => { H?.off?.('dnd5e.advancementManagerComplete', doneId); H?.off?.('closeAdvancementManager', closeId); };
@@ -67,7 +67,7 @@ function openManager(manager, sheet) {
 }
 
 /** dnd5e's answer to "is there anything to ask?": the manager's steps, which its factory methods fill. */
-const hasSteps = manager => (manager?.steps?.length ?? 0) > 0;
+export const hasSteps = manager => (manager?.steps?.length ?? 0) > 0;
 const noSteps = what => console.info(`ashen-gate-character-hub | level up: dnd5e has no advancement steps for ${what}; done without its window, as the native sheet does.`);
 
 /** Advance class `cls` by one level, as the native class level selector does. */

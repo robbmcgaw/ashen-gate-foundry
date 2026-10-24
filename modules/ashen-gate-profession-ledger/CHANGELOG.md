@@ -1,9 +1,17 @@
-## 0.31.5 — 2026-10-24
+## 0.32.1 — 2026-10-24
 
 - **Fix: ids are no longer shown anywhere in the Ledger.** The GM's recipe rows showed the raw recipe id (for example `REC-ALCHEMY-FIELD-01`) under each recipe, and several GM screens and messages named materials, nodes and results by id. Rows, node cards, the node editor heading, the node import preview, the Node test list, option lists, notifications, confirmation text and error messages now use the item's name (or a neutral label such as "This material"). Search still finds things by id; it just doesn't display it.
 - **No machine text either.** The Ledger does not print refs or relation names (such as `also_available_as_journal`), entity type names or raw status/visibility values; GM badges already use plain labels ("GM-only source", "Reveal gated"), and a test now checks every main view for this.
-- **Where the GM can still reach an id:** a closed **Details** fold on each recipe row, and a **Details** fold in the gathering node editor (the id field, editable only while creating a node).
+- **Where the GM can still reach an id:** only in the gathering node editor, in a closed **Details** fold (the id field, editable only while creating a node).
 - **Saved data:** none changed; ids, flags, APIs and export formats are as before.
+
+## 0.32.0 — 2026-10-24
+
+- **Recipe cards are easier to read, everywhere recipes are listed** (Individual, Party, Recipe Catalog, the Tidy5e Professions tab and the Character Hub embed). Each card now reads: name with its tier and effort badges, then **Needs** (each material with its quantity) leading to **Makes** (the result), then the **Tool** or **Station** it needs, then the description and effect in a quieter style, then who knows it. Activities (no materials, no result) show **Uses**, **Station** and **Effect** in the same style. The GM-only line of internal recipe ids under each card is gone.
+- **Items in a recipe open on click.** Every material and the result is a link that opens that item's sheet. Players can open an item only when it is released to them and they have at least Observer permission on it; otherwise the name is plain text with a tooltip. For the GM an item that is not imported yet shows as plain text with a short GM-only note. Permission is checked again when you click, not just when the link is drawn.
+- **Tier colours.** Tier names (Apprentice, Journeyman, Artisan, Expert, Master) use the suite's item-rarity colours (common, uncommon, rare, very rare, legendary) on recipe cards, the Professions box and the Assign signature-perk preview. The tier name is always written out; colour is never the only signal.
+- Not changed: chat cards, Help text and notifications still print tier names as plain text.
+- **Saved data:** none changed; no migration.
 
 ## 0.31.4 — 2026-10-24
 

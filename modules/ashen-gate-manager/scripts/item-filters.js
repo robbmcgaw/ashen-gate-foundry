@@ -94,6 +94,7 @@ export const ITEM_VIEWS = Object.freeze([
   {id: 'folders', label: 'Folders', icon: 'fa-solid fa-folder-tree', filters: true},
   {id: 'corelinks', label: 'Core links', icon: 'fa-solid fa-link', filters: true},
   {id: 'checks', label: 'Checks', icon: 'fa-solid fa-stethoscope', filters: false},
+  {id: 'assets', label: 'Assets', icon: 'fa-solid fa-images', filters: false},
   {id: 'export', label: 'Export', icon: 'fa-solid fa-file-export', filters: false}
 ].map(v => Object.freeze(v)));
 /** Top-level tabs (0.46.0), GM Setup last. Import history is a sub-tab of Import. */

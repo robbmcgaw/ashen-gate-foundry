@@ -58,8 +58,8 @@ test('Player Access off, or the Character Hub hiding quests, hides the tab and r
 test('GM New session from the tab, then a player writes, saves, and a conflict asks before replacing',async()=>{
  game.user=gm;app.tab='journal';await app.render();
  await app.journalAction('new',{dataset:{}},rootWith(''));
- assert.equal(journal.length,1);assert.equal(app.jv.sessionId,'SESSION-001');assert.equal(app.jv.renaming,'SESSION-001','rename opens for the new session');
- assert.match(app.lastHTML,/id="agq-jr-name"/);
+ assert.equal(journal.length,1);assert.equal(app.jv.sessionId,'SESSION-001');assert.equal(app.jv.renaming,null,'0.20.0: the name form no longer pops open at the top of the list by itself');
+ assert.doesNotMatch(app.lastHTML,/id="agq-jr-name"/);assert.match(app.lastHTML,/data-jaction="rename"/,'the pencil is there');
  const root={querySelector:sel=>({'#agq-jr-name':{value:'Market day'},'#agq-jr-subtitle':{value:'Ash and rain'}})[sel]??null};
  await app.journalAction('rename-save',{dataset:{id:'SESSION-001'}},root);
  assert.equal(journal[0].getFlag(MOD,'session').name,'Market day');assert.equal(app.jv.renaming,null);
@@ -103,6 +103,38 @@ test('a player New session asks the GM over the Quest Log socket and settles on 
  // The GM client's answer (its checks are covered in journal.test.mjs), delivered as the socket would.
  await socketHandler({type:'journal-receipt',requestId:msg.requestId,userId:'alice',ok:true,message:'',sessionId:'SESSION-002'},'gm');
  assert.equal(await p,'SESSION-002');
+});
+
+test('0.21.0 export buttons: confirm first (naming the scope), then one file named for the world and kind; a player cannot reach the GM journal',async()=>{
+ const files=[];const prevDoc=globalThis.document,prevURL=URL.createObjectURL;
+ let blobs=[];URL.createObjectURL=b=>{blobs.push(b);return 'blob:x';};URL.revokeObjectURL=()=>{};
+ globalThis.document={querySelectorAll:()=>[],body:{append:()=>{}},createElement:()=>({click(){files.push(this.download);},remove(){}})};
+ game.world={title:'Fosstryn Test'};
+ try{
+  game.user=gm;await module.api.journal.write('SESSION-001','gm-notes','<p>GM-ONLY-TEXT</p>',{base:''});
+  app.tab='journal';app.jv=null;await app.render();const root=rootWith('');
+  dialogs.length=0;answer='cancel';
+  await app.journalAction('export-gm',{dataset:{}},root);
+  assert.equal(files.length,0,'Cancel downloads nothing');assert.equal(dialogs.at(-1).window.title,'Export GM Journal?');
+  assert.match(dialogs.at(-1).content,/every session, archived ones included/);
+  answer='confirm';await app.journalAction('export-gm',{dataset:{}},root);
+  assert.equal(files.length,1);assert.match(files[0],/^Fosstryn-Test-gm-journal-\d{4}-\d{2}-\d{2}\.md$/);
+  assert.match(await blobs.at(-1).text(),/GM-ONLY-TEXT/);
+  app.jv.target='alice';await app.render();
+  await app.journalAction('export-player',{dataset:{}},root);
+  assert.match(files.at(-1),/^Fosstryn-Test-player-alice-journal-/);assert.match(dialogs.at(-1).content,/Alice&#39;s journal/);
+  await app.journalAction('export-group',{dataset:{}},root);assert.match(files.at(-1),/^Fosstryn-Test-group-journal-/);
+  // A player: Export Journal on My journal, the group journal, and the GM journal is refused (even if a modified client sends the action).
+  game.user=alice;app.jv=null;app.tab='journal';const ph=await app.render();
+  assert.doesNotMatch(ph,/Export GM Journal|export-gm/);assert.match(ph,/data-jaction="export-player"/);
+  const before=files.length;
+  await app.journalAction('export-player',{dataset:{}},root);assert.match(files.at(-1),/^Fosstryn-Test-player-alice-journal-/);
+  await assert.rejects(app.journalAction('export-gm',{dataset:{}},root),/GM permission/);
+  assert.equal(files.length,before+1,'nothing downloaded for the refused GM export');
+  assert.throws(()=>module.api.journal.exportJournal('gm'),/GM permission/);
+  assert.ok(!JSON.stringify(emitted).includes('GM-ONLY-TEXT'),'no socket message carries it');
+  assert.ok(!(await blobs.at(-1).text()).includes('GM-ONLY-TEXT'));
+ }finally{globalThis.document=prevDoc;URL.createObjectURL=prevURL;game.user=gm;delete game.world;}
 });
 
 test('module.json asks Foundry for the module socket',async()=>{
