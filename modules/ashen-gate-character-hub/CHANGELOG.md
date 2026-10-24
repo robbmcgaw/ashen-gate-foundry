@@ -1,3 +1,11 @@
+## 0.46.6 — 2026-10-24
+
+Two pop-out and marks fixes found in the live integration check.
+
+- **Pop-out: the second step of a Hub dialog flow opens in the Hub's window again.** Since 0.46.2, **Restore backup…** showed its picker in the popped-out Hub but the "Restore <name>?" confirmation in the main window, and **Add → Create new…** showed its name form in the main window. Foundry resumes the Hub's code the moment you press a dialog's button, before the dialog has closed, and the pop-out hosting only came back on once the dialog had closed. It now counts a Hub dialog as finished when you press its button. A confirm, an actor delete or a rest opened from the main window while a Hub dialog (for example Help) is open still stays in the main window.
+- **Expired Sap, Slow and Vex no longer show as marks.** When a combat turn ends one of these, Foundry leaves it on the target as an inactive, expired effect. The Hub kept listing it in "On targets", and pressing Sap again took that dead effect off instead of placing a new one. An expired mark is no longer listed, and placing a mark clears the expired Hub marks on that target.
+- No change to saved data; no migration. Mocked tests plus headless Foundry runs; please check in Forge with a popped-out Hub (Restore backup…, Add → Create new…, Help left open then a delete or rest from the main window) and in a combat (Sap, end the turn, Sap again).
+
 ## 0.46.5 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

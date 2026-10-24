@@ -127,8 +127,10 @@ export function markEffectData(mark, source, user = globalThis.game?.user, targe
   return data;
 }
 const effectsOf = actor => { const e = actor?.effects; return e ? [...(e.values?.() ?? e)] : []; };
-/** This source's existing mark on a target Actor, or null. */
-export const findMark = (target, markId, sourceUuid) => effectsOf(target).find(e => e.flags?.[MODULE_ID]?.mark?.id === markId && e.flags[MODULE_ID].mark.by === sourceUuid) ?? null;
+/** 0.46.6: an expired Sap / Slow / Vex stays on its target as an inactive effect (Foundry's default expiry action only marks it expired). It is over: not listed, not found, swept at the next placement. */
+export const isExpired = e => e?.duration?.expired === true;
+/** This source's existing (not expired) mark on a target Actor, or null. */
+export const findMark = (target, markId, sourceUuid) => effectsOf(target).find(e => e.flags?.[MODULE_ID]?.mark?.id === markId && e.flags[MODULE_ID].mark.by === sourceUuid && !isExpired(e)) ?? null;
 
 /**
  * Puts the mark on the target or takes it off (the same click again). Runs where the user may edit the target;
@@ -145,6 +147,7 @@ export async function toggleMarkOn(source, target, markId, {asUser = globalThis.
   if (existing) { await existing.delete(); return {ok: true, result: 'removed'}; }
   if (removeOnly) return {ok: true, result: 'removed'};
   if (!canPlace(source, markId)) return refuse(`${source.name} has no ${mark.label} to place (it comes from an equipped weapon's mastery or a spell ${source.name} has).`);
+  for (const spent of effectsOf(target).filter(e => e.flags?.[MODULE_ID]?.mark && isExpired(e))) { try { await spent.delete(); } catch { /* already gone */ } }   // 0.46.6: clear the expired marks
   if (mark.unique) for (const other of effectsOf(target).filter(e => e.flags?.[MODULE_ID]?.mark?.id === markId)) await other.delete();
   await target.createEmbeddedDocuments('ActiveEffect', [markEffectData(mark, source, asUser, target)]);
   return {ok: true, result: 'added'};
@@ -240,7 +243,7 @@ export function placedMarks(source, scene = globalThis.canvas?.scene) {
     const a = td.actor;
     for (const e of effectsOf(a)) {
       const m = e.flags?.[MODULE_ID]?.mark;
-      if (m?.by === source?.uuid && markById(m.id)) out.push({tokenId: td.id, sceneId: scene.id, tokenName: td.name ?? a?.name ?? '?', mark: markById(m.id), effectId: e.id});
+      if (m?.by === source?.uuid && markById(m.id) && !isExpired(e)) out.push({tokenId: td.id, sceneId: scene.id, tokenName: td.name ?? a?.name ?? '?', mark: markById(m.id), effectId: e.id});
     }
   }
   return out;

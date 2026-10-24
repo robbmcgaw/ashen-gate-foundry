@@ -51,8 +51,9 @@ export async function renderBeside(sheet, app) {
  *         patches are removed on the spot);
  *   - OFF for as long as any hosted window is open, so a confirm, an actor delete or another actor's rest opened from the
  *         main window stays in the main window;
- *   - ON again when the last open hosted window closes, but only if an action is still pending (multi-step flows: picker
- *         -> config window, Use -> usage dialog -> roll dialogs, rest dialog -> results);
+ *   - ON again when the last open hosted window closes (a hosted DialogV2 counts as done when it is submitted, because its
+ *         promise resolves before it closes, 0.46.6), but only if an action is still pending (multi-step flows: picker
+ *         -> config window, picker -> confirm, Use -> usage dialog -> roll dialogs, rest dialog -> results);
  *   - OFF for good when the last pending action settles (resolves or rejects).
  * A new action started while a hosted window is open arms for its own first window, then disarms the same way. Safety
  * nets restore every patched prototype: a timer if the wrapper stays on too long without a window, and releaseHosting()
@@ -105,7 +106,16 @@ function install(hub, entry) {
       const had = Object.getOwnPropertyDescriptor(D, 'wait'), original = D.wait;
       Object.defineProperty(D, 'wait', {configurable: true, writable: true, value: function(options) {
         const Base = this;
-        const Hosted = class extends Base { render(...args) { return hostedRender(hub, this, () => super.render(...args), entry); } };
+        const Hosted = class extends Base {
+          constructor(config = {}, ...rest) {
+            // 0.46.6: DialogV2.wait resolves inside the dialog's submit handler, BEFORE the dialog closes, so the Hub action's next step
+            // (Restore: picker -> confirm) runs while this dialog is still open. Count the dialog as done at submit, not at close.
+            const inner = config?.submit;
+            if (typeof inner === 'function') config = {...config, submit: (result, dialog) => { windowDone(entry, dialog); return inner(result, dialog); }};
+            super(config, ...rest);
+          }
+          render(...args) { return hostedRender(hub, this, () => super.render(...args), entry); }
+        };
         Object.defineProperty(Hosted, 'name', {value: Base.name, configurable: true});   // reports DialogV2, not an anonymous subclass
         return original.call(Hosted, options);
       }});
@@ -137,12 +147,13 @@ function end(entry) {
 function windowOpened(entry, app) {
   entry.open.add(app);
   disarm(entry);
-  const closed = () => {
-    entry.open.delete(app);
-    if (hosting === entry && !entry.open.size && entry.pending > 0) arm(entry);
-  };
-  if (typeof app.addEventListener === 'function') app.addEventListener('close', closed, {once: true});
+  if (typeof app.addEventListener === 'function') app.addEventListener('close', () => windowDone(entry, app), {once: true});
   else entry.open.delete(app);   // cannot see it close: stay off until the action settles (never hijack)
+}
+/** A hosted window is finished (closed, or a dialog submitted): when it was the last one open and its action has more steps, arm again. */
+function windowDone(entry, app) {
+  if (!entry.open.delete(app)) return;
+  if (hosting === entry && !entry.open.size && entry.pending > 0) arm(entry);
 }
 
 /** Ends hosting for hub (or any hub): the Hub closed, popped in/out, or its window unloaded. Every patched prototype is restored. */
