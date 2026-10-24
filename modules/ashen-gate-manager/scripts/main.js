@@ -1,6 +1,6 @@
 import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
-import {confirmDialog, confirmDanger, guardDirty, infoDialog} from "./ag-dialogs.mjs";
+import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -60,6 +60,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
+import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -249,6 +250,7 @@ const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\
 const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',icon:'ok',blocked:'danger',conflict:'danger'};
 /** Preview thumbnails (0.47.0): the first ones only, and lazy, so a big file stays quick. */
 const ICON_THUMBS=200;
+const ASSET_PAGE=96;
 const ICON_CONFIDENCE={high:'good match',medium:'likely match',low:'loose match'};
 /** Items toolbar (0.43.0): one Load compendiums button and one Clear filters count for the shared filters and the All items facets. */
 const packsLabel=status=>status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
@@ -259,8 +261,9 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
+  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
@@ -307,6 +310,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconOverrides = new Map();
     // Items → Checks → Improve icons.
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
+    // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
+    this.assets = {source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
+      scan:null, links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -784,6 +790,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       hasIconRows: this.preview.some(row=>row.icon),
       icons: items&&view==='checks'?this.#iconScanContext():null,
       release: items&&view==='checks'?this.#releaseContext():null,
+      assetsActive: items&&view==='assets',
+      assets: items&&view==='assets'?this.#assetsContext():null,
       audit: this.auditEntries.map(entry=>({...entry,tone:entry.level==='error'?'danger':entry.level==='warning'?'warn':''})),
       hasAudit: this.auditEntries.length > 0,
       history: [...history].reverse().map(run=>{const results=(run.results??[]).map(r=>({...r,tone:RESULT_TONE(r.status)}));
@@ -797,8 +805,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#bindNavigation(root);
     this.#bindSetup(root);
     bindFolds(root,this.ui);
-    bindFileButtons(root,(files,wrap)=>this.#pickFile(wrap.dataset.agFileKind,files[0]));
+    bindFileButtons(root,(files,wrap)=>this.#pickFile(wrap.dataset.agFileKind,files[0],files));
     if(this.tab==='items'&&this.itemsView==='records')this.#fillItemPreview(root);
+    if(this.tab==='items'&&this.itemsView==='assets'&&!this.assets.listing&&!this.assets.loading)void this.#assetsLoad();
     this.browseUnsub?.();this.browseUnsub=null;this.browsePaint=null;
     if(this.tab==='items'&&this.itemsView==='all')this.#mountBrowse(root.querySelector('[data-ag-browse]'));
     this.#bindItems(root);
@@ -870,9 +879,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return super.close(options);
   }
   /** Every file button (kit fileButton) in the window: the main import, organize rules, codex restore and moods file. */
-  async #pickFile(kind,file) {
+  async #pickFile(kind,file,files=[file]) {
     if(!file)return;
     if(kind==='sync')return;
+    if(kind==='assets')return this.#assetsUpload(files).catch(err=>this.#fail(err));
     if(kind==='import')return this.#importFile(file);
     if(kind==='rules')return this.#importRules(file).catch(err=>this.#fail(err));
     if(kind==='codex')return this.#codexImport(file).catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
@@ -1066,6 +1076,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#bindImportLayout(root);
     this.#bindOrganize(root);
     this.#bindIcons(root);
+    this.#bindAssets(root);
     // Not a data-ag-action: those are ignored while busy, and Cancel must work while the commit runs.
     root.querySelector('[data-ag-clean-stop]')?.addEventListener('click',event=>{
       event.preventDefault();if(!this.cleanAbort)return;
@@ -1167,6 +1178,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
+      case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": await this.#assetsAction(name); break;
       case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
@@ -1689,6 +1701,198 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return {scan:Boolean(this.iconScan),groups,count:rows.length,ticked:rows.filter(r=>r.checked&&r.img).length,
       running:Boolean(this.iconAbort),pct:this.iconPct,message:this.iconMessage,status:this.#iconIndexText(),
       hasUndo:Boolean(undo?.applied?.length),undoCount:undo?.applied?.length??0};
+  }
+  // ---------- Items → Assets (0.57.0): browse, upload and link art files. GM only; assets.js checks the GM too. ----------
+  #assetDocs() {
+    return allBoundDocuments().filter(doc=>!doc.getFlag(MODULE_ID,'lifecycle')?.archived).map(doc=>{
+      const source=sourceFlag(doc);
+      return {uuid:doc.uuid,documentName:doc.documentName,type:doc.type,name:doc.name,sourceId:source.sourceId,img:doc.img,
+        flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img};
+    });
+  }
+  #assetSource() {
+    const a=this.assets;
+    if(!assetSources().some(s=>s.id===a.source))a.source=defaultSource();
+    return a.source;
+  }
+  #assetUrl(path) {
+    if(/^(https?:)?\/\//i.test(path)||/^data:/i.test(path))return path;
+    try{return foundry.utils.getRoute(path);}catch{return path;}
+  }
+  async #assetsLoad() {
+    if(!game.user?.isGM)return;
+    const a=this.assets;
+    a.loading=true;
+    const out=await listFolder(filePickerClass(),{source:this.#assetSource(),target:a.target,user:game.user});
+    a.loading=false;a.listing=out;a.shown=ASSET_PAGE;
+    if(this.rendered&&this.tab==='items'&&this.itemsView==='assets')await this.render();
+  }
+  #assetsGo(target,focus) {
+    const a=this.assets;
+    if(a.uploading)return;
+    a.target=target;a.listing=null;a.query='';
+    this.focusAfterRender=focus??null;void this.render();
+  }
+  #assetsContext() {
+    const a=this.assets, sources=assetSources(), source=this.#assetSource(), l=a.listing;
+    const files=l?filterAssetEntries(l.files,a.query):[], dirs=l?filterAssetEntries(l.dirs,a.query):[];
+    const tiles=files.slice(0,a.shown).map(f=>({...f,url:this.#assetUrl(f.path)}));
+    const sourceLabel=sources.find(s=>s.id===source)?.label??'Library';
+    const onForge=sources.some(s=>s.id==='forgevtt');
+    const links=a.links;
+    const kindOf=name=>capitalize(name==='RollTable'?'roll table':name==='JournalEntry'?'journal':name);
+    const linkRows=(links?.rows??[]).slice(0,300).map(r=>({...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:this.#assetUrl(r.to),
+      kindLabel:kindOf(r.documentName),stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn'}));
+    const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
+    const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
+    const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
+    const sel=(list,value)=>list.map(o=>({...o,selected:o.value===value}));
+    return {
+      sources:sources.map(s=>({value:s.id,label:s.label,selected:s.id===source})),multiSource:sources.length>1,sourceLabel,onForge,manageUrl:MANAGE_ON_FORGE_URL,
+      crumbs:crumbs(a.target,sourceLabel).map((c,i,all)=>({...c,current:i===all.length-1})),canGoUp:Boolean(a.target),
+      loading:a.loading||!l,ok:Boolean(l?.ok),problem:l&&!l.ok?l.message:'',query:a.query,
+      dirs,tiles,fileCount:files.length,folderCount:dirs.length,moreCount:Math.max(0,files.length-tiles.length),
+      emptyFolder:Boolean(l?.ok)&&!l.files.length&&!l.dirs.length,noMatches:Boolean(l?.ok)&&(l.files.length||l.dirs.length)&&!files.length&&!dirs.length,
+      uploading:a.uploading,uploads:a.uploads.map(r=>({...r,label:UPLOAD_LABEL[r.status]??r.status,tone:UPLOAD_TONE[r.status]??''})),hasUploads:a.uploads.length>0,
+      uploadMessage:a.uploadMessage,
+      chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
+      scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,
+      linkTicked:(links?.rows??[]).filter(r=>r.checked).length,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
+      actorsSkipped:links?.actorsSkipped??[],hasActorsSkipped:Boolean(links?.actorsSkipped?.length),
+      scanSummary:links?`Looked through ${links.folders} folder(s) and ${a.scan.files.length} image file(s)${a.scan.complete?'':' (the scan stopped early; open a deeper folder to narrow it)'}. ${links.unmatched} record(s) have no file of their name.`:'',
+      missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
+      missingRows:missingShown,missingCount:missing.length,missingOverflow:Math.max(0,missing.length-missingShown.length),
+      missingScanned:Boolean(foundNames),message:a.message
+    };
+  }
+  async #assetsAction(name) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets, picker=filePickerClass(), source=this.#assetSource();
+    const say=(text,error=false)=>{a.message=text;toast(text,error);};
+    switch(name){
+      case 'assets-up': return this.#assetsGo(parentPath(a.target),'[data-ag-assets-up]');
+      case 'assets-new-folder': {
+        const typed=await promptText('Create folder','Folder name','',{ok:'Create folder'});
+        if(typed===null)break;
+        const out=await createFolder(picker,{source,parent:a.target,name:typed,user:game.user});
+        say(out.message,!out.ok);
+        if(out.ok){a.listing=null;a.scan=null;a.links=null;}
+        break;
+      }
+      case 'assets-scan': {
+        a.scanning=true;a.linkMessage='Looking for files named after records…';await this.render();
+        try{
+          const scan=await scanFolders(picker,{source,target:a.target,user:game.user});
+          a.scan=scan;
+          const plan=planAssetLinks(this.#assetDocs(),scan.files);
+          a.links={...plan,folders:scan.folders};
+          a.linkMessage=plan.rows.length?`${plan.rows.length} record(s) can take a file of their name. Nothing has changed yet.`
+            :scan.ok?'No file in this folder (or under it) is named after a record that needs it. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
+        }finally{a.scanning=false;}
+        break;
+      }
+      case 'assets-link-cancel': a.links=null;a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
+      case 'assets-link-apply': {
+        const rows=(a.links?.rows??[]).filter(r=>r.checked);
+        if(!rows.length)return say('Tick at least one record first.',true);
+        const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
+        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file named after each?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
+          {title:'Link images to records?',yes:`Link ${rows.length} image(s)`});
+        if(!yes)return;
+        const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
+        const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry})[documentName].updateDocuments(updates);
+        this.busy=true;
+        try{
+          const out=await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
+          a.links={...planAssetLinks(this.#assetDocs(),a.scan?.files??[]),folders:a.links.folders};
+          a.linkMessage=out.message;say(out.message,!out.ok);
+        }finally{this.busy=false;}
+        break;
+      }
+    }
+    await this.render();
+  }
+  async #assetsUpload(files) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets;
+    if(a.uploading||!files?.length||!a.listing?.ok)return;
+    const source=this.#assetSource(), target=a.target;
+    a.uploading=true;a.abort=new AbortController();a.uploads=[];a.uploadMessage=`Uploading ${files.length} file(s)…`;
+    await this.render();
+    const decide=async names=>{
+      const shown=names.slice(0,12).map(escapeHtml).join(', ')+(names.length>12?` and ${names.length-12} more`:'');
+      const yes=await confirmDanger(`${names.length} of these files already exist in this folder: ${shown}.\nReplace them with the new files? Keeping them skips those files; the others are still added.`,
+        {title:'Replace existing files?',yes:`Replace ${names.length} file(s)`,no:'Keep existing files'});
+      return yes?'overwrite':'skip';
+    };
+    const onProgress=({results,done,total})=>{
+      a.uploads=results;
+      const status=this.element?.querySelector('[data-ag-assets-upload-status]');if(status)status.textContent=`Finished ${done} of ${total}…`;
+      const bar=this.element?.querySelector('[data-ag-assets-upload-bar]');if(bar)bar.value=total?done/total:1;
+    };
+    try{
+      const out=await uploadFiles(files,{picker:filePickerClass(),source,target,user:game.user,existing:(a.listing?.files??[]).map(f=>f.name),decide,onProgress,signal:a.abort.signal});
+      a.uploads=out.results;
+      const count=s=>out.results.filter(r=>r.status===s).length;
+      a.uploadMessage=out.cancelled&&!out.results.some(r=>['uploaded','replaced'].includes(r.status))?'Nothing was uploaded.'
+        :`${count('uploaded')} uploaded, ${count('replaced')} replaced, ${count('skipped')} skipped, ${count('failed')+count('rejected')} not uploaded${count('not started')?`, ${count('not started')} not started`:''}.`;
+      toast(a.uploadMessage,!out.ok&&!out.cancelled);
+    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkMessage='';}
+    await this.render();
+  }
+  async #copyAssetPath(path) {
+    try{await (game.clipboard?.copyPlainText?.(path)??navigator.clipboard.writeText(path));toast('Path copied.');}
+    catch{toast('Could not copy the path.',true);}
+  }
+  #bindAssets(root) {
+    const a=this.assets, pane=root.querySelector('[data-ag-assets]');
+    if(!pane)return;
+    pane.querySelector('[data-ag-assets-source]')?.addEventListener('change',event=>{
+      if(a.uploading)return;
+      a.source=event.target.value;a.target='';a.listing=null;a.query='';a.scan=null;a.links=null;a.linkMessage='';
+      this.focusAfterRender='[data-ag-assets-source]';void this.render();
+    });
+    pane.querySelectorAll('[data-ag-assets-open]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();this.#assetsGo(el.dataset.agAssetsOpen,`[data-ag-assets-open="${CSS.escape(el.dataset.agAssetsOpen)}"]`);
+    }));
+    const query=pane.querySelector('[data-ag-assets-query]');
+    const search=()=>{if(query.value===a.query)return;a.query=query.value;a.shown=ASSET_PAGE;this.focusAfterRender='[data-ag-assets-query]';void this.render();};
+    query?.addEventListener('change',search);query?.addEventListener('search',search);
+    pane.querySelector('[data-ag-assets-more]')?.addEventListener('click',event=>{
+      event.preventDefault();a.shown+=ASSET_PAGE;this.focusAfterRender='[data-ag-assets-more]';void this.render();
+    });
+    pane.querySelector('[data-ag-assets-refresh]')?.addEventListener('click',event=>{
+      event.preventDefault();if(a.uploading)return;a.listing=null;this.focusAfterRender='[data-ag-assets-refresh]';void this.render();
+    });
+    pane.querySelectorAll('[data-ag-assets-copy]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();void this.#copyAssetPath(el.dataset.agAssetsCopy);
+    }));
+    // Not a data-ag-action: those are ignored while busy, and Stop must work during an upload.
+    pane.querySelector('[data-ag-assets-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!a.abort)return;
+      a.abort.abort();event.currentTarget.disabled=true;
+      const el=pane.querySelector('[data-ag-assets-upload-status]');if(el)el.textContent='Stopping after the files already started…';
+    });
+    const drop=pane.querySelector('[data-ag-assets-drop]');
+    if(drop){
+      const over=on=>drop.classList.toggle('is-over',on);
+      drop.addEventListener('dragover',event=>{event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect='copy';over(true);});
+      drop.addEventListener('dragleave',()=>over(false));
+      drop.addEventListener('drop',event=>{
+        event.preventDefault();over(false);
+        void this.#assetsUpload([...(event.dataTransfer?.files??[])]).catch(err=>this.#fail(err));
+      });
+    }
+    pane.querySelectorAll('[data-ag-assets-tick]').forEach(el=>el.addEventListener('change',event=>{
+      const row=a.links?.rows.find(r=>r.uuid===el.dataset.agAssetsTick);if(row)row.checked=event.target.checked;
+      const n=(a.links?.rows??[]).filter(r=>r.checked).length;
+      pane.querySelectorAll('[data-ag-assets-ticked]').forEach(x=>{x.textContent=String(n);});
+      pane.querySelectorAll('[data-ag-assets-needs-ticks]').forEach(x=>{x.disabled=!n;});
+    }));
+    pane.querySelectorAll('[data-ag-assets-missing]').forEach(el=>{
+      const set=()=>{const key=el.dataset.agAssetsMissing;if(a.missing[key]===el.value)return;a.missing[key]=el.value;this.focusAfterRender=`[data-ag-assets-missing="${key}"]`;void this.render();};
+      el.addEventListener('change',set);if(el.type==='search')el.addEventListener('search',set);
+    });
   }
   #pickIcon(current,done) {
     const FP=filePickerClass();

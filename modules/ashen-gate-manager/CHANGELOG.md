@@ -1,3 +1,14 @@
+## 0.57.0 — 2026-10-24
+
+New **Items → Assets** sub-tab (GM only) for the Forge Assets Library.
+- **Browse:** thumbnails with folder navigation, a breadcrumb, search, *Show more* and a *Copy path* button on every image. On The Forge it opens the Assets Library; a Source menu switches to the Foundry data folder, which is also what you get when not on The Forge.
+- **Add files:** drop several images onto the folder, or press *Choose files…* (a real button, so it works from the keyboard). Each file shows its result (uploaded, replaced, skipped, not uploaded); three upload at a time and *Stop* ends the run. If any file already exists in the folder you are asked once: skip them (the default) or replace them (a red button). Only image files are uploaded. *Create folder…* makes a folder in the one you are viewing.
+- **Link files to records:** *Find matching files* looks in the folder you are viewing and the folders under it (up to 4 deep, 200 folder reads) for files named after a record's permanent id, such as `NPC-OREN.webp`. A table shows each record, the file, its image now and the new image. Nothing is written until *Link*. Records with a default image, an icon Manager chose or a file this tab linked earlier start ticked. A record whose image you set in Foundry, or that came with the import, starts unticked and is replaced only if you tick it. A record that changed since the preview is skipped. Only `img` (and Manager's own icon flags) is written. There is no undo, but the table lists every old image.
+- **Actors are not linked here.** An existing Actor changes only through Import with *Update existing actors*, so Actors with a matching file are listed as not changed.
+- **Missing art:** records with no image or a generic one, filter by kind and by none/generic, with the file name to use. After *Find matching files* a row says "File found" when its file is already in the library. Names are shown, not ids.
+- **Rename, move and delete are not offered.** Foundry's FilePicker gives modules browse, create folder and upload only, and The Forge's Assets Library is reached through that same FilePicker, so there is nothing to build these on. The tab says so and has *Manage on Forge…* (opens the Assets Library page). The Forge's own source could not be read while building this; if Forge exposes a delete API, it can be added later.
+- Saved data: nothing new is stored. Linking writes only the record's image and Manager's existing icon flags. No migration. Tests are mocked (FilePicker, documents); please check in Forge.
+
 ## 0.56.0 — 2026-10-24
 
 **Sync from package** (Import tab). One switch, off by default, that makes the world match the package files you choose, as if they were literally the old ones. It is separate from *Update existing actors* and *Also apply updates*, which keep your edits; while Sync is on the normal import is paused, so the two never mix.
