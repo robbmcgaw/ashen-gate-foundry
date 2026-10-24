@@ -58,6 +58,7 @@ Manager owns source-definition import and shared appearance. Each specialist mod
 - `open()`: opens the Manager window (GM-only; a player gets a notice).
 - `appearance`: `contract`, `listSkins`, `getState`, `applyTo(root)` (only for a detached root such as a pop-out or iframe: every window inside the page already follows `<html>` live, so calling it on a window's own content leaves a stale copy of the tokens), `subscribe(callback)`, `refresh`, `setWorldDefault(id)` (GM-only), `setUserOverride(id)` (the current user's own skin), `openMyAppearance()` (player-safe My Appearance window).
 - `definitions` (read-only definition reader): `contract`, `getState`, `capabilities`, `resolve(id, opts)` and `list(opts)` (a player sees only records visible to them), `readSource(id, opts)` (GM-only; a player gets `not_found`), `audit()` and `validateReferences()` (GM-only, `forbidden` otherwise), `registerProvider(cfg)`, `loadCompendiums(packIds)` and `refreshCompendiums()` (GM-only, throw otherwise), `refresh`, `dispose`.
+- `pauseGlowReport()` (0.60.8, GM-only, read-only): while the game is paused, lists screen-sized elements with a shadow, filter, animation or overlay (see *Pause glow* below).
 - `preSessionCheck()` (0.21.0): GM-only, read-only health report (module versions, GM storage, Player Access, test data, leak scan, migration, environment; since 0.53.0 also recipes, skill trees, core links, Profession Ledger, quest rewards and imports); resolves to `{rows, counts, summary, text, filename}`.
 - `backup()` (0.21.0): GM-only "Back up before play": downloads the everything export as `AG_Backup_<date>.json`; it does not move the export snapshot.
 - `coreLinks` (0.26.0, GM-only): `preview`, `apply({ids, linkOnly})`, `undoLast`, `history`, `describeSources`, `saveSources`. See *Core references* below.
@@ -67,6 +68,15 @@ Manager owns source-definition import and shared appearance. Each specialist mod
 - `codex` (0.33.0, NPC Codex): GM-only `list`, `get(id)`, `characters`, `setReveal(id, key, opts)`, `setDetails(id, patch)`, `previewAs(actorIds)`, `exportAll`; player-safe `forPlayer`, `playerAccessEnabled`, `openPlayerView`, `mount(element)` (a player gets only what is revealed to their characters, through the connected GM).
 - `resolverBridge` (prototype adapter): `contract`, `audit(resolver)`, `auditPackage(records, resolver)`, `renderMarkers(text, resolver)`; all GM-only (`forbidden` otherwise) and need a caller-supplied resolver.
 - `playerAccess`: `contract` (`ag-player-access/1`), `getState()`; Manager is always GM-only and not configurable.
+
+## Pause glow
+
+With *Game pause > Show the pause as a small indicator* on, `styles/pause-glow.css` also switches off Foundry's screen effect while paused (a coloured glow at the screen edges, dimmed side panels). It only applies when both `html[data-ag-pause="compact"]` and `html[data-ag-paused="true"]` are set, and neutralises box-shadow, filter, backdrop-filter, animation and `::before`/`::after` overlays on `html`, `body`, `#interface`, `#ui-left/middle/right/top/bottom`, `#board` and `#hud`. It never hides elements. The real source was not confirmed in a live Foundry, so if a glow still shows:
+
+1. Pause the game (setting on). Press F12 to open the browser developer tools, then the Console.
+2. Run `game.modules.get('ashen-gate-manager').api.pauseGlowReport()`. It lists screen-sized elements (and their `::before`/`::after`) with a shadow, filter, animation or overlay background. A teal or blue colour in the `box-shadow` or `overlay background` column is the one.
+3. Or use the Elements tab: click the picker arrow, click near the glowing screen edge, and look in Styles for `box-shadow`, `filter` or `background`. Note the element's id/class and the rule's selector.
+4. Send that selector and its property to the developer; adding it to `styles/pause-glow.css` is a one-line change.
 
 ## Install
 

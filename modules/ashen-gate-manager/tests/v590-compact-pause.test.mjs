@@ -126,3 +126,39 @@ test('regression: the indicator is not hidden by the hidden attribute and has a 
   assert.doesNotMatch(read('../scripts/pause-indicator.js').replace(/\/\*[\s\S]*?\*\//g,''),/\.hidden\s*=|setAttribute\??\.?\(\s*['"]hidden/);
   assert.doesNotMatch(css,/\[hidden\]/);
 });
+
+// ---- 0.60.8 pause glow (CSS text and mocked logic only; the effect itself is unverified in a live Forge) ----
+import {suspectProps,isScreenSized,describeElement,collectPauseGlowRows,pauseGlowReport} from '../scripts/pause-glow-report.js';
+const glow=read('../styles/pause-glow.css').replace(/\/\*[\s\S]*?\*\//g,'');
+test('pause-glow.css: every selector needs both attributes, is listed in module.json, hides nothing, leaves the pill alone',()=>{
+  const S='html[data-ag-pause="compact"][data-ag-paused="true"]';
+  const sels=[...glow.matchAll(/([^{}@;]+)\{/g)].flatMap(m=>m[1].split(',').map(x=>x.trim()));
+  assert.ok(sels.length>=20);
+  for(const s of sels)assert.ok(s.startsWith(S),`unscoped: ${s}`);
+  for(const id of ['body','#interface','#ui-left','#ui-middle','#ui-right','#ui-top','#ui-bottom','#board','#hud','#pause'])
+    assert.ok(sels.some(s=>s.includes(id)&&s.endsWith('::before')),`${id}::before`);
+  assert.doesNotMatch(glow,/display\s*:|visibility|opacity|ag-pause-pill/);
+  for(const p of ['box-shadow: none','filter: none','backdrop-filter: none','animation: none','content: none'])assert.match(glow,new RegExp(p));
+  assert.ok(JSON.parse(read('../module.json')).styles.includes('styles/pause-glow.css'));
+});
+test('report helper: describes, flags suspects, ignores small elements and the pill, GM only, read only',()=>{
+  assert.equal(describeElement({tagName:'DIV',id:'ui-left',classList:['a','b','c','d']}),'div#ui-left.a.b.c');
+  assert.deepEqual(suspectProps({boxShadow:'none',filter:'none',backdropFilter:'none',animationName:'none'},null),[]);
+  assert.equal(suspectProps({boxShadow:'rgba(0, 200, 200, 0.5) 0px 0px 80px inset'},null).length,1);
+  assert.equal(suspectProps({content:'""',backgroundColor:'red'},'::before').length,0,'empty-string content is still drawn but is handled by size; only real content flagged');
+  assert.equal(isScreenSized({width:1000,height:10},{width:1200,height:800}),true);
+  assert.equal(isScreenSized({width:50,height:50},{width:1200,height:800}),false);
+  const mkEl=(id,rect)=>({id,tagName:'div',classList:[],getBoundingClientRect:()=>rect});
+  const big={width:1200,height:800},small={width:20,height:20};
+  const els=[mkEl('interface',big),mkEl('ag-pause-pill',big),mkEl('tiny',small)];
+  const win={innerWidth:1200,innerHeight:800,getComputedStyle:(el,ps)=>({boxShadow:el.id==='interface'&&!ps?'teal 0 0 50px inset':'none',filter:el.id==='tiny'?'blur(2px)':'none',backdropFilter:'none',animationName:'none'})};
+  const doc={documentElement:null,querySelectorAll:()=>els};
+  const rows=collectPauseGlowRows({doc,win});
+  assert.deepEqual(rows.map(r=>r.element),['div#interface']);
+  const logs=[];const log={table:r=>logs.push(r),info:m=>logs.push(m)};
+  assert.equal(pauseGlowReport({doc,win,game:{user:{isGM:false},paused:true},log}).ok,false);
+  const out=pauseGlowReport({doc,win,game:{user:{isGM:true},paused:true},log});
+  assert.equal(out.ok,true);assert.equal(out.rows.length,1);
+  assert.match(pauseGlowReport({doc,win,game:{user:{isGM:true},paused:false},log}).message,/not paused/);
+  assert.doesNotMatch(read('../scripts/pause-glow-report.js').replace(/\/\*[\s\S]*?\*\//g,''),/\.style\.|setAttribute|classList\.(add|remove)|\.remove\(|dataset/);
+});

@@ -3,6 +3,7 @@ import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fil
 import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
 import {collapseItemDescriptions} from "./chat-style.js";
 import {installPauseMirror} from "./pause-indicator.js";
+import {pauseGlowReport} from "./pause-glow-report.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -3835,6 +3836,8 @@ Hooks.once("ready",()=>{
   // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
   if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
   game.modules.get(MODULE_ID).api = {
+    // GM-only, read-only: names what draws a screen effect while paused (see README, Pause glow).
+    pauseGlowReport:()=>pauseGlowReport({doc:document,win:window,game}),
     appearance:{
       contract:APPEARANCE_CONTRACT,
       listSkins:()=>appearanceController.listSkins(),
