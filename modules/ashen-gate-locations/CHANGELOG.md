@@ -1,6 +1,6 @@
 ## 0.20.2 — 2026-10-24
 
-**Canonical ids are no longer shown.** Nobody sees `LOC-*`, `MAT-*`, `NODE-*` or `QUEST-*` text in Locations any more, GM included.
+**Canonical ids and machine tokens are no longer shown.** Nobody sees `LOC-*`, `MAT-*`, `NODE-*` or `QUEST-*` text in Locations any more, GM included. Status words from other modules (such as `reveal_gated`) are shown as plain words ("Reveal gated") in the GM's quest and material pickers; players never see them.
 
 - The editor's ID line is now a **Details** fold under the place's name, with **Copy id**. It is the only place an id appears.
 - A material on a gathering node is picked **by name** from a list (it was a text box that showed `MAT-*`). A saved material the world no longer has reads "Unknown material".

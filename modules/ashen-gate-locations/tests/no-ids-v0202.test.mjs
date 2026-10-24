@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {installFoundry, gm, player} from './foundry-mock.mjs';
-import {assertNoIds, findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoMachineText, findId} from '../../../scripts/test-helpers/no-ids.mjs';
 import {createApi} from '../scripts/api.mjs';
 import {readAll, writeAll, readViews, placeNote} from '../scripts/store.mjs';
 import {parseImport, publishable} from '../scripts/model.mjs';
@@ -46,16 +46,16 @@ const withoutDetails = html => html.replace(/<details class="ag-fold"[^>]*data-a
 test('GM window: list, tree, every editor sub-tab and GM Setup show no ids; Details keeps the id with Copy id', async () => {
   const {api} = await world(gm);
   const app = new LocationsApp();
-  assertNoIds(withoutDetails(await app._renderHTML()), 'GM list');
+  assertNoMachineText(withoutDetails(await app._renderHTML()), 'GM list');
   app.treeMode = true;
-  assertNoIds(withoutDetails(await app._renderHTML()), 'GM tree');
+  assertNoMachineText(withoutDetails(await app._renderHTML()), 'GM tree');
   app.treeMode = false;
   for (const l of api.listLocations()) {
     app.select(l.id);
     for (const tab of ['content', 'visibility', 'party']) {
       app.editorTab = tab;
       const html = await app._renderHTML();
-      assertNoIds(withoutDetails(html), `GM editor ${l.name} / ${tab}`);
+      assertNoMachineText(withoutDetails(html), `GM editor ${l.name} / ${tab}`);
     }
   }
   app.select(sample[1].id);
@@ -64,7 +64,7 @@ test('GM window: list, tree, every editor sub-tab and GM Setup show no ids; Deta
   assert.match(html, /data-action="copy-id" data-value="LOC-/);
   assert.ok(findId(html) === null || /Details/.test(html));
   app.tab = 'setup';
-  assertNoIds(withoutDetails(await app._renderHTML()), 'GM Setup');
+  assertNoMachineText(withoutDetails(await app._renderHTML()), 'GM Setup');
 });
 
 test('GM editor: broken references show neutral labels, not ids', async () => {
@@ -73,28 +73,39 @@ test('GM editor: broken references show neutral labels, not ids', async () => {
   app.select(sample[0].id);
   app.editorTab = 'content';
   const html = withoutDetails(await app._renderHTML());
-  assertNoIds(html, 'GM editor with broken references');
+  assertNoMachineText(html, 'GM editor with broken references');
   assert.match(html, /Unknown quest/);
   assert.match(html, /Deleted location/);
   assert.match(html, /<span class="ag-badge">Node template<\/span>/, 'a template reference shows no template id');
   assert.match(html, /Unknown material/);
-  assertNoIds(materialsSummary({materials: {common: [{materialId: 'MAT-TEST-X'}], rare: [{materialId: 'MAT-TEST-Y'}], exotic: []}}), 'materials summary');
+  assertNoMachineText(materialsSummary({materials: {common: [{materialId: 'MAT-TEST-X'}], rare: [{materialId: 'MAT-TEST-Y'}], exotic: []}}), 'materials summary');
 });
 
 test('player window: every revealed place shows no ids', async () => {
   const {api} = await world(player);
   const app = new LocationsApp();
-  assertNoIds(await app._renderHTML(), 'player list');
+  assertNoMachineText(await app._renderHTML(), 'player list');
   const views = api.listVisible?.() ?? readViews();
   assert.ok(views.length > 0);
-  for (const v of views) { app.select(v.key || v.id); assertNoIds(await app._renderHTML(), `player view ${v.name}`); }
+  for (const v of views) { app.select(v.key || v.id); assertNoMachineText(await app._renderHTML(), `player view ${v.name}`); }
 });
 
 test('messages name places by display name, never by id', async () => {
   const {api} = await world(gm);
   const bad = 'LOC-TEST-NOPE';
   for (const run of [() => api.markNodeExhausted(bad, 'n'), () => api.moveLocation(bad, ''), () => api.moveLocation(sample[1].id, bad), () => api.publishLocation(bad)]) {
-    await assert.rejects(run, e => { assertNoIds(e.message, 'error message'); return true; });
+    await assert.rejects(run, e => { assertNoMachineText(e.message, 'error message'); return true; });
   }
-  await assert.rejects(() => api.markNodeExhausted(sample[1].id, 'NODE-TEST-NOPE'), e => { assertNoIds(e.message, 'error message'); return true; });
+  await assert.rejects(() => api.markNodeExhausted(sample[1].id, 'NODE-TEST-NOPE'), e => { assertNoMachineText(e.message, 'error message'); return true; });
+});
+
+test('GM pickers show status words as plain text, not machine tokens', async () => {
+  await world(gm);
+  const prev = game.modules;
+  const quests = {listQuests: () => [{id: 'QUEST-TEST-ONE', name: '[TEST] Find the Mill', status: 'Active', definitionStatus: 'reveal_gated'}], listVisible: () => [], getVisibleObjective: () => null, getGMSource: () => null};
+  game.modules = {get: id => id === 'ashen-gate-quest-manager' ? {active: true, api: quests} : prev.get(id)};
+  const app = new LocationsApp();
+  app.select(sample[1].id); app.editorTab = 'content';
+  const html = withoutDetails(await app._renderHTML());
+  assertNoMachineText(html, 'GM editor with a reveal_gated quest');
 });

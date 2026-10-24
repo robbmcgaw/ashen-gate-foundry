@@ -68,7 +68,7 @@ const exoticApi = () => { const m = game.modules.get(LEDGER_MODULE); const x = m
 /** Why the Ledger could not award a material, read from Manager's source flags ('' when it looks awardable). */
 export function unavailableReason(src) {
   if (!src) return 'Not imported with General Manager';
-  if (src.status !== 'approved') return `${src.status ? src.status[0].toUpperCase() + src.status.slice(1) : 'Not approved'}: approve it in General Manager first`;
+  if (src.status !== 'approved') return `${src.status ? String(src.status).replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase()) : 'Not approved'}: approve it in General Manager first`;
   if (src.visibility !== 'player') return 'GM-only: make it player-visible in General Manager first';
   return '';
 }
@@ -155,7 +155,8 @@ function questChoices() {
 }
 /** Picker label: the play status (Hidden until revealed) and the source's own status when it is not approved (e.g. draft). */
 const questLabel = q => {
-  const notes = [q.status, q.definitionStatus && q.definitionStatus !== 'approved' ? q.definitionStatus : ''].filter(Boolean);
+  const nice = v => String(v).replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase());   // 'reveal_gated' -> 'Reveal gated'
+  const notes = [q.status, q.definitionStatus && q.definitionStatus !== 'approved' ? q.definitionStatus : ''].filter(Boolean).map(nice);
   return `${q.name}${notes.length ? ` (${notes.join(' · ')})` : ''}`;
 };
 function questName(id, choices) {
