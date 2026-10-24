@@ -8,6 +8,9 @@
 .agf-notice { margin:var(--ag-space-2) var(--ag-space-4) 0; }
 .agf-pane { padding:var(--ag-space-3) var(--ag-space-4); }
 .agf-hint { margin:0; color:var(--ag-muted); font-size:var(--ag-text-sm); font-weight:400; line-height:1.45; }
+.agf-details { font-size:var(--ag-text-xs); }
+.agf-details > summary { cursor:pointer; color:var(--ag-muted); }
+.agf-details code { font-family:var(--ag-font-mono); overflow-wrap:anywhere; }
 .agf-id { font-family:var(--ag-font-mono); font-size:var(--ag-text-xs); font-weight:400; color:var(--ag-muted); overflow-wrap:anywhere; }
 .agf-shell .ag-section__head > .ag-field--inline,
 .agf-shell .ag-toolbar .ag-field--inline { margin:0; }

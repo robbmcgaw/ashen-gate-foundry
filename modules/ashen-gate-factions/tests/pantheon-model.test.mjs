@@ -80,7 +80,7 @@ test('resonance: 0 Dissonance, 0.5 neutral, 1 Resonance; only gains spread, damp
   assert.equal(knockOnDelta(10,1,1),0,'damping 1 is refused (never the same amount)');
   assert.equal(resonancePreview(0.8,0.5),'gain 10 → +3');
   const a=deity('A','[TEST] A',{relations:[{deity_id:'DEITY-QA-B',resonance:0},{deity_id:'DEITY-QA-C',resonance:0.5},{deity_id:'DEITY-QA-D',resonance:1}]});
-  assert.deepEqual(knockOns(a,4,0.5,new Map([['DEITY-QA-B','[TEST] B']])).map(k=>[k.deity_id,k.name,k.delta,k.label]),[['DEITY-QA-B','[TEST] B',-2,'Dissonance'],['DEITY-QA-D','DEITY-QA-D',2,'Resonance']],'neutral relation produces no knock-on');
+  assert.deepEqual(knockOns(a,4,0.5,new Map([['DEITY-QA-B','[TEST] B']])).map(k=>[k.deity_id,k.name,k.delta,k.label]),[['DEITY-QA-B','[TEST] B',-2,'Dissonance'],['DEITY-QA-D','Unknown deity',2,'Resonance']],'neutral relation produces no knock-on');
 });
 test('history caused by a deity the viewer cannot see does not name it',()=>{
   const ev=[{id:'E1',delta:2,reason:'[TEST] Offering'},{id:'E2',delta:-2,reason:'Dissonance with [TEST] Hidden: x',source_deity:'DEITY-QA-H',caused_by:'X'},{id:'E3',delta:2,reason:'Undo: Dissonance with [TEST] Hidden: x',source_deity:'DEITY-QA-H',reverses:'E2'}];
