@@ -23,7 +23,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.32.3';
+const VERSION='0.32.4';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -2600,8 +2600,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Note (GM)<input data-node-field="note" maxlength="500" value="${esc(d.note)}"></label>
       </div>`;
     // 0.32.1: the permanent id lives in a closed Details fold (GM only), never in the main form.
-    const details=`<div class="agl-gather-form"><label class="ag-field">Id (permanent)${isNew?`<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="Made from the name if left blank">`:`<input value="${esc(d.id)}" readonly aria-readonly="true">`}</label>
-        <span class="agl-sub">${isNew?'Leave this blank to make an id from the name. It cannot be changed after saving.':'The id cannot be changed.'}</span></div>`;
+    // 0.32.4 The id is made from the name when the node is saved and never changes. A saved node shows it read-only; a new node has only
+    // "Advanced: set id (optional)" (saveNodeTemplate still checks prefix, characters and that it is unused).
+    const details=`<div class="agl-gather-form">${isNew?'':`<label class="ag-field">Permanent id<input value="${esc(d.id)}" readonly aria-readonly="true"></label>`}
+        ${isNew?`<label class="ag-field">Advanced: set id (optional)<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="NODE-MY-ID" autocomplete="off"></label>`:''}
+        <span class="agl-sub">${isNew?'Made from the name when you save, and it cannot be changed after that. Leave Advanced empty unless you need a particular id (NODE- then upper-case letters and digits).':'Made when the node was created. It cannot be changed, even if you rename the node.'}</span></div>`;
     const check=`<div class="agl-gather-form">
         <label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-node-field="dc" value="${esc(d.dc)}" placeholder="Default for the tier (${Object.values(DEFAULT_DC_BY_TIER).join('/')})"></label>
         <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="dcVisible" ${d.dcVisible?'checked':''}> Players see the DC</label>

@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.32.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.32.4',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -294,6 +294,8 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   await app._click('node-save');
   assert.match(errors.at(-1),/Node not saved: .*add up to 90, not 100/);assert.ok(app.nodeDraft,'the editor stays open with the reason');
   h=await html('nodes');assert.match(h,/role="alert">.*add up to 90, not 100/s);
+  // 0.32.4 A new node has no id box to fill: the id is made from the name; "Advanced: set id" is optional.
+  assert.match(h,/Advanced: set id \(optional\)<input data-node-field="id"/);assert.doesNotMatch(h,/Id \(permanent\)/);assert.doesNotMatch(h,/<label class="ag-field">Permanent id/);
   // 0.26.0 (PL-03): the editor replaces the list (with a way back); Cancel and Save Changes sit in the window footer.
   assert.match(h,/<footer class="ag-footer"><button[^>]*data-action="node-cancel">Cancel<\/button><span class="ag-footer__status" role="status" data-agl-node-status>[^<]*<\/span><button[^>]*ag-btn--primary" data-action="node-save"/,'Cancel left, Save Changes right, in the footer');
   assert.match(h,/data-action="node-cancel"><i class="fa-solid fa-arrow-left" aria-hidden="true"><\/i> All nodes<\/button>/,'back to the list');
@@ -304,6 +306,13 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   app.nodeDraft.data.common[1].chance='40';
   await app._click('node-save');
   let t=api.gathering.templates.get('NODE-TEST-PEBBLE-RUN');
+  // Renaming a saved node never changes its id; the editor shows it read-only, with no Advanced box.
+  await app._click('node-edit','NODE-TEST-PEBBLE-RUN');
+  h=await html('nodes');assert.match(h,/<label class="ag-field">Permanent id<input value="NODE-TEST-PEBBLE-RUN" readonly/);assert.doesNotMatch(h,/Advanced: set id/);
+  app.nodeDraft.data.name='[TEST] Pebble run renamed';await app._click('node-save');
+  assert.equal(api.gathering.templates.get('NODE-TEST-PEBBLE-RUN').name,'[TEST] Pebble run renamed');assert.ok(!api.gathering.templates.get('NODE-TEST-PEBBLE-RUN-RENAMED'));
+  await app._click('node-edit','NODE-TEST-PEBBLE-RUN');app.nodeDraft.data.name='[TEST] Pebble run';await app._click('node-save');
+  app.nodeDraft=null;
   assert.deepEqual([t.activity,t.tier,t.check,t.materials.common.length,t.meta.edited],['mining',{min:2,max:3},{tool:'mason'},2,true]);
   // Roll on the template from anywhere: tier picked in its range, table pick, check tool from the template.
   app.gather.source='template';app.gather.templateId='NODE-TEST-PEBBLE-RUN';app.gather.templateTier='3';app.gather.allowDraft=true;app.view='gathering';
