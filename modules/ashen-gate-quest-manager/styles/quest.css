@@ -225,3 +225,6 @@
   .agq-book::before { display: none; }
   .agq-book__pages { height: auto; min-height: 16rem; column-count: 1; overflow: visible; }
 }
+/* 0.22.0 Group headers in the GM Quests list are kit folds: tighter body, count in the header. */
+.agq-gfold + .agq-gfold { margin-top: var(--ag-space-1); }
+.agq-gfold > .ag-fold__body { padding: var(--ag-space-1); }

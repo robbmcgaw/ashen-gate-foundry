@@ -2,6 +2,7 @@
 import {cleanText as E,STATUSES} from './core.mjs';
 import {KIND_LABELS,SORTS,GROUPS,DEFAULT_VIEW,SUBVIEWS,changedLabel,filterCount} from './quests-tab.mjs';
 import {fold,fileButton} from './ag-html.mjs';
+import {isFolded,domKey,toolbarState} from './group-folds.mjs';
 const KINDS={primary:'ag-btn ag-btn--primary',secondary:'ag-btn',danger:'ag-btn ag-btn--danger',ghost:'ag-btn ag-btn--ghost'};
 const tip=t=>t?` data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`:'';
 const icon=i=>i?`<i class="fa-solid ${E(i)}" aria-hidden="true"></i>`:'';
@@ -44,12 +45,21 @@ export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
  <span class="agq-card__facts">${facts.join('')}</span>
  <span class="agq-card__stats">${progressMeter(r.done,r.total)}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}</span></button></div>`;
 }
-/** GM Quests list: cards grouped under eyebrow headings with counts. */
-export function questCards(groups,selectedId,{total=null,picked=new Set(),now=Date.now()}={}){
+/** GM Quests list: cards grouped under collapsible headers with counts (a kit fold per group; "No grouping" is one flat list).
+    opts.open is {[group key]: boolean} from openStates(); opts.mode is the group-by mode. No fold sits inside a fold: the cards
+    are plain rows. */
+export function questCards(groups,selectedId,{total=null,picked=new Set(),now=Date.now(),mode='status',open={}}={}){
  if(!groups.length)return total===0
   ?emptyState('No quests yet','Create one with New quest, or import quest files with General Manager.',{action:safeButton('New quest','new',{sm:true,icon:'fa-plus'})})
   :emptyState('Nothing matches','Change the view, search or filters to see more quests.',{iconName:'fa-magnifying-glass',action:safeButton('Clear filters','clear-filters',{sm:true,kind:'ghost'})});
- return groups.map(g=>`<section class="agq-group"><h3 class="ag-eyebrow agq-group__head">${E(g.label)} <span class="agq-group__count">${g.rows.length}</span></h3><div class="ag-rows">${g.rows.map(r=>questCard(r,{selected:selectedId===r.id,picked:picked.has(r.id),now})).join('')}</div></section>`).join('');
+ const cards=g=>`<div class="ag-rows">${g.rows.map(r=>questCard(r,{selected:selectedId===r.id,picked:picked.has(r.id),now})).join('')}</div>`;
+ if(!isFolded(mode))return groups.map(g=>`<section class="agq-group"><h3 class="ag-eyebrow agq-group__head">${E(g.label)} <span class="agq-group__count">${g.rows.length}</span></h3>${cards(g)}</section>`).join('');
+ return groups.map(g=>{
+  const isOpen=open[g.key]!==false,key=domKey(mode,g.key);
+  return fold({title:g.label,count:g.rows.length,open:isOpen,body:cards(g)})
+   .replace('<details class="ag-fold"',`<details class="ag-fold agq-gfold" data-key="${E(key)}"`)
+   .replace('<summary class="ag-fold__summary"',`<summary class="ag-fold__summary" aria-expanded="${isOpen}"`);
+ }).join('');
 }
 /** Sub-views with counts, directly under the tab strip. */
 export function questsSubnav(nav,counts={}){
@@ -57,12 +67,13 @@ export function questsSubnav(nav,counts={}){
 }
 /** Toolbar, one row: search, Filters (n), Group, Sort, count, New quest. Type, Location and Visible sit in the second row that
     Filters (n) opens (0.17.0, QL-05). */
-export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[]}={}){
- const v={...DEFAULT_VIEW,...view},n=filterCount(v);
+export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[],folds={}}={}){
+ const v={...DEFAULT_VIEW,...view},n=filterCount(v),fs=toolbarState({mode:v.group,...folds});
  return `<div class="agq-bars"><div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, location, giver or source, or tag" value="${E(v.search)}"></label>
  <div class="ag-toolbar__filters"><button type="button" class="ag-btn ag-btn--sm" data-action="toggle-filters" id="ag-gm-filters-toggle" aria-expanded="${filtersOpen}" aria-controls="ag-gm-filters">${icon('fa-filter')} <span data-filter-label>${filterLabel(n)}</span></button>
  <select id="ag-gm-group" aria-label="Group by">${options(GROUPS.map(([k,n])=>[k,k==='none'?n:`Group: ${n}`]),v.group)}</select>
- <select id="ag-gm-sort" aria-label="Sort">${options(SORTS.map(([k,n])=>[k,`Sort: ${n}`]),v.sort)}</select></div>
+ <select id="ag-gm-sort" aria-label="Sort">${options(SORTS.map(([k,n])=>[k,`Sort: ${n}`]),v.sort)}</select>
+ ${safeButton('Collapse all','collapse-groups',{sm:true,icon:'fa-compress',disabled:!fs.collapse,title:fs.reason||'Close every group header in the list'})}${safeButton('Expand all','expand-groups',{sm:true,icon:'fa-expand',disabled:!fs.expand,title:fs.reason||'Open every group header in the list'})}</div>
  <span class="ag-toolbar__count" id="ag-gm-count">${shown} of ${total} quests</span>
  <div class="ag-toolbar__end">${safeButton('New quest','new',{icon:'fa-plus'})}</div></div>
  <div class="ag-toolbar agq-filterrow" id="ag-gm-filters" role="group" aria-label="Filters"${filtersOpen?'':' hidden'}><div class="ag-toolbar__filters"><select id="ag-gm-type" aria-label="Type">${options([['all','All types'],...Object.entries(KIND_LABELS)],v.type)}</select>

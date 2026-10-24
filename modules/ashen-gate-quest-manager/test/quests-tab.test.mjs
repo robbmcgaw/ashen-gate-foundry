@@ -97,7 +97,7 @@ test('quest cards: pick box, title, type badge, status chip, visibility, objecti
  const r=listQuestsTab(rows);
  assert.equal(r.groups[0].rows[0].done,1);assert.equal(r.groups[0].rows[0].total,2);
  const html=questCards(r.groups,'QUEST-TWO',{total:1});
- assert.match(html,/<h3 class="ag-eyebrow agq-group__head">Active <span class="agq-group__count">1<\/span>/);
+ assert.match(html,/<details class="ag-fold agq-gfold" data-key="grp-status-[a-z0-9]+" open><summary class="ag-fold__summary" aria-expanded="true"><span class="ag-fold__title">Active<\/span><span class="ag-fold__count">1<\/span>/);
  assert.match(html,/<div class="ag-row agq-card is-selected" data-qid="QUEST-TWO"><label class="agq-card__pick"><input type="checkbox" data-pick="QUEST-TWO"><span class="ag-sr-only">Select \[TEST\] Two<\/span><\/label>/);
  assert.match(html,/<button type="button" class="agq-card__main" data-action="gm-select" data-id="QUEST-TWO" aria-current="true">/);
  assert.match(html,/aria-valuemax="2" aria-valuenow="1"/);

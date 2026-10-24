@@ -1,5 +1,6 @@
 import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES,WORK_ORDER_DOMAINS} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHint,questsAdvanced,filterLabel,editorSection,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
+import {filterActive,openStates,readStored,setAll,storeKey,domKey,toolbarState} from './group-folds.mjs';
 import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED} from './quests-tab.mjs';
 import {planBulk,runBulk,confirmText} from './bulk.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
@@ -17,7 +18,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.21.1';
+const VERSION='0.22.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -216,7 +217,8 @@ function questsPanel(app,rewardsHtml=''){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===app.gmId)||null;
  const {groups,locations,levels,regions,givers,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
  app.shownIds=ids;app.picked=new Set([...app.picked].filter(id=>rows.some(x=>x.source.id===id)));
- return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${questCards(groups,app.gmId,{total,picked:app.picked})}</div>${questsAdvanced()}</aside>
+ const cards=app.groupCards(groups,total);
+ return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,folds:app.fold})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
@@ -341,7 +343,7 @@ class QuestLogApplication extends Base {
   return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p>
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). <em>Export Journal</em> (on a player journal) and <em>Export Group Journal</em> download every session of that journal as one Markdown file. The GM and whoever started a session can rename it (pencil); the GM can also set its date. The toolbar has bold, italic, underline, strikethrough, highlight, headings, lists, quote and divider; <em>Auto format…</em> shows what it would tidy (spaces, blank lines, bullet and numbered lines, punctuation spacing) and <em>Undo auto format</em> puts the text back.${gm?' Under the party journal, <em>GM-only notes</em> is a section players cannot see. <em>Export GM Journal</em>, <em>Export This Session</em>, <em>Archive session</em> and, for an archived session, <em>Delete session…</em> sit under the session title.':''}</p>
-  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver. Each group header folds open and closed (Enter or Space on it too), with <em>Collapse all</em> and <em>Expand all</em> next to Sort; while a search or filter is on, groups with matches stay open. Your open and closed choices are remembered for you, per grouping.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
  }
@@ -365,7 +367,7 @@ class QuestLogApplication extends Base {
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    this.bindToolbar(root);this.bindNav(root);
    this.bindPicks(root);
-   bindFolds(root,this.ui);bindRadios(root.querySelector('.agq-subnav'));
+   bindFolds(root,this.ui);this.bindGroupFolds(root);bindRadios(root.querySelector('.agq-subnav'));
    bindFileButtons(root,files=>this.importFile(files[0]).catch(notifyError));
    // QL-09 The individual character only shows for an individual quest.
    root.querySelector('#ag-scope')?.addEventListener('change',e=>{const f=root.querySelector('[data-actor-field]');if(f){f.hidden=e.target.value!=='individual';if(f.hidden)f.setAttribute?.('hidden','');else f.removeAttribute?.('hidden');}});
@@ -429,8 +431,8 @@ class QuestLogApplication extends Base {
  // Clear filters puts the toolbar controls back too (redrawn and rebound), then the list.
  paintToolbar(root){
   const bar=root.querySelector('.agq-bars');if(!bar)return;
-  const {locations,levels,regions,givers,shown,total}=gmList(this.qv);
-  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen,levels,regions,givers});
+  const {locations,levels,regions,givers,shown,total,groups}=gmList(this.qv);this.groupCards(groups,total);
+  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen,levels,regions,givers,folds:this.fold});
   for(const b of root.querySelector('.agq-bars')?.querySelectorAll('[data-action]')??[])b.addEventListener('click',()=>this.action(b,root));
   this.bindToolbar(root);this.paintNav(root);this.paintList(root);
  }
@@ -441,10 +443,46 @@ class QuestLogApplication extends Base {
   const row=root?.querySelector?.('#ag-gm-filters');if(row){row.hidden=!this.filtersOpen;if(row.hidden)row.setAttribute?.('hidden','');else row.removeAttribute?.('hidden');}
   root?.querySelector?.('#ag-gm-filters-toggle')?.setAttribute?.('aria-expanded',String(this.filtersOpen));
  }
+ // Group headers are folds. While a search or filter is on every group is open and nothing is saved; otherwise each
+ // group remembers open/closed per user and per group-by mode (group-folds.mjs). Returns the cards markup.
+ groupCards(groups,total){
+  const mode=this.qv.group,filtering=filterActive(this.qv);
+  const open=openStates({groups,mode,total,selectedId:this.gmId,stored:readStored(this.ui,groups,mode),filtering});
+  this.fold={groups,mode,filtering,open};
+  return questCards(groups,this.gmId,{total,picked:this.picked,mode,open});
+ }
+ bindGroupFolds(root){
+  for(const el of root.querySelectorAll('#ag-gm-cards details.agq-gfold'))el.addEventListener('toggle',()=>{
+   el.querySelector('summary')?.setAttribute('aria-expanded',String(el.open));
+   const f=this.fold,g=f?.groups.find(x=>domKey(f.mode,x.key)===el.dataset.key);if(!g)return;
+   // A toggle the page only echoes (the state it was drawn with) is not a choice, so defaults are never saved as choices.
+   const changed=f.open[g.key]!==el.open;f.open[g.key]=el.open;
+   if(changed&&!f.filtering)this.ui.set(storeKey(f.mode,g.key),el.open);
+   this.paintFoldButtons(root);
+  });
+ }
+ paintFoldButtons(root){
+  const f=this.fold;if(!f)return;const s=toolbarState(f);
+  for(const [action,on] of [['collapse-groups',s.collapse],['expand-groups',s.expand]]){
+   const b=root.querySelector?.(`[data-action="${action}"]`);if(!b)continue;
+   b.disabled=!on;if(on)b.removeAttribute?.('disabled');else b.setAttribute?.('disabled','');
+   if(s.reason)b.setAttribute?.('data-tooltip',s.reason);
+   else b.setAttribute?.('data-tooltip',action==='collapse-groups'?'Close every group header in the list':'Open every group header in the list');
+  }
+ }
+ // Collapse all / Expand all: the choice is saved for every group of this group-by mode; the list is not redrawn, so the
+ // selection, scroll place and focus (the button) stay.
+ setGroups(root,open){
+  const f=this.fold;if(!f||f.filtering)return;
+  for(const [k,v] of Object.entries(setAll(f.groups,f.mode,open)))this.ui.set(k,v);
+  for(const el of root.querySelectorAll('#ag-gm-cards details.agq-gfold')){el.open=open;el.querySelector('summary')?.setAttribute('aria-expanded',String(open));}
+  for(const g of f.groups)f.open[g.key]=open;
+  this.paintFoldButtons(root);
+ }
  paintList(root){
   const {groups,shown,total,ids}=gmList(this.qv);this.shownIds=ids;
   const wrap=root.querySelector('#ag-gm-cards');if(!wrap)return;
-  wrap.innerHTML=questCards(groups,this.gmId,{total,picked:this.picked});
+  wrap.innerHTML=this.groupCards(groups,total);this.bindGroupFolds(root);this.paintFoldButtons(root);
   const count=root.querySelector('#ag-gm-count');if(count)count.textContent=`${shown} of ${total} quests`;
   this.paintBulk(root);
   wrap.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
@@ -541,6 +579,7 @@ class QuestLogApplication extends Base {
    if(action.startsWith('bulk-'))return await this.bulk(action.slice(5),root);
    if(action==='cancel-edit'){if(!await this.guard.confirm())return;this.sourceJsonEdited=false;return await this.render();}
    if(action==='toggle-filters')return this.toggleFilters(root);
+   if(action==='collapse-groups'||action==='expand-groups')return this.setGroups(root,action==='expand-groups');
    if(action==='clear-filters'){this.qv={...DEFAULT_VIEW,sort:this.qv.sort,group:this.qv.group};this.saveGmView({nav:'all'});return root?.querySelector?.('.agq-toolbar')?this.paintToolbar(root):await this.render();}
    // GM Setup: every setting saves together with Save Changes (D4). Nothing is written until then; a bad pack ID saves nothing.
    if(action==='save-setup'){
