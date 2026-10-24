@@ -93,7 +93,7 @@ test('A: the ⋯ menu carries Level up, Restore backup… (GM with copies) and C
 test('A: Full doll: rings and trinkets under the art (no gap); an empty "Other equipped" is left out', async () => {
   assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__row'), /grid-row: 2; grid-column: 2/);
   assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__col'), /grid-row: 1 \/ span 2/);
-  assert.match(rule('.agch-app .agch-char .agch-doll'), /container: agch-doll \/ size; flex: 0 1/, 'the doll gives way before the column scrolls, in Full too');
+  assert.match(rule('.agch-app .agch-char .agch-doll'), /container: agch-doll \/ size; flex: 0 1/, 'the doll is a size container; Compact lets it give way before the column scrolls (Full keeps its height since 0.46.4)');
   assert.match(rule('.agch-app .agch-root--charfolded .agch-char > :not(.agch-ident, .agch-charfold, .agch-charsum)'), /display: none/);
   const {html} = await render();
   assert.doesNotMatch(html, /agch-other/);

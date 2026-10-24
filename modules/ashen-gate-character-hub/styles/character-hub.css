@@ -59,6 +59,7 @@
 @container (max-width: 900px) {
   .agch-app .agch-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(3, max-content); grid-template-areas: "rail" "char" "pane"; align-content: start; gap: var(--ag-space-2); overflow-y: auto; overscroll-behavior: contain; }
   .agch-app .agch-char { overflow: visible; }
+  .agch-app .agch-root:not(.agch-root--compact) .agch-char .agch-doll { width: 100%; max-width: calc(var(--agch-slot-max) * 7 + var(--ag-space-2) * 6); align-self: center; }
   .agch-app .agch-body { overflow: visible; }
   .agch-app .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
   .agch-app .agch-charfold { display: inline-flex; align-self: flex-start; }
@@ -66,6 +67,12 @@
   .agch-app .agch-root--charfolded .agch-charsum { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-4); margin: 0; font-variant-numeric: tabular-nums; }
 }
 
+/* 0.46.4 (Robb): the art stage stays tall. The doll used to give way (shrink) before the column scrolled, so a busy column
+   (Other equipped, conditions) squeezed the slots and the art to a short strip, and in a narrow Full window the art ran the
+   whole window width. In the Full Hub the doll keeps its full height (five slots at their usual size) and the column scrolls
+   instead; Compact keeps the shrinking doll. In the narrow single-column layout the doll is no wider than seven slots,
+   centred, so the art stays a compact stage between its slots rather than a wide band. */
+.agch-app .agch-root:not(.agch-root--compact) .agch-char .agch-doll { min-height: calc(var(--agch-slot-max) * 5 + var(--ag-space-2) * 4); }
 /* Tab rail: kit .ag-siderail; the open view is filled with the accent. 0.33.0 (CH-01): each tab shows its name under the
    icon (a narrow middle width, 901-1000 px, keeps icons only; the name stays the tooltip and accessible name there).
    GM Setup carries the kit's GM marker while the names show. */
