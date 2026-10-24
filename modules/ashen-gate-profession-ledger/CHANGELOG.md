@@ -1,3 +1,11 @@
+## 0.32.0 — 2026-10-24
+
+- **Recipe cards are easier to read, everywhere recipes are listed** (Individual, Party, Recipe Catalog, the Tidy5e Professions tab and the Character Hub embed). Each card now reads: name with its tier and effort badges, then **Needs** (each material with its quantity) leading to **Makes** (the result), then the **Tool** or **Station** it needs, then the description and effect in a quieter style, then who knows it. Activities (no materials, no result) show **Uses**, **Station** and **Effect** in the same style. The GM-only line of internal recipe ids under each card is gone.
+- **Items in a recipe open on click.** Every material and the result is a link that opens that item's sheet. Players can open an item only when it is released to them and they have at least Observer permission on it; otherwise the name is plain text with a tooltip. For the GM an item that is not imported yet shows as plain text with a short GM-only note. Permission is checked again when you click, not just when the link is drawn.
+- **Tier colours.** Tier names (Apprentice, Journeyman, Artisan, Expert, Master) use the suite's item-rarity colours (common, uncommon, rare, very rare, legendary) on recipe cards, the Professions box and the Assign signature-perk preview. The tier name is always written out; colour is never the only signal.
+- Not changed: chat cards, Help text and notifications still print tier names as plain text.
+- **Saved data:** none changed; no migration.
+
 ## 0.31.4 — 2026-10-24
 
 - **Fix: starting recipes no longer say "Not found by the party yet".** A character's own recipe list (Individual tab and the sheet tab) never told the GM who knew a recipe, so every recipe they knew, starting recipes included, was marked "Not found by the party yet". Those rows now show **Known by <name>**, and a recipe item the character holds shows as found by them. Party and Recipe Catalog already counted these correctly. Recipes nobody knows or holds still show "Not found by the party yet". Crafting availability is unchanged.
