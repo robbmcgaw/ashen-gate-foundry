@@ -75,6 +75,24 @@ const stripCodeComments = text => text
   .replace(/(^|[\s;{}(),])\/\/[^\n]*/gm, '$1');
 export const statusWords = text => (stripCodeComments(text).match(STATUS_WORD) ?? []).length;
 
+/** Handlebars ids printed as text or in readable attributes (title, aria-label, data-tooltip, placeholder, alt). GM-only
+ *  "Details" folds are the one place ids may show, so <details>...</details> blocks are skipped. Wiring attributes
+ *  (data-*, value, href, name) are fine. Keeps player-visible ids out of templates (docs/ui-ux-guidelines.md, Microcopy 5). */
+const ID_NAME = /(?:^|[.\s])(?:id|(?!package)[a-z][a-zA-Z]*Id|uuid)$/;
+const idExpr = str => [...str.matchAll(/\{\{\{?([^}]*)\}?\}\}/g)].some(([, inner]) => { const e = inner.trim(); return !/^[#/!>^]|^else\b/.test(e) && ID_NAME.test(e); });
+export function idsInTemplate(text) {
+  if (!text.includes('{{')) return 0;
+  const body = stripHbsComments(text).replace(/<details\b[\s\S]*?<\/details>/gi, ' ');
+  let n = 0;
+  for (const tag of body.matchAll(/<[a-zA-Z][^>]*>/g)) {
+    for (const a of tag[0].matchAll(/\s(?:title|aria-label|data-tooltip|placeholder|alt)\s*=\s*("[^"]*"|'[^']*')/g)) if (idExpr(a[1])) n++;
+  }
+  const visible = body.replace(/<[a-zA-Z/!][^>]*>/g, ' ');
+  for (const m of visible.matchAll(/\{\{\{?[^}]*\}?\}\}/g)) if (idExpr(m[0])) n++;
+  return n;
+}
+const stripHbsComments = t => t.replace(/\{\{!--[\s\S]*?--\}\}|\{\{![\s\S]*?\}\}/g, ' ');
+
 // ---------- Rules over one module's own files ----------
 // Each returns a count for a module (module CSS = styles/**/*.css except the kit and Manager's skins).
 export const RULES = {
@@ -98,6 +116,7 @@ export const RULES = {
     }
     return n;
   }},
+  'template-id-text': {code: idsInTemplate, message: 'Ids belong in a GM-only Details fold, never in visible text, titles or labels.'},
   'button-title-attr': {code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
   'status-wording': {code: statusWords, manifest: json => statusWords([json.title, json.description].filter(Boolean).join('\n')),
     message: "Status words don't belong in the UI; discuss them in chat."},
