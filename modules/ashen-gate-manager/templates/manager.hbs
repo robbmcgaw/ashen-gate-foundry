@@ -327,6 +327,30 @@
       {{/if}}
       {{#if housekeeping.message}}<p class="aglib-status" role="status">{{housekeeping.message}}</p>{{/if}}
     </section>
+    <section class="ag-section aglib-section agrelease" aria-label="Release player-visible records">
+      <div class="ag-section__head"><h3 class="ag-section__title">Release player-visible records</h3>
+        <button type="button" class="ag-btn" data-ag-action="release-scan" {{#if release.running}}disabled{{/if}}><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find hidden player-visible records</button></div>
+      <p class="agmanager-tiny">Records imported before 0.55.0 were created hidden from players, so Profession Ledger and other modules call their materials, recipes and handouts "Unreleased". This lists approved records marked player-visible whose world document players cannot read, and makes them readable (default ownership Observer). Records marked GM-only or revealed later, drafts, and anything you set yourself are never touched. Nothing changes until Apply.</p>
+      <p class="agmanager-tiny" role="status" data-ag-release-status>{{release.message}}</p>
+      {{#if release.running}}<div class="ag-cluster agclean-running" aria-label="Release progress">
+        <progress class="agclean-bar" data-ag-release-bar max="1" value="{{release.pct}}" aria-label="Records released"></progress>
+        <button type="button" class="ag-btn ag-btn--danger" data-ag-release-stop><i class="fa-solid fa-stop" aria-hidden="true"></i> Cancel release</button>
+        <span class="agmanager-tiny">Stops after the current chunk of 50; what was released stays released.</span>
+      </div>{{/if}}
+      {{#if release.scan}}
+      <div class="ag-cluster">
+        <span class="ag-badge">To release: {{release.total}}</span>
+        {{#each release.kinds}}<span class="ag-badge">{{label}}: {{count}}</span>{{/each}}
+        <span class="ag-badge">Already visible: {{release.alreadyReleased}}</span>
+      </div>
+      {{#if release.examples.length}}<ul class="agmanager-tiny">{{#each release.examples}}<li>{{name}} <span class="ag-badge">{{kind}}</span></li>{{/each}}</ul>
+      {{#if release.more}}<p class="agmanager-tiny">and {{release.more}} more.</p>{{/if}}{{/if}}
+      <footer class="ag-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="release-cancel" {{#if release.running}}disabled{{/if}}>Cancel</button>
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="release-commit" {{#unless release.total}}disabled{{/unless}}{{#if release.running}} disabled{{/if}}><i class="fa-solid fa-eye" aria-hidden="true"></i> Release {{release.total}} record(s)…</button>
+      </footer>
+      {{/if}}
+    </section>
     <section class="ag-section aglib-section agicons" aria-label="Improve icons">
       <div class="ag-section__head"><h3 class="ag-section__title">Improve icons</h3>
         <button type="button" class="ag-btn" data-ag-action="icons-scan"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Find placeholder icons</button></div>
