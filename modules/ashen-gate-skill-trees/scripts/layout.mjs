@@ -31,8 +31,15 @@ export function requirementText(rel = {}) {
 export const rivalLine = (name, rel = {}) => (rel.excludes ?? []).length ? `Choose one: ${list([name, ...rel.excludes.map(x => x.name)])}` : '';
 /** The text read for a node: requirement, then the rival line. */
 export const relationSentence = (name, rel) => [requirementText(rel), rivalLine(name, rel)].filter(Boolean).join('. ');
-/** A node with two or more OR groups joins specialties (a crossroads). */
-export const isCrossroads = node => (node?.requiresAny ?? []).filter(g => g?.length).length >= 2;
+/**
+ * A crossroads joins two specialties: the node needs at least one all-of perk AND at least one any-of group
+ * ("Requires A and one of B or C", the shipped shape), or two or more any-of groups. Rival pairs (excludes) never count.
+ */
+export const isCrossroads = node => {
+  const any = (node?.requiresAny ?? []).filter(g => g?.length).length;
+  const all = (node?.requiresAll ?? []).filter(Boolean).length;
+  return any >= 2 || (all >= 1 && any >= 1);
+};
 export const isRival = (node, rel) => (rel?.excludes ?? []).length > 0 || (node?.excludes ?? []).length > 0;
 
 const TIER_BY_LEVEL = Object.fromEntries(Object.entries(PROFESSION_TIER_LEVELS).map(([name, level]) => [level, name[0].toUpperCase() + name.slice(1)]));
@@ -75,6 +82,26 @@ export const MIN_ZOOM = .25, MAX_ZOOM = 1.6;
 export function fitZoom(viewWidth, mapWidth) {
   if (!(viewWidth > 0) || !(mapWidth > 0)) return 1;
   return Math.min(1, Math.max(MIN_ZOOM, Math.floor((viewWidth - 2) / mapWidth * 100) / 100));
+}
+
+/**
+ * Fit after layout (0.23.1). A window's viewport may have no width on the render that creates it, so the fit is computed
+ * once now if it can be, and again whenever the viewport (re)sizes or on the next frame, until stop() is called (the user took
+ * over the zoom). apply(zoom) sets it; no-op while the viewport or map has no size. Returns {stop}.
+ */
+export function watchFit(viewport, getMapWidth, apply, {Observer = globalThis.ResizeObserver, raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame} = {}) {
+  let stopped = false, last = null, frame = null, observer = null;
+  const fit = () => {
+    if (stopped) return;
+    const w = viewport?.clientWidth, m = getMapWidth();
+    if (!(w > 0) || !(m > 0)) return;
+    const z = fitZoom(w, m);
+    if (z !== last) { last = z; apply(z); }
+  };
+  fit();
+  if (typeof raf === 'function') frame = raf(() => { frame = null; fit(); });
+  if (typeof Observer === 'function' && viewport) { observer = new Observer(fit); observer.observe(viewport); }
+  return {stop() { stopped = true; observer?.disconnect?.(); if (frame != null && typeof caf === 'function') caf(frame); }};
 }
 
 /**

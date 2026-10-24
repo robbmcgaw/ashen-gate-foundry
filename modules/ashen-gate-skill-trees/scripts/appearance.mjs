@@ -27,8 +27,24 @@ export function safeImagePath(value) {
   if (p.length > 300 || p.includes('//') || !SAFE_CHARS.test(p)) return null;
   return p;
 }
-/** Value for a CSS url("...") from an already-safe path (spaces are escaped). */
-export const cssUrl = path => `url("${String(safeImagePath(path) ?? '').replace(/ /g, '%20')}")`;
+/**
+ * Value for a CSS url("...") from an already-safe path (spaces are escaped). A relative url() inside a custom property resolves
+ * against the stylesheet (trees.css), so a local path is made absolute from the site root, through Foundry's route prefix
+ * (foundry.utils.getRoute) when it exists. Forge https addresses are left as they are. The resolver is injectable for tests.
+ */
+export function cssUrl(path, resolve = globalThis.foundry?.utils?.getRoute) {
+  const p = safeImagePath(path);
+  if (p == null) return 'url("")';
+  let out = p;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(p)) {
+    const rel = p.replace(/^\/+/, '');
+    let routed = null;
+    try { routed = typeof resolve === 'function' ? resolve(rel) : null; } catch { routed = null; }
+    // accept a route only if it is the same path with a prefix in front (never a different file or host)
+    out = typeof routed === 'string' && routed.startsWith('/') && !routed.startsWith('//') && (routed === `/${rel}` || routed.endsWith(`/${rel}`)) ? routed : `/${rel}`;
+  }
+  return `url("${out.replace(/ /g, '%20')}")`;
+}
 
 const rangeInt = (v, lo, hi) => { if (v == null || String(v).trim() === '') return null; const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
 export const nodeSizeOf = tree => Object.hasOwn(NODE_SIZES, tree?.nodeSize) ? tree.nodeSize : DEFAULT_NODE_SIZE;
