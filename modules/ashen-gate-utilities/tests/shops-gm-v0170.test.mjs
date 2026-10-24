@@ -12,7 +12,7 @@ test('place and city: the linked location and the top of its Locations tree; no 
  assert.deepEqual(shopPlace(rec('SHOP-A','A',{locationId:'LOC-TEST-MARKET'}),locs),{place:'[TEST] Market Ward',city:'[TEST] Testford'});
  assert.deepEqual(shopPlace(rec('SHOP-A','A',{locationId:'LOC-TEST-TOWN'}),locs),{place:'[TEST] Testford',city:'[TEST] Testford'});
  assert.deepEqual(shopPlace(rec('SHOP-A','A'),locs),{place:'',city:'No location'});
- assert.deepEqual(shopPlace(rec('SHOP-A','A',{locationId:'LOC-TEST-GONE'}),locs),{place:'LOC-TEST-GONE',city:'LOC-TEST-GONE'});
+ assert.deepEqual(shopPlace(rec('SHOP-A','A',{locationId:'LOC-TEST-GONE'}),locs),{place:'Missing: a place that no longer exists',city:'Missing: a place that no longer exists'});
  const loop=new Map([['LOC-X',{name:'X',parentLocationId:'LOC-Y'}],['LOC-Y',{name:'Y',parentLocationId:'LOC-X'}]]);
  assert.ok(['X','Y'].includes(shopPlace(rec('SHOP-A','A',{locationId:'LOC-X'}),loop).city),'a loop in the tree stops');
 });
@@ -238,7 +238,7 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
  const none=(await render(gm,app=>{app.shopSearch='zzz';})).html;
  assert.match(none,/<p class="ag-empty__title">Nothing matches<\/p>[\s\S]*data-action="shop-clear-search"/);assert.match(none,/0 of 2/);
  locationsActive=false;
- try{assert.match((await render(gm,app=>{app.shopSearch='';})).html,/<h3 class="ag-eyebrow">LOC-TEST-MARKET · 1<\/h3>/,'Locations off: the shop still opens, grouped by its id');}finally{locationsActive=true;}
+ try{assert.match((await render(gm,app=>{app.shopSearch='';})).html,/<h3 class="ag-eyebrow">Place name unavailable · 1<\/h3>/,'Locations off: the shop still opens, its place named as unavailable, never by id');}finally{locationsActive=true;}
 });
 test('editor: kit fields, items table, coin purse, buys, footer Cancel / Save Changes and a Danger zone; ep only while electrum is on',async()=>{
  const id='SHOP-TEST-THE-COPPER-KETTLE';

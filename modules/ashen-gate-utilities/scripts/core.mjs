@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.30.2';
+export const VERSION = '0.30.3';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -1250,17 +1250,20 @@ export function isSettlementLocation(loc, {api = null} = {}) {
  * has no parent). `locations` maps id → {name, parentLocationId, type}. An id Locations doesn't know is shown as the id;
  * no link reads the settlement the GM typed (`settlement`), else "No location".
  */
+export const MISSING_PLACE = 'Missing: a place that no longer exists';
+export const UNKNOWN_PLACE = 'Place name unavailable';
 export function shopPlace(shop, locations = new Map(), {isSettlement = isSettlementLocation} = {}) {
   const id = shop?.locationId;
   if (!id) { const typed = String(shop?.settlement ?? '').trim(); return {place: typed, city: typed || NO_LOCATION}; }
   const loc = locations.get(id);
-  if (!loc) return {place: id, city: id};
+  // A place Locations no longer has reads as missing, never as its id; with no places listed at all (Locations off) the name is just unavailable.
+  if (!loc) { const gone = locations.size ? MISSING_PLACE : UNKNOWN_PLACE; return {place: gone, city: gone}; }
   let top = loc, town = isSettlement(loc) ? loc : null;
   for (const seen = new Set([id]); top.parentLocationId && locations.has(top.parentLocationId) && !seen.has(top.parentLocationId);) {
     seen.add(top.parentLocationId);top = locations.get(top.parentLocationId);
     if (!town && isSettlement(top)) town = top;
   }
-  return {place: String(loc.name ?? id), city: String((town ?? top).name ?? id)};
+  return {place: String(loc.name ?? '').trim() || MISSING_PLACE, city: String((town ?? top).name ?? '').trim() || MISSING_PLACE};
 }
 const lineName = l => String(l?.item?.name ?? '');
 /** Search: name, merchant, place, item names and id, any case. */

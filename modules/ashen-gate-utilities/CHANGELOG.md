@@ -1,3 +1,8 @@
+## 0.30.3 — 2026-10-24
+
+- **No place ids on screen.** A shop, service or merchant list whose place was deleted in Locations now reads *Missing: a place that no longer exists* (in the Shops list heading, the place line and the *Settlement* choice, where you can pick another settlement or None). With Locations switched off the list heading reads *Place name unavailable*. These used to print the place's id.
+- Saved data: no change; the saved place is kept until you change it. No migration.
+
 ## 0.30.2 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
