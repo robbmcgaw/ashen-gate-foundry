@@ -172,7 +172,7 @@ export function gmViewState(raw){
  return {nav:pick(r.nav,SUBVIEWS.map(v=>v.key),'all'),sort:pick(r.sort,SORTS.map(x=>x[0]),'name'),group:pick(r.group,GROUPS.map(x=>x[0]),'status'),sections};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
+export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','collapse-groups','expand-groups','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
 // GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
 export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup']);
 /** Text for the GM with permanent ids swapped for what they stand for: quests by name, anything else by a neutral phrase.

@@ -1,3 +1,12 @@
+## 0.22.0 — 2026-10-24
+
+GM Quests list: group headers fold.
+- **Collapsible groups.** Each header under *Group by* (Status, Location, Type, Level, Region, Giver) is now a fold with the quest count in it: click it, or press Enter or Space on it, to open or close the group. *No grouping* stays one flat list.
+- **Collapse all / Expand all** sit in the toolbar next to *Sort*. They are off with *No grouping*, with nothing to fold, and while a search or filter is on.
+- **Filters keep every match visible.** While a search or any filter (Type, Location, Level, Region, Giver, Visible) is on, the groups that still have quests are open; this is not saved, and groups with no matches stay hidden as before. Clear the search and your own open and closed choices come back.
+- **Remembered per user, per Group by choice.** Opening or closing a group is saved for you only, separately for each way of grouping. With more than 12 quests in all, groups start closed (except the one holding the quest you have open); with 12 or fewer they start open.
+- Picking a quest, the editor beside the list, scroll place and keyboard focus behave as before.
+- Saved data: no change to quests or settings; the open/closed choices are browser-only UI memory. No migration.
 ## 0.21.1 — 2026-10-24
 
 - **Ids are out of the Quest Log's screens.** Quest cards no longer show a `QUEST-…` line, *Sort* has no *ID* choice, the item rewards table and the Give rewards panel no longer print an item's id (an item that can't be found reads *Item not found*), assignments read *Assignment 1, 2…*, and messages, confirmations and tooltips name quests and items, never ids. A quest with no title reads *Untitled quest*, a location the Locations module can't name reads *Unnamed location*, and an unknown character reads *Unknown character*. Search still finds a quest by its id.
