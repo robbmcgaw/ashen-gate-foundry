@@ -40,7 +40,10 @@ function applyDiff(doc, diff) {
   for (const [path, value] of Object.entries(diff)) {
     const keys = path.split('.'); let o = doc;
     for (const k of keys.slice(0, -1)) o = o[k] ??= {};
-    o[keys.at(-1)] = value;
+    const last = keys.at(-1);
+    if (last.startsWith('==')) o[last.slice(2)] = value;
+    else if (last.startsWith('-=')) delete o[last.slice(2)];
+    else o[last] = value;
   }
 }
 

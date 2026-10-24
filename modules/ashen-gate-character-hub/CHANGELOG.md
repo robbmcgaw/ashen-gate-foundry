@@ -1,3 +1,16 @@
+## 0.47.0 — 2026-10-24
+
+Companions are now two boxes: a larger **Mount** box and a smaller **Pet** box, each with sockets.
+
+- **Pets and mounts are Actors, many of each, one active.** Link world Actors as before (drop one from the Actors sidebar, **Find an Actor by name…**, or **or link a world Actor…**; players need Observer permission, and the not-shared handling is unchanged). The **Active mount / Active pet** dropdown swaps between the character's linked ones. **Open sheet** opens the active Actor's sheet when you may observe it. Each box shows a small portrait (a neutral icon when there is no art), the name, and a one-line strip of the Actor's own AC, HP and speed when it has them.
+- **Sockets.** The Pet has 2 (Head, Body); the Mount has 5 (Saddle, Other 1 to 4). Gear is an ordinary Item on the character (the existing `pet-clothing` and `mount-gear` roles): drop it on a socket (items from elsewhere are copied onto the character with the shared item-drop standard), drop it on the box for the first free socket, or use **Add gear…** on an empty socket (the keyboard route). **Remove** takes it out; the item stays on the character. A socket holds one item and an item sits in one socket. Each socket row lists every bonus the item gives, and the box's stats area totals them from the items' own Active Effects and armour value. Display only: nothing is applied.
+- **Gear stays with its own pet or mount** when you switch the active one; switching back shows it still there. Perk rows (`mount-perk`, `pet-perk`) work as before for the active companion.
+- **Slot fit.** The item data does not say which of Saddle, Head or Body an item fits, so any gear item of the right kind fits any socket.
+- **Pet limit retired.** GM Setup → Companions (pet limit) is gone and nothing reads `petCap` or `petCapOverrides` any more; the saved values are kept, not deleted. The public API keeps `companions(actor)` (now also lists every linked pet with an `active` flag, plus `actorUuid` and `gearItemIds`; `petCap` is `null`, unlimited), `petCapFor` (always unlimited) and `registerPetSlotSource` (a harmless no-op).
+- **Older Item companions** (pets or mounts saved as Items before the Actor link existed in 0.12.0) are kept, not deleted, and listed read-only under **Older companions**.
+- **Saved data and migration.** New flag `flags.ashen-gate-character-hub.companionSlots` (version 1). Linked Actors in the old `companions` list are carried over (first mount and first pet become active; attached gear and clothing go into sockets in order; perks follow their companion). The GM's client runs this once at startup; it is safe to repeat, and the old flag is never changed or deleted. If a character has not been migrated yet, the tab reads the same result in memory and the first change saves it.
+- Removed the editable name and description boxes on companion cards (the Actor's own name is shown). Tests are mocked Foundry; please check in Forge: link, swap, socket, Open sheet, and a narrow window.
+
 ## 0.46.6 — 2026-10-24
 
 Two pop-out and marks fixes found in the live integration check.

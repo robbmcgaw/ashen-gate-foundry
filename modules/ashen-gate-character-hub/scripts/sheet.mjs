@@ -150,11 +150,10 @@ export const ACTIONS = {
   'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
-  'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.entry),
-  'companion-move': (s, t) => comp.moveCompanion(s.document, t.dataset.entry, Number(t.dataset.step)),
-  'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
-  'companion-unattach': (s, t) => comp.detachExtra(s.document, t.dataset.entry, t.dataset.id),
-  'companion-open': (s, t) => openLinkedActor(s.document, t.dataset.entry),
+  'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.kind, t.dataset.uuid),
+  'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.kind, t.dataset.id),
+  'companion-unsocket': (s, t) => comp.clearSocket(s.document, t.dataset.kind, t.dataset.socket),
+  'companion-open': (s, t) => openLinkedActor(t.dataset.uuid),
   'visibility-preset': (s, t) => presetAsk(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); },
   'compact-toggle': s => s.setCompact(!s.compact),
@@ -412,14 +411,12 @@ export async function submitLinkFind(sheet, ev) {
   }
   try { return report(await EDITS['companion-find'](sheet, input)); } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
 }
-/** Removing a companion asks first; Cancel changes nothing. The linked Actor or Item itself is kept. */
-export async function removeCompanionAsk(sheet, entryId, ask = confirmDanger) {
-  const actor = sheet.document, entry = comp.storedCompanions(actor).find(e => e.id === entryId);
-  if (!entry) return {ok: false, error: 'That companion is no longer listed.'};
-  const seen = comp.linkedActor(entry.actorUuid), name = entry.name || (comp.canSeeActor(seen) ? seen.name : '') || actor.items?.get?.(entry.itemId)?.name || 'this companion';
-  const yes = await ask(`${name} is taken off ${actor.name}'s companions and their notes are deleted. The Actor or Item itself is kept.`, {title: `Remove ${name}?`, yes: 'Remove companion', danger: true});
+/** Removing a companion asks first; Cancel changes nothing. The linked Actor itself is kept. */
+export async function removeCompanionAsk(sheet, kind, uuid, ask = confirmDanger) {
+  const actor = sheet.document, linked = comp.linkedActor(uuid), name = comp.canSeeActor(linked) ? linked.name : 'this companion';
+  const yes = await ask(`${name} is taken off ${actor.name}'s ${kind === 'mount' ? 'mounts' : 'pets'} and the gear in its sockets is put away (the items stay on the character). The Actor itself is kept.`, {title: `Remove ${name}?`, yes: 'Remove companion', danger: true});
   if (!yes) return {ok: true, result: null};
-  return comp.removeCompanion(actor, entryId);
+  return comp.removeCompanion(actor, kind, uuid);
 }
 /** "More" on a card: shows or hides its full description in place; the sheet remembers it until it closes. */
 function toggleMore(sheet, target) {
@@ -458,16 +455,11 @@ export const EDITS = {
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
-  'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
+  'companion-active': (s, i) => comp.activateCompanion(s.document, i.dataset.kind, i.value || null),
   'companion-link': (s, i) => i.value ? comp.addActorCompanion(s.document, comp.linkedActor(i.value), i.dataset.kind) : null,
   'companion-find': (s, i) => { if (!String(i.value ?? '').trim()) return null; const f = comp.findLinkableActor(s.document, i.value); return f.ok ? comp.addActorCompanion(s.document, f.actor, i.dataset.kind) : f; },
-  'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
-  'companion-extra': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value) : null,
-  'companion-clothing': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value, {slot: i.dataset.slot, list: 'clothing'}) : null,
-  'companion-name': (s, i) => comp.setCompanionText(s.document, i.dataset.entry, 'name', i.value),
-  'companion-desc': (s, i) => comp.setCompanionText(s.document, i.dataset.entry, 'description', i.value),
-  'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
-  'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
+  'companion-gear': (s, i) => i.value ? comp.socketGear(s.document, i.dataset.kind, i.dataset.socket, i.value) : null,
+  'companion-perk': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.kind, i.value) : null,
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
@@ -488,7 +480,7 @@ export async function droppedItem(event, types = ['Item']) {
  * Companion zones (0.25.0): Items go through the shared item-drop standard, so a folder, a non-Item or a missing item
  * is refused with the shared text ({ok: false, error}). Mount and pet slots also take an Actor, read as before.
  */
-export async function droppedCompanionDoc(event, actors = false) {
+export async function droppedCompanionDoc(event, actors = true) {
   const raw = readDrop(event);
   if (actors && raw.type === 'Actor') {
     const Cls = globalThis.Actor?.implementation ?? globalThis.Actor;
@@ -504,11 +496,10 @@ export function onItemDragStart(event) {
   event.dataTransfer.setData('text/plain', JSON.stringify({type: 'Item', uuid: card.dataset.dragUuid}));
   return true;
 }
-/** Opens a linked mount/pet Actor's own sheet; Foundry's permissions decide what the user sees there. */
-async function openLinkedActor(actor, entryId) {
-  const entry = comp.storedCompanions(actor).find(e => e.id === entryId), other = comp.linkedActor(entry?.actorUuid);
+/** Opens a linked mount/pet Actor's own sheet when the user may observe it. */
+async function openLinkedActor(uuid) {
+  const other = comp.linkedActor(uuid);
   if (!other) return {ok: false, error: 'That Actor is gone.'};
-  const user = globalThis.game?.user;
   if (!comp.canSeeActor(other)) return {ok: false, error: 'That Actor is not shared with you any more.'};
   await other.sheet?.render?.({force: true});
   return {ok: true};
@@ -950,15 +941,9 @@ export function createHubSheetClass(Base) {
       if (!zone) return null;
       event.preventDefault(); event.stopPropagation();
       try {
-        const kind = zone.dataset.dropCompanion, entry = zone.dataset.entry;
-        const drop = await droppedCompanionDoc(event, kind === 'mount' || kind === 'pet');
+        const kind = zone.dataset.kind, drop = await droppedCompanionDoc(event);
         if (!drop.ok) return report(drop);
-        const item = drop.doc;
-        const result = kind === 'perk' ? await comp.attachDroppedPerk(this.document, entry, item)
-          : kind === 'extra' ? await comp.attachDroppedExtra(this.document, entry, item)
-          : kind === 'clothing' ? await comp.attachDroppedExtra(this.document, entry, item, {slot: zone.dataset.slot, list: 'clothing'})
-          : await comp.addDroppedCompanion(this.document, item, kind);
-        return report(result);
+        return report(zone.dataset.dropCompanion === 'socket' ? await comp.socketDroppedGear(this.document, kind, zone.dataset.socket, drop.doc) : await comp.dropOnBox(this.document, kind, drop.doc));
       } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 

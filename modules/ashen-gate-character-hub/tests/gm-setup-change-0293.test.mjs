@@ -83,13 +83,13 @@ test('a failing settings write is reported, not swallowed', async () => {
   assert.match(notes.find(n => n[0] === 'warn')?.[1] ?? '', /\[TEST\] write failed/);
 });
 
-test('other GM Setup inputs (pet limit default) and the Compact opacity slider save after a reopen too', async () => {
+test('other GM Setup inputs (the pet limit setting is gone) and the Compact opacity slider save after a reopen too', async () => {
   installGlobals({user: users.gm, settings: {petCap: 0, compactOpacity: 100}});
   const sheet = new Hub({document: makeActor()});
   open(sheet);
   const content = open(sheet);
   await content.dispatch('change', input({edit: 'pet-cap-default'}, {value: '2'}));
-  assert.equal(game.settings.store.petCap, 2);
+  assert.equal(game.settings.store.petCap, 0, 'retired: nothing writes it any more');
   const slider = {dataset: {}, value: '70', matches: sel => sel === '[data-compact-opacity]', closest: () => null};
   await content.dispatch('change', slider);
   assert.equal(game.settings.store.compactOpacity, 70);

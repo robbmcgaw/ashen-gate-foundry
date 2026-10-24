@@ -8,7 +8,7 @@ import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
 import {registerQuickKeys, pressQuickSlot} from './quick-keys.mjs';
 import {hotbarLink} from './hotbar-link.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
-import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
+import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
 import {registerLookSettings} from './look.mjs';
@@ -77,9 +77,13 @@ export function createApi() {
     },
     openNativeSheet,
     nativeSheetAvailable: () => !!nativeSheetClass(),
-    /** Companions (read only here): {mount, pets, cap}. Writes go through the Hub's Companions tab. */
-    companions: actor => { const d = companionsData(actor); return {mount: d.mount ? {itemId: d.mount.itemId, name: d.mount.item.name, perkItemIds: d.mount.perkItemIds} : null,
-      pets: d.pets.map(p => ({itemId: p.itemId, name: p.item.name, perkItemIds: p.perkItemIds})), petCap: d.cap === Infinity ? null : d.cap}; },
+    /**
+     * Companions (read only here): {mount, pets, petCap}. Since 0.47.0 companions are linked Actors with one active of each:
+     * mount is the active mount, pets lists every linked pet ({actorUuid, name, active, perkItemIds, gearItemIds}), petCap is
+     * null (unlimited). Writes go through the Hub's Companions tab.
+     */
+    companions: actor => { const d = companionsData(actor), row = p => ({itemId: p.itemId, actorUuid: p.actorUuid, name: p.name, active: p.active, perkItemIds: p.perkItemIds, gearItemIds: p.gearItemIds});
+      return {mount: d.mount ? row(d.mount) : null, pets: d.pets.map(row), petCap: null}; },
     petCapFor,
     /**
      * Which Hub parts players see. parts() lists {key, label, partner}; get() is the stored {key: boolean}; isShown(key)
@@ -96,7 +100,7 @@ export function createApi() {
       set: patch => setVisibility(patch),
       applyPreset: id => applyPreset(id)
     }),
-    /** Reserved for a later companion skill tree: fn(actor) → extra pet slots added to the GM's limit. Unused today. */
+    /** No-op since 0.47.0 (the pet limit is retired); kept so partners that call it do not break. */
     registerPetSlotSource,
     unregisterPetSlotSource,
     /**
@@ -161,6 +165,8 @@ if (globalThis.Hooks) {
   for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, () => { renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
+  // 0.47.0: the GM's client builds companionSlots from the old companions list (idempotent; the old flag stays).
+  Hooks.once('ready', () => { void migrateAllCompanionSlots().catch(err => console.warn(`${MODULE_ID} | companions migration`, err)); });
   // 0.45.1: an attack roll ends the Sap on the attacker and the Vex they placed on a creature they target (marks.mjs).
   registerMarkHooks();
   // Level backups (0.27.0) a player queued while no GM was on: the coordinating GM makes them (level-backup.mjs).

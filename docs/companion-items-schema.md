@@ -1,6 +1,6 @@
 # Companion items: mount gear, mount perks, pet clothing, pet perks
 
-Character Hub 0.12.0 and later. In the Hub's **Companions** tab a character has one mount and up to the GM's pet limit of pets. Mount gear, mount perks, pet clothing and pet perks are **ordinary dnd5e Items**: equipment, loot or feat Items, with no new document types. The Hub skins them as gear and perks, the same way other Ashen Gate items and perks are ordinary Items with a permanent id.
+Character Hub 0.12.0 and later. Since 0.47.0 the **Companions** tab has a Mount box and a Pet box. Each companion is a world Actor; a character may link many of each with one active. Each has sockets: the Pet has 2 (Head, Body) and the Mount has 5 (Saddle, Other 1 to 4). Mount gear, mount perks, pet clothing and pet perks are **ordinary dnd5e Items**: equipment, loot or feat Items, with no new document types. The Hub skins them as gear and perks, the same way other Ashen Gate items and perks are ordinary Items with a permanent id.
 
 ## Where things live
 
@@ -8,13 +8,10 @@ Character Hub 0.12.0 and later. In the Hub's **Companions** tab a character has 
 |---|---|---|---|
 | The item itself (name, art, description, dnd5e data) | An Item record in a Manager package (`ag-foundry-import/0.2`), imported as a world Item | Package import | Updated like any record, matched by permanent id |
 | What the item is for (gear, perk, clothing) | The permanent id prefix (below) | The record's `id` | Never rename the id |
-| Which companion wears it | `flags.ashen-gate-character-hub.companions` on the **character** Actor (the Hub's own state) | The player or GM in the Hub | **Never touched** by import |
-| The player's name and description for a mount or pet | The same companion entry | The player or GM in the Hub | **Never touched** |
-| Pet limit | World settings `ashen-gate-character-hub.petCap` (default 0: no pets until the GM raises it) and `petCapOverrides` (per character: a whole number, `none` or `unlimited`) (0.9.0) | GM only | n/a |
+| Which companion wears it, and in which socket | `flags.ashen-gate-character-hub.companionSlots` on the **character** Actor (the Hub's own state; see Saved data) | The player or GM in the Hub | **Never touched** by import |
+| Pet limit | Retired in 0.47.0. The world settings `petCap` and `petCapOverrides` stay saved and untouched but nothing reads them | n/a | n/a |
 
-A mount or pet can be either of these:
-- a **world Actor**, dropped from the Actors sidebar. It is linked by UUID, and the Hub never copies or changes it.
-- an **Item** on the character, as before 0.12.0.
+A mount or pet is a **world Actor**, dropped from the Actors sidebar (or found by name) and linked by UUID. The Hub never copies or changes it. Before 0.47.0 an Item on the character could also be a mount or pet; those older entries are kept, read only, in the Hub's "Older companions" fold.
 
 Gear, clothing and perks are copied onto the character as embedded Items when dropped. They then also show in the character's Inventory or Features.
 
@@ -24,16 +21,18 @@ Same pattern as every Ashen Gate id: `^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$`, permanent,
 
 | Prefix | Hub role | dnd5e Item type to use | Goes on |
 |---|---|---|---|
-| `ITEM-MOUNT-` | `mount-gear` | `equipment` (saddles, barding, horseshoes) or `loot` | a mount's gear list |
+| `ITEM-MOUNT-` | `mount-gear` | `equipment` (saddles, barding, horseshoes) or `loot` | one of a mount's 5 sockets |
 | `PERK-MOUNT-` | `mount-perk` | `feat` | a mount's perk list |
-| `ITEM-PET-` | `pet-clothing` | `equipment` or `loot` | one of a pet's three clothing slots |
+| `ITEM-PET-` | `pet-clothing` | `equipment` or `loot` | one of a pet's 2 sockets (Head, Body) |
 | `PERK-PET-` | `pet-perk` | `feat` | a pet's perk list |
 
 The Hub reads the prefix from `flags.ashen-gate-manager.source.sourceId`, which Manager writes on import. An Item made by hand in Foundry can carry the role instead as `flags.ashen-gate-character-hub.companion.role` (one of the four role names, exact lower case). When that flag holds a valid role it wins over the id prefix, on any Item. An unmarked Item still works:
 - a `feat` counts as a perk;
 - anything else counts as mount gear or pet clothing.
 
-An Item marked for the other kind of companion is refused, e.g. pet clothing on a mount. So is an Item dropped on the wrong spot, e.g. a perk into a clothing slot.
+An Item marked for the other kind of companion is refused, e.g. pet clothing on a mount. So is an Item dropped on the wrong spot, e.g. a perk into a socket.
+
+**Which socket an item fits.** The item data carries no slot (no Saddle, Head or Body field), so the Hub enforces none: any gear item of the right kind fits any socket of that companion. A socket holds one item and an item sits in one socket of one companion at a time. Do not rely on the names of sockets for rules. (Display only: if a tier is wanted beside the name, `flags.ashen-gate-character-hub.companion.tier`, a string, is shown when present. It changes nothing.)
 
 ## How a stat bonus is expressed
 
@@ -114,15 +113,18 @@ The matching perk would be `PERK-MOUNT-TEST-SUREFOOTED`, a `feat` Item. Pet clot
 - Players can change companions only on characters they own, and only while the GM shows **Companions** to players (GM Setup → Player visibility). This is checked in the Hub's action layer, not only by hiding buttons.
 - Linking a world Actor as a mount or pet needs at least Observer permission on that Actor; the GM can link any. Compendium Actors must be imported into the world first.
 - The base stats line (the mount Actor's own AC, HP and speed) only shows to users who can see that Actor.
-- Only the GM changes pet limits.
+- The GM's pet limit is retired (0.47.0).
+- Socketing, swapping and removing are all checked in the Hub's data layer, not only by hiding buttons.
 
 ## Saved data
 
-The companion entry on the character Actor (`flags.ashen-gate-character-hub.companions[]`):
+The new state on the character Actor (`flags.ashen-gate-character-hub.companionSlots`, Hub 0.47.0):
 
 ```json
-{"id": "k3j2h1g0f9e8", "kind": "mount", "itemId": null, "actorUuid": "Actor.abc123", "name": "Thunder", "description": "",
- "perkItemIds": ["perkItemId"], "gearItemIds": ["saddleItemId"], "clothing": []}
+{"version": 1, "activePet": "Actor.cat1", "activeMount": "Actor.horse1",
+ "pets": ["Actor.cat1", "Actor.owl1"], "mounts": ["Actor.horse1"],
+ "gear": {"horse1": {"saddle": "itemId", "other1": "itemId"}, "cat1": {"head": "itemId"}},
+ "perks": {"horse1": ["perkItemId"]}}
 ```
 
-`clothing` holds 3 entries (an item id or `null`) for a pet, and is empty for a mount; `gearItemIds` is always empty for a pet. `name` is cut to 80 characters and `description` to 2000. Id lists drop duplicates and non-text entries. Entries saved before 0.12.0 are `{id, kind, itemId, perkItemIds}`. They read unchanged, with the new fields defaulted, and are written in the new shape on the next change. No migration step is needed, and reading never changes saved data. When read, an entry with an unknown `kind` or with neither `itemId` nor `actorUuid` is ignored, and so is an Item companion whose Item is no longer on the character (an Actor companion whose Actor is gone stays, shown as missing); the next change to the list writes it without them.
+`gear` and `perks` are keyed by the Actor id (the UUID without `Actor.`, because Foundry reads dots in flag keys as paths). Socket keys: pet `head`, `body`; mount `saddle`, `other1` to `other4`. Gear stays under its own companion when the active one changes. Reading prefers this flag; while it is absent the Hub derives the same shape from the old list in memory, and the GM's client writes it once at startup (safe to repeat; it does nothing once the flag exists). The old list `flags.ashen-gate-character-hub.companions[]` (`{id, kind, itemId, actorUuid, name, description, perkItemIds, gearItemIds, clothing}`) is never deleted or rewritten: its Actor entries are carried over (first mount and first pet active, gear and clothing into sockets in order, extras beyond the sockets left loose, perks follow the companion; the player-typed name and description are no longer shown), and its Item-only entries are listed read-only. Missing items are dropped from the sockets on the next change; a linked Actor that is gone stays listed (marked missing) so it can be removed.
