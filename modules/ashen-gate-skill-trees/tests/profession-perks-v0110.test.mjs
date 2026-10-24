@@ -16,11 +16,11 @@ const byTier=tier=>TIERS.map((x,i)=>x===tier?id(i):null).filter(Boolean);
 test('1 point per profession level, level 1 included, 16 at most',()=>{
   assert.deepEqual([0,1,4,16,17].map(pointsForLevel),[0,1,4,16,16]);
 });
-test('24-node profession trees validate; another size only warns',()=>{
+test('24-node profession trees validate; a size outside the 20 to 36 range warns',()=>{
   assert.deepEqual(validateTree(profTree()).errors,[]);
   assert.equal(validateTree(profTree()).warnings.some(w=>/24 nodes/.test(w)),false);
   const small=profTree();small.nodes=small.nodes.slice(0,10);
-  assert.ok(validateTree(small).warnings.some(w=>/have 24 nodes \(16 can be chosen\); this one has 10/.test(w)));
+  assert.ok(validateTree(small).warnings.some(w=>/usually have 20 to 36 nodes \(16 points to spend\); this one has 10/.test(w)));
 });
 test('thresholds come from the perk tier; minLevel only raises them',()=>{
   const t=tree({[id(12)]:{minLevel:3},[id(0)]:{minLevel:5}});

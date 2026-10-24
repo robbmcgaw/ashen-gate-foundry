@@ -1,5 +1,6 @@
 /** Per-tree look: node size, canvas background and level/tier bands. All fields are optional and additive; no Foundry globals. */
-export const NODE_SIZES = {compact: {w: 132, h: 46}, normal: {w: 181, h: 67}};
+// w/h: the footprint a node holds on the board (stored x,y are its top-left; spacing is designed around it). icon: the drawn icon, ring included.
+export const NODE_SIZES = {compact: {w: 132, h: 46, icon: 40}, normal: {w: 181, h: 67, icon: 52}};
 export const DEFAULT_NODE_SIZE = 'compact';
 export const BG_FITS = ['cover', 'tile', 'fixed'];
 export const MAX_TIERS = 40;

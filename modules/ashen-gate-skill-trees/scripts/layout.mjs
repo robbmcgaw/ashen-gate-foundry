@@ -5,24 +5,93 @@ export const isNarrow = width => Number.isFinite(width) && width > 0 && width < 
 export const initialSidebar = (current, width) => typeof current === 'boolean' ? current : !isNarrow(width);
 export const toggledSidebar = current => !(current !== false);
 
+import {sanitizePerkHtml} from './perk-html.mjs';
+import {PROFESSION_TIER_LEVELS} from './engine.mjs';
+
 const shorten = (text, max = 140) => {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim();
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 };
 const STATUS = {UNLOCKED: 'Unlocked', AVAILABLE: 'Available', LOCKED: 'Locked'};
+const list = (names, word = 'or') => names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} ${word} ${names.at(-1)}`;
+
 /**
- * Tooltip card for a node as the canvas shows it (already projected for the viewer):
- * name, cost, short text, prerequisites in words and Locked / Available / Unlocked.
+ * The prerequisite sentence for a node (rel from relationsOf: {all, any:[{nodes}], excludes}). Required perks and OR groups
+ * read as one line: "Requires A and one of B or C"; a crossroads with two groups reads "Requires one of A or B, and one of C or D".
+ * Rivals are not part of it (see rivalLine).
+ */
+export function requirementText(rel = {}) {
+  const parts = [...(rel.all ?? []).map(x => x.name),
+    ...(rel.any ?? []).filter(g => g.nodes?.length).map(g => g.nodes.length === 1 ? g.nodes[0].name : `one of ${list(g.nodes.map(x => x.name))}`)];
+  if (!parts.length) return '';
+  const ors = parts.filter(p => p.startsWith('one of ')).length;
+  return `Requires ${parts.length < 2 ? parts[0] : ors > 1 ? `${parts.slice(0, -1).join(', ')}, and ${parts.at(-1)}` : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`}`;
+}
+/** "Choose one: X or Y" for a node that has rivals (excludes in either direction); '' otherwise. */
+export const rivalLine = (name, rel = {}) => (rel.excludes ?? []).length ? `Choose one: ${list([name, ...rel.excludes.map(x => x.name)])}` : '';
+/** The text read for a node: requirement, then the rival line. */
+export const relationSentence = (name, rel) => [requirementText(rel), rivalLine(name, rel)].filter(Boolean).join('. ');
+/** A node with two or more OR groups joins specialties (a crossroads). */
+export const isCrossroads = node => (node?.requiresAny ?? []).filter(g => g?.length).length >= 2;
+export const isRival = (node, rel) => (rel?.excludes ?? []).length > 0 || (node?.excludes ?? []).length > 0;
+
+const TIER_BY_LEVEL = Object.fromEntries(Object.entries(PROFESSION_TIER_LEVELS).map(([name, level]) => [level, name[0].toUpperCase() + name.slice(1)]));
+/** "Expert (level 7)" for a profession perk, "Level 3" for a node with only a level, '' otherwise. */
+export function tierText(node) {
+  const level = Number.isSafeInteger(node?.requiredLevel) ? node.requiredLevel : null;
+  const given = String(node?.perkTier ?? '').trim();
+  const name = given ? given[0].toUpperCase() + given.slice(1).toLowerCase() : level != null ? TIER_BY_LEVEL[level] ?? '' : '';
+  if (name && level != null) return `${name} (level ${level})`;
+  return name || (level != null ? `Level ${level}` : '');
+}
+
+/**
+ * Tooltip card for a node as the canvas shows it (already projected for the viewer): name, tier and level, point cost,
+ * the perk's description (sanitised markup, else plain text), requirement and rival lines, and Locked / Available / Unlocked.
+ * actions: which controls the card may offer for a pinned node: learn 'purchase' (GM) or 'request' (player), refund (GM).
  */
 export function tooltipModel(node) {
   if (!node) return null;
   const status = STATUS[node.flag] ?? (node.unlocked ? 'Unlocked' : node.eligible ? 'Available' : 'Locked');
   const cost = node.silhouette ? null : (node.cost ?? 1);
-  return {id: node.id, name: node.name || 'Unnamed', status, statusKey: status.toLowerCase(),
+  const name = node.name || 'Unnamed';
+  const html = node.silhouette ? '' : sanitizePerkHtml(node.descriptionHtml);
+  const rel = node.rel ?? {};
+  return {id: node.id, name, status, statusKey: status.toLowerCase(),
     cost, costText: cost == null ? '' : `${cost} point${cost === 1 ? '' : 's'}`,
+    tier: node.silhouette ? '' : tierText(node),
     text: node.silhouette ? '' : shorten(node.description),
-    prerequisites: node.relText ?? '',
-    reason: status === 'Locked' ? String(node.reason ?? '') : ''};
+    html, fullText: node.silhouette || html ? '' : shorten(node.description, 1500),
+    kind: node.silhouette ? '' : node.crossroads ? 'crossroads' : node.rival ? 'rival' : '',
+    prerequisites: node.silhouette ? '' : (node.rel ? requirementText(rel) : node.relText ?? ''),
+    rival: node.silhouette ? '' : rivalLine(name, rel),
+    reason: status === 'Locked' ? String(node.reason ?? '') : '',
+    canOpen: !node.silhouette && Boolean(node.perkId || node.unlocked), // players hold no world id: they open the copy on their sheet once learned
+    actions: node.actions ?? {learn: null, refund: false}};
+}
+
+/** Default zoom (0.23.0): the whole width of a tree fits the viewport; never above 100% or below 25%. Tall trees scroll. */
+export const MIN_ZOOM = .25, MAX_ZOOM = 1.6;
+export function fitZoom(viewWidth, mapWidth) {
+  if (!(viewWidth > 0) || !(mapWidth > 0)) return 1;
+  return Math.min(1, Math.max(MIN_ZOOM, Math.floor((viewWidth - 2) / mapWidth * 100) / 100));
+}
+
+/**
+ * Specialty / branch labels (0.23.0): one per distinct node lane, centred over the lane's nodes and sitting above its top row.
+ * nodes: [{lane, x, y}]; w, h: the node footprint. Returns [{text, x, y}] with x the centre, in board px.
+ */
+export function laneLabels(nodes = [], {w = 0, h = 0} = {}) {
+  const lanes = new Map();
+  for (const n of nodes) {
+    const name = typeof n?.lane === 'string' ? n.lane.trim() : '';
+    if (!name || n.silhouette || !Number.isFinite(n.x) || !Number.isFinite(n.y)) continue;
+    const l = lanes.get(name) ?? {text: name, left: Infinity, right: -Infinity, top: Infinity};
+    l.left = Math.min(l.left, n.x); l.right = Math.max(l.right, n.x + w); l.top = Math.min(l.top, n.y);
+    lanes.set(name, l);
+  }
+  return [...lanes.values()].map(l => ({text: l.text, x: Math.round((l.left + l.right) / 2), y: Math.max(4, Math.round(l.top + h / 2 - 52)), span: Math.round(l.right - l.left)}))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
 /** Node fields as words (inspector, Edit node dialog): never the raw stored value. */

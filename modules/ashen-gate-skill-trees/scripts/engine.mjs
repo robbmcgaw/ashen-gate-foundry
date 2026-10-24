@@ -1,5 +1,6 @@
 /** Ashen Gate shared visual tree — isolated data/eligibility rules, no Foundry globals. */
 import {applyAppearance,appearanceWarnings} from './appearance.mjs';
+import {sanitizePerkHtml} from './perk-html.mjs';
 export const SCHEMA = 'ag-skill-trees/0.3';
 /** 0.2 files (free-text nodes, contentRef links) are still read; 0.3 nodes name a perk by perkId. */
 export const READABLE_SCHEMAS = ['ag-skill-trees/0.2', SCHEMA];
@@ -54,6 +55,9 @@ export function withHistory(rawAccount,entry) {
 // ---- Profession trees (0.11.0): points come from the Profession Ledger level; this module owns the allocations. ----
 export const PROFESSION_MAX_LEVEL = 16;
 export const PROFESSION_TREE_NODES = 24;
+/** Profession trees may have a few more or fewer nodes than 24 (rival pairs, forks, crossroads); only a size outside this range is flagged. */
+export const PROFESSION_TREE_NODE_RANGE = Object.freeze({min:20,max:36});
+export const LANE_MAX = 40;
 export const PROFESSION_TIER_LEVELS = Object.freeze({apprentice:1,journeyman:4,expert:7,artisan:10,master:13});
 /** One perk point per profession level, level 1 included (level 16 = 16 points). */
 export const pointsForLevel = level => Number.isSafeInteger(level)&&level>=1 ? Math.min(level,PROFESSION_MAX_LEVEL) : 0;
@@ -201,7 +205,9 @@ export function normalizeTree(raw) {
       // A perk node takes its cost from the perk; a stored cost is only the fallback.
       cost:n.cost??(perkId?null:1), status:n.status??'draft', visibility:n.visibility??'gm', display:n.display??'hidden',
       perkId, perkUuid:n.perkUuid??n.sourceUuid??null,
-      contentRef:n.contentRef??null, sourceUuid:n.sourceUuid??null
+      contentRef:n.contentRef??null, sourceUuid:n.sourceUuid??null,
+      // 0.23.0: optional specialty / branch name; the canvas prints it above its column.
+      ...(typeof n.lane==='string'&&n.lane.trim()?{lane:n.lane.trim().slice(0,LANE_MAX)}:{})
     };
   });
   // Look fields (nodeSize, background, tiers) are optional; only safe values survive.
@@ -223,7 +229,7 @@ export function resolveTree(tree,lookup) {
     if(!n.perkId)return {...n,custom:true,perkMissing:false,img:null,cost:n.cost??1};
     const perk=lookup?.(n.perkId,n)??null;
     return {...n,custom:false,perkMissing:!perk,
-      name:perk?.name??(n.name||'Unnamed perk'),description:perk?.description??n.description??'',
+      name:perk?.name??(n.name||'Unnamed perk'),description:perk?.description??n.description??'',descriptionHtml:perk?.html??'',
       img:perk?.img??null,cost:perk?.cost??n.cost??1,perkUuid:perk?.uuid??n.perkUuid,perkTier:perk?.tier??null};
   });
   // Worked out fresh from the perk every time; a stored requiredLevel is never trusted.
@@ -255,6 +261,7 @@ export function validateTree(input) {
       else if(!allowedSourceForProvider(t.provider.kind,n.perkId))errors.push(`${n.id}: ${t.provider.kind} tree cannot use ${n.perkId} (PERK=Profession, POWER=Cinder; HPERK=Hirelings)`);
       if(typeof n.name!=='string'||n.name.length>120)errors.push(`${n.id}: invalid name`);
     }else if(typeof n.name!=='string'||!n.name.trim()||n.name.length>120)errors.push(`${n.id}: invalid name`);
+    if(n.lane!=null&&typeof n.lane!=='string')warnings.push(`${n.id}: lane must be text; ignored`);
     if(!Number.isFinite(n.x)||!Number.isFinite(n.y)||n.x<0||n.x>6000||n.y<0||n.y>6000)errors.push(`${n.id}: invalid position`);
     if(n.cost!=null&&(!Number.isSafeInteger(n.cost)||n.cost<1||n.cost>100))errors.push(`${n.id}: invalid point cost`);
     if(!TYPES.includes(n.status))errors.push(`${n.id}: invalid status`);
@@ -286,7 +293,11 @@ export function validateTree(input) {
     }
     if(n.status==='approved' && n.contentRef && n.contentRef.mode==='required' && n.visibility==='player' && n.display==='shown' && !n.sourceUuid)warnings.push(`${n.id}: permanent ID will require a world Item binding`);
   }
-  if(t.provider.kind==='profession'&&nodes.length!==PROFESSION_TREE_NODES)warnings.push(`Profession trees have ${PROFESSION_TREE_NODES} nodes (16 can be chosen); this one has ${nodes.length}`);
+  if(t.provider.kind==='profession'){
+    const {min,max}=PROFESSION_TREE_NODE_RANGE;
+    if(nodes.length<min||nodes.length>max)warnings.push(`Profession trees usually have ${min} to ${max} nodes (16 points to spend); this one has ${nodes.length}`);
+    else if(!errors.length){const together=treeStats(t).maxTogether;if(together!=null&&together<16)warnings.push(`Only ${together} perks can be taken together, fewer than the 16 profession points`);}
+  }
   const perkUse=new Map();
   for(const n of nodes)if(n.perkId){if(perkUse.has(n.perkId))warnings.push(`${n.id}: ${n.perkId} is also on ${perkUse.get(n.perkId)}`);else perkUse.set(n.perkId,n.id);}
   const state=new Map(),path=[];
@@ -318,7 +329,7 @@ export function planTreeImport(pack,existing=[],{mode='skip'}={}) {
   const rows=pack.trees.map(raw=>{
     const tree=normalizeTree(raw),exists=known.has(tree.id);
     const action=!exists?'new':mode==='update'?'update':'skip';
-    return {id:tree.id,name:tree.name,action,tree,
+    return {id:tree.id,name:tree.name,action,tree,stats:treeStats(tree),summary:treeStatsText(treeStats(tree)),
       reason:action==='new'?'':action==='update'?'Replaces the layout; purchased nodes are protected.':'Already in this world; kept as is.'};
   });
   return {errors:[],rows,apply:rows.filter(r=>r.action!=='skip').map(r=>r.tree)};
@@ -464,6 +475,42 @@ export function savedDataReport(trees,perkExists) {
   }
   return rows;
 }
+/**
+ * Counts for the import preview and checks (0.23.0): nodes, rival pairs (excludes, counted once), nodes that can be reached at
+ * all, and the most perks one character can hold together (best choice from every rival pair). maxTogether is null when a
+ * tree has more than 14 rival pairs (too many to try every choice).
+ */
+export function treeStats(input) {
+  const t=normalizeTree(input),nodes=t.nodes,ids=new Set(nodes.map(n=>n.id));
+  const pairs=new Map();
+  for(const n of nodes)for(const ex of asArray(n.excludes))if(ids.has(ex)&&ex!==n.id)pairs.set([n.id,ex].sort().join('\u0000'),[n.id,ex].sort());
+  const list=[...pairs.values()];
+  const closure=banned=>{
+    const have=new Set();let grew=true;
+    while(grew){grew=false;
+      for(const n of nodes){
+        if(have.has(n.id)||banned.has(n.id))continue;
+        if(n.requiresAll.every(id=>have.has(id))&&n.requiresAny.every(g=>g.some(id=>have.has(id)))){have.add(n.id);grew=true;}
+      }}
+    return have.size;
+  };
+  const reachable=closure(new Set());
+  let maxTogether=null;
+  if(list.length<=14){
+    maxTogether=0;
+    for(let mask=0;mask<(1<<list.length);mask++){
+      const banned=new Set(list.map((p,i)=>p[(mask>>i)&1]));
+      maxTogether=Math.max(maxTogether,closure(banned));
+    }
+  }
+  return {nodes:nodes.length,exclusivePairs:list.length,reachable,maxTogether};
+}
+/** One line for the import preview, e.g. "24 nodes, 3 rival pairs, up to 22 taken together". */
+export function treeStatsText(stats) {
+  const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+  return [plural(stats.nodes,'node'),plural(stats.exclusivePairs,'rival pair'),
+    stats.maxTogether!=null?`up to ${stats.maxTogether} can be taken together`:`${stats.reachable} reachable`].join(', ');
+}
 /** Safe-for-all-clients public projection. No GM-only names, text, references or prereq references. */
 export function publicTree(tree) {
   const t=normalizeTree(tree);
@@ -481,7 +528,8 @@ export function publicTree(tree) {
       if(n.display==='teaser')return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:n.cost??1,
         silhouette:true,requiresAll:[],requiresAny:[],excludes:[],unrevealedPrerequisite:true};
       const missing=n.requiresAll.some(id=>!visibleIds.has(id))||n.requiresAny.some(g=>g.some(id=>!visibleIds.has(id)));
-      return {id:n.id,name:n.name,description:n.description,img:typeof n.img==='string'?n.img:null,x:n.x,y:n.y,cost:n.cost??1,
+      const html=sanitizePerkHtml(n.descriptionHtml);
+      return {id:n.id,name:n.name,description:n.description,...(html?{descriptionHtml:html}:{}),...(n.lane?{lane:n.lane}:{}),img:typeof n.img==='string'?n.img:null,x:n.x,y:n.y,cost:n.cost??1,
         silhouette:false,requiresAll:n.requiresAll.filter(id=>visibleIds.has(id)),
         requiresAny:n.requiresAny.map(g=>g.filter(id=>visibleIds.has(id))).filter(g=>g.length),
         excludes:n.excludes.filter(id=>visibleIds.has(id)),

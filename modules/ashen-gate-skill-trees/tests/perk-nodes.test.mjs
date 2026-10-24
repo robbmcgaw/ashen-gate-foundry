@@ -2,6 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {SCHEMA,normalizeTree,validateTree,validatePackage,resolveTree,perkCost,purchase,refund,resetUnlocks,dependentsBlockingRefund,
   missingGrants,grantTag,savedDataReport,changedPurchasedNodes,publicTree} from '../scripts/engine.mjs';
 import {graphEdges,edgeLine,NODE_W,NODE_H} from '../scripts/graph.mjs';
+import {NODE_SIZES} from '../scripts/appearance.mjs';
 const n=(id,perkId,extra={})=>({id,perkId,x:100,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'test',visibility:'player',display:'shown',...extra});
 const tree=nodes=>normalizeTree({id:'TREE-PERKS',name:'[TEST] Perks',status:'test',visibility:'player',provider:{kind:'generic_points',maxPoints:10},nodes});
 const perks={'PERK-A':{name:'A',cost:1},'PERK-B':{name:'B',cost:1},'PERK-C':{name:'C',cost:1},'PERK-D':{name:'D',cost:3}};
@@ -75,7 +76,7 @@ test('edges point from prerequisite to dependent and stop at the node border',()
   const all=edges.find(e=>e.kind==='all');
   assert.deepEqual([all.from,all.to],['A','B']);
   const [,x1,x2]=all.d.match(/M ([\d.]+) [\d.]+ L ([\d.]+) [\d.]+/);
-  assert.ok(Number(x1)>=NODE_W&&Number(x2)<=400,'segment runs between the boxes, so the arrowhead is outside the target box');
+  assert.ok(Number(x1)>=NODE_W/2+NODE_SIZES.normal.icon/2&&Number(x2)<=400+NODE_W/2-NODE_SIZES.normal.icon/2,'segment runs between the two round icons, so the arrowhead is outside the target icon');
   assert.deepEqual(edges.filter(e=>e.kind==='any').map(e=>[e.from,e.to,e.group]),[['A','C',1],['B','C',1]]);
   assert.equal(edges.find(e=>e.from==='A'&&e.to==='C').active,true);
   assert.equal(edges.filter(e=>e.kind==='exclude').length,2);
@@ -83,5 +84,5 @@ test('edges point from prerequisite to dependent and stop at the node border',()
   assert.equal(twice.length,1,'a two-way exclusion is drawn once');
   const line=edgeLine({x:0,y:0},{x:0,y:400});
   assert.match(line.d,new RegExp(`^M ${NODE_W/2} [\\d.]+ L ${NODE_W/2} `));
-  assert.ok(line.my>NODE_H&&line.my<400);
+  assert.ok(line.my>NODE_H/2&&line.my<400);
 });

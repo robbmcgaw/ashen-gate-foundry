@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {edgeLine} from '../scripts/graph.mjs';
+import {edgeLine,RING} from '../scripts/graph.mjs';
 import {NODE_SIZES} from '../scripts/appearance.mjs';
 
 // 0.19.0 UI pass: D4 Player Access saved by Save Changes, Data tools confirm first, one node tooltip, full node names (mocked Foundry).
@@ -12,7 +12,7 @@ const store={flags:{[MODULE]:{privateStore:true,payload:{schema:'ag-skill-trees/
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:()=>{}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{}}},utils:{escapeHTML:x=>x,randomID:()=>'r'}};
 globalThis.document={documentElement:{dataset:{agSize:'comfortable'}},createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);}})};
-globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.22.2'}]]),settings:{
+globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.23.0'}]]),settings:{
   register:(_m,key,def)=>defs.set(key,def),registerMenu:()=>{},
   get:(_m,key)=>values.has(key)?values.get(key):({treeData:{schema:'ag-skill-trees/0.1',trees:[{id:'OLD',name:'[TEST] Old tree',nodes:[]}]},publicTreesV2:{schema:'ag-skill-trees/0.2',trees:[]}})[key]??defs.get(key)?.default,
   set:async(_m,key,value)=>{writes.push([key,value]);values.set(key,value);return value;}
@@ -119,13 +119,13 @@ test('header, tabs and toolbar follow the standard',async()=>{
   assert.match(tpl,/<small class="ag-eyebrow">To choose<\/small>/);
 });
 
-test('tooltips: no title= on buttons or nodes; reset zoom is a labelled rotate-left icon button',async()=>{
+test('tooltips: no title= on buttons or nodes; fit-to-window zoom is a labelled expand icon button',async()=>{
   const [tpl,src]=await Promise.all([read('../templates/tree.hbs'),read('../scripts/main.js')]);
   assert.doesNotMatch(tpl,/\stitle=/);
   assert.doesNotMatch(src,/<(button|li|span|div)\b[^>]*\stitle=/);
   const node=tpl.slice(tpl.indexOf('<button type="button" class="agst-node'),tpl.indexOf('</button>',tpl.indexOf('<button type="button" class="agst-node')));
   assert.doesNotMatch(node,/title=|data-tooltip=/,'the corner card is the only node tooltip');
-  assert.match(tpl,/data-act="zoom-reset" data-tooltip="Reset zoom" data-tooltip-class="ag-tooltip" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left" aria-hidden="true"><\/i><\/button>/);
+  assert.match(tpl,/data-act="zoom-reset" data-tooltip="Fit tree to window" data-tooltip-class="ag-tooltip" aria-label="Fit tree to window"><i class="fa-solid fa-expand" aria-hidden="true"><\/i><\/button>/);
   assert.doesNotMatch(tpl,/⟲|fa-regular/);
   for(const m of tpl.matchAll(/<button\b[^>]*class="[^"]*ag-btn--icon[^"]*"[^>]*>/g))assert.match(m[0],/aria-label="[^"]+"[\s\S]*|data-tooltip="[^"]+"/,m[0]),assert.match(m[0],/data-tooltip=/,m[0]);
 });
@@ -141,18 +141,18 @@ test('corner tip uses kit badge tones (ok for unlocked, accent for available)',(
   assert.equal(card.hidden,false);
 });
 
-test('full node names: no line clamp or ellipsis; nodes keep width, grow in height, and edges meet the taller border',async()=>{
+test('icon nodes (0.23.0): no text on the board nodes, the old footprint is kept, and edges stop at the icon ring',async()=>{
   const css=await read('../styles/trees.css');
   assert.doesNotMatch(css,/line-clamp|text-overflow\s*:\s*ellipsis/);
-  assert.match(css,/button\.agst-node\{[^}]*width:181px;min-height:67px;height:auto/);
-  assert.match(css,/\.agst-size-compact button\.agst-node\{width:132px;min-height:46px/);
+  assert.match(css,/button\.agst-node\{[^}]*width:181px;height:67px/);
+  assert.match(css,/\.agst-size-compact button\.agst-node\{width:132px;height:46px/);
+  assert.match(css,/button\.agst-node\{[^}]*pointer-events:none/,'only the icon takes the pointer');
   assert.doesNotMatch(css,/--agst-(bg|panel|border|text|muted|accent):/,'no kit token re-aliases');
-  const {w}=NODE_SIZES.compact;
+  const {w,h,icon}=NODE_SIZES.compact;
   const a={x:0,y:0},b={x:0,y:300};
-  const short=edgeLine(a,b,'compact'),tall=edgeLine({...a,h:90},b,'compact');
-  assert.equal(short.d,`M ${w/2} ${46+3} L ${w/2} ${300-3}`);
-  assert.equal(tall.d,`M ${w/2} ${90+3} L ${w/2} ${300-3}`,'a measured height moves the start to the real bottom border');
-  assert.equal(edgeLine({...a,h:10},b,'compact').d,short.d,'never smaller than the default box');
+  const reach=icon/2+RING+3;
+  assert.equal(edgeLine(a,b,'compact').d,`M ${w/2} ${h/2+reach} L ${w/2} ${300+h/2-reach}`);
+  assert.equal(edgeLine({...a,h:90},b,'compact').d,edgeLine(a,b,'compact').d,'a node has a fixed size now, so a measured height changes nothing');
 });
 
 test('dialog forms and tables use kit parts',async()=>{
