@@ -164,7 +164,7 @@ export function changedLabel(ms,now=Date.now()){
 // 0.15.0 The GM's last Quests view and editor sections, kept per user (User flag `gmView`). Search is not kept.
 // 0.17.0 Campaign status starts closed too; delegated assignments get their own section (saved on their own), and the
 // source JSON its own (it was a fold inside GM notes). A section missing from a stored flag takes its default here.
-export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',false],['gmnotes','GM notes',false],['details','Details (IDs)',false],['json','Advanced: source JSON',false],['assignments','Assignments (saved separately)',false]]);
+export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['links','Links',false],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',false],['gmnotes','GM notes',false],['details','Details (IDs)',false],['json','Advanced: source JSON',false],['assignments','Assignments (saved separately)',false]]);
 export function gmViewState(raw){
  const r=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
  const pick=(v,list,d)=>list.includes(v)?v:d;

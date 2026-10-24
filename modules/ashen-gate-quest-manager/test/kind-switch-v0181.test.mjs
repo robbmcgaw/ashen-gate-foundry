@@ -59,38 +59,39 @@ test('new quest: Work Order shows the domain list at once, before any save, with
  assert.equal(content.querySelector('#ag-src-summary').value,'[TEST] The forge needs air.');
  assert.equal(content.querySelector('[data-source-status]').textContent,'Unsaved changes');assert.equal(app.unsavedSource,true);
  assert.equal(doc.focused,sel,'focus stays on Type');
- assert.equal(content.querySelector('#ag-src-id').value,'ORDER-','the untouched ID prefix follows the Type');
+ assert.equal(content.querySelector('#ag-src-id').value,'ORDER-TEST-MEND-THE-BELLOWS','the made ID follows the Type and the title');
+ assert.equal(content.querySelector('#ag-src-id').getAttribute('readonly'),'','the GM does not type it');
  assert.equal(content.querySelector('details[data-section="basics"] .ag-fold__hint').textContent,'Order');
 });
 test('first save stores the picked domain; a defaulted one is stored as Crafting',async()=>{
  await newDraft();pickType('work_order');
- content.querySelector('#ag-src-id').value='ORDER-TEST-BELLOWS';content.querySelector('.ag-src-obj-goal').value='[TEST] Patch the leather';
+ content.querySelector('#ag-src-id-custom').value='order-test-bellows';content.querySelector('.ag-src-obj-goal').value='[TEST] Patch the leather';
  content.querySelector('#ag-src-workdomain').value='production';
  await app.action({dataset:{action:'save-quest'}},content);
  assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);
  const src=source('ORDER-TEST-BELLOWS');assert.equal(src.objective_kind,'work_order');assert.equal(src.work_order_domain,'production');
  assert.equal(src.name,'[TEST] Mend the bellows');assert.equal(src.public_summary,'[TEST] The forge needs air.');
  await newDraft();pickType('work_order');
- content.querySelector('#ag-src-id').value='ORDER-TEST-ANVIL';content.querySelector('.ag-src-obj-goal').value='[TEST] Dress the anvil';
+ content.querySelector('.ag-src-obj-goal').value='[TEST] Dress the anvil';
  await app.action({dataset:{action:'save-quest'}},content);
- assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);assert.equal(source('ORDER-TEST-ANVIL').work_order_domain,'crafting');
+ assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);assert.equal(source('ORDER-TEST-MEND-THE-BELLOWS').work_order_domain,'crafting','the ID is made from the title, no typing');
 });
-test('switching back to Quest or to Contract hides the domain, keeps typed edits and saves no domain',async()=>{
+test('switching back to Quest or to Contract hides the domain, keeps typed edits, saves no domain, and the made ID follows the Type',async()=>{
  await newDraft();
- content.querySelector('#ag-src-id').value='QUEST-TEST-BELLOWS';pickType('work_order');
- assert.equal(content.querySelector('#ag-src-id').value,'ORDER-TEST-BELLOWS','the typed part of the ID is kept');
+ pickType('work_order');
+ assert.equal(content.querySelector('#ag-src-id').value,'ORDER-TEST-MEND-THE-BELLOWS-2','taken by the order saved above, so -2');
  pickType('quest');assert.equal(domainField().hidden,true);assert.equal(domainField().getAttribute('hidden'),'');
- assert.equal(content.querySelector('#ag-src-id').value,'QUEST-TEST-BELLOWS');
+ assert.equal(content.querySelector('#ag-src-id').value,'QUEST-TEST-MEND-THE-BELLOWS');
  assert.equal(content.querySelector('#ag-src-name').value,'[TEST] Mend the bellows');
- pickType('contract');assert.equal(domainField().hidden,true);assert.equal(content.querySelector('#ag-src-id').value,'CONTRACT-TEST-BELLOWS');
- assert.equal(content.querySelector('#ag-src-id').getAttribute('placeholder'),'CONTRACT-NEW-JOB');
+ pickType('contract');assert.equal(domainField().hidden,true);assert.equal(content.querySelector('#ag-src-id').value,'CONTRACT-TEST-MEND-THE-BELLOWS');
+ assert.equal(content.querySelector('#ag-src-id-custom').getAttribute('placeholder'),'CONTRACT-MY-ID');
  content.querySelector('.ag-src-obj-goal').value='[TEST] Sign the terms';
  await app.action({dataset:{action:'save-quest'}},content);
  assert.deepEqual(notes.filter(x=>x[0]==='error'),[]);
- const src=source('CONTRACT-TEST-BELLOWS');assert.equal(src.objective_kind,'contract');assert.equal('work_order_domain' in src,false);
+ const src=source('CONTRACT-TEST-MEND-THE-BELLOWS');assert.equal(src.objective_kind,'contract');assert.equal('work_order_domain' in src,false);
 });
 test('a saved quest keeps its Type locked and shows no domain; a saved order shows its domain',async()=>{
- app.gmId='CONTRACT-TEST-BELLOWS';await draw();
+ app.gmId='CONTRACT-TEST-MEND-THE-BELLOWS';await draw();
  assert.equal(content.querySelector('#ag-src-kind').disabled,true);assert.equal(domainField(),null);
  app.gmId='ORDER-TEST-BELLOWS';await draw();
  assert.equal(domainField().hidden,false);assert.equal(content.querySelector('#ag-src-workdomain').value,'production');

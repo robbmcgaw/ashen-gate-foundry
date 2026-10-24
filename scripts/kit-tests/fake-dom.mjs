@@ -36,6 +36,8 @@ export class FakeElement {
   setAttribute(k, v) { this.attrs.set(k, String(v)); }
   removeAttribute(k) { this.attrs.delete(k); }
   append(...kids) { for (const k of kids) { k.parentElement = this; k.ownerDocument ??= this.ownerDocument; this.children.push(k); } return this; }
+  remove() { const p = this.parentElement; if (p) { p.children = p.children.filter(c => c !== this); this.parentElement = null; } }
+  replaceWith(el) { const p = this.parentElement; if (!p) return; p.children = p.children.map(c => c === this ? el : c); el.parentElement = p; el.ownerDocument ??= p.ownerDocument; this.parentElement = null; }
   addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
   removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] ?? []).filter(f => f !== fn); }
   /** Bubbles like a DOM event; returns the event so tests can read defaultPrevented. */

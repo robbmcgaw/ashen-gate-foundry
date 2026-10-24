@@ -1,3 +1,8 @@
+## 0.30.2 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.30.1 — 2026-10-24
 
 - **No raw ids on screen.** A deleted shop or service on a merchant list now reads "Deleted shop or service" instead of its `SHOP-…` / `SVC-…` id. The Import JSON preview no longer lists `ITEM-…` / `REC-…` ids or shop ids: missing items show as "Item line 1…", and a new **Copy missing item ids** button puts the ids on your clipboard for importing with General Manager. Warnings and errors (a skipped import record, merchant-list "Not opened", "id is already used", unknown list entries on import, export notes) name the shop or just count entries. Search still finds a shop by its id.

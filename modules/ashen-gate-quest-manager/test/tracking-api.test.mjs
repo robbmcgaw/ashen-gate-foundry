@@ -35,7 +35,7 @@ await import('../scripts/main.mjs');
 once.get('init')();once.get('ready')();
 
 test('v0.4.0 preserves original APIs, hides both advanced world settings in Game Settings',()=>{
- assert.equal(module.api.version,'0.22.2');
+ assert.equal(module.api.version,'0.23.0');
  assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
  assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');
  assert.equal(settingsDefs.get('playerAccessEnabled').config,false);

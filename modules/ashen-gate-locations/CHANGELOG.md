@@ -1,3 +1,8 @@
+## 0.20.3 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.20.2 — 2026-10-24
 
 **Canonical ids and machine tokens are no longer shown.** Nobody sees `LOC-*`, `MAT-*`, `NODE-*` or `QUEST-*` text in Locations any more, GM included. Status words from other modules (such as `reveal_gated`) are shown as plain words ("Reveal gated") in the GM's quest and material pickers; players never see them.

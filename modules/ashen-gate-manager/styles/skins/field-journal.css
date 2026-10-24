@@ -146,3 +146,5 @@ html[data-ag-skin="ag-field-journal"] .application.ag-dialog .form-footer { bord
  * .ag-rarity-edge, .ag-scroll, .ag-search, .ag-siderail, .ag-slot, .ag-split, .ag-sr-only,
  * .ag-stack, .ag-steps, .ag-table-wrap, .ag-toolbar, .ag-tooltip, .ag-version, .ag-window
  */
+
+/* Kit 2.3.0 parts .ag-picker (record picker) and .ag-reflist (list of links) keeps the kit look in this skin; it reads the skin tokens. */

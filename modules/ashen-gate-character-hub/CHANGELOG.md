@@ -1,3 +1,8 @@
+## 0.46.5 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.46.4 — 2026-10-24
 
 The paper-doll art stays tall. In the Full Hub the character art had become a short, wide band (about 730 x 200 in a window of 870 x 670, the character small and the slot columns far to each side). Two things caused it: the doll gave way (shrank) before the character column scrolled, so a busy column squeezed the slots and the art; and in a narrow Full window (900 px or less) the art ran the whole window width.

@@ -1,3 +1,8 @@
+## 0.12.2 — 2026-10-24
+
+- Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.
+- Saved data: no change; no migration.
+
 ## 0.12.1 — 2026-10-24
 
 - Canonical ids (MUT-*, POWER-*, ITEM-* and similar) no longer appear in the UI. Manage no longer prints the definition id beside each Cinder's name. The New Cinder picker, Check rows, Bind warnings, socket refusals, and Push and Backfire messages use display names (a neutral label such as "Unnamed Cinder" when a record is missing). Raw tokens are gone too: a wrong-kind bearer item says "a signature ability, not passive" instead of `signature_active`, and an unknown modifier target reads "modifier". No saved data, ids, flags or API change.
