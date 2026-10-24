@@ -10,6 +10,10 @@ import assert from 'node:assert/strict';
 export const ID_PREFIXES = ['REC', 'MAT', 'ITEM', 'PERK', 'PROF', 'LOC', 'NPC', 'QUEST', 'ORDER', 'CONTRACT', 'FAC', 'SHOP', 'MLIST', 'HANDOUT', 'CRE', 'NODE', 'BF', 'MUT', 'POWER', 'TREE', 'SVC'];
 export const ID_PATTERN = /\b(REC|MAT|ITEM|PERK|PROF|LOC|NPC|QUEST|ORDER|CONTRACT|FAC|SHOP|MLIST|HANDOUT|CRE|NODE|BF|MUT|POWER|TREE|SVC)-[A-Z0-9_-]+/;
 
+/** Machine tokens (relation names, status/visibility values, entity types) that must not reach players either. */
+export const TOKEN_PATTERN = /\b(also_available_as_journal|starting_recipe|transformed_form_of|reveal_gated|HandoutItem|ProfessionPerk|[a-z]+(?:_[a-z]+)+)\b/;
+export const TOKEN_WORDS = ['also_available_as_journal', 'starting_recipe', 'transformed_form_of', 'reveal_gated', 'HandoutItem', 'ProfessionPerk'];
+
 const READABLE_ATTRS = ['title', 'data-tooltip', 'data-tooltip-text', 'aria-label', 'placeholder', 'alt', 'aria-description'];
 
 /** The text a user can read from an HTML string: text nodes plus readable attributes. */
@@ -31,4 +35,18 @@ export function findId(html) {
 export function assertNoIds(output, where = 'output') {
   const hit = findId(output);
   assert.equal(hit, null, `${where} shows the id "${hit}" to the user`);
+}
+
+/** First machine token (snake_case word or known token) in the visible text, or null. Plain words like "gm" are checked by name. */
+export function findToken(html) {
+  const text = visibleText(html);
+  const m = text.match(TOKEN_PATTERN);
+  return m ? m[0] : null;
+}
+
+/** Fails when player-visible output shows a canonical id or a machine token such as also_available_as_journal. */
+export function assertNoMachineText(output, where = 'output') {
+  assertNoIds(output, where);
+  const hit = findToken(output);
+  assert.equal(hit, null, `${where} shows the machine token "${hit}" to the user`);
 }
