@@ -593,3 +593,21 @@ test('the window shows the kept group, the option (off) and no lost-fields badge
   const on = makeWorld({docs: [edited], overwriteEdited: true}).plan(set1([item('MAT-B', 'B new')]));
   assert.match(view(on, {overwriteEdited: true}), /GM-edited field.*will be lost/);
 });
+
+test('by default an edited record the files no longer carry is kept, not deleted; the option deletes it', async () => {
+  const plain = flagged(item('MAT-PLAIN', 'Plain'), M1), edited = flagged(item('MAT-EDITED', 'Edited'), M1), legacy = flagged(item('MAT-LEGACY', 'Legacy'), M1);
+  edited.raw.system.price.value = 42;
+  delete legacy.raw.flags[MODULE_ID].source.managedFields;
+  const docs = () => [plain, edited, legacy];
+  const set = set1([item('MAT-KEEP', 'Keep')]);
+  const def = makeWorld({docs: docs(), overwriteEdited: false});
+  const plan = def.plan(set);
+  assert.deepEqual(sorted(plan.rows.filter(r => r.group === 'delete')), ['MAT-PLAIN']);
+  assert.deepEqual(sorted(plan.rows.filter(r => r.keptRemoved)), ['MAT-EDITED', 'MAT-LEGACY']);
+  assert.equal(plan.counts.keptRemoved, 2);
+  await def.run(set);
+  assert.deepEqual([plain.deleted, edited.deleted, legacy.deleted], [true, false, false]);
+  assert.match(view(plan), /Kept: edited in your world, no longer in the package/);
+  const wins = makeWorld({docs: [edited, legacy], overwriteEdited: true}).plan(set);
+  assert.deepEqual(sorted(wins.rows.filter(r => r.group === 'delete')), ['MAT-EDITED', 'MAT-LEGACY']);
+});

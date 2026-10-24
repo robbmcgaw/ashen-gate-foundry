@@ -333,11 +333,13 @@ function planActor(record, snap) {
  * edited (kept) rather than guessed at. Embedded changes (Actor items, Journal pages, effects) come from the plan itself.
  */
 export function editedFields(record, snap, plannedChanges = []) {
+  // record === null: a document the package no longer carries; every baseline path counts and Actor play state is skipped.
+  const isActor = snap.documentName === 'Actor';
   const baseline = snap.flag?.managedFields;
   if (!isPlainObject(baseline)) return ['(no record of the last import, so edits cannot be told apart)'];
-  const raw = snap.raw, memo = memoOf(snap), fields = incomingFields(record), out = [];
+  const raw = snap.raw, memo = memoOf(snap), fields = record ? incomingFields(record) : null, out = [];
   for (const [path, base] of Object.entries(baseline)) {
-    if (!own(fields, path) || emptyObject(base) || path === 'items') continue;
+    if ((fields ? !own(fields, path) : isActor && keptActorPath(path)) || emptyObject(base) || path === 'items') continue;
     let live = getPath(raw, path);
     if (path === 'img') live = plannerIcon(live, raw.flags?.[MODULE_ID], base);
     if (same(live, base)) continue;
@@ -492,8 +494,14 @@ export function planSync(set, world, ctx = {}) {
   }
   for (const snap of candidates) {
     const f = snap.flag, kind = snap.documentName;
+    const edited = ctx.overwriteEdited ? [] : editedFields(null, snap);
     const block = (bySource.get(f.sourceId)?.length ?? 0) > 1 ? `${bySource.get(f.sourceId).length} world documents share this id; resolve that in Foundry first` : deletable(snap, dependents);
     if (block) { rows.push(untouched(f.sourceId, snap.name, kind, `Not removed: ${block}.`, {kept: true, snap})); continue; }
+    if (edited.length) {
+      rows.push(untouched(f.sourceId, snap.name, kind, `Kept: edited in your world, no longer in the package (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to delete it too.`,
+        {keptEdited: true, keptRemoved: true, snap, editedFields: edited}));
+      continue;
+    }
     const copies = ctx.copyCount?.(f.sourceId) ?? 0;
     rows.push({group: 'delete', key: rowKey('delete', kind, f.sourceId), id: f.sourceId, name: snap.name, kind, snap, changes: [], lost: 0,
       reason: `Imported by Manager from ${f.packageId ?? 'an earlier import'} and not in this sync.${copies ? ` ${copies} copy/copies on character sheets stay exactly as they are.` : ''}`, copies});
@@ -546,13 +554,14 @@ function planModuleRows(set, ctx, rows, errors) {
 }
 
 function finish(plan) {
-  const c = {create: 0, overwrite: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0};
+  const c = {create: 0, overwrite: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
     c[r.group]++;
     if (r.group === 'untouched' && r.refused) c.refused++;
     if (r.notRemoved) c.notRemoved++;
     if (r.keptEdited) c.keptEdited++;
+    if (r.keptRemoved) c.keptRemoved++;
   }
   c.untouched += plan.outOfScope?.records ?? 0;
   c.metadataRefreshes ??= 0;

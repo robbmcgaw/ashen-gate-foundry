@@ -45,7 +45,7 @@ export function syncView(state) {
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-unscoped ${state.deleteUnscoped ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also delete records not in these files</strong></label>
     <p class="ag-field__hint">Off by default. Records imported by an older Manager have no package line, so Sync cannot tell whether they belong to these files and keeps them. Ticking this lets Sync delete those that no chosen file mentions. Only documents with Manager's flag are ever considered.</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-edited ${state.overwriteEdited ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also overwrite records I edited</strong></label>
-    <p class="ag-field__hint">Off by default. Off: a record you changed since the last import is left alone. On: the package wins and your changes to it are replaced (the preview counts them, and the backup keeps them).</p>`);
+    <p class="ag-field__hint">Off by default. Off: a record you changed since the last import is left alone, and is not deleted either when the files no longer carry it. On: the package wins, your changes are replaced and such records are deleted (the preview counts them, and the backup keeps them).</p>`);
   parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
   if (state.message) parts.push(`<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> ${esc(state.message)}</p>`);
 
@@ -60,19 +60,20 @@ export function syncView(state) {
         <span class="ag-badge ag-badge--ok"><strong>${c.overwrite}</strong> overwrite</span>
         <span class="ag-badge ag-badge--danger"><strong>${c.delete}</strong> delete</span>
         <span class="ag-badge"><strong>${c.untouched}</strong> untouched</span>
-        ${c.keptEdited ? `<span class="ag-badge ag-badge--warn"><strong>${c.keptEdited}</strong> kept: edited in your world</span>` : ''}
+        ${c.keptEdited ? `<span class="ag-badge ag-badge--warn"><strong>${c.keptEdited}</strong> kept: edited in your world${c.keptRemoved ? ` (${c.keptRemoved} no longer in the package)` : ''}</span>` : ''}
         ${plan.overwriteEdited ? `<span class="ag-badge ag-badge--warn"><strong>${plan.lost}</strong> GM-edited field${plan.lost === 1 ? '' : 's'} will be lost</span>` : ''}
         ${c.metadataRefreshes ? `<span class="ag-badge"><strong>${c.metadataRefreshes}</strong> metadata refresh${c.metadataRefreshes === 1 ? '' : 'es'} (no content change)</span>` : ''}
         ${c.refused ? `<span class="ag-badge ag-badge--warn"><strong>${c.refused}</strong> refused</span>` : ''}</div>`);
       parts.push(`<p class="agmanager-tiny">Character sheets and everything on them are untouched (${plural(plan.characterCount, 'player character')} in this world). Item copies on character sheets stay exactly as they are even where the world Item is updated or deleted.</p>`);
       const rows = g => plan.rows.filter(r => r.group === g);
-      const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited);
+      const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
       const list = (items, fn, cap = SHOWN_ROWS) => `<ul class="ag-rows">${items.slice(0, cap).map(fn).join('')}</ul>${more(Math.min(cap, items.length), items.length)}`;
       parts.push(group('Create', creates.length, creates.length ? list(creates, line) : '<p class="agmanager-tiny">Nothing new.</p>'));
       parts.push(group('Overwrite', over.length, `${over.length ? list(over, overwriteRow) : '<p class="agmanager-tiny">No content differs.</p>'}${meta.length ? `<p class="agmanager-tiny">Also refreshes metadata on ${meta.length} record(s) whose content already matches.</p>` : ''}`, {open: over.length > 0 && over.length <= 12}));
       parts.push(group('Delete', del.length, del.length ? list(del, line, del.length) : '<p class="agmanager-tiny">Nothing is deleted.</p>', {open: del.length > 0 && del.length <= 40}));
       parts.push(group('Kept: edited in your world', kept.length, kept.length ? `<p class="agmanager-tiny">You changed these since they were imported, so Sync leaves them alone. Open one to see what would differ.</p>${list(kept, overwriteRow)}` : '<p class="agmanager-tiny">No record you edited is affected.</p>', {open: kept.length > 0 && kept.length <= 12}));
-      const refused = keep.filter(r => !r.keptEdited && (r.refused || r.kept || r.notRemoved)), quiet = keep.length - refused.length - kept.length;
+      parts.push(group('Kept: edited in your world, no longer in the package', keptGone.length, keptGone.length ? `<p class="agmanager-tiny">These are no longer in the files, but you changed them since they were imported, so Sync does not delete them.</p>${list(keptGone, line, keptGone.length)}` : '<p class="agmanager-tiny">No edited record is missing from the files.</p>', {open: keptGone.length > 0 && keptGone.length <= 12}));
+      const refused = keep.filter(r => !r.keptEdited && (r.refused || r.kept || r.notRemoved)), quiet = keep.length - refused.length - kept.length - keptGone.length;
       parts.push(group('Untouched', c.untouched, `${refused.length ? list(refused, line) : ''}<p class="agmanager-tiny">${quiet} record(s) already match the package${plan.outOfScope?.records ? `; ${plan.outOfScope.records} Manager-imported record(s) belong to other package lines or have no line; documents without Manager's flag are never listed or changed` : ''}.</p>`, {open: refused.length > 0 && refused.length <= 12}));
     }
     const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0);
