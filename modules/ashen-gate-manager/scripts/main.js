@@ -1,6 +1,7 @@
 import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
 import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
+import {collapseItemDescriptions} from "./chat-style.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -3309,7 +3310,7 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/my-appearance.hbs`}};
   constructor(options={}){
     super({...options,position:{...windowSize(AshenGateMyAppearance.DEFAULT_OPTIONS.position),...options.position}});
-    myAppearanceApp=this;this.selection=null;this.sizeSelection=null;this.status='Select a skin, or inherit the GM world default.';
+    myAppearanceApp=this;this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.status='Select a skin, or inherit the GM world default.';
     // 0.46.0: skin and size both wait for Save My Appearance; closing with a change asks first.
     this.guard=guardDirty({status:()=>this.element?.querySelector('[data-ag-my-appearance-status]')});
   }
@@ -3323,18 +3324,20 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
       skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected})),
-      sizes:appearanceController.listSizes().map(s=>({...s,selected:s.id===size}))};
+      sizes:appearanceController.listSizes().map(s=>({...s,selected:s.id===size})),
+      styleChat:this.chatSelection??state.chat};
   }
   async _onRender(ctx,options){
     await super._onRender(ctx,options);
     const root=this.element;
     bindSkinPicker(root.querySelector('[data-ag-skin-picker="my"]'),value=>{this.selection=value;this.guard.markDirty();});
     bindSkinPicker(root.querySelector('[data-ag-size-picker="my"]'),value=>{this.sizeSelection=value;this.guard.markDirty();},{valueKey:'agSizeValue'});
+    root.querySelector('[data-ag-chat-style]')?.addEventListener('change',e=>{this.chatSelection=e.currentTarget.checked;this.guard.markDirty();});
     if(this.guard.dirty)this.guard.markDirty();
     root.querySelector('[data-ag-my-help]')?.addEventListener('click',e=>{e.preventDefault();
       void infoDialog('My Appearance help','<p>Pick a skin for every Ashen Gate window, or <strong>Inherit world default</strong> to follow the GM\u2019s choice. <strong>Size</strong> makes text and controls larger on this device only. Nothing changes until <strong>Save My Appearance</strong>; Cancel puts back what is saved.</p><p>This never opens GM tools, and it never changes Player Access, progress or permissions.</p>');});
     root.querySelector('[data-ag-my-cancel]')?.addEventListener('click',async e=>{
-      e.preventDefault();this.selection=null;this.sizeSelection=null;this.guard.markClean();this.status='Changes discarded.';await this.render();
+      e.preventDefault();this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.guard.markClean();this.status='Changes discarded.';await this.render();
     });
     root.querySelector('[data-ag-my-save]')?.addEventListener('click',async e=>{
       e.preventDefault();const button=e.currentTarget;button.disabled=true;
@@ -3342,8 +3345,9 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
         const chosen=this.selection===null ? (state.userOverride??'') : this.selection;
         await appearanceController.setUserOverride(chosen);
         if(this.sizeSelection&&this.sizeSelection!==state.size)await appearanceController.setSize(this.sizeSelection);
+        if(this.chatSelection!==null&&this.chatSelection!==state.chat)await appearanceController.setChat(this.chatSelection);
         this.status=chosen?'Your personal Ashen Gate appearance is saved.':'You now inherit the GM world default.';
-        this.selection=null;this.sizeSelection=null;this.guard.markClean();await this.render();
+        this.selection=null;this.sizeSelection=null;this.chatSelection=null;this.guard.markClean();await this.render();
       }catch(error){this.status=`Unable to save appearance: ${error.message}`;await this.render();}
       finally{button.disabled=false;}
     });
@@ -3596,6 +3600,8 @@ Hooks.once("ready",()=>{
   }catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
   applyDocumentSkin();
   appearanceController.subscribe(applyDocumentSkin);
+  // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
+  if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
   game.modules.get(MODULE_ID).api = {
     appearance:{
       contract:APPEARANCE_CONTRACT,

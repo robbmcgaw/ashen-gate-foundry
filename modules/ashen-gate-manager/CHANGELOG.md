@@ -1,3 +1,13 @@
+## 0.58.0 — 2026-10-24
+
+**Chat reskin.** The chat sidebar and its messages follow your Ashen Gate skin. Presentation only: Foundry's and dnd5e's own messages, buttons, roll privacy and message menu are the real ones, just restyled. Stacked on 0.57.0.
+- **Messages:** one header line (portrait, name, quiet player name and time, small menu). Whispers use a dashed edge, blind rolls a dotted edge and out-of-character messages a double edge, so state never rests on colour alone.
+- **Rolls:** small formula, large total, *Critical* and *Fumble* labelled; natural 20 and natural 1 dice are outlined, dropped dice (advantage/disadvantage) struck through.
+- **Item cards:** the description starts closed (dnd5e's own chevron still opens it, and an open one scrolls inside a capped height), tags are one quiet wrapped line, a card's attack and damage messages sit close together, and the action buttons (Attack, Damage, Critical, Save, Apply, and so on) are labelled, at least 36px tall, full width on the narrow sidebar, with clear hover and focus rings; the first action is the filled one and actions come last.
+- **Chat box:** compact roll-mode row, tidy message box, the editor's Format toolbar appears only while you are typing; the Dice Tray module's tray (if installed) is restyled too.
+- **Setting:** *Style the chat panel with this skin* in **My Appearance** (this device, on by default, saved with Save My Appearance). Nothing is saved or migrated; with it off, chat looks as Foundry made it.
+- New `styles/chat.css`. Tests are mocked: how it looks in Forge has not been seen.
+
 ## 0.57.0 — 2026-10-24
 
 New **Items → Assets** sub-tab (GM only) for the Forge Assets Library.
