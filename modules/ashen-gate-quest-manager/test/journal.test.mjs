@@ -3,9 +3,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {sessionId,nextNumber,freeId,cleanTitle,readSession,sortSessions,currentSession,personalOwnership,partyOwnership,entryOwnership,
  canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME,journalMarkdown,journalFilename,
- autoFormatHtml,cleanDate,sessionHeading,sessionDate,autoDate,gmOwnership,GM_TARGET,canDelete} from '../scripts/journal-core.mjs';
+ autoFormatHtml,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock,cleanDate,sessionHeading,sessionDate,autoDate,gmOwnership,GM_TARGET,canDelete} from '../scripts/journal-core.mjs';
 import {createJournalStore,JournalConflict} from '../scripts/journal-store.mjs';
-import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys} from '../scripts/journal-ui.mjs';
+import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys,ensureParagraph,tidyBlank,wrapBareText,toggleQuote} from '../scripts/journal-ui.mjs';
 import {El} from './helpers/fake-dom.mjs';
 
 const MOD='ashen-gate-quest-manager';
@@ -455,7 +455,7 @@ test('Auto format is conservative: leaves clean text, existing formatting and do
  assert.equal(autoFormatHtml('<p>Plans for <em>now</em>:</p><p>We left.</p>').html,'<p>Plans for <em>now</em>:</p><p>We left.</p>');
  assert.equal(autoFormatHtml('<p>one <strong>bold</strong> ,two<br>next line</p>').html,'<p>one <strong>bold</strong>, two<br>next line</p>');
  assert.doesNotMatch(autoFormatHtml('<p onclick="x">a</p><script>x</script>').html,/script|onclick/);
- assert.deepEqual(autoFormatHtml(''),{html:'',changes:[],ok:true});
+ assert.deepEqual(autoFormatHtml(''),{html:'',changes:[],ok:true,firstQuote:false});
 });
 
 test('Auto format in the window: asks first, applies, and Undo auto format puts the page back; cancel changes nothing',async()=>{
@@ -572,4 +572,133 @@ test('0.21.0 buttons: Export Journal only on a player journal, Export GM Journal
  assert.doesNotMatch(btn(h,'export-player'),/disabled/);assert.match(h,/Download every session of Bob&#39;s journal, archived sessions included/);
  assert.doesNotMatch(h,/Export Journal is off/);
  for(const t of ['me','party'])assert.doesNotMatch(pane('bob',{...newJournalView(false),sessionId:s2,target:t}),/export-gm|GM Journal|gm-notes/);
+});
+
+// ---- 0.21.2 quote fix ----
+// A small node tree with just what the editor helpers use. Not a browser: it proves the logic, and the helpers were also
+// run against real Chromium selections and execCommand while writing this.
+class N{
+ constructor(name,type=1,text=''){this.nodeName=name;this.nodeType=type;this.childNodes=[];this.parentNode=null;this._t=text;}
+ get textContent(){return this.nodeType===3?this._t:this.childNodes.map(c=>c.textContent).join('');}
+ get firstChild(){return this.childNodes[0]??null;}get lastChild(){return this.childNodes.at(-1)??null;}
+ get firstElementChild(){return this.childNodes.find(c=>c.nodeType===1)??null;}
+ appendChild(c){c.parentNode?.removeChild(c);c.parentNode=this;this.childNodes.push(c);return c;}
+ insertBefore(c,ref){c.parentNode?.removeChild(c);c.parentNode=this;this.childNodes.splice(this.childNodes.indexOf(ref),0,c);return c;}
+ removeChild(c){this.childNodes.splice(this.childNodes.indexOf(c),1);c.parentNode=null;return c;}
+ contains(n){for(let x=n;x;x=x.parentNode)if(x===this)return true;return false;}
+ get innerHTML(){return this.childNodes.map(ser).join('');}
+ set innerHTML(h){this.childNodes=[];for(const c of parse(h)){c.parentNode=this;this.childNodes.push(c);}}
+}
+const VOID=new Set(['BR','HR']);
+const ser=n=>n.nodeType===3?n._t:VOID.has(n.nodeName)?`<${n.nodeName.toLowerCase()}>`:`<${n.nodeName.toLowerCase()}>${n.childNodes.map(ser).join('')}</${n.nodeName.toLowerCase()}>`;
+function parse(h){
+ const root=new N('ROOT'),stack=[root];
+ for(const m of h.matchAll(/<(\/?)([a-z0-9]+)>|([^<]+)/g)){
+  if(m[3]){const t=new N('#text',3,m[3]);t.parentNode=stack.at(-1);stack.at(-1).childNodes.push(t);continue;}
+  const name=m[2].toUpperCase();
+  if(m[1]){stack.pop();continue;}
+  const e=new N(name);e.parentNode=stack.at(-1);stack.at(-1).childNodes.push(e);if(!VOID.has(name))stack.push(e);
+ }
+ return root.childNodes;
+}
+const walk=(n,out=[])=>{out.push(n);n.childNodes.forEach(c=>walk(c,out));return out;};
+function fakeDoc(ed,from,to){
+ const state={range:{from,to}};
+ const inside=(n,a,b)=>{const all=walk(ed),ia=all.indexOf(a),ib=all.indexOf(b),lo=Math.min(ia,ib),hi=Math.max(ia,ib);return walk(n).some(x=>{const i=all.indexOf(x);return i>=lo&&i<=hi;});};
+ const sel={get rangeCount(){return 1;},anchorNode:from,getRangeAt:()=>({intersectsNode:n=>inside(n,state.range.from,state.range.to)}),removeAllRanges(){},addRange(){}};
+ return {getSelection:()=>sel,createElement:n=>new N(n.toUpperCase()),createRange:()=>({selectNodeContents(){},collapse(){},setStart(){}}),execCommand(){}};
+}
+const editor=h=>{const ed=new N('DIV');ed.innerHTML=h;return ed;};
+const textNodeIn=(el)=>walk(el).find(n=>n.nodeType===3);
+
+test('0.21.2 an empty page starts as one normal paragraph; typed-nothing goes back to empty; a stray empty quote is not a page',()=>{
+ assert.equal(SEED_HTML,'<p><br></p>');
+ for(const empty of ['','<p><br></p>','<blockquote></blockquote>','<blockquote><p><br></p></blockquote>','<p></p>'])assert.equal(isBlankPage(empty),true,empty);
+ assert.equal(sanitizeHtml('<blockquote></blockquote>'),'','an empty quote saves as an empty page');
+ for(const full of ['<p>x</p>','<hr>','<blockquote>q</blockquote>','<ul><li>a</li></ul>'])assert.equal(isBlankPage(full),false,full);
+ const ed=editor('<blockquote></blockquote>');
+ assert.equal(ensureParagraph(ed,fakeDoc(ed,ed,ed)),true);assert.equal(ed.innerHTML,'<p><br></p>','the empty quote is replaced by a paragraph on focus');
+ const withText=editor('<blockquote>keep me</blockquote>');
+ assert.equal(ensureParagraph(withText,fakeDoc(withText,withText,withText)),false);assert.equal(withText.innerHTML,'<blockquote>keep me</blockquote>','a quote with words is never touched');
+ const typed=editor('<p><br></p>');tidyBlank(typed);assert.equal(typed.innerHTML,'');
+ const real=editor('<p>hi</p>');tidyBlank(real);assert.equal(real.innerHTML,'<p>hi</p>');
+ // text typed with no block around it gets a paragraph (the browser command is asked for)
+ const calls=[];const bare=editor('Plain start');
+ assert.equal(wrapBareText(bare,{execCommand:(...a)=>calls.push(a)}),true);assert.deepEqual(calls,[['formatBlock',false,'<p>']]);
+ assert.equal(wrapBareText(editor('<p>ok</p>'),{execCommand:()=>assert.fail()}),false);
+ // a new session's page is empty and is not a quote
+ assert.equal(journalPaneHTML({isGM:false,sessions:[],pages:[],hits:null,query:'',showArchived:false,renaming:null,target:'me',stale:false,dirty:false,error:'',gm:null,
+  session:{id:'SESSION-001',number:1,name:'N',subtitle:'',createdAt:'',archived:false},page:{html:'',canWrite:true,label:'My journal',missing:false}}).match(/id="agq-journal-editor"[^>]*>(.*?)<\/div>/)[1],'');
+});
+
+test('0.21.2 Quote is a toggle: on adds one quote over the touched blocks, on again takes it off, never nests',()=>{
+ let ed=editor('<p>one</p><p>two</p><p>three</p>');
+ let d=fakeDoc(ed,textNodeIn(ed.childNodes[0]),textNodeIn(ed.childNodes[1]));
+ assert.equal(toggleQuote(ed,d),'added');assert.equal(ed.innerHTML,'<blockquote><p>one</p><p>two</p></blockquote><p>three</p>','a span of paragraphs: one quote');
+ d=fakeDoc(ed,textNodeIn(ed.childNodes[0]),textNodeIn(ed.childNodes[0]));
+ assert.equal(toggleQuote(ed,d),'removed');assert.equal(ed.innerHTML,'<p>one</p><p>two</p><p>three</p>','again inside it: off, text kept');
+ // the reported case: a quote inside a quote ("now there are two") comes off in one press
+ ed=editor('<blockquote><blockquote>Now there are two</blockquote></blockquote><p>after</p>');
+ d=fakeDoc(ed,textNodeIn(ed),textNodeIn(ed));
+ assert.equal(toggleQuote(ed,d),'removed');assert.equal(ed.innerHTML,'<p>Now there are two</p><p>after</p>');
+ // quote text with line breaks and loose text becomes paragraphs without losing a word
+ ed=editor('<blockquote>one<br>two</blockquote>');d=fakeDoc(ed,textNodeIn(ed),textNodeIn(ed));
+ toggleQuote(ed,d);assert.equal(ed.innerHTML,'<p>one<br>two</p>');
+ // quoting loose text and a list
+ ed=editor('Loose line<ul><li>a</li></ul>');d=fakeDoc(ed,ed.childNodes[0],ed.childNodes[1]);
+ assert.equal(toggleQuote(ed,d),'added');assert.equal(ed.innerHTML,'<blockquote><p>Loose line</p><ul><li>a</li></ul></blockquote>');
+ // a selection outside the editor does nothing
+ ed=editor('<p>x</p>');const other=new N('P');assert.equal(toggleQuote(ed,fakeDoc(ed,other,other)),'none');assert.equal(ed.innerHTML,'<p>x</p>');
+ // Quote on an empty page makes one empty-looking quote paragraph to type into, then toggles back off
+ ed=editor('');d=fakeDoc(ed,ed,ed);d.getSelection().anchorNode=ed;
+ assert.equal(toggleQuote(ed,d),'none','nothing selected on an unfocused empty page changes nothing wrongly');
+ // Markdown for paragraphs inside a quote
+ assert.equal(htmlToMarkdown('<blockquote><p>a</p><p>b</p></blockquote><p>c</p>'),'> a\n>\n> b\n\nc');
+});
+
+test('0.21.2 clean-up of existing pages: only the first block, every word kept, re-runnable',()=>{
+ assert.equal(firstBlockIsQuote('<blockquote>x</blockquote><p>y</p>'),true);assert.equal(firstBlockIsQuote('<p>x</p><blockquote>y</blockquote>'),false);
+ assert.deepEqual(unquoteFirstBlock('<blockquote>Now there<br>are two</blockquote><p>x</p>'),{html:'<p>Now there<br>are two</p><p>x</p>',changed:true});
+ assert.deepEqual(unquoteFirstBlock('<blockquote><blockquote><p>n</p></blockquote></blockquote><p>y</p>'),{html:'<p>n</p><p>y</p>',changed:true});
+ assert.deepEqual(unquoteFirstBlock('<blockquote></blockquote><p>y</p>'),{html:'<p>y</p>',changed:true},'an empty quote is simply dropped');
+ const once=unquoteFirstBlock('<blockquote>a</blockquote><blockquote>b</blockquote>');
+ assert.equal(once.html,'<p>a</p><blockquote>b</blockquote>','only the first block');
+ assert.equal(unquoteFirstBlock(once.html).changed,false,'running it again changes nothing');
+ const quote='<p>a</p><blockquote>mid</blockquote>';assert.deepEqual(unquoteFirstBlock(quote),{html:quote,changed:false});
+ const letters=h=>(htmlToText(h).match(/\p{L}+/gu)??[]).join('');
+ const src='<blockquote>The campaign opened<br>with a broad intro</blockquote><p>Rest.</p>';assert.equal(letters(unquoteFirstBlock(src).html),letters(src));
+});
+
+test('0.21.2 Auto format offers the un-quote as a separate choice, off by default',()=>{
+ const src='<blockquote>Hi ,there</blockquote><p>x</p>';
+ const off=autoFormatHtml(src);assert.equal(off.firstQuote,true);assert.equal(off.html,src,'a quote stays a quote (and untouched) unless asked');
+ assert.ok(!off.changes.some(c=>/quote/.test(c)));
+ const on=autoFormatHtml(src,{unquoteFirst:true});assert.equal(on.html,'<p>Hi, there</p><p>x</p>');assert.ok(on.changes.some(c=>/Remove the quote formatting/.test(c)));
+ assert.equal(autoFormatHtml('<p>x</p>',{unquoteFirst:true}).firstQuote,false);
+});
+
+test('0.21.2 window: Remove quote formatting asks, applies, and Undo puts the quote back; Auto format shows the checkbox only for a first quote',async()=>{
+ const {installJournal}=await import('../scripts/journal-ui.mjs');
+ const asked=[],forms=[];let yes=true,tick=false;
+ class App{async render(){}}
+ installJournal(App,{store:{},danger:async()=>false,confirm:async(m,o)=>{asked.push([m,o]);return yes;},
+  form:async(title,fields,o)=>{forms.push([title,fields,o]);return {...(tick?{unquote:['1']}:{})};},notify:e=>{throw e;},info:m=>asked.push(['info',m]),download(){}});
+ const app=new App();app.jv=newJournalView(true);app.journalStatus=()=>{};
+ const ed={id:'agq-journal-editor',innerHTML:'<blockquote>kept words</blockquote><p>x</p>',style:{},getAttribute:()=>'true',focus(){},isConnected:true,firstElementChild:{nodeName:'BLOCKQUOTE'}};
+ const btn={hidden:false},undo={hidden:true};
+ const root={querySelector:sel=>sel==='#agq-journal-editor'?ed:sel==='[data-jaction="unquote"]'?btn:sel==='[data-jaction="autoformat-undo"]'?undo:null};
+ app.jRoot=root;
+ yes=false;await app.unquoteJournal(root);assert.equal(ed.innerHTML,'<blockquote>kept words</blockquote><p>x</p>','cancel changes nothing');
+ yes=true;await app.unquoteJournal(root);
+ assert.equal(ed.innerHTML,'<p>kept words</p><p>x</p>');assert.equal(app.jv.dirty,true,'an unsaved change like any other');assert.equal(undo.hidden,false);
+ app.undoAutoFormat(root);assert.equal(ed.innerHTML,'<blockquote>kept words</blockquote><p>x</p>');
+ // Auto format: a checkbox for the first quote, default off (nothing ticked: the quote stays)
+ ed.innerHTML='<blockquote>Hi ,there</blockquote><p>x</p>';tick=false;
+ await app.autoFormatJournal(root);
+ assert.equal(forms[0][1][0].name,'unquote');assert.equal(forms[0][1][0].label,'Un-quote the first block');assert.ok(!forms[0][1][0].checked,'off by default');
+ assert.equal(ed.innerHTML,'<blockquote>Hi ,there</blockquote><p>x</p>','unticked: nothing changed');
+ ed.innerHTML='<blockquote>Hi ,there</blockquote><p>x</p>';tick=true;await app.autoFormatJournal(root);
+ assert.equal(ed.innerHTML,'<p>Hi, there</p><p>x</p>');
+ // no first quote: the plain confirmation, no checkbox
+ forms.length=0;ed.innerHTML='<p>a ,b</p>';await app.autoFormatJournal(root);assert.equal(forms.length,0);
 });
