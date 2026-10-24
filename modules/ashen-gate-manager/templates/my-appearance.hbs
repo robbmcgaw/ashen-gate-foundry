@@ -17,6 +17,10 @@
       <div><div class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-my" aria-describedby="ag-size-hint-my" data-ag-size-picker="my">{{#each sizes}}<button type="button" role="radio" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-size-value="{{id}}">{{label}}</button>{{/each}}</div></div>
       <small id="ag-size-hint-my" class="ag-field__hint">Comfortable makes text and controls larger on this device only. Saved with Save My Appearance.</small>
     </div>
+    <div class="ag-field">
+      <label><input type="checkbox" data-ag-chat-style{{#if styleChat}} checked{{/if}}> Style the chat panel with this skin</label>
+      <small class="ag-field__hint">Restyles chat, roll cards and item cards on this device. Messages and buttons work as before. Saved with Save My Appearance.</small>
+    </div>
     <p class="agm-my-appearance-note">GM world default: <strong>{{worldDefault}}</strong> · Currently displayed: <strong>{{effective}}</strong></p>
   </div>
   <footer class="ag-footer"><button type="button" class="ag-btn ag-btn--ghost" data-ag-my-cancel>Cancel</button><span class="ag-footer__status agm-my-appearance-note" role="status" data-ag-my-appearance-status>{{status}}</span><button type="button" class="ag-btn ag-btn--primary" data-ag-my-save>Save My Appearance</button></footer>

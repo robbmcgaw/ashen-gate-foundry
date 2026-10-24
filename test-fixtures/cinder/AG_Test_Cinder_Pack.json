@@ -27,6 +27,11 @@
           "BF-TEST-MIND"
         ],
         "art": "ashen-gate/cinders/test-ember.webp",
+        "artStages": [
+          {"art": "ashen-gate/cinders/test-ember-1.webp", "at": 0},
+          {"art": "ashen-gate/cinders/test-ember-2.webp", "at": 3},
+          {"art": "ashen-gate/cinders/test-ember-3.webp", "at": 6}
+        ],
         "bearer_items": {
           "active": "POWER-TEST-FLARE",
           "passive": "POWER-TEST-WARD"

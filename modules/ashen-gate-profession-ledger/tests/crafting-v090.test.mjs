@@ -112,7 +112,7 @@ test('player Individual view: own materials, professions with XP, known recipes 
  assert.match(h,/<strong>\[TEST\] Alchemy<\/strong>/);assert.match(h,/Level 1/);assert.match(h,/0 XP · 5 XP to level 2/);
  assert.match(h,/XP is stored on \[TEST\] Belwar by the Profession Ledger/);
  assert.match(h,/data-folder="testalchemy"/,'known recipes foldered by profession');
- assert.match(h,/\[TEST\] Salve/);assert.match(h,/also costs 20 gp \(not deducted automatically\)/);
+ assert.match(h,/\[TEST\] Salve/);assert.match(h,/Also costs 20 gp \(not deducted automatically\)/);
  assert.match(h,/data-action="craft" data-id="REC-TEST-SALVE"/);assert.match(h,/Craft — ask the party/,'Belwar has 1 of 2 leaves; Tarra has more');
  assert.match(h,/data-action="learn-recipe" data-id="belwar:btea"/,'recipe items have a Learn button');
  assert.doesNotMatch(h,/Draft Brew/,'draft recipe items are not shown to players');
@@ -208,7 +208,7 @@ test('Party tab by player and by profession; catalog shows drafts only to the GM
  h=await html('catalog');
  assert.match(h,/\[TEST\] Salve/);assert.doesNotMatch(text(h),/Draft Brew|(REC|MAT|ITEM)-TEST-/);
  game.user=gm;h=await html('catalog');
- assert.match(h,/Draft Brew/);assert.match(h,/Draft — hidden from players/);assert.match(h,/REC-TEST-DRAFT/);
+ assert.match(h,/Draft Brew/);assert.match(h,/Draft — hidden from players/);assert.doesNotMatch(text(h),/REC-TEST-DRAFT/,'0.32.0: no internal id is shown, even to the GM');
  assert.match(h,/1 of 3 recipes is draft or GM-only/);
 });
 
