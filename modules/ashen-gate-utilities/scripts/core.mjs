@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.28.2';
+export const VERSION = '0.29.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -351,13 +351,14 @@ export const HISTORY_APPROVALS = ['accepted', 'denied', 'timed-out', 'not-requir
 const str = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : null);
 /** One history record. `moved` is false for a denied or timed-out take-out (the item stayed). */
 export function historyEntry({id, kind, approval, user, actor, item, worldTime = null, realTime = Date.now()} = {}) {
-  if (!['deposit', 'withdraw'].includes(kind)) throw new TypeError('History kind must be deposit or withdraw.');
+  if (!['deposit', 'withdraw', 'delete'].includes(kind)) throw new TypeError('History kind must be deposit or withdraw (or delete).');
   if (!HISTORY_APPROVALS.includes(approval)) throw new TypeError('Unknown history approval.');
   const row = item ?? {};
   return {id: String(id ?? `h${realTime}`), kind, approval, moved: approval !== 'denied' && approval !== 'timed-out',
     userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', actorId: str(actor?.id), actorName: str(actor?.name),
     itemName: str(row.name) ?? 'Unnamed Item', itemUuid: str(row.uuid, 400), img: str(row.img, 400), quantity: num(row.quantity) ?? 1,
     ...(num(row.contents) > 0 ? {contents: num(row.contents)} : {}),
+    ...(kind === 'delete' && num(row.left) > 0 ? {left: num(row.left)} : {}),
     worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
 }
 /** 0.13.1: " (with 3 items inside)" for a container entry; '' for anything else, including entries from before 0.13.1. */
@@ -392,6 +393,21 @@ export function moveBundle(item, items, {randomId, strip = []} = {}) {
     return o;
   });
   return {sourceIds: docs.map(d => d.id), data, contents: docs.length - 1};
+}
+/**
+ * 0.29.0: what a stash Delete removes. `requested` is a whole number of the stack, or undefined / 'all' for everything.
+ * A container (one that holds items) is deleted whole, with what it holds; a stack of ordinary items can lose part.
+ * Returns {ok, remove, whole, left} or {ok: false, reason}.
+ */
+export function planStashDelete({quantity, requested, contents = 0, name = 'that item'} = {}) {
+  const have = num(quantity) ?? 1;
+  if (requested === undefined || requested === null || requested === '' || requested === 'all') return {ok: true, remove: have, whole: true, left: 0};
+  const n = Number(requested);
+  if (!Number.isInteger(n) || n < 1) return {ok: false, reason: 'Enter a whole number of 1 or more.'};
+  if (n > have) return {ok: false, reason: `The stash holds only ${have} of ${name}.`};
+  if (n === have) return {ok: true, remove: have, whole: true, left: 0};
+  if (contents > 0) return {ok: false, reason: `${name} holds other items, so it can only be deleted whole.`};
+  return {ok: true, remove: n, whole: false, left: have - n};
 }
 /** Newest last; the oldest entries are trimmed once the cap is passed. Never mutates the input. */
 export function appendHistory(list, entry, cap = STASH_HISTORY_CAP) {
