@@ -1,3 +1,8 @@
+## 0.29.1 — 2026-10-24
+
+- **One conditions list.** The Conditions tracker's Apply list and the Character Hub's conditions strip now offer the same conditions (the Hub reads Utilities' list when Utilities is active): every native status by name, A to Z, without the read-only Strain chip and without Exhaustion (it has levels; use the pill beside HP in the Hub). Before, the two lists differed. New `api.conditions.choices()` returns it as `[{id, label, img}]`.
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.29.0 — 2026-10-24
 
 - **Party stash: Delete…** Every item row in *Party Inventory → Items* (and in the Character Hub's *Inventory → Party stash*, which shows the same list) now has a **Delete…** button next to Take. For a stack it first asks how many (the full number deletes the whole stack), then shows "Delete <item>?" saying it cannot be undone and that Take is the way to keep it; **Cancel is the default**. A container is deleted whole, and the confirmation says that everything inside goes with it.
