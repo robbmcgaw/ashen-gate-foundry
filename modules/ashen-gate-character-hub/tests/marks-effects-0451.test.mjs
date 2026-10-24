@@ -86,3 +86,28 @@ test('an attack roll ends Sap on the attacker, and the Vex they placed on a crea
   assert.equal(other.effects.length, 1, 'a Vex on a creature not attacked stays');
   assert.deepEqual(await m.spendMarks(null), []);
 });
+
+// 0.46.6: Foundry only marks an expired effect (duration.expired) and leaves it on the target as an inactive effect.
+test('an expired Sap is not listed, and placing it again puts a fresh one on instead of taking the dead one off', async () => {
+  const foe = target('goblin'), actor = world([tokenFor(foe, 't1')]);
+  assert.equal((await m.toggleMarkOn(actor, foe, 'sap')).result, 'added');
+  assert.equal(m.placedMarks(actor).length, 1, 'listed while it lasts');
+  foe.effects[0].duration = {expired: true};   // dnd5e / Foundry: the attacker's next turn started
+  assert.equal(m.placedMarks(actor).length, 0, 'an expired mark is no chip');
+  assert.equal(m.findMark(foe, 'sap', actor.uuid), null);
+  const r = await m.toggleMarkOn(actor, foe, 'sap');
+  assert.equal(r.result, 'added', 'a new Sap, not "removed"');
+  assert.equal(foe.effects.length, 1, 'the expired one is cleared');
+  assert.notEqual(foe.effects[0].duration?.expired, true);
+  assert.equal(m.placedMarks(actor).length, 1);
+});
+
+test('placing a mark clears other expired Hub marks on that target and leaves unrelated effects alone', async () => {
+  const foe = target('goblin'), actor = world([tokenFor(foe, 't1')]);
+  await m.toggleMarkOn(actor, foe, 'vex');
+  foe.effects[0].duration = {expired: true};
+  const stranger = {flags: {}, duration: {expired: true}, async delete() { foe.effects = foe.effects.filter(x => x !== stranger); }};
+  foe.effects.push(stranger);
+  await m.toggleMarkOn(actor, foe, 'slow');
+  assert.deepEqual(foe.effects.map(e => e.flags?.[MODULE_ID]?.mark?.id ?? 'other').sort(), ['other', 'slow']);
+});
