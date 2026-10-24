@@ -4,6 +4,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {validateDefinition,validateModifiers,normalizeModifier,blockModifiers,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
   unbindInstance,planMigration,CINDER_WALLET_CAP,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
 import {defaultConfig,strainEffectBonus,validateConfig} from '../scripts/strain.mjs';
+import {assertNoIds,assertNoMachineText} from '../../../scripts/test-helpers/no-ids.mjs';
 
 const fakeRoll=queue=>async formula=>{const total=queue.shift();if(total==null)throw Error(`unexpected roll ${formula}`);return {total,formula};};
 const steady={powerId:'POWER-TEST-STEADY',name:'[TEST] Steady',power:{kind:'enhancement',modifiers:[
@@ -326,7 +327,7 @@ test('perk modifiers (PERK-* Items with a modifiers block) change Push, Backfire
 test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and lock, capacity drop keeps items, drop target, check and repair',async()=>{
   game.user=gm;const sock=api.sockets,id=ember.instanceId;
   const mods=list=>({modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list}});
-  const gear=(iid,sourceId,list,extra={})=>({id:iid,name:`[TEST] ${sourceId}`,type:'loot',flags:source(sourceId,'Item',list?mods(list):{}),...extra,
+  const gear=(iid,sourceId,list,extra={})=>({id:iid,name:`[TEST] ${sourceId.replace(/^[A-Z]+-TEST-/,"")}`,type:'loot',flags:source(sourceId,'Item',list?mods(list):{}),...extra,
     async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);}});
   const L1=gear('L1','ITEM-TEST-LENS',[{target:'push.cost',value:-1,label:'[TEST] Lens',applies:{modes:['overreach']}}]);
   const L2=gear('L2','ITEM-TEST-SOCKET',[{target:'sockets.count',value:1,label:'[TEST] Extra socket'}]);
@@ -336,7 +337,7 @@ test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and
   const overreach=()=>cinder.list(B)[0].powers[0].modes.find(m=>m.id==='overreach').cost,base=overreach();
   let h=sock.slots(B,id);assert.deepEqual([h.capacity,h.free,h.slots.length,h.locked],[3,3,0,false],'default 3 sockets');
   assert.deepEqual(sock.socketable(B).map(x=>x.itemId).sort(),['L1','L2','L3','L4','L5'],'only ITEM-* with cinder modifiers fit');
-  assert.deepEqual(sock.canAttach(B,id,'P1').reasons,['[TEST] ITEM-TEST-PLAIN has no Cinder modifiers, so it does not fit a socket']);
+  assert.deepEqual(sock.canAttach(B,id,'P1').reasons,['[TEST] PLAIN has no Cinder modifiers, so it does not fit a socket']);
   await assert.rejects(sock.attach(B,id,'P1'),/does not fit a socket/);
   // GM attaches: the Push preview and the GM-side Push count it; the item is marked; the bearer's copy is updated.
   assert.deepEqual(await sock.attach(B,id,'L1'),{changed:true,slot:0});
@@ -507,6 +508,39 @@ test('sheet (0.6.0): orbit from api.sockets (+1 extra, inactive off the orbit, l
   for(const g of [g1,g2,g3,g4])B.items.splice(B.items.indexOf(g),1);
 });
 // 0.5.0: the window's Unbind asks first ("Unbind Cinder", red); Cancel leaves the Cinder bound. Manage toolbar counts Cinders.
+test('no canonical ids in player-visible output (0.11.1): ids and machine tokens: sheet, Check rows, Push preview, chat card, refusals',async()=>{
+  const {sheetView}=await import('../scripts/main.mjs');
+  const wiring=new Set(['instanceId','definitionId','treeId','uuid','itemId','powerId','sourceId','id','slot','art','bearerId','actorId','from']);
+  const shown=v=>JSON.stringify(v,(k,x)=>wiring.has(k)?undefined:x);
+  for(const [who,gmView] of [[gm,true],[bob,false]]){
+    game.user=who;const [c]=cinder.list(B);
+    const h=api.sockets.slots(B,c.instanceId),fits=api.sockets.socketable(B);
+    const v=sheetView(B,c,h,{fits,perks:api.modifiers.forActor(B),strainState:strain.get(B),gm:gmView,uuidOf:i=>B.items.get(i)?.uuid});
+    assert.ok(v.name&&v.powers.length,'sample sheet has a Cinder with powers');
+    assertNoMachineText(v.name,'Cinder name');
+    assertNoMachineText(shown({...v,gm:null}),`${gmView?'GM':'player'} sheet view`);
+  }
+  // Names fall back to a neutral label, never the id.
+  game.user=gm;
+  const hbs=await import('node:fs').then(fs=>fs.readFileSync(new URL('../templates/cinders.hbs',import.meta.url),'utf8'));
+  assertNoMachineText(hbs,'Cinders template');
+  assert.equal(api.definitionName?.('MUT-TEST-NOPE')??'Unnamed Cinder','Unnamed Cinder');
+  // Preview, chat card and refusals.
+  const pv=cinder.previewPush(B,cinder.list(B)[0].instanceId,'POWER-TEST-SPARK','amplify');
+  assertNoMachineText(`${pv.powerName} ${pv.label} ${pv.effect??''} ${pv.modifiers.map(m=>m.label).join(' ')}`,'Push preview');
+  messages.length=0;rolls.push(10,1,1);const strainBefore=strain.get(B).value;
+  await cinder.push(B,'POWER-TEST-SPARK','amplify');
+  assertNoMachineText(messages.at(-1).content,'Push chat card');
+  await gmSet(B,strainBefore);
+  const refusals=[];
+  await cinder.create('MUT-TEST-NOPE').catch(e=>refusals.push(e.message));
+  const item={id:'ZZ',name:'[TEST] Plain',parent:B,flags:{}};B.items.push(item);
+  await api.sockets.attach(B,cinder.list(B)[0].instanceId,'ZZ').catch(e=>refusals.push(e.message));
+  B.items.splice(B.items.indexOf(item),1);
+  assert.ok(refusals.length>=2);
+  assertNoMachineText(refusals.join('\n'),'refusal messages');
+  assertNoMachineText(cinder.report().map(r=>`${r.name} ${r.text}`).join('\n'),'Manage → Check rows');
+});
 test('Manage: Unbind is a danger confirm and Cancel changes nothing; toolbar count and New Cinder stay enabled with definitions',async()=>{
   game.user=gm;
   const dialogs=foundry.applications.api,before=dialogs.DialogV2;

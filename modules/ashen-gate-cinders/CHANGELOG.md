@@ -1,3 +1,7 @@
+## 0.12.1 — 2026-10-24
+
+- Canonical ids (MUT-*, POWER-*, ITEM-* and similar) no longer appear in the UI. Manage no longer prints the definition id beside each Cinder's name. The New Cinder picker, Check rows, Bind warnings, socket refusals, and Push and Backfire messages use display names (a neutral label such as "Unnamed Cinder" when a record is missing). Raw tokens are gone too: a wrong-kind bearer item says "a signature ability, not passive" instead of `signature_active`, and an unknown modifier target reads "modifier". No saved data, ids, flags or API change.
+
 ## 0.12.0 — 2026-10-24
 
 Art stages: a Cinder's orb can change as its bearer advances. Additive: Cinders without stages look and behave exactly as before; no migration.

@@ -17,7 +17,7 @@ import {openStageEditor} from './stage-editor.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.12.0';
+const VERSION='0.12.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -178,7 +178,7 @@ function socketView(h,fits){
   const empties=Array.from({length:h.free},(_,i)=>({index:i}));
   const spare=fits.filter(f=>!h.slots.some(x=>x.itemId===f.itemId));
   return {instanceId:h.instanceId,capacity:h.capacity,used:h.slots.filter(x=>x.active).length,locked:h.locked,canEdit:h.canEdit,
-    slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`).join(' · ')})),
+    slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`).join(' · ')})),
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
 }
@@ -193,14 +193,14 @@ export function stageView(info){
 /** The Cinder sheet (0.6.0): orb, Strain ring, sockets on an orbit, and the sheet column. `c` is one api.cinder.list entry, `h` its api.sockets host. */
 export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidOf=()=>null,maxSockets=12,rotate={world:true,local:true},offer={world:true,local:true},stages=null}={}){
   const top=Math.max(1,strainState.guaranteeAt??10),art=orbArt(c),orbit=orbitModel(h,maxSockets);
-  const canEdit=Boolean(h?.canEdit),tip=x=>[x.name,...(x.modifiers??[]).map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`)].join(' · ');
+  const canEdit=Boolean(h?.canEdit),tip=x=>[x.name,...(x.modifiers??[]).map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`)].join(' · ');
   const sockets=orbit.positions.map(p=>({...p,number:p.index+1,canEdit,tip:p.empty?(canEdit?'Empty socket: attach an item, or drag one here':'Empty socket'):tip(p),
     label:p.empty?`Socket ${p.index+1}: empty`:`Socket ${p.index+1}: ${tip(p)}`}));
   // 0.11.0 (CN-09): the orbit shows numbers; the filled sockets are listed by name under the stage.
   const filled=sockets.filter(x=>!x.empty);
   const inactive=orbit.inactive.map(x=>({...x,canEdit,tip:`${tip(x)} · inactive: over capacity`}));
   const spare=fits.filter(f=>!(h?.slots??[]).some(x=>x.itemId===f.itemId)).map(f=>({...f,uuid:uuidOf(f.itemId),elsewhere:Boolean(f.attachedTo)}));
-  const effects=list=>list.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`).join(' · ');
+  const effects=list=>list.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`).join(' · ');
   const perkRows=[];
   for(const p of perks){let row=perkRows.find(r=>r.sourceId===p.sourceId);if(!row)perkRows.push(row={sourceId:p.sourceId,name:p.name,kind:'Perk',mods:[]});row.mods.push(p);}
   const rows=[...perkRows.map(r=>({name:r.name,kind:r.kind,text:effects(r.mods)})),
@@ -486,7 +486,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _socket(kind,instanceId,slot,actorId,preItem=null){
     const actor=this._socketActor(actorId),host=cinders.socketsApi.slots(actor,instanceId);if(!host)throw Error('That character does not bear this Cinder');
     const fits=cinders.socketsApi.socketable(actor).filter(f=>!host.slots.some(x=>x.itemId===f.itemId));
-    if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate ITEM-* with Cinder modifiers).`);
+    if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate item with Cinder modifiers).`);
     const where=f=>f.attachedTo?' (in another Cinder\'s socket: it moves here)':'';
     const f=await input(kind==='swap'?'Swap socket item':'Attach to a socket',[{name:'item',label:'Item',type:'select',value:fits.some(x=>x.itemId===preItem)?preItem:fits[0].itemId,options:fits.map(x=>({value:x.itemId,label:`${x.name}${where(x)}`})),
       hint:`The item stays in ${actor.name}'s inventory. Its Cinder modifiers count while it is in an active socket.`}],kind==='swap'?'Swap':'Attach');
@@ -573,8 +573,8 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   async _new(){
     if(!game.user.isGM)throw Error('GM only');
-    const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder (MUT-*) definitions in this world. Import them through General Manager first.');
-    const f=await input('New Cinder',[{name:'def',label:'Cinder',type:'select',value:defs[0].id,options:defs.map(d=>({value:d.id,label:`${d.name} (${d.id})`})),hint:'The new Cinder starts with no bearer. Bind it to a character next.'}],'Create');
+    const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder definitions in this world. Import them through General Manager first.');
+    const f=await input('New Cinder',[{name:'def',label:'Cinder',type:'select',value:defs[0].id,options:defs.map(d=>({value:d.id,label:d.name})),hint:'The new Cinder starts with no bearer. Bind it to a character next.'}],'Create');
     if(!f?.def)return;await cinders.api.create(f.def);notify('Cinder created.');
   }
   async _bind(instanceId,isTransfer){

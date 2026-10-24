@@ -250,7 +250,7 @@ test('Check reports missing and extra bearer items; Repair (re-runnable) fixes t
   await bearerItem(A,'passive').delete();
   await B.createEmbeddedDocuments('Item',[{name:'[TEST] Flare',flags:{[MOD]:{bearerItem:{instanceId:ember.instanceId,definitionId:DEF,slot:'active',sourceId:'POWER-TEST-FLARE'}}}}]);
   const rows=cinder.report().filter(r=>r.repair&&/signature|passive/.test(r.text)).map(r=>r.text).sort();
-  assert.deepEqual(rows,['[TEST] A has an extra signature ability item (a second copy).','[TEST] A is missing this Cinder\'s passive (POWER-TEST-WARD).',
+  assert.deepEqual(rows,['[TEST] A has an extra signature ability item (a second copy).','[TEST] A is missing this Cinder\'s passive.',
     '[TEST] B has an extra signature ability item (does not bear that Cinder).']);
   const keep=bearerItem(A,'active').id;
   await cinder.repair();
@@ -274,7 +274,7 @@ test('Repair… asks first ("Repair Cinders?", Cancel default when it removes it
   answers.push('confirm');await app._act({dataset:{act:'cinder-repair'}});
   assert.deepEqual(tagged(B),[],'Repair ran after the confirmation');
   dialogs.length=0;await app._act({dataset:{act:'cinder-repair'}});assert.equal(dialogs.length,0,'nothing to repair: no question');
-  assert.equal(main.repairRemoves([{repair:true,text:'[TEST] A is missing this Cinder\'s passive (POWER-TEST-WARD).'}]),false,'only giving items is not a removal');
+  assert.equal(main.repairRemoves([{repair:true,text:'[TEST] A is missing this Cinder\'s passive.'}]),false,'only giving items is not a removal');
 });
 test('transfer moves the bearer items; unbind removes them; Hub Restore (rehook) recreates them',async()=>{
   game.user=gm;
@@ -293,8 +293,8 @@ test('a source missing or of the wrong kind never blocks a bind: it is named, an
   const r=await cinder.bind(ash.instanceId,C);
   assert.equal(r.instance.bearer.actorId,'C');
   assert.equal(r.bearerItems.problems.length,2);
-  assert.match(r.bearerItems.problems.join('\n'),/POWER-TEST-GONE \(the Cinder's signature ability\) is not in this world/);
-  assert.match(r.bearerItems.problems.join('\n'),/POWER-TEST-FLARE is a signature_active, not a signature_passive/);
+  assert.match(r.bearerItems.problems.join('\n'),/The Cinder's signature ability is not in this world/);
+  assert.match(r.bearerItems.problems.join('\n'),/The Cinder's passive is a signature ability, not passive/);
   assert.deepEqual(tagged(C),[]);
   const rows=cinder.report().filter(r=>r.instanceId===ash.instanceId);
   assert.equal(rows.length,2);assert.ok(rows.every(r=>!r.repair));
