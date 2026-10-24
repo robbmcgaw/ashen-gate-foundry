@@ -8,9 +8,11 @@
  * FilePicker (source "forgevtt"), so none of the three exist here. They are done on the Forge's own Assets Library page
  * ("Manage on Forge…"). Nothing in this file pretends otherwise.
  *
- * Linking never touches Actors: an existing Actor changes only through Import → Update existing actors.
+ * Linking an existing Actor (0.61.0) changes its portrait (`img`) and its prototype token image
+ * (`prototypeToken.texture.src`) and nothing else; every other change to an Actor stays with Import → Update existing actors.
  */
 import {isPlaceholderIcon, managerAssignedIcon, iconFlagUpdate, ICON_FLAGS} from './smart-icons.js';
+import {fileWords, nameWords, matchLevel, MATCH_REASONS, MATCH_RANK} from './asset-names.js';
 
 export const FORGE_SOURCE = 'forgevtt';
 export const DATA_SOURCE = 'data';
@@ -19,8 +21,11 @@ export const MANAGE_ON_FORGE_URL = 'https://forge-vtt.com/assets';
 export const IMAGE_EXTENSIONS = /\.(webp|png|jpe?g|gif|avif|svg)$/i;
 /** When two files share an id, the first extension in this list is linked. */
 const EXTENSION_ORDER = ['webp', 'png', 'avif', 'jpg', 'jpeg', 'gif', 'svg'];
-/** Document kinds an id-named file can be linked to. Actors are deliberately absent. */
+/** Document kinds whose image is a plain `img` (changed together with Manager's icon flags). */
 export const LINKABLE_DOCUMENTS = Object.freeze(['Item', 'RollTable', 'Macro', 'JournalEntry']);
+/** Everything a file can be linked to. An Actor gets only its portrait and prototype token image. */
+export const LINKABLE_KINDS = Object.freeze([...LINKABLE_DOCUMENTS, 'Actor']);
+export const TOKEN_IMAGE_FIELD = 'prototypeToken.texture.src';
 export const UPLOAD_CONCURRENCY = 3;
 export const LINK_CHUNK = 50;
 export const SCAN_LIMITS = Object.freeze({maxDepth: 4, maxRequests: 200, concurrency: 3});
@@ -251,45 +256,130 @@ export function imageState({img, flags = {}, baselineImg}) {
 export const STATE_LABEL = {default: 'Default image', smart: 'Chosen by Manager', ours: 'Linked before', imported: 'Image from the import', edited: 'Set by you'};
 const AUTO_TICK = new Set(['default', 'smart', 'ours']);
 
+const isNpcActor = d => d.documentName === 'Actor' && d.type === 'npc';
+const kindWord = d => (d.documentName === 'RollTable' ? 'roll table' : d.documentName === 'JournalEntry' ? 'journal' : d.documentName.toLowerCase());
+
+/** An Actor whose token image differs from its portrait was set apart on purpose. */
+const tokenSetApart = doc => doc.documentName === 'Actor' && norm(doc.tokenImg) && !isPlaceholderIcon(doc.tokenImg) && !samePath(doc.tokenImg, doc.img);
+function stateFor(doc) {
+  const state = imageState(doc);
+  return AUTO_TICK.has(state) && tokenSetApart(doc) ? 'edited' : state;
+}
+function noteFor(doc, state) {
+  if (state === 'edited' && tokenSetApart(doc) && AUTO_TICK.has(imageState(doc))) return 'This token has its own image. Tick to replace the portrait and the token image.';
+  return state === 'edited' ? 'This image was set in Foundry. Tick to replace it.' : state === 'imported' ? 'This record came with its own image. Tick to replace it.' : '';
+}
+/** The fields of a row for one record and one file. */
+function rowFields(doc, file) {
+  const state = stateFor(doc);
+  return {uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name, fileName: file.name, from: doc.img ?? '',
+    fromToken: doc.documentName === 'Actor' ? (doc.tokenImg ?? '') : '', to: file.path, state, stateLabel: STATE_LABEL[state],
+    checked: AUTO_TICK.has(state), noteText: noteFor(doc, state)};
+}
+const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileName: '', from: '', fromToken: '', to: '', state: 'default', stateLabel: '', checked: false, noteText: ''});
+
 /**
- * The preview table. `docs` are plain {uuid, documentName, type, name, sourceId, img, flags, baselineImg} for the
- * world's Manager-imported documents. Returns {rows, actorsSkipped, unmatched}:
- *   rows            one per document with a matching file, ready to tick ({key, uuid, documentName, name, fileName,
- *                   from, to, state, stateLabel, checked, noteText, alsoFound});
- *   actorsSkipped   matching files for Actors, which this tab never changes;
- *   unmatched       ids with no file (counted, not listed).
+ * The preview table. `docs` are plain {uuid, documentName, type, name, sourceId, img, tokenImg, flags, baselineImg} for the
+ * world's Manager-imported documents (`tokenImg` only matters for Actors). Files are matched in this order:
+ *   1. a file named after a record's permanent id (exact, wins);
+ *   2. by name: the whole name, then first and last name, then a single first or last name (Actors only for the partial
+ *      ones; at least 3 letters and not a very common word). Words like portrait, token, final, sizes and numbers in the
+ *      file name are ignored, and so are titles (Mr, Dame, the) in the record name.
+ * A file that fits several records equally, or a record that fits several files equally, is never picked for you: its row
+ * is `needsPick` with `candidates` and starts unticked. Returns {rows, unmatched, unmatchedFiles}:
+ *   rows            {key, uuid, documentName, type, name, fileName, from, fromToken, to, state, stateLabel, checked,
+ *                   noteText, alsoFound, matchKind, reason, rank, needsPick, pickBy, candidates, chosen};
+ *   unmatched       records no file matched, by id or by name (counted, not listed);
+ *   unmatchedFiles  image files that fit no record.
  */
 export function planAssetLinks(docs, files) {
-  const linkable = docs.filter(d => d.sourceId && LINKABLE_DOCUMENTS.includes(d.documentName) && (d.documentName !== 'JournalEntry' || typeof d.img === 'string'));
-  const actors = docs.filter(d => d.sourceId && d.documentName === 'Actor');
-  const matches = matchFilesToIds(files, new Set(docs.filter(d => d.sourceId).map(d => d.sourceId)));
-  const rows = [];
+  const bound = docs.filter(d => d.sourceId);
+  const linkable = bound.filter(d => LINKABLE_KINDS.includes(d.documentName) && (d.documentName !== 'JournalEntry' || typeof d.img === 'string'));
+  const idMatches = matchFilesToIds(files, new Set(bound.map(d => d.sourceId)));
+  const idPaths = new Set([...idMatches.values()].flatMap(h => [h.file.path, ...h.others.map(o => o.path)]));
+  const rows = [], covered = new Set(), idDone = new Set();
+  const make = (fields, extra) => ({key: fields.uuid, alsoFound: [], needsPick: false, pickBy: '', candidates: [], chosen: '', ...fields, ...extra});
+
+  // 1. permanent-id files
   for (const doc of linkable) {
-    const hit = matches.get(String(doc.sourceId).toLowerCase());
+    const hit = idMatches.get(String(doc.sourceId).toLowerCase());
     if (!hit) continue;
-    const to = hit.file.path;
-    if (samePath(doc.img, to)) continue; // already linked: nothing to do
-    const state = imageState(doc);
-    rows.push({key: doc.uuid, uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name, fileName: hit.file.name,
-      from: doc.img ?? '', to, state, stateLabel: STATE_LABEL[state], checked: AUTO_TICK.has(state),
-      noteText: state === 'edited' ? 'This image was set in Foundry. Tick to replace it.' : state === 'imported' ? 'This record came with its own image. Tick to replace it.' : '',
-      alsoFound: hit.others.map(o => o.name)});
+    idDone.add(doc.uuid); covered.add(doc.uuid);
+    if (samePath(doc.img, hit.file.path)) continue; // already linked: nothing to do
+    rows.push(make(rowFields(doc, hit.file), {alsoFound: hit.others.map(o => o.name), matchKind: 'id', reason: MATCH_REASONS.id, rank: MATCH_RANK.id}));
   }
-  rows.sort((a, b) => a.documentName.localeCompare(b.documentName) || a.name.localeCompare(b.name));
-  const actorsSkipped = actors.filter(d => matches.has(String(d.sourceId).toLowerCase()) && !samePath(d.img, matches.get(String(d.sourceId).toLowerCase()).file.path)).map(d => ({name: d.name, fileName: matches.get(String(d.sourceId).toLowerCase()).file.name}));
-  const unmatched = linkable.filter(d => !matches.has(String(d.sourceId).toLowerCase())).length;
-  return {rows, actorsSkipped, unmatched};
+
+  // 2. name guesses for the files the id step did not use, and the records it did not fill
+  const recs = linkable.filter(d => !idDone.has(d.uuid)).map(d => ({doc: d, words: nameWords(d.name)})).filter(r => r.words.length);
+  const guessFiles = (files ?? []).filter(f => isImageName(f.name) && !idPaths.has(f.path)).map(f => ({file: f, words: fileWords(f.name)})).filter(f => f.words.length);
+  const byRecord = new Map(); // uuid → [{file, level}] from files that single out this record
+  for (const f of guessFiles) {
+    let best = 0, list = [];
+    for (const r of recs) {
+      if (samePath(r.doc.img, f.file.path)) { covered.add(r.doc.uuid); continue; }
+      const level = matchLevel(f.words, r.words, {partial: r.doc.documentName === 'Actor'});
+      if (!level) continue;
+      if (level.rank > best) { best = level.rank; list = [{rec: r, level}]; } else if (level.rank === best) list.push({rec: r, level});
+    }
+    if (!list.length) continue;
+    for (const c of list) covered.add(c.rec.doc.uuid);
+    if (list.length === 1) { (byRecord.get(list[0].rec.doc.uuid) ?? byRecord.set(list[0].rec.doc.uuid, []).get(list[0].rec.doc.uuid)).push({file: f.file, level: list[0].level, rec: list[0].rec}); continue; }
+    // a tie between records: ask
+    const candidates = list.map(c => ({value: c.rec.doc.uuid, label: `${c.rec.doc.name} (${kindWord(c.rec.doc)})`, fields: rowFields(c.rec.doc, f.file), level: c.level}))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    rows.push(make({...BLANK_FIELDS, name: f.file.name, fileName: f.file.name, to: ''}, {key: `file:${f.file.path}`, matchKind: list[0].level.kind, reason: 'More than one record fits this file. Pick the right one.',
+      rank: best, needsPick: true, pickBy: 'file', candidates, filePath: f.file.path}));
+  }
+  for (const [, edges] of byRecord) {
+    const top = Math.max(...edges.map(e => e.level.rank));
+    const best = edges.filter(e => e.level.rank === top);
+    const doc = best[0].rec.doc;
+    if (best.length === 1) {
+      rows.push(make(rowFields(doc, best[0].file), {matchKind: best[0].level.kind, reason: best[0].level.reason, rank: top}));
+    } else {
+      const candidates = best.map(e => ({value: e.file.path, label: e.file.name, fields: rowFields(doc, e.file), level: e.level})).sort((a, b) => a.label.localeCompare(b.label));
+      rows.push(make({...BLANK_FIELDS, uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name}, {key: doc.uuid, matchKind: best[0].level.kind,
+        reason: 'More than one file fits this record. Pick the right one.', rank: top, needsPick: true, pickBy: 'record', candidates}));
+    }
+  }
+  const order = r => [r.needsPick ? 1 : 0, -r.rank, isNpcActor(r) ? 0 : 1];
+  rows.sort((a, b) => { const x = order(a), y = order(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return a.name.localeCompare(b.name); });
+  const unmatched = linkable.filter(d => !covered.has(d.uuid)).length;
+  const used = new Set(rows.flatMap(r => [r.to, r.filePath, ...r.candidates.flatMap(c => [c.fields.to])]).filter(Boolean));
+  const imageFiles = (files ?? []).filter(f => isImageName(f.name));
+  return {rows, unmatched, unmatchedFiles: imageFiles.filter(f => !idPaths.has(f.path) && !used.has(f.path)).length};
+}
+
+/**
+ * Chooses a candidate on a `needsPick` row (a file for a record, or a record for a file). Choosing fills the row and ticks it
+ * the same way a normal row is ticked (so a record whose image the GM set stays unticked). An empty value clears the choice.
+ */
+export function resolvePick(row, value) {
+  if (!row?.needsPick) return row;
+  const pick = row.candidates.find(c => c.value === value);
+  if (!pick) {
+    const keep = row.pickBy === 'file' ? {name: row.name, fileName: row.fileName} : {uuid: row.uuid, documentName: row.documentName, type: row.type, name: row.name};
+    Object.assign(row, BLANK_FIELDS, keep, {chosen: ''});
+    if (row.pickBy === 'record') { row.fileName = ''; }
+    return row;
+  }
+  Object.assign(row, pick.fields, {chosen: value});
+  if (row.pickBy === 'file') row.name = pick.fields.name;
+  return row;
 }
 
 /**
  * Writes the ticked rows' images. deps: {user, moduleId, getDoc(uuid), updateMany(documentName, updates[]), onProgress, signal}.
- * A document whose image changed since the preview, that is gone, or that is not a linkable kind (an Actor) is skipped.
- * Only `img` and Manager's own icon flags are written; nothing else on the document. GM only, checked here.
+ * A document whose image changed since the preview, that is gone, or that is not a linkable kind is skipped; so is a record
+ * that an earlier ticked row already set. A row still waiting for a pick is not written.
+ * Item, table, macro and journal rows write `img` and Manager's own icon flags. An Actor row writes ONLY its portrait
+ * (`img`) and its prototype token image (`prototypeToken.texture.src`): no flags, no token ring, nothing else. GM only,
+ * checked here.
  */
 export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany, onProgress = () => {}, signal = null, chunk = LINK_CHUNK} = {}) {
   if (!isGM(user)) return {ok: false, message: GM_ONLY, applied: [], skipped: [], errors: []};
-  const applied = [], skipped = [], errors = [];
-  const todo = (rows ?? []).filter(r => r?.checked && r.to && r.uuid);
+  const applied = [], skipped = [], errors = [], seen = new Set();
+  const todo = (rows ?? []).filter(r => r?.checked && r.to && r.uuid && !(r.needsPick && !r.chosen));
   let cancelled = false;
   for (let start = 0; start < todo.length; start += chunk) {
     if (signal?.aborted) { cancelled = true; break; }
@@ -297,13 +387,21 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
     for (const row of todo.slice(start, start + chunk)) {
       const doc = getDoc(row.uuid);
       if (!doc) { skipped.push({name: row.name, why: 'no longer in the world'}); continue; }
-      if (!LINKABLE_DOCUMENTS.includes(doc.documentName)) { skipped.push({name: row.name, why: 'Actors are not changed here'}); continue; }
+      if (!LINKABLE_KINDS.includes(doc.documentName)) { skipped.push({name: row.name, why: 'this kind of record is not changed here'}); continue; }
+      if (seen.has(row.uuid)) { skipped.push({name: row.name, why: 'another ticked row already set it'}); continue; }
       if (!samePath(doc.img, row.from) && !(norm(doc.img) === '' && norm(row.from) === '')) { skipped.push({name: row.name, why: 'its image changed since the preview'}); continue; }
+      if (doc.documentName === 'Actor') {
+        const token = doc.prototypeToken?.texture?.src;
+        if (!samePath(token, row.fromToken) && !(norm(token) === '' && norm(row.fromToken) === '')) { skipped.push({name: row.name, why: 'its token image changed since the preview'}); continue; }
+      }
+      seen.add(row.uuid);
       (batch[doc.documentName] ??= []).push({row, doc});
     }
     for (const [documentName, list] of Object.entries(batch)) {
       try {
-        await updateMany(documentName, list.map(({row, doc}) => ({_id: doc.id, img: row.to, ...iconFlagUpdate(moduleId, {img: row.to, source: 'authored'})})));
+        await updateMany(documentName, list.map(({row, doc}) => documentName === 'Actor'
+          ? {_id: doc.id, img: row.to, [TOKEN_IMAGE_FIELD]: row.to}
+          : {_id: doc.id, img: row.to, ...iconFlagUpdate(moduleId, {img: row.to, source: 'authored'})}));
         for (const {row} of list) applied.push({name: row.name, from: row.from, to: row.to});
       } catch (error) {
         errors.push({documentName, message: String(error?.message ?? error)});
@@ -342,7 +440,7 @@ export function missingArtRows(docs, {kind = 'all', state = 'all', query = '', f
     if (words.length && !words.every(w => `${doc.name} ${doc.type ?? ''}`.toLowerCase().includes(w))) continue;
     rows.push({uuid: doc.uuid, documentName: doc.documentName, name: doc.name, type: doc.type ?? '', state: s,
       stateLabel: s === 'none' ? 'No image' : 'Generic image', fileName: `${doc.sourceId}.webp`,
-      fileWaiting: Boolean(foundNames?.has(String(doc.sourceId).toLowerCase())), linkable: LINKABLE_DOCUMENTS.includes(doc.documentName)});
+      fileWaiting: Boolean(foundNames?.has(String(doc.sourceId).toLowerCase())), linkable: LINKABLE_KINDS.includes(doc.documentName)});
   }
   return rows.sort((a, b) => a.documentName.localeCompare(b.documentName) || a.name.localeCompare(b.name));
 }

@@ -203,7 +203,7 @@ test('imageState tells a default, a Manager pick, an earlier link, the import im
 const doc = (documentName, sourceId, name, img, extra = {}) => ({uuid: `${documentName}.${sourceId}`, documentName, type: 'loot', name, sourceId, img, flags: {}, ...extra});
 const FILES = ['MAT-TEST-A', 'MAT-TEST-B', 'MAT-TEST-C', 'MAT-TEST-D', 'NPC-TEST-OREN', 'TBL-TEST-X', 'JRN-TEST-Y', 'MAT-TEST-SAME'].map(id => ({name: `${id}.webp`, path: `https://assets.test/u1/assets/${id}.webp`}));
 
-test('planAssetLinks previews file → record, ticks only default/placeholder rows, and never lists Actors as links', () => {
+test('planAssetLinks previews file → record, ticks only default/placeholder rows, and lists an Actor as a link row', () => {
   const docs = [
     doc('Item', 'MAT-TEST-A', '[TEST] Default', 'icons/svg/item-bag.svg'),
     doc('Item', 'MAT-TEST-B', '[TEST] Edited', 'worlds/w/mine.webp', {baselineImg: 'icons/svg/item-bag.svg'}),
@@ -217,7 +217,8 @@ test('planAssetLinks previews file → record, ticks only default/placeholder ro
   ];
   const plan = planAssetLinks(docs, FILES);
   const by = Object.fromEntries(plan.rows.map(r => [r.uuid.split('.')[1], r]));
-  assert.deepEqual(Object.keys(by).sort(), ['MAT-TEST-A', 'MAT-TEST-B', 'MAT-TEST-C', 'MAT-TEST-D', 'TBL-TEST-X']);
+  assert.deepEqual(Object.keys(by).sort(), ['MAT-TEST-A', 'MAT-TEST-B', 'MAT-TEST-C', 'MAT-TEST-D', 'NPC-TEST-OREN', 'TBL-TEST-X']);
+  assert.equal(by['NPC-TEST-OREN'].checked, true);
   assert.equal(by['MAT-TEST-A'].checked, true);
   assert.equal(by['MAT-TEST-D'].checked, true);
   assert.equal(by['TBL-TEST-X'].checked, true);
@@ -226,7 +227,6 @@ test('planAssetLinks previews file → record, ticks only default/placeholder ro
   assert.equal(by['MAT-TEST-A'].from, 'icons/svg/item-bag.svg');
   assert.equal(by['MAT-TEST-A'].to, 'https://assets.test/u1/assets/MAT-TEST-A.webp');
   assert.equal(by['MAT-TEST-A'].fileName, 'MAT-TEST-A.webp');
-  assert.deepEqual(plan.actorsSkipped, [{name: '[TEST] Oren', fileName: 'NPC-TEST-OREN.webp'}]);
   assert.equal(plan.unmatched, 1);
 });
 
@@ -281,15 +281,6 @@ test('a record whose image changed since the preview, or is gone, is skipped', a
   assert.equal(w.written.length, 0);
 });
 
-test('applyAssetLinks never changes an Actor, even if a row for one is handed to it', async () => {
-  const actor = doc('Actor', 'NPC-TEST-OREN', '[TEST] Oren', '');
-  const w = worldFor([actor]);
-  const out = await applyAssetLinks([{uuid: actor.uuid, name: actor.name, from: '', to: 'x.webp', checked: true}], {user: GM, moduleId: M, getDoc: w.getDoc, updateMany: w.updateMany});
-  assert.equal(out.applied.length, 0);
-  assert.equal(w.written.length, 0);
-  assert.match(out.skipped[0].why, /Actors/);
-});
-
 test('applyAssetLinks is GM only: a player changes nothing', async () => {
   const docs = [doc('Item', 'MAT-TEST-A', '[TEST] A', '')];
   const plan = planAssetLinks(docs, FILES);
@@ -322,7 +313,7 @@ test('missingArtRows lists records with no or a generic image, filters, and show
   const all = missingArtRows(docs);
   assert.deepEqual(all.map(r => r.name), ['[TEST] Oren', '[TEST] Iron Nails', '[TEST] Table']);
   assert.equal(all.find(r => r.name === '[TEST] Oren').fileName, 'NPC-TEST-OREN.webp');
-  assert.equal(all.find(r => r.name === '[TEST] Oren').linkable, false);
+  assert.equal(all.find(r => r.name === '[TEST] Oren').linkable, true);
   assert.deepEqual(missingArtRows(docs, {kind: 'Item'}).map(r => r.name), ['[TEST] Iron Nails']);
   assert.deepEqual(missingArtRows(docs, {state: 'none'}).map(r => r.name), ['[TEST] Iron Nails']);
   assert.deepEqual(missingArtRows(docs, {state: 'generic'}).map(r => r.name), ['[TEST] Oren', '[TEST] Table']);

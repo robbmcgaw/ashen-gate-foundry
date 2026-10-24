@@ -406,7 +406,7 @@
           {{#if assets.multiSource}}<label class="ag-field--inline">Source <select data-ag-assets-source {{#if assets.uploading}}disabled{{/if}}>{{#each assets.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-refresh {{#if assets.uploading}}disabled{{/if}}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
         </div></div>
-      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Name a file after a record's permanent id plus the file extension and the link section below can set that record's image.</p>
+      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Drop several images on the bar below: after they are added, Manager looks for records they fit (a file named after a record's permanent id, or a name such as Oren_Vale.webp) and shows a preview in Link files to records. Nothing is changed until you press Link.</p>
       <nav class="agassets-crumbs" aria-label="Folder path">
         {{#each assets.crumbs}}{{#if current}}<span class="agassets-crumb" aria-current="page"><strong>{{label}}</strong></span>{{else}}<button type="button" class="ag-link" data-ag-assets-open="{{target}}">{{label}}</button><span aria-hidden="true"> / </span>{{/if}}{{/each}}
       </nav>
@@ -450,24 +450,26 @@
       {{/if}}
     </section>
 
-    <details class="ag-fold" data-ag-fold-key="assets-link">
-      <summary class="ag-fold__summary"><span class="ag-fold__title">Link files to records</span><span class="ag-fold__hint">Set a record's image from the file named after it</span></summary>
+    <details class="ag-fold" data-ag-fold-key="assets-link" {{#if assets.hasLinks}}open{{/if}}>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Link files to records</span><span class="ag-fold__hint">Set a record's image from a file that fits it</span></summary>
       <div class="ag-fold__body">
-        <p class="agmanager-tiny">Looks in the folder you are viewing and the folders under it for files named after a record's permanent id, then shows what would change. Nothing is written until you press Link. Images you set in Foundry are left alone unless you tick them. Actors are not changed here: an existing Actor's image follows Import with Update existing actors.</p>
+        <p class="agmanager-tiny">Looks in the folder you are viewing and the folders under it (and runs by itself on files you have just added), then shows what would change. A file named exactly after a record's permanent id comes first. After that Manager guesses by name: the whole name, then first and last name, then just a first or last name for Actors. Words like portrait, token, final and sizes are ignored. A file that fits two records, or a record that fits two files, is never chosen for you: pick from the list. Nothing is written until you press Link. Images you set in Foundry start unticked. For an existing Actor only the portrait and the token image change, and there is no undo, so the old images are listed here.</p>
         <div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="assets-scan" {{#if assets.scanning}}disabled{{/if}}{{#unless assets.ok}} disabled{{/unless}}><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find matching files</button></div>
         <p class="agmanager-tiny" role="status">{{assets.linkMessage}}</p>
         {{#if assets.hasLinks}}
         {{#if assets.scanSummary}}<p class="agmanager-tiny">{{assets.scanSummary}}</p>{{/if}}
-        {{#if assets.hasActorsSkipped}}<p class="agmanager-tiny">Not changed here (Actors): {{#each assets.actorsSkipped}}{{name}} ({{fileName}}){{#unless @last}}, {{/unless}}{{/each}}.</p>{{/if}}
         {{#if assets.linkRows.length}}
         <div class="ag-cluster"><span class="ag-badge">Can be linked: {{assets.linkCount}}</span><span class="ag-badge">Ticked: <span data-ag-assets-ticked>{{assets.linkTicked}}</span></span></div>
-        <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Link</th><th scope="col">Record</th><th scope="col">File</th><th scope="col">Image now</th><th scope="col">New image</th></tr></thead><tbody>
+        <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Link</th><th scope="col">Record</th><th scope="col">File</th><th scope="col">Why it fits</th><th scope="col">Image now</th><th scope="col">New image</th></tr></thead><tbody>
         {{#each assets.linkRows}}<tr>
-          <td><input type="checkbox" data-ag-assets-tick="{{uuid}}" {{#if checked}}checked{{/if}} aria-label="Link {{fileName}} to {{name}}"></td>
-          <td><strong>{{name}}</strong><div class="agmanager-tiny">{{kindLabel}}</div></td>
-          <td><span class="agm-icon__path">{{fileName}}</span>{{#if alsoFound.length}}<div class="agmanager-tiny">Other files with this name: {{#each alsoFound}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}</td>
-          <td><div class="agm-icon">{{#if fromUrl}}<img class="agm-icon__thumb" src="{{fromUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}<div class="agm-icon__text"><span class="ag-badge ag-badge--{{stateTone}}">{{stateLabel}}</span>{{#if noteText}}<div class="agmanager-tiny">{{noteText}}</div>{{/if}}</div></div></td>
-          <td><div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="agm-icon__path">{{fileName}}</span></div></div></td>
+          <td><input type="checkbox" data-ag-assets-tick="{{key}}" {{#if checked}}checked{{/if}} {{#unless canTick}}disabled{{/unless}} aria-label="Link {{#if fileName}}{{fileName}}{{else}}the file{{/if}} to {{name}}"></td>
+          <td>{{#if pickByFile}}<label class="ag-field--inline">Record <select data-ag-assets-pick="{{key}}" aria-label="Which record is {{fileName}} for?"><option value="">Pick a record…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+            {{else}}<strong>{{name}}</strong><div class="agmanager-tiny">{{kindLabel}}</div>{{/if}}</td>
+          <td>{{#if pickByRecord}}<label class="ag-field--inline">File <select data-ag-assets-pick="{{key}}" aria-label="Which file is for {{name}}?"><option value="">Pick a file…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+            {{else}}<span class="agm-icon__path">{{fileName}}</span>{{/if}}{{#if alsoFound.length}}<div class="agmanager-tiny">Other files with this name: {{#each alsoFound}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}</td>
+          <td><span class="agmanager-tiny">{{reason}}</span></td>
+          <td>{{#if to}}<div class="agm-icon">{{#if fromUrl}}<img class="agm-icon__thumb" src="{{fromUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}<div class="agm-icon__text"><span class="ag-badge ag-badge--{{stateTone}}">{{stateLabel}}</span>{{#if from}}<div class="agmanager-tiny agm-icon__path">{{from}}</div>{{/if}}{{#if hasFromToken}}<div class="agmanager-tiny">Token: <span class="agm-icon__path">{{fromToken}}</span></div>{{/if}}{{#if noteText}}<div class="agmanager-tiny">{{noteText}}</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
+          <td>{{#if to}}<div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="agm-icon__path">{{fileName}}</span>{{#if isActor}}<div class="agmanager-tiny">Portrait and token image</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
         </tr>{{/each}}
         </tbody></table></div>
         {{#if assets.linkOverflow}}<p class="agmanager-tiny">Showing the first 300 of {{assets.linkCount}}. Open a deeper folder to link the rest.</p>{{/if}}
@@ -483,7 +485,7 @@
     <details class="ag-fold" data-ag-fold-key="assets-missing" open>
       <summary class="ag-fold__summary"><span class="ag-fold__title">Missing art</span><span class="ag-fold__count">{{assets.missingCount}}</span><span class="ag-fold__hint">Records with no image or a generic one</span></summary>
       <div class="ag-fold__body">
-        <p class="agmanager-tiny">Manager-imported records that still show no image or a placeholder. The file name is what to call the image so the link section finds it.{{#unless assets.missingScanned}} Run Find matching files to see which already have a file waiting.{{/unless}}</p>
+        <p class="agmanager-tiny">Manager-imported records that still show no image or a placeholder. The file name is what to call the image so the link section finds it (a file named after the record's name is also found).{{#unless assets.missingScanned}} Run Find matching files to see which already have a file waiting.{{/unless}}</p>
         <div class="ag-toolbar" role="search" aria-label="Missing art filters">
           <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-assets-missing="query" value="{{assets.missingQuery}}" placeholder="Search records" aria-label="Search records needing art" /></label>
           <div class="ag-toolbar__filters">
@@ -497,7 +499,7 @@
           <td><strong>{{name}}</strong></td>
           <td>{{kindLabel}}</td>
           <td><span class="ag-badge ag-badge--{{tone}}">{{stateLabel}}</span></td>
-          <td><span class="agm-icon__path">{{fileName}}</span>{{#if fileWaiting}} <span class="ag-badge ag-badge--ok">File found</span>{{/if}}{{#unless linkable}}<div class="agmanager-tiny">Set through Import (Update existing actors)</div>{{/unless}}</td>
+          <td><span class="agm-icon__path">{{fileName}}</span>{{#if fileWaiting}} <span class="ag-badge ag-badge--ok">File found</span>{{/if}}</td>
         </tr>{{/each}}
         </tbody></table></div>
         {{#if assets.missingOverflow}}<p class="agmanager-tiny">Showing the first 300 of {{assets.missingCount}}. Narrow the filters to see the rest.</p>{{/if}}

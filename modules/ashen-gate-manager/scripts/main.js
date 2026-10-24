@@ -67,7 +67,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
-import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
+import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -324,7 +324,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
     this.assets = {source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
-      scan:null, links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
+      scan:null, linkFiles:[], links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -1742,6 +1742,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return allBoundDocuments().filter(doc=>!doc.getFlag(MODULE_ID,'lifecycle')?.archived).map(doc=>{
       const source=sourceFlag(doc);
       return {uuid:doc.uuid,documentName:doc.documentName,type:doc.type,name:doc.name,sourceId:source.sourceId,img:doc.img,
+        tokenImg:doc.documentName==='Actor'?(doc.prototypeToken?.texture?.src??''):undefined,
         flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img};
     });
   }
@@ -1776,8 +1777,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const onForge=sources.some(s=>s.id==='forgevtt');
     const links=a.links;
     const kindOf=name=>capitalize(name==='RollTable'?'roll table':name==='JournalEntry'?'journal':name);
-    const linkRows=(links?.rows??[]).slice(0,300).map(r=>({...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:this.#assetUrl(r.to),
-      kindLabel:kindOf(r.documentName),stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn'}));
+    const linkRows=(links?.rows??[]).slice(0,300).map(r=>({...r,fromUrl:r.from?this.#assetUrl(r.from):'',toUrl:r.to?this.#assetUrl(r.to):'',
+      kindLabel:r.documentName?kindOf(r.documentName):'',stateTone:['default','smart','ours'].includes(r.state)?'ok':'warn',
+      pickByFile:r.needsPick&&r.pickBy==='file',pickByRecord:r.needsPick&&r.pickBy==='record',canTick:!r.needsPick||Boolean(r.chosen),
+      hasFromToken:Boolean(r.fromToken)&&r.documentName==='Actor',fromTokenUrl:r.fromToken?this.#assetUrl(r.fromToken):'',isActor:r.documentName==='Actor',
+      options:(r.candidates??[]).map(c=>({value:c.value,label:c.label,selected:c.value===r.chosen}))}));
     const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
     const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
     const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
@@ -1792,13 +1796,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       uploadMessage:a.uploadMessage,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
       scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,
-      linkTicked:(links?.rows??[]).filter(r=>r.checked).length,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
-      actorsSkipped:links?.actorsSkipped??[],hasActorsSkipped:Boolean(links?.actorsSkipped?.length),
-      scanSummary:links?`Looked through ${links.folders} folder(s) and ${a.scan.files.length} image file(s)${a.scan.complete?'':' (the scan stopped early; open a deeper folder to narrow it)'}. ${links.unmatched} record(s) have no file of their name.`:'',
+      linkTicked:(links?.rows??[]).filter(r=>r.checked&&r.to).length,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
+      scanSummary:!links?'':links.fromUpload?`Checked the ${a.linkFiles.length} file(s) you just added. ${links.unmatchedFiles} of them fit no record.`
+        :`Looked through ${links.folders} folder(s) and ${a.linkFiles.length} image file(s)${a.scan?.complete===false?' (the scan stopped early; open a deeper folder to narrow it)':''}. ${links.unmatched} record(s) have no file that fits and ${links.unmatchedFiles} file(s) fit no record.`,
       missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
       missingRows:missingShown,missingCount:missing.length,missingOverflow:Math.max(0,missing.length-missingShown.length),
       missingScanned:Boolean(foundNames),message:a.message
     };
+  }
+  #linkSummary(rows) {
+    const asks=rows.filter(r=>r.needsPick).length, ready=rows.length-asks;
+    return `${ready} record(s) can take a file${asks?`, and ${asks} need${asks===1?'s':''} your pick`:''}. Nothing has changed yet.`;
   }
   async #assetsAction(name) {
     if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
@@ -1811,35 +1819,36 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(typed===null)break;
         const out=await createFolder(picker,{source,parent:a.target,name:typed,user:game.user});
         say(out.message,!out.ok);
-        if(out.ok){a.listing=null;a.scan=null;a.links=null;}
+        if(out.ok){a.listing=null;a.scan=null;a.linkFiles=[];a.links=null;}
         break;
       }
       case 'assets-scan': {
         a.scanning=true;a.linkMessage='Looking for files named after records…';await this.render();
         try{
           const scan=await scanFolders(picker,{source,target:a.target,user:game.user});
-          a.scan=scan;
+          a.scan=scan;a.linkFiles=scan.files;
           const plan=planAssetLinks(this.#assetDocs(),scan.files);
           a.links={...plan,folders:scan.folders};
-          a.linkMessage=plan.rows.length?`${plan.rows.length} record(s) can take a file of their name. Nothing has changed yet.`
-            :scan.ok?'No file in this folder (or under it) is named after a record that needs it. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
+          a.linkMessage=plan.rows.length?this.#linkSummary(plan.rows)
+            :scan.ok?'No file in this folder (or under it) fits a record by its permanent id or by name. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
         }finally{a.scanning=false;}
         break;
       }
-      case 'assets-link-cancel': a.links=null;a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
+      case 'assets-link-cancel': a.links=null;a.linkFiles=[];a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
       case 'assets-link-apply': {
-        const rows=(a.links?.rows??[]).filter(r=>r.checked);
+        const rows=(a.links?.rows??[]).filter(r=>r.checked&&r.to);
         if(!rows.length)return say('Tick at least one record first.',true);
+        const actorRows=rows.filter(r=>r.documentName==='Actor').length;
         const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
-        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file named after each?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
+        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file named after each?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
           {title:'Link images to records?',yes:`Link ${rows.length} image(s)`});
         if(!yes)return;
         const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
-        const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry})[documentName].updateDocuments(updates);
+        const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry,Actor:globalThis.Actor})[documentName].updateDocuments(updates);
         this.busy=true;
         try{
           const out=await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
-          a.links={...planAssetLinks(this.#assetDocs(),a.scan?.files??[]),folders:a.links.folders};
+          a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
           a.linkMessage=out.message;say(out.message,!out.ok);
         }finally{this.busy=false;}
         break;
@@ -1865,6 +1874,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const status=this.element?.querySelector('[data-ag-assets-upload-status]');if(status)status.textContent=`Finished ${done} of ${total}…`;
       const bar=this.element?.querySelector('[data-ag-assets-upload-bar]');if(bar)bar.value=total?done/total:1;
     };
+    let added=[];
     try{
       const out=await uploadFiles(files,{picker:filePickerClass(),source,target,user:game.user,existing:(a.listing?.files??[]).map(f=>f.name),decide,onProgress,signal:a.abort.signal});
       a.uploads=out.results;
@@ -1872,7 +1882,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       a.uploadMessage=out.cancelled&&!out.results.some(r=>['uploaded','replaced'].includes(r.status))?'Nothing was uploaded.'
         :`${count('uploaded')} uploaded, ${count('replaced')} replaced, ${count('skipped')} skipped, ${count('failed')+count('rejected')} not uploaded${count('not started')?`, ${count('not started')} not started`:''}.`;
       toast(a.uploadMessage,!out.ok&&!out.cancelled);
-    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkMessage='';}
+      added=out.results.filter(r=>['uploaded','replaced'].includes(r.status)&&r.path).map(r=>({name:r.name,path:r.path}));
+    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkFiles=[];a.linkMessage='';}
+    if(added.length){
+      // Look for records the new files fit (permanent id first, then name). Only a preview: nothing is written until Link.
+      const plan=planAssetLinks(this.#assetDocs(),added);
+      a.linkFiles=added;a.links={...plan,folders:0,fromUpload:true};
+      a.linkMessage=plan.rows.length?`${this.#linkSummary(plan.rows)} See Link files to records below.`:'None of the files you just added fit a record by its permanent id or by name. Nothing changed.';
+    }
     await this.render();
   }
   async #copyAssetPath(path) {
@@ -1884,7 +1901,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!pane)return;
     pane.querySelector('[data-ag-assets-source]')?.addEventListener('change',event=>{
       if(a.uploading)return;
-      a.source=event.target.value;a.target='';a.listing=null;a.query='';a.scan=null;a.links=null;a.linkMessage='';
+      a.source=event.target.value;a.target='';a.listing=null;a.query='';a.scan=null;a.linkFiles=[];a.links=null;a.linkMessage='';
       this.focusAfterRender='[data-ag-assets-source]';void this.render();
     });
     pane.querySelectorAll('[data-ag-assets-open]').forEach(el=>el.addEventListener('click',event=>{
@@ -1919,10 +1936,15 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
     pane.querySelectorAll('[data-ag-assets-tick]').forEach(el=>el.addEventListener('change',event=>{
-      const row=a.links?.rows.find(r=>r.uuid===el.dataset.agAssetsTick);if(row)row.checked=event.target.checked;
-      const n=(a.links?.rows??[]).filter(r=>r.checked).length;
+      const row=a.links?.rows.find(r=>r.key===el.dataset.agAssetsTick);if(row)row.checked=event.target.checked;
+      const n=(a.links?.rows??[]).filter(r=>r.checked&&r.to).length;
       pane.querySelectorAll('[data-ag-assets-ticked]').forEach(x=>{x.textContent=String(n);});
       pane.querySelectorAll('[data-ag-assets-needs-ticks]').forEach(x=>{x.disabled=!n;});
+    }));
+    pane.querySelectorAll('[data-ag-assets-pick]').forEach(el=>el.addEventListener('change',event=>{
+      const row=a.links?.rows.find(r=>r.key===el.dataset.agAssetsPick);if(!row)return;
+      resolvePick(row,event.target.value);
+      this.focusAfterRender=`[data-ag-assets-pick="${CSS.escape(row.key)}"]`;void this.render();
     }));
     pane.querySelectorAll('[data-ag-assets-missing]').forEach(el=>{
       const set=()=>{const key=el.dataset.agAssetsMissing;if(a.missing[key]===el.value)return;a.missing[key]=el.value;this.focusAfterRender=`[data-ag-assets-missing="${key}"]`;void this.render();};
