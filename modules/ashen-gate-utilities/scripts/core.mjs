@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.28.2';
+export const VERSION = '0.28.3';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -221,6 +221,11 @@ export function statusEntries(registry) {
   }
   return out;
 }
+/** 0.28.3: the name of the effect on `actor` that carries `statusId`, else the id itself. */
+export const unknownStatusLabel = (actor, statusId) => {
+  const e = [...(actor?.effects ?? [])].find(x => (x?.statuses instanceof Set ? x.statuses.has(statusId) : Array.isArray(x?.statuses) && x.statuses.includes(statusId)) && typeof x.name === 'string' && x.name);
+  return e ? e.name : statusId;
+};
 /** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
 export const STATUS_ALIASES = Object.freeze({blind: 'blinded', charm: 'charmed', deaf: 'deafened', fear: 'frightened', grapple: 'grappled', incapacitate: 'incapacitated', paralysis: 'paralyzed', petrify: 'petrified', poison: 'poisoned', restrain: 'restrained', stun: 'stunned', sleep: 'sleeping', fly: 'flying', burrow: 'burrowing', hover: 'hovering'});
 /** `id` when it is native, else its alias when that is native, else `id` unchanged (and refused as unknown later). */
@@ -300,7 +305,7 @@ export const clampOverlayOpacity = v => { const n = Math.round(Number(v)); retur
 export const overlayBackground = (v, surface = '#17191d') => `color-mix(in srgb, var(--ag-surface, ${surface}) ${clampOverlayOpacity(v)}%, transparent)`;
 /** Overlay model: one group per character that has a condition, in the given order. */
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
-  return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
+  return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id, actor), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
     .filter(g => g.conditions.length);
 }
 
