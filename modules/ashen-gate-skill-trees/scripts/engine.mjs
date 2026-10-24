@@ -583,8 +583,8 @@ export function planLedgerImport(tree,rawAccount,perkIds,sheetPerkIds=[]) {
   return [...new Set(asArray(perkIds))].map(perkId=>{
     const n=tree.nodes.find(x=>x.perkId===perkId);
     if(!n)return {perkId,nodeId:null,action:'unmapped',reason:'No node on this tree has this perk; left as it is.'};
-    if(a.unlocks.includes(n.id))return {perkId,nodeId:n.id,name:n.name||perkId,action:'skip',reason:'Already allocated.'};
-    return {perkId,nodeId:n.id,name:n.name||perkId,action:sheet.has(perkId)?'adopt':'add',
+    if(a.unlocks.includes(n.id))return {perkId,nodeId:n.id,name:n.name||'Unnamed perk',action:'skip',reason:'Already allocated.'};
+    return {perkId,nodeId:n.id,name:n.name||'Unnamed perk',action:sheet.has(perkId)?'adopt':'add',
       reason:sheet.has(perkId)?'Allocate; the perk Item already on the sheet is linked to the node.':'Allocate and add the perk Item.'};
   });
 }

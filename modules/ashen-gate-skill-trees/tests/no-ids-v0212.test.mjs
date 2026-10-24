@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {assertNoIds,findId} from '../../../scripts/test-helpers/no-ids.mjs';
+import {assertNoIds,assertNoMachineText,findId} from '../../../scripts/test-helpers/no-ids.mjs';
 // 0.21.2: canonical ids (PERK-*, PROF-*, NODE-*, TREE-* ...) are never shown. Mocked Foundry: proves the view data, embed HTML,
 // messages and template, not the live window.
 class FakeApplication {static DEFAULT_OPTIONS={};constructor(o){this.options=o;}render(){return this;}async _prepareContext(){return {};}async _onRender(){}}
@@ -30,13 +30,13 @@ oneTime.get('init')();oneTime.get('ready')();
 const api=game.modules.get(MOD).api;
 
 /** Every string the template can print, minus the keys the template only uses for data-* wiring or the GM Details fold. */
-const WIRING=new Set(['id','uuid','value','treeId','nodeId','actorId','key','group','sourceRef','profId','from','to','selectedId','bindingNote','requiresAll','requiresAny','excludes','perkId','perkUuid','sourceId','style','marker','head']);
+const WIRING=new Set(['id','uuid','value','treeId','nodeId','actorId','key','group','sourceRef','profId','issue','code','kind','from','to','selectedId','bindingNote','requiresAll','requiresAny','excludes','perkId','perkUuid','sourceId','style','marker','head']);
 const strings=(v,path='',out=[])=>{
   if(typeof v==='string')out.push([path,v]);
   else if(Array.isArray(v))v.forEach((x,i)=>strings(x,`${path}[${i}]`,out));
   else if(v&&typeof v==='object')for(const [k,x] of Object.entries(v))if(!WIRING.has(k))strings(x,`${path}.${k}`,out);
   return out;};
-const assertContextClean=(ctx,where)=>{for(const [p,s] of strings(ctx))assertNoIds(s,`${where} ${p}`);};
+const assertContextClean=(ctx,where)=>{for(const [p,s] of strings(ctx))assertNoMachineText(s,`${where} ${p}`);};
 
 test('player and GM view data never carries an id in a printed field',async()=>{
   for(const [user,tab] of [[owner,'trees'],[gm,'trees'],[gm,'library'],[gm,'setup']]){
@@ -75,11 +75,20 @@ test('embed (player and GM) and messages name perks, never ids',async()=>{
     const el={innerHTML:'',isConnected:true,classList:{add(){},remove(){}},addEventListener(){},contains:()=>true};
     const view=api.embed.mount(el,{actorId:'hero',mode:'character'});
     assert.match(el.innerHTML,/Perk P1/);
-    assertNoIds(el.innerHTML,`${user.name} embed`);view.unmount();
+    assertNoMachineText(el.innerHTML,`${user.name} embed`);view.unmount();
   }
   game.user=gm;
-  await assert.rejects(()=>api.unlock(hero,'TREE-TP-PROF','NODE-P3'),e=>{assertNoIds(e.message,'unlock error');return /not in this world/.test(e.message);});
+  await assert.rejects(()=>api.unlock(hero,'TREE-TP-PROF','NODE-P3'),e=>{assertNoMachineText(e.message,'unlock error');return /not in this world/.test(e.message);});
   const check=await api.canUnlock?.(hero,'TREE-TP-PROF','NODE-P3');
-  if(check)assertNoIds(check.reason??'','unlock reason');
+  if(check)assertNoMachineText(check.reason??'','unlock reason');
   assert.equal(findId('<button aria-label="Open Herbalism">Open</button>'),null);
+});
+
+test('Ledger import rows and import plan rows carry plain words only',async()=>{
+  const {planLedgerImport,planTreeImport}=await import('../scripts/engine.mjs');
+  const t={...prof,nodes:[node('P1','PERK-TP-P1',{name:''}),node('P2','PERK-TP-P2')]};
+  for(const r of planLedgerImport(t,{unlocks:[],history:[]},['PERK-TP-P1','PERK-TP-P2','PERK-TP-NONE'],new Set(['PERK-TP-P2']))){
+    assertNoMachineText(`${r.name??''} ${r.reason}`,'Ledger import row');
+  }
+  for(const r of planTreeImport({schema:'ag-skill-trees/0.3',trees:[prof]},[prof],{mode:'update'}).rows)assertNoMachineText(`${r.name} ${r.reason}`,'import plan row');
 });

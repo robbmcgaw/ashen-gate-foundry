@@ -757,7 +757,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ledgerMissing:profession&&!ledgerProgression(),
       roster:raw&&profession?this._roster(t):[],
       history:raw&&profession&&actor?[...acc.history].reverse().slice(0,12).map(h=>({...h,when:new Date(h.at||0).toLocaleString(),
-        node:t.nodes.find(n=>n.id===h.nodeId)?.name??(h.nodeIds?plural(h.nodeIds.length,'perk'):''),label:HISTORY_LABELS[h.kind]??h.kind,
+        node:t.nodes.find(n=>n.id===h.nodeId)?.name??(h.nodeIds?plural(h.nodeIds.length,'perk'):''),label:HISTORY_LABELS[h.kind]??'Change',
         canUndo:Boolean(h.id)&&!h.undone&&['allocate','override','remove','keep'].includes(h.kind)})):[],
       professionReport:gm&&!preview&&this.activeTab==='library'?professionReconcile().filter(r=>r.issues.length):[],
       actorName:actor?.name??'',

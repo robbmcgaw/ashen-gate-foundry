@@ -2,6 +2,7 @@
 
 - Canonical ids (PERK-…, PROF-…, node and tree ids) no longer show in the window. The perk shelf lists names and status words, the Create tree and Assign perk dialogs, the Edit node dialog, the Saved data check, the Profession perk check, the Ledger import table and every error or reason message name the perk or tree instead.
 - The GM's selected-perk panel (Skill Trees tab, Edit layout) keeps the id in a "Details" fold with a Copy id button. Searching the perk shelf by id still works.
+- Machine words are hidden too: a perk missing from the world reads "Unnamed perk" (the Ledger import table, canvas, embed and unlock reasons), and an unknown history entry reads "Change". Status, visibility, display and provider values were already shown as words.
 - Saved data: no change; no migration. Import and validation messages for tree files still quote ids (GM file authoring).
 
 ## 0.21.1 — 2026-10-23
