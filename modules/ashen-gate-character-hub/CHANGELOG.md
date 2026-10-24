@@ -1,3 +1,7 @@
+## 0.44.4 — 2026-10-24
+
+Ashen Gate ids no longer show in the Hub. Where a partner module gave a profession, skill tree or perk no name, the Hub used to fall back to its id (PROF-, tree or perk ids) in the Professions and Skill Trees tabs and the Overview's Professions box; it now shows a neutral word ("Profession", "Skill tree", "a perk"). Nothing else in the Hub displayed ids. Saved data, flags and APIs are untouched. (Mocked tests; please check the Professions and Skill Trees tabs in Forge.)
+
 ## 0.44.3 — 2026-10-24
 
 Fix: with the Hub popped out into its own browser window, item, spell and feature sheets (and the Configure… and token-art windows) opened in the main Foundry window, out of sight, so editing seemed impossible. They now open in the Hub's own window, as dnd5e's native sheet does with its child windows. Not popped out, nothing changes. Saved data is untouched. (Mocked tests; please check with a popped-out Hub in Forge.)

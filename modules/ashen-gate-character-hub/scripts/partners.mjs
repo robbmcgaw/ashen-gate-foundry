@@ -85,12 +85,12 @@ function professions(actor, api) {
   const ids = knownRecipeIds(actor, api);
   const counts = typeof api.recipeLabel === 'function' && ids ? recipeCounts(actor, ids) : null;
   if (typeof api.getProfessions === 'function') {
-    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(p.name || p.professionId)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}${recipeCountHtml(api, p.professionId, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
+    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(p.name || 'Profession')}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}${recipeCountHtml(api, p.professionId, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
     return list(rows, 'No professions yet.') + knownRecipes(actor, api, ids);
   }
   const trees = partnerApi('ashen-gate-skill-trees');
   let refs = [];
-  try { refs = (trees?.listTrees?.() ?? []).filter(t => t?.provider?.kind === 'profession' && t.sourceRef).map(t => ({id: t.sourceRef, name: t.name || t.sourceRef})); } catch { refs = []; }
+  try { refs = (trees?.listTrees?.() ?? []).filter(t => t?.provider?.kind === 'profession' && t.sourceRef).map(t => ({id: t.sourceRef, name: t.name || 'Profession'})); } catch { refs = []; }
   const rows = [];
   for (const ref of refs) {
     const p = api.getProfessionProgress(actor, ref.id);
@@ -118,7 +118,7 @@ export function knownProfessions(actor, user = globalThis.game?.user) {
   const counts = ids ? recipeCounts(actor, ids) : null;
   return rows.map(p => {
     const id = String(p?.professionId ?? ''), label = typeof api.recipeLabel === 'function' ? recipeLabelOf(api, id) : null;
-    const row = {id, name: String(p?.name || p?.professionId || ''), level: num(p?.level), tier: typeof p?.tier === 'string' ? p.tier : ''};
+    const row = {id, name: String(p?.name || 'Profession'), level: num(p?.level), tier: typeof p?.tier === 'string' ? p.tier : ''};
     if (label) Object.assign(row, {recipeLabel: label, ...(counts ? {recipes: counts.get(id) ?? 0, recipeCount: recipeCountText(counts.get(id) ?? 0, label)} : {})});
     return row;
   }).filter(p => p.name);
@@ -141,13 +141,13 @@ function skillTrees(actor, api) {
   for (const tree of api.listTrees?.() ?? []) {
     const p = api.actorProgress(actor, tree.id);
     if (!p) continue;
-    const owned = (p.unlocks ?? []).map(id => tree.nodes?.find?.(n => n.id === id)?.name || id);
+    const owned = (p.unlocks ?? []).map(id => tree.nodes?.find?.(n => n.id === id)?.name || 'a perk');
     const points = summary?.get(tree.id) ?? null;
     if (!owned.length && !num(p.awarded) && !num(points?.earned)) continue;
     const first = points?.wallet ? walletShown.get(points.wallet) : null;
-    if (points?.wallet && !first) walletShown.set(points.wallet, tree.name || tree.id);
+    if (points?.wallet && !first) walletShown.set(points.wallet, tree.name || 'another tree');
     const pts = first ? ` <span class="agch-muted">Shares points with ${esc(first)}</span>` : treePoints(tree, p, summary ? points : null);
-    rows.push(`<li><strong>${esc(tree.name || tree.id)}</strong>${pts} <span class="agch-muted">${plural(owned.length, 'perk')}${owned.length ? `: ${owned.map(esc).join(', ')}` : ''}</span></li>`);
+    rows.push(`<li><strong>${esc(tree.name || 'Skill tree')}</strong>${pts} <span class="agch-muted">${plural(owned.length, 'perk')}${owned.length ? `: ${owned.map(esc).join(', ')}` : ''}</span></li>`);
   }
   return list(rows, 'No points or perks yet.');
 }
