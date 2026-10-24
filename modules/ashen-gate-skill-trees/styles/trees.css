@@ -191,3 +191,11 @@
 .agst-library-member{padding-inline-start:var(--ag-space-4)}
 .agst-embed .agst-embed__panel{padding-top:var(--ag-space-1)}
 .agst-embed .agst-embed__access{margin:var(--ag-space-1) 0}
+
+/* 0.22.0 Tree Library folders, sort and filters */
+.agst-library-select{flex-direction:row;align-items:center;gap:var(--ag-space-2);margin:0}
+.agst-library-select select{width:auto;max-width:14rem}
+.agst-library-filters{display:flex;flex-wrap:wrap;gap:var(--ag-space-3);align-items:flex-end}
+.agst-library-region{display:flex;flex-direction:column;gap:var(--ag-space-2)}
+.agst-library-region .ag-fold__body>.ag-rows{border:0;border-radius:0}
+.agst-library-group__head .agst-library-group__title{font-size:var(--ag-text-sm,.9rem)}

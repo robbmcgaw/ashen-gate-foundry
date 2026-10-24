@@ -12,7 +12,7 @@
   <div class="agst-layout {{#if sidebarOpen}}agst-sidebar-open{{/if}}">
     <aside class="agst-sidebar" id="agst-sidebar" aria-label="Skill tree menu">
       <section class="agst-side-pin" aria-label="Tree and character">
-        <label class="ag-field">Tree<select id="agst-tree-choice" aria-label="Select skill tree">{{#each trees}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field">Tree<select id="agst-tree-choice" aria-label="Select skill tree">{{#if treeGroups}}{{#each treeGroups}}<optgroup label="{{label}}">{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</optgroup>{{/each}}{{else}}{{#each trees}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}{{/if}}</select></label>
         {{#if treeTabs}}<div class="agst-tree-tabs">{{{treeTabs}}}</div>{{/if}}
         <label class="ag-field">Character<select id="agst-actor-choice" aria-label="Select character">{{#each actors}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
       </section>
@@ -189,20 +189,16 @@
     {{{libraryTabs}}}
     <div class="agst-setup-main" {{{libraryPanel.trees}}}>
       <div class="ag-toolbar">
-        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agst-library-search placeholder="Search trees" aria-label="Search trees"></label>
-        <span class="ag-toolbar__count" data-agst-library-count>{{libraryCountText}}</span>
+        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agst-library-search placeholder="Search trees" aria-label="Search trees" value="{{libraryQuery}}"></label>
+        <label class="ag-field agst-library-select">Folders<select data-agst-library-group aria-label="Group trees in folders by">{{#each libraryGroupOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field agst-library-select">Sort<select data-agst-library-sort aria-label="Sort trees by">{{#each librarySortOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <span class="ag-toolbar__count" data-agst-library-count role="status">{{libraryCountText}}</span>
         <div class="ag-toolbar__end"><button type="button" class="ag-btn" data-act="export-all"><i class="fa-solid fa-download" aria-hidden="true"></i> Export all trees</button><button type="button" data-act="create-tree" class="ag-btn"><i class="fa-solid fa-plus" aria-hidden="true"></i> New tree…</button></div>
       </div>
+      {{#if libraryHasTrees}}{{{libraryFilters}}}{{/if}}
       <section class="ag-card" aria-label="Trees">
         <div class="ag-card__head"><h2 class="ag-card__title">Trees</h2><span class="ag-card__meta">{{publishedCount}} published to players</span></div>
-        {{#if libraryTrees.length}}
-        <ul class="ag-rows" data-agst-library-list>{{#each libraryList}}{{#if head}}<li class="agst-library-group" data-agst-library-group="{{head.key}}"><div class="agst-library-group__head"><h3 class="agst-library-group__title">{{head.name}}</h3><span class="ag-badge">Profession · {{head.countText}}</span></div><p class="ag-field__hint agst-library-group__wallet">{{head.walletText}}</p></li>{{else}}<li class="ag-row {{#if group}}agst-library-member{{/if}} {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-agst-library-row data-search="{{search}}"{{#if group}} data-agst-library-in="{{group}}"{{/if}}>
-          <div class="ag-row__main"><div class="ag-row__title">{{name}}</div><div class="ag-row__meta">{{kind}} · {{nodeText}}</div></div>
-          <div class="ag-row__end"><span class="ag-badge {{statusClass}}">{{statusText}}</span><span class="ag-badge {{#if playerVisible}}ag-badge--ok{{/if}}">{{#unless playerVisible}}<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> {{/unless}}{{visibilityText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{id}}" aria-label="Open {{name}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open</button><button type="button" class="ag-btn ag-btn--sm" data-act="export" data-tree="{{id}}" aria-label="Export {{name}}"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></li>{{/if}}{{/each}}</ul>
-        <div class="ag-empty" data-agst-library-nomatch hidden><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No tree name matches the search.</p><button type="button" class="ag-btn ag-btn--sm" data-agst-library-clear>Clear search</button></div>
-        {{else}}
-        <div class="ag-empty"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i><p class="ag-empty__title">No trees yet</p><p class="ag-empty__text">Create one with New tree, or import a tree file through General Manager → Import.</p></div>
-        {{/if}}
+        <div class="agst-library-region" data-agst-library-region>{{{libraryHtml}}}</div>
         <p class="ag-field__hint">Exports are backups of the GM layouts (<code>ag-skill-trees/0.3</code>). Tree files are imported through <strong>General Manager → Import</strong>, which hands them to Skill Trees.</p>
       </section>
     </div>

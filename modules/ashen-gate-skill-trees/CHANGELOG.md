@@ -1,3 +1,14 @@
+## 0.22.0 — 2026-10-24
+
+Tree Library: easier to navigate and sort.
+
+- **Folders by type.** The library groups trees in collapsible folders, each with a count: Crafting professions, Gathering professions, Creative professions, Cinder powers, Other trees and Test trees. A tree's folder comes from what it already says: Cinder trees by their kind; profession trees by the profession they belong to (Alchemy, Blacksmithing, Cooking, Engineering, Enchanting, Inscription, Jewelcrafting, Leatherworking and Tailoring are crafting; Archaeology, Fishing, Herbalism, Hunting/Skinning and Mining are gathering; Artistry is creative); trees marked Test, or named [TEST], [QA], Prototype or Demo, go to Test trees; anything else is in Other trees. Empty folders are not shown. Professions with several trees (Artistry) keep their heading and shared points line inside the folder.
+- **Sort, group, search and filters.** Sort by name (A–Z or Z–A), level range, recently edited, most perks or release status. "Folders" can group by Type, Release status, Visibility, or show one plain list. Search matches the tree name, type, status and visibility. "Filters (n)" holds Type, Release status and Visibility with Clear filters. While a search or filter is on, folders open so no match is hidden.
+- **Remembered per user:** which folders are open, the sort, the grouping and the filters (this browser, like the other Skill Trees memory). The search text is not.
+- **Recently edited** uses a new optional `updatedAt` on each layout, set whenever a layout is saved with a change. Layouts not saved since this version show no date and sort last. Saved data: no migration; an older layout simply has no `updatedAt`. It is not published to players.
+- **Players** see the same folders in the Tree list on the Skill Trees tab (grouped Tree choices), for the trees they can already see. Who can see what is unchanged: the Tree Library tab itself is still GM-only.
+- Keeps Open and Export on each row, Export all trees and New tree. The folders are the shared kit's folds, so Tab, Enter and Space work and the open state is announced.
+
 ## 0.21.2 — 2026-10-24
 
 - Canonical ids (PERK-…, PROF-…, node and tree ids) no longer show in the window. The perk shelf lists names and status words, the Create tree and Assign perk dialogs, the Edit node dialog, the Saved data check, the Profession perk check, the Ledger import table and every error or reason message name the perk or tree instead.

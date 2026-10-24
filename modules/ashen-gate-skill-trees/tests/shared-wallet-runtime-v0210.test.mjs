@@ -192,10 +192,10 @@ test('window: the tree picker shows Artistry once with sub-tabs; the Character p
   // Tree Library: one Artistry heading with the wallet line for the picked character.
   app.activeTab='library';
   c=await app._prepareContext({});
-  const heads=c.libraryList.filter(i=>i.head);
-  assert.equal(heads.length,1);assert.equal(heads[0].head.name,'[TEST] Artistry');
-  assert.equal(heads[0].head.walletText,'Shared wallet (1 point per profession level, 16 at most, shared by 4 trees). [TEST] SI: 1 of 4 points used at level 4.');
-  assert.equal(c.libraryList.filter(i=>i.group===heads[0].head.key).length,4);
+  const heads=[...c.libraryHtml.matchAll(/<h4 class="agst-library-group__title">([^<]*)<\/h4>/g)];
+  assert.equal(heads.length,1);assert.equal(heads[0][1],'[TEST] Artistry');
+  assert.match(c.libraryHtml,/Shared wallet \(1 point per profession level, 16 at most, shared by 4 trees\)\. \[TEST\] SI: 1 of 4 points used at level 4\./);
+  assert.equal(c.libraryHtml.match(/agst-library-member/g).length,4);
   app.activeTab='trees';
 });
 test('validation on save: one perk on two Artistry trees is refused',async()=>{

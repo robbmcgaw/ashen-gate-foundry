@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.21.2');
+  assert.equal(api.version,'0.22.0');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -111,7 +111,7 @@ test('end-to-end fake GM: initialize, install native QA fixture, grant wallet, r
 test('Skill Trees has no importer UI of its own; Manager hands files to the GM-only API',async()=>{
  const fs=await import('node:fs/promises');
  const source=await fs.readFile(new URL('../scripts/main.js',import.meta.url),'utf8');
- const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
+ const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8')+await fs.readFile(new URL('../scripts/library.mjs',import.meta.url),'utf8');
  assert.doesNotMatch(template,/data-act="import"|type="file"|Import Tree Layout JSON/);
  assert.doesNotMatch(source,/_readFile|agst-tree-import/);
  assert.match(template,/data-act="export"/);assert.match(template,/data-act="export-all"/);
@@ -141,7 +141,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.21.2');
+  assert.equal(manifest.version,'0.22.0');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" role="tab" data-act="tab-library" class="ag-tab--gm/);
@@ -153,7 +153,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   assert.match(template,/General Manager → Import/);
   assert.match(template,/moduleVersion/);
   // 0.20.0 (ST-04): each Tree Library row exports its own tree; no export that depends on a selection in another tab.
-  assert.match(template,/data-act="export" data-tree="\{\{id\}\}"/);
+  assert.match(await fs.readFile(new URL('../scripts/library.mjs',import.meta.url),'utf8'),/data-act="export" data-tree="\$\{esc\(r\.id\)\}"/);
   assert.doesNotMatch(template,/Export Selected Tree/);
   assert.doesNotMatch(template,/agst-footer-label/);
 });
@@ -178,7 +178,7 @@ test('GM Setup has settings only; content actions live in the GM-only Tree Libra
  const fs=await import('node:fs/promises');
  const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
  const setup=template.slice(template.indexOf('{{#if activeSetup}}\n'));
- const library=template.slice(template.indexOf('{{#if activeLibrary}}\n  {{#if initialized}}'),template.indexOf('{{#if activeSetup}}\n'));
+ const library=template.slice(template.indexOf('{{#if activeLibrary}}\n  {{#if initialized}}'),template.indexOf('{{#if activeSetup}}\n'))+await fs.readFile(new URL('../scripts/library.mjs',import.meta.url),'utf8');
  assert.ok(setup.length>100&&library.length>100);
  for(const act of ['create-tree','export','export-all','give-missing','publish','backup-progress','ledger-import','legacy-preview','legacy-clear'])
   assert.match(library,new RegExp(`data-act="${act}"`),`${act} is in Tree Library`),assert.doesNotMatch(setup,new RegExp(`data-act="${act}"`),`${act} is not in GM Setup`);
