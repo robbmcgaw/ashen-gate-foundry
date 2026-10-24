@@ -6,7 +6,7 @@
 // the book (its own page, never sent to players).
 import {cleanText as E} from './core.mjs';
 import {emptyState} from './gm-panels.mjs';
-import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename} from './journal-core.mjs';
+import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock} from './journal-core.mjs';
 
 const KINDS={primary:'ag-btn ag-btn--primary',secondary:'ag-btn',danger:'ag-btn ag-btn--danger',ghost:'ag-btn ag-btn--ghost'};
 const tip=t=>t?` data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`:'';
@@ -37,6 +37,11 @@ export const FORMAT_COMMANDS=Object.freeze({bold:['bold'],italic:['italic'],unde
 /** Buttons that show whether the text at the caret has their format (aria-pressed, from document.queryCommandState). */
 export const PRESSABLE=Object.freeze({bold:'bold',italic:'italic',underline:'underline',strike:'strikeThrough',ul:'insertUnorderedList',ol:'insertOrderedList'});
 
+/** Shows Remove quote formatting only while the page's first block is a quote. */
+export function syncQuoteButton(root,ed){
+ const b=root?.querySelector?.('[data-jaction="unquote"]');if(!b||!ed)return;
+ b.hidden=!(ed.firstElementChild?.nodeName==='BLOCKQUOTE');
+}
 export const newJournalView=isGM=>({sessionId:null,target:isGM?'party':'me',query:'',showArchived:false,renaming:null,base:'',dirty:false,gmBase:'',gmDirty:false,stale:false,key:''});
 /** True when the page or the GM-only notes have text that is not saved yet. */
 export const anyDirty=jv=>!!(jv?.dirty||jv?.gmDirty);
@@ -52,6 +57,54 @@ export function toggleHighlight(ed,doc=globalThis.document){
  doc.execCommand('hiliteColor',false,FORMAT_COMMANDS.highlight[1]);
  for(const sp of [...ed.querySelectorAll('span[style]')])if(/background/i.test(sp.getAttribute('style')))swapTag(sp,'mark',doc);
  return 'added';
+}
+const BLOCK=new Set(['P','H1','H2','H3','H4','UL','OL','BLOCKQUOTE','HR','DIV']);
+const isBlock=n=>n?.nodeType===1&&BLOCK.has(n.nodeName);
+const hasContent=run=>run.some(n=>n.nodeType===3?!!n.textContent.trim():n.nodeName!=='BR');
+/** Consecutive loose nodes (text, inline tags, br) between blocks, as runs; blocks stay as they are. */
+function groupRuns(nodes){
+ const out=[];let run=null;
+ for(const n of nodes){if(isBlock(n)){run=null;out.push(n);}else{if(!run){run=[];out.push({run});}run.push(n);}}
+ return out;
+}
+function paragraphOf(run,doc){if(!hasContent(run))return null;const p=doc.createElement('p');for(const n of run)p.appendChild(n);return p;}
+/** Takes one quote (and any quote inside it) off: its content becomes ordinary blocks, in place. Returns the last block. */
+function unwrapQuote(bq,doc){
+ for(const c of [...bq.childNodes])if(c.nodeName==='BLOCKQUOTE')unwrapQuote(c,doc);
+ const parent=bq.parentNode;let last=null;
+ for(const item of groupRuns([...bq.childNodes])){const node=item.run?paragraphOf(item.run,doc):item;if(node){parent.insertBefore(node,bq);last=node;}}
+ parent.removeChild(bq);return last;
+}
+function caretAtEnd(node,doc){
+ try{const sel=doc.getSelection?.(),r=doc.createRange?.();if(!sel||!r||!node)return;r.selectNodeContents(node);r.collapse(false);sel.removeAllRanges();sel.addRange(r);}catch{}
+}
+/** The editor's page starts as one normal paragraph while it is empty (never a quote, never loose text). Returns true if it seeded. */
+export function ensureParagraph(ed,doc=globalThis.document){
+ if(!ed||!isBlankPage(ed.innerHTML))return false;
+ if(ed.innerHTML!==SEED_HTML)ed.innerHTML=SEED_HTML;
+ try{const sel=doc?.getSelection?.(),r=doc?.createRange?.();if(sel&&r&&ed.firstChild){r.setStart(ed.firstChild,0);r.collapse(true);sel.removeAllRanges();sel.addRange(r);}}catch{}
+ return true;
+}
+/** Back to truly empty when nothing was typed (so the placeholder shows and nothing is saved). */
+export function tidyBlank(ed){if(ed&&ed.innerHTML!==''&&isBlankPage(ed.innerHTML))ed.innerHTML='';}
+/** Text typed straight into the page (no block around it) gets a normal paragraph. */
+export function wrapBareText(ed,doc=globalThis.document){
+ if(!ed||![...ed.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()))return false;
+ try{doc.execCommand('formatBlock',false,'<p>');}catch{return false;}return true;
+}
+/** Quote is a real toggle. With the selection in a quote: takes the quote off (every level, text kept). Otherwise puts all the
+    blocks the selection touches into ONE quote (never a quote inside a quote). Returns 'removed', 'added' or 'none'. */
+export function toggleQuote(ed,doc=globalThis.document){
+ const sel=doc?.getSelection?.();if(!sel||!sel.rangeCount||!ed?.contains?.(sel.anchorNode))return 'none';
+ if(isBlankPage(ed.innerHTML)){ed.innerHTML=SEED_HTML;caretAtEnd(ed.firstChild,doc);}
+ const range=sel.getRangeAt(0),touched=[...ed.childNodes].filter(n=>range.intersectsNode(n));
+ if(!touched.length)return 'none';
+ const quotes=touched.filter(n=>n.nodeName==='BLOCKQUOTE');
+ if(quotes.length){let last=null;for(const q of quotes)last=unwrapQuote(q,doc)??last;caretAtEnd(last,doc);return 'removed';}
+ const bq=doc.createElement('blockquote');ed.insertBefore(bq,touched[0]);
+ for(const item of groupRuns(touched)){const node=item.run?paragraphOf(item.run,doc):item;if(node)bq.appendChild(node);}
+ if(!bq.firstChild){ed.removeChild(bq);return 'none';}
+ caretAtEnd(bq.lastChild,doc);return 'added';
 }
 function unwrap(el){const p=el.parentNode;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el);}
 function swapTag(el,name,doc){const m=doc.createElement(name);while(el.firstChild)m.appendChild(el.firstChild);el.parentNode.replaceChild(m,el);}
@@ -99,7 +152,6 @@ export function journalSidebarHTML(m){
  return `<aside class="ag-split__list agq-jside" aria-label="Sessions" data-ag-scroll="journal-list">
   <div class="agq-jside__tools"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agq-journal-search" placeholder="Search journals" aria-label="Search the sessions and journal pages you can read" value="${E(m.query)}"></label>${jbtn('New session','new',{sm:true,icon:'fa-plus',title:'Start a new session: a party journal and one for each player',disabled:!!m.noGM})}</div>
   ${m.noGM?'<p class="ag-field__hint agq-jside__hint">New session needs a GM connected.</p>':''}
-  ${m.isGM?`<label class="ag-field ag-field--inline agq-jside__archived"><input type="checkbox" id="agq-journal-archived" ${m.showArchived?'checked':''}> Show archived sessions</label>`:''}
   <div id="agq-journal-list">${journalListHTML(m)}</div></aside>`;
 }
 // 0.17.0 Players pick My journal / Party journal with the kit's segmented control (radios, arrow keys); the GM picks
@@ -114,12 +166,24 @@ export function journalDetailHTML(m){
  const s=m.session;
  if(!s)return `<section class="ag-split__detail agq-jdetail">${emptyState('No session open','Pick a session on the left, or start one with New session.',{iconName:'fa-book-open'})}</section>`;
  const p=m.page,canWrite=!!p?.canWrite;
- const gmTools=m.isGM?`${jbtn('Export This Session','export',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'})}${s.archived?`${jbtn('Restore session','restore',{sm:true,icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',sm:true,icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}):''}`:jbtn('Archive session','archive',{kind:'danger',sm:true,icon:'fa-box-archive'})}`:'';
- // 0.21.0 One journal across every session. Export Journal waits for a player's journal; Export GM Journal is never drawn for a player.
+// 0.22.2 One slim title row. The less-used actions live in one "More…" menu (real buttons; arrow keys, Home/End, Escape).
  const whyNoPlayer=m.isGM?"Pick a player's journal under Whose journal to export it.":'Switch to My journal to export it.';
- const exportTools=`<div class="ag-btn-group agq-jactions agq-jexport" role="group" aria-label="Export journals">${jbtn('Export Journal','export-player',{kind:'ghost',sm:true,icon:'fa-file-arrow-down',disabled:!m.exportUserId,
-  title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer})}${jbtn('Export Group Journal','export-group',{kind:'ghost',sm:true,icon:'fa-users',
-  title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'})}${m.isGM?jbtn('Export GM Journal','export-gm',{kind:'ghost',sm:true,icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):''}</div>${m.exportUserId?'':`<p class="ag-field__hint agq-jexport-hint">Export Journal is off: ${E(whyNoPlayer)}</p>`}`;
+ const item=(label,action,o={})=>jbtn(label,action,{kind:'ghost',...o}).replace('<button ','<button role="menuitem" tabindex="-1" ');
+ const moreItems=[
+  item('Export Journal','export-player',{icon:'fa-file-arrow-down',disabled:!m.exportUserId,
+   title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer}),
+  m.exportUserId?'':`<span class="ag-field__hint agq-jmenu__why">Export Journal is off: ${E(whyNoPlayer)}</span>`,
+  item('Export Group Journal','export-group',{icon:'fa-users',
+   title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'}),
+  m.isGM?item('Export GM Journal','export-gm',{icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):'',
+  m.isGM?item('Export This Session','export',{icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'}):'',
+  s.canRename?item('Rename session…','rename',{icon:'fa-pen',data:{id:s.id},disabled:!!m.noGM,title:m.noGM?'Renaming needs a GM connected':'Change this session\'s name, subtitle and date'}):'',
+  m.isGM?`<button type="button" role="menuitemcheckbox" tabindex="-1" class="ag-btn ag-btn--ghost" data-jaction="toggle-archived" aria-checked="${m.showArchived}">${icon(m.showArchived?'fa-square-check':'fa-square')} Show archived sessions</button>`:'',
+  m.isGM?(s.archived?`${item('Restore session','restore',{icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}).replace('<button ','<button role="menuitem" tabindex="-1" '):''}`
+   :jbtn('Archive session','archive',{kind:'danger',icon:'fa-box-archive'}).replace('<button ','<button role="menuitem" tabindex="-1" ')):''
+ ].filter(Boolean).join('');
+ const more=`<div class="agq-jmore"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" id="agq-jmore-btn" data-jmenu="toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="agq-jmore-menu">${icon('fa-ellipsis')} More…</button><div class="agq-jmenu" id="agq-jmore-menu" role="menu" aria-label="More journal actions" hidden>${moreItems}</div></div>`;
+ const meta=[day(s)?`<span class="agq-jhead__date">${E(day(s))}</span>`:'',s.subtitle?`<span class="agq-jhead__sub">${E(s.subtitle)}</span>`:''].filter(Boolean).join(' <span aria-hidden="true">·</span> ');
  const notes=[
   s.archived?notice('warn','fa-box-archive','This session is archived: players no longer see it and its pages are read only. Restore it to write again.'):'',
   m.error?notice('warn','fa-triangle-exclamation',m.error):'',
@@ -128,7 +192,7 @@ export function journalDetailHTML(m){
   m.isGM&&p&&!p.missing&&p.target!=='party'?notice('info','fa-eye',"You are reading a player's own journal. Only they can write it."):'',
   m.stale?notice('warn','fa-rotate','Someone else saved this page while you were writing. Save asks before replacing their text.'):''
  ].join('');
- const autoButtons=`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat" tabindex="-1"${tip('Tidy spaces, blank lines, lists and punctuation. You see what changes first, and can undo it.')}>${icon('fa-wand-magic-sparkles')} Auto format…</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat-undo" tabindex="-1" hidden>${icon('fa-rotate-left')} Undo auto format</button>`;
+ const autoButtons=`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat" tabindex="-1"${tip('Tidy spaces, blank lines, lists and punctuation. You see what changes first, and can undo it.')}>${icon('fa-wand-magic-sparkles')} Auto format…</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="autoformat-undo" tabindex="-1" hidden>${icon('fa-rotate-left')} Undo auto format</button><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agq-jtool agq-jtool--text" data-jaction="unquote" tabindex="-1"${m.page&&firstBlockIsQuote(m.page.html??'')?'':' hidden'}${tip('The first block of this page is a quote. Take the quote formatting off it; its text stays.')}>${icon('fa-quote-right')} Remove quote formatting</button>`;
  // One Tab stop for the formatting toolbar (Left/Right/Home/End move along it); toggles carry aria-pressed.
  const canEdit=canWrite||!!m.gm?.canWrite;
  const tools=canEdit?`<div class="agq-jtools" role="toolbar" aria-label="Formatting">${FORMATS.map((f,i)=>`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm ag-btn--icon agq-jtool" data-format="${f.id}" aria-label="${E(f.label)}"${tip(f.key?`${f.label} (${f.key})`:f.label)} tabindex="${i?-1:0}"${PRESSABLE[f.id]?' aria-pressed="false"':''}>${f.icon?icon(f.icon):`<span aria-hidden="true">${E(f.text)}</span>`}</button>`).join('')}<span class="agq-jtools__sep" aria-hidden="true"></span>${autoButtons}</div>`:'';
@@ -137,8 +201,8 @@ export function journalDetailHTML(m){
  const gmBlock=m.gm&&!m.gm.missing?`<section class="agq-gmnotes" aria-labelledby="agq-gmnotes-title"><h3 class="agq-gmnotes__title" id="agq-gmnotes-title">${icon('fa-eye-slash')} GM-only notes <span class="ag-badge">Players cannot see this</span></h3><div class="agq-book__pages agq-book__pages--single" id="agq-journal-gm" contenteditable="${m.gm.canWrite?'true':'false'}" role="textbox" aria-multiline="true" aria-readonly="${m.gm.canWrite?'false':'true'}" aria-label="${E(`${sessionHeading(s)}: GM-only notes`)}" spellcheck="true" data-placeholder="${E(m.gm.canWrite?'Secrets, prep and reminders for you only…':'Nothing written yet.')}">${sanitizeHtml(m.gm.html)}</div></section>`:'';
  const footer=canEdit?`<footer class="ag-footer agq-footer agq-jfooter">${jbtn('Discard changes','discard',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-journal-status>${m.dirty?'Unsaved changes':'Saved'}</span>${jbtn('Save','save',{kind:'primary',icon:'fa-floppy-disk'})}</footer>`:'';
  return `<section class="ag-split__detail agq-jdetail" data-ag-scroll="journal-page:${E(s.id)}:${E(m.target)}">
-  <header class="agq-jhead"><div class="agq-jhead__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${s.subtitle?`<p class="agq-jhead__sub">${E(s.subtitle)}</p>`:''}${day(s)?`<p class="agq-jhead__date">${E(day(s))}</p>`:''}</div>
-  <div class="agq-jhead__tools">${whichJournal(m)}</div></header>${gmTools?`<div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">${gmTools}</div>`:''}${exportTools}${notes}${tools}${book}${gmBlock}${footer}</section>`;
+  <header class="agq-jbar"><div class="agq-jbar__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${meta?`<p class="agq-jbar__meta">${meta}</p>`:''}</div>
+  <div class="agq-jbar__tools">${whichJournal(m)}${more}</div></header>${tools}${notes}${book}${gmBlock}${footer}</section>`;
 }
 export function journalPaneHTML(m){return `<div class="ag-split agq-split agq-journal">${journalSidebarHTML(m)}${journalDetailHTML(m)}</div>`;}
 
@@ -165,10 +229,13 @@ export function installJournal(App,ctx){
   bindJournal(root){
    this.jRoot=root;const jv=this.journalView();
    const pane=root.querySelector('.agq-journal');if(!pane)return;
+   this.jMenu?.abort?.();
+   if(typeof AbortController==='function'){this.jMenu=new AbortController();bindMenu(root.querySelector('.agq-jmore'),{signal:this.jMenu.signal});}
+   // After a menu action redraws the window, focus goes back to the More… button, not to the top of the page.
+   if(jv.refocus==='more'){jv.refocus=null;root.querySelector('#agq-jmore-btn')?.focus?.();}
    pane.addEventListener('click',e=>{const b=e.target?.closest?.('[data-jaction]');if(b&&pane.contains(b))this.journalAction(b.dataset.jaction,b,root).catch(ctx.notify);});
    const search=root.querySelector('#agq-journal-search');
    search?.addEventListener('input',()=>{jv.query=search.value;this.refreshJournalList(root);});
-   root.querySelector('#agq-journal-archived')?.addEventListener('change',async e=>{if(!await this.flushJournal())return;jv.showArchived=e.target.checked;await this.render();});
    bindRadios(root.querySelector('.agq-jtoggle'));
    root.querySelector('#agq-journal-who')?.addEventListener('change',async e=>{const want=e.target.value;if(!await this.flushJournal()){e.target.value=jv.target;return;}jv.target=want;await this.render();});
    for(const el of [root.querySelector('#agq-jr-name'),root.querySelector('#agq-jr-subtitle')])el?.addEventListener('keydown',e=>{
@@ -184,9 +251,12 @@ export function installJournal(App,ctx){
    const markDirty=ed=>{if(ed===gmEd)jv.gmDirty=true;else jv.dirty=true;this.journalStatus('Unsaved changes');if(ed===main)fitSpread(ed,{grow:true});};
    for(const ed of editable){
     // Enter starts a paragraph, not a div (Chromium's default).
-    ed.addEventListener('focus',()=>{try{document.execCommand('defaultParagraphSeparator',false,'p');}catch{}},{once:true});
+    ed.addEventListener('focus',()=>{try{document.execCommand('defaultParagraphSeparator',false,'p');}catch{}ensureParagraph(ed);});
     ed.addEventListener('focusin',()=>{this.jActive=ed;});
-    ed.addEventListener('input',()=>markDirty(ed));
+    let fixing=false;
+    ed.addEventListener('input',()=>{
+     if(!fixing){fixing=true;try{wrapBareText(ed);}finally{fixing=false;}}
+     markDirty(ed);syncQuoteButton(root,ed);});
     // Pasted text keeps only the formatting the journal allows.
     ed.addEventListener('paste',e=>{const data=e.clipboardData;if(!data)return;e.preventDefault();
      const html=data.getData('text/html'),text=data.getData('text/plain');
@@ -195,6 +265,7 @@ export function installJournal(App,ctx){
     ed.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key?.toLowerCase()==='s'){e.preventDefault();e.stopPropagation();this.saveJournal(root).catch(ctx.notify);}});
     // Save on blur: leaving the page for anything but its own toolbar saves it.
     ed.addEventListener('focusout',e=>{if(e.relatedTarget&&(root.querySelector('.agq-jtools')?.contains(e.relatedTarget)||editable.includes(e.relatedTarget)))return;
+     tidyBlank(ed);
      if(anyDirty(jv))this.saveJournal(root).catch(ctx.notify);else if(jv.refreshPending){jv.refreshPending=false;this.externalRender=true;this.render();}});
    }
    for(const b of root.querySelectorAll('[data-format]')){
@@ -202,6 +273,7 @@ export function installJournal(App,ctx){
     b.addEventListener('click',()=>{const ed=this.jActive??editable[0];const f=b.dataset.format;
      ed.focus();
      if(f==='highlight')toggleHighlight(ed);
+     else if(f==='quote')toggleQuote(ed);
      else{const [cmd,arg]=FORMAT_COMMANDS[f]??[];if(!cmd)return;document.execCommand(cmd,false,arg);}
      markDirty(ed);showPressed(root);});
    }
@@ -224,11 +296,17 @@ export function installJournal(App,ctx){
   async autoFormatJournal(root=this.jRoot){
    const jv=this.journalView(),ed=this.jActive?.isConnected!==false&&this.jActive||root?.querySelector?.('#agq-journal-editor');
    if(!ed||ed.getAttribute?.('contenteditable')!=='true')return;
-   const res=autoFormatHtml(ed.innerHTML);
+   let res=autoFormatHtml(ed.innerHTML);
    if(!res.ok)return void ctx.info('Auto format left this page alone: it could not tidy it without risking your words.');
-   if(!res.changes.length)return void ctx.info('Nothing to tidy: this page is already clean.');
-   const before=ed.innerHTML;
-   if(!await (ctx.confirm??ctx.danger)(`Auto format will:\n${res.changes.map(c=>`• ${c}`).join('\n')}\nNo words are removed. Afterwards, Undo auto format puts the page back as it is now.`,{title:'Auto format this page?',yes:'Apply auto format',no:'Cancel'}))return;
+   if(!res.changes.length&&!res.firstQuote)return void ctx.info('Nothing to tidy: this page is already clean.');
+   const before=ed.innerHTML,list=res.changes.map(c=>`• ${c}`).join(' ')||'Nothing else to tidy.';
+   if(res.firstQuote&&ctx.form){
+    // The first block is a quote: offer un-quoting as its own explicit choice, off unless ticked.
+    const got=await ctx.form('Auto format this page?',[{name:'unquote',type:'checkbox',value:'1',label:'Un-quote the first block',hint:`The first block of this page is a quote. Tick this to take the quote formatting off it (its text stays). Auto format will: ${list} No words are removed; Undo auto format puts the page back.`}],{ok:'Apply auto format',cancel:'Cancel'});
+    if(!got)return;
+    if(got.unquote)res=autoFormatHtml(ed.innerHTML,{unquoteFirst:true});
+    if(!res.ok||!res.changes.length)return void ctx.info('Nothing to change.');
+   }else if(!await (ctx.confirm??ctx.danger)(`Auto format will:\n${res.changes.map(c=>`• ${c}`).join('\n')}\nNo words are removed. Afterwards, Undo auto format puts the page back as it is now.`,{title:'Auto format this page?',yes:'Apply auto format',no:'Cancel'}))return;
    jv.autoUndo={ed,html:before};
    ed.innerHTML=res.html;
    if(ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
@@ -236,12 +314,27 @@ export function installJournal(App,ctx){
    const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=false;
    ed.focus?.();
   },
+  /** Remove quote formatting: asks, then takes the quote off the page's first block (text stays). Undo auto format reverses it. */
+  async unquoteJournal(root=this.jRoot){
+   const jv=this.journalView(),ed=this.jActive?.isConnected!==false&&this.jActive||root?.querySelector?.('#agq-journal-editor');
+   if(!ed||ed.getAttribute?.('contenteditable')!=='true')return;
+   const res=unquoteFirstBlock(ed.innerHTML);
+   if(!res.changed)return void ctx.info('The first block of this page is not a quote.');
+   if(!await (ctx.confirm??ctx.danger)('The first block of this page is a quote. Remove the quote formatting from it? Its text stays as ordinary paragraphs. Undo auto format puts it back.',{title:'Remove quote formatting?',yes:'Remove quote formatting',no:'Cancel'}))return;
+   jv.autoUndo={ed,html:ed.innerHTML};
+   ed.innerHTML=res.html;
+   if(ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
+   this.journalStatus('Unsaved changes');fitSpread(ed,{grow:true});
+   const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=false;
+   syncQuoteButton(root,ed);ed.focus?.();
+  },
   undoAutoFormat(root=this.jRoot){
    const jv=this.journalView(),u=jv.autoUndo;if(!u?.ed||u.ed.isConnected===false)return;
    u.ed.innerHTML=u.html;jv.autoUndo=null;
    if(u.ed.id==='agq-journal-gm')jv.gmDirty=true;else jv.dirty=true;
    this.journalStatus('Unsaved changes');fitSpread(u.ed,{grow:true});
    const undo=root?.querySelector?.('[data-jaction="autoformat-undo"]');if(undo)undo.hidden=true;
+   syncQuoteButton(root,u.ed);
   },
   /** Saves the open page if it has unsaved changes. Resolves false when it could not (the text stays in the page). */
   async saveJournal(root=this.jRoot){
@@ -286,9 +379,11 @@ export function installJournal(App,ctx){
   },
   async journalAction(action,el,root){
    const jv=this.journalView(),id=el.dataset.id;
+   if(el.closest?.('.agq-jmenu'))jv.refocus='more';
    if(action==='save')return void await this.saveJournal(root);
    if(action==='discard'){if(anyDirty(jv)&&!await ctx.danger('Discard your unsaved changes to this page?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'}))return;jv.dirty=false;jv.gmDirty=false;jv.stale=false;jv.key='';return void await this.render();}
    if(action==='autoformat')return void await this.autoFormatJournal(root);
+   if(action==='unquote')return void await this.unquoteJournal(root);
    if(action==='autoformat-undo')return void this.undoAutoFormat(root);
    if(action==='rename-cancel'){jv.renaming=null;return void await this.render();}
    if(action==='rename-save'){
@@ -300,6 +395,7 @@ export function installJournal(App,ctx){
    }
    // Everything below leaves the open page: save it first (a refused save stays put).
    if(!await this.flushJournal())return;
+   if(action==='toggle-archived'){jv.showArchived=!jv.showArchived;return void await this.render();}
    if(action==='select'){jv.sessionId=id;jv.renaming=null;return void await this.render();}
    if(action==='hit'){jv.sessionId=id;const t=el.dataset.target;jv.target=game.user?.isGM?(t===GM_TARGET?'party':t):t===game.user?.id?'me':'party';return void await this.render();}
    if(action==='target'){jv.target=el.dataset.target;return void await this.render();}
@@ -333,6 +429,27 @@ export function installJournal(App,ctx){
    }
   }
  });
+}
+/** The "More…" menu: opens on click or Down, arrow keys / Home / End move over the enabled items, Escape and Tab close it
+    (Escape returns focus to the button), a click outside closes it, choosing an item closes it and returns focus to the button
+    (the item's action then runs through the pane's own click handler). */
+export function bindMenu(wrap,{signal,doc=globalThis.document}={}){
+ const btn=wrap?.querySelector?.('[data-jmenu]'),menu=wrap?.querySelector?.('[role="menu"]');
+ if(!btn||!menu)return;
+ const items=()=>[...menu.querySelectorAll('[role^="menuitem"]')].filter(b=>!b.disabled);
+ const open=()=>{menu.hidden=false;btn.setAttribute('aria-expanded','true');items()[0]?.focus?.();};
+ const close=back=>{menu.hidden=true;btn.setAttribute('aria-expanded','false');if(back)btn.focus?.();};
+ btn.addEventListener('click',()=>menu.hidden?open():close(true));
+ btn.addEventListener('keydown',e=>{if(e.key==='ArrowDown'&&menu.hidden){e.preventDefault?.();open();}});
+ menu.addEventListener('keydown',e=>{
+  const it=items(),i=it.indexOf(e.target?.closest?.('[role^="menuitem"]')??e.target);
+  const to={ArrowDown:i+1,ArrowUp:i-1,Home:0,End:it.length-1}[e.key];
+  if(to!==undefined&&it.length){e.preventDefault?.();it[(to+it.length)%it.length].focus?.();return;}
+  if(e.key==='Escape'){e.preventDefault?.();e.stopPropagation?.();close(true);}
+  else if(e.key==='Tab')close(false);
+ });
+ menu.addEventListener('click',e=>{if(e.target?.closest?.('[role^="menuitem"]'))close(true);});
+ doc?.addEventListener?.('click',e=>{if(!menu.hidden&&!wrap.contains(e.target))close(false);},{signal});
 }
 /** Arrow keys for a role="radiogroup" of buttons: Left/Right (Up/Down) and Home/End pick the next radio and click it. */
 export function bindRadios(group){

@@ -10,7 +10,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState,overlayState,clampOpacity,clampPosition} from './tracking.mjs';
 import {captureView,restoreView} from './view-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
+import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,bindTablist,bindFolds,bindFileButtons,linkButton} from './ag-html.mjs';
 import {readDrop,worldItemById} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
@@ -18,7 +18,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.22.0';
+const VERSION='0.22.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -626,7 +626,7 @@ class QuestLogApplication extends Base {
   }catch(err){notifyError(err);}
  }
 }
-installJournal(QuestLogApplication,{store:journalStore,danger:confirmDanger,confirm:confirmDialog,notify:notifyError,info:m=>ui.notifications?.info(m),download:dialogDownload,worldName:()=>game.world?.title||game.world?.id||''});
+installJournal(QuestLogApplication,{store:journalStore,danger:confirmDanger,confirm:confirmDialog,form:formDialog,notify:notifyError,info:m=>ui.notifications?.info(m),download:dialogDownload,worldName:()=>game.world?.title||game.world?.id||''});
 // Per-user preferences only. Never store the authoritative progress, private source or player projection.
 function trackedIds(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).ids;}
 function trackerVisible(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).visible;}

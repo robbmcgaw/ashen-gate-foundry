@@ -1,3 +1,25 @@
+## 0.22.2 — 2026-10-24
+
+The Journal's top is two slim rows, so the page gets the room.
+- **Row 1: title and where you are.** *Session 2 - Market day* with the date and subtitle on the line under it, then **Whose journal** (or My journal / Party journal for players) and **More…**.
+- **Row 2: the formatting toolbar** (with Auto format…). The rows of buttons that sat above it are gone.
+- **More… menu** holds the less-used actions, each under its same label: **Export Journal** (greyed with its reason when no player journal is picked), **Export Group Journal**, **Export GM Journal** and **Export This Session** (GM), **Rename session…**, **Show archived sessions** (GM, was a checkbox in the session list), **Archive session** / **Restore session** and **Delete session…** (GM). Players see only the exports (and Rename for a session they started); the GM-only items are not drawn for them, and the store still refuses them. Keyboard: Enter, Space or Down opens it; Up, Down, Home and End move; Escape closes and returns to **More…**; Tab leaves; choosing an item returns to **More…**, also after the window redraws.
+- On a 900 by 700 window the area above the page went from about 240 px (GM) and 161 px (player) to about 97 px. Measured on the real markup and styles in a scratch page, not in Foundry.
+- Unchanged: the session list on the left, Save / Discard in the pinned footer, the unsaved-changes rules, GM-only notes.
+- Saved data: no change; no migration.
+
+## 0.22.1 — 2026-10-24
+
+Fix: the Journal's first block was a quote, and Quote nested quotes.
+- **Quote is a real toggle.** With the cursor or selection in a quote, **Quote** takes the quote off (every level, so a quote inside a quote comes off in one press) and keeps all the text. Otherwise it puts every paragraph, list or heading the selection touches into **one** quote. It no longer nests a second quote.
+- **An empty page starts as a normal paragraph.** Clicking into an empty journal page now puts the cursor in a plain paragraph, so the first thing typed is ordinary text (before, text typed into an empty page sat outside any block, and an empty quote left on a page stayed a quote). If you click away having typed nothing, the page goes back to empty and nothing is saved. A page that holds only an empty quote is now treated as an empty page.
+- **Text typed outside any block** gets a normal paragraph.
+- **Remove quote formatting** (toolbar, shown only when the page's first block is a quote) takes the quote off that first block of an existing page after you confirm. Its words stay as ordinary paragraphs; **Undo auto format** puts it back, and it is an unsaved change until you save (Discard changes works too). Only the first block is touched, and running it again changes nothing.
+- **Auto format** offers the same as an explicit checkbox, **Un-quote the first block**, off by default, in its preview when the first block is a quote. Nothing is un-quoted unless ticked.
+- **Markdown** export writes paragraphs inside a quote as one quoted block.
+- Saved data: no change; no migration. Existing quotes with words in them are never changed unless you choose Remove quote formatting.
+
+
 ## 0.22.0 — 2026-10-24
 
 GM Quests list: group headers fold.

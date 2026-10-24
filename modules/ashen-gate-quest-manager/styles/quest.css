@@ -178,21 +178,27 @@
 .agq-jsession__actions { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
 .agq-jhit { flex-direction: column; align-items: flex-start; text-align: left; }
 .agq-jhit__snippet { display: block; color: var(--ag-muted); font-size: var(--ag-text-sm); white-space: normal; overflow-wrap: anywhere; }
-.agq-jdetail { display: flex; flex-direction: column; gap: var(--ag-space-3); container-type: inline-size; }
-.agq-jactions { justify-content: flex-end; }
+.agq-jdetail { display: flex; flex-direction: column; gap: var(--ag-space-2); container-type: inline-size; }
 .agq-jdetail > .ag-notice { margin: 0; }
-.agq-jhead { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--ag-space-3); }
-.agq-jhead__title { min-width: 0; }
-.agq-jhead__sub { margin: var(--ag-space-1) 0 0; color: var(--ag-muted); font-style: italic; overflow-wrap: anywhere; }
-.agq-jhead__tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--ag-space-2); }
-.agq-jwho { margin: 0; }
+.agq-jbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-3); }
+.agq-jbar__title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--ag-space-3); min-width: 0; flex: 1 1 16rem; }
+.agq-jbar .agq-detail__title { margin: 0; font-size: var(--ag-text-lg); overflow-wrap: anywhere; }
+.agq-jbar__meta { margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
+.agq-jhead__sub { font-style: italic; }
+.agq-jbar__tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ag-space-2); }
+.agq-jwho { display: inline-flex; flex-direction: row; align-items: center; gap: var(--ag-space-2); margin: 0; white-space: nowrap; }
+.agq-jwho > select { width: auto; min-width: 8rem; max-width: 16rem; }
+.agq-jmore { position: relative; }
+.agq-jmenu { position: absolute; z-index: 5; top: calc(100% + var(--ag-space-1)); right: 0; display: flex; flex-direction: column; gap: var(--ag-space-1); min-width: 17rem; max-width: min(24rem, 90vw); max-height: 70vh; overflow: auto; padding: var(--ag-space-1); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); background: var(--ag-surface-raised); box-shadow: var(--ag-shadow); }
+.agq-jmenu[hidden] { display: none; }
+.agq-jmenu > .ag-btn { justify-content: flex-start; text-align: left; width: 100%; white-space: normal; }
+.agq-jmenu__why { margin: 0 var(--ag-space-2) var(--ag-space-1); }
 .agq-jtoggle > button { display: inline-flex; align-items: center; gap: var(--ag-space-1); }
-.agq-jtools { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
+.agq-jtools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); padding: calc(var(--ag-space-1) / 2) var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
 .agq-jtool { font-weight: 700; }
 .agq-jtool--text { font-weight: 500; }
 .agq-jtool[hidden] { display: none; }
 .agq-jtools__sep { align-self: stretch; margin: 0 var(--ag-space-1); border-left: var(--ag-border-w, 1px) solid var(--ag-border); }
-.agq-jhead__date { margin: var(--ag-space-1) 0 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
 .agq-gmnotes { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-3) var(--ag-space-4); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius-lg); background: var(--ag-surface-sunken); }
 .agq-gmnotes__title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ag-space-2); margin: 0; border: 0; font-size: var(--ag-text-md); }
 .agq-book { position: relative; padding: var(--ag-space-5) var(--ag-space-6); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-lg); background: linear-gradient(to right, var(--ag-surface-raised) calc(50% - var(--ag-space-5)), var(--ag-surface-sunken) 50%, var(--ag-surface-raised) calc(50% + var(--ag-space-5))); box-shadow: var(--ag-shadow); }
