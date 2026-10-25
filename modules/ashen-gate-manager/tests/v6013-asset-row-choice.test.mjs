@@ -152,7 +152,9 @@ test('the table has Yes / No / Different…, a searchable picker, bulk buttons, 
   assert.match(fold, /\{\{assets\.linkCountLine\}\}/);
   assert.match(fold, /role="radiogroup" aria-label=/);
   assert.match(fold, /data-label="Image now"/);
-  assert.doesNotMatch(fold, /type="checkbox"|\{\{sourceId\}\}|\{\{uuid\}\}<|\{\{id\}\}/);
+  // 0.63.0: the one tick box is the batch-wide "Turn on token ring"; rows still choose with Yes / No, never a checkbox.
+  assert.deepEqual(fold.match(/<input type="checkbox"[^>]*>/g), ['<input type="checkbox" data-ag-assets-token-ring {{#if assets.tokenRing}}checked{{/if}}>']);
+  assert.doesNotMatch(fold, /\{\{sourceId\}\}|\{\{uuid\}\}<|\{\{id\}\}/);
   assert.match(main, /linkCountLine:`\$\{counts\.willLink\+cinderWill\} will be linked, /);
   assert.match(main, /linkCanApply:counts\.willLink\+cinderWill>0&&!counts\.conflicts/);
   assert.match(css, /@container \(max-width:40rem\)\{[^}]*\.aglink thead/);

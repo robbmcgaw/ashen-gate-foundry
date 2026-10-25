@@ -1,3 +1,14 @@
+## 0.63.0 — 2026-10-25
+
+Assets: Foundry's token ring turns on when you link art to an NPC or creature.
+
+- **Turn on token ring** is a box above the preview table in **Link files to records**, ticked by default. It applies to the Actors linked in that batch. Untick it and no ring is touched. Nothing is written until you press Link.
+- **Colours:** NPC people (NPC-…) get a green ring, bestiary creatures (CRE-…) red, and Ashen creatures (CRE-ASHEN-… and CRE-ASH-…, the bestiary's Ashen family) black, each on a darker background of the same hue. The rule is one small function in `scripts/token-ring.js` (`RING_RULES`), so it is a one-place change.
+- **Safe by design:** a ring is only turned on for an Actor whose ring is off; an Actor that already has its ring on is left exactly as the GM set it, colours included. A colour the GM set on a ring that is off is kept. Player characters and Actors with no rule are never touched. Only `prototypeToken.ring.enabled` and the two colours are written; the ring's subject is left empty so Foundry uses the linked token image and follows it when the art changes. The Link confirmation and result say how many rings were turned on and how many were already on.
+- This is Foundry's own ring, not Tokenizer's: having Tokenizer installed does not matter, but a token image with a ring baked in by Tokenizer would show two rings.
+- Newly imported Actors are not given a ring; only linking art does.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.62.0 — 2026-10-25
 
 Assets: Cinder stage art now belongs to the Cinder itself. Needs Ashen Gate | Cinders 0.13.0 for this; older Cinders keep the 0.61.0 behaviour.
