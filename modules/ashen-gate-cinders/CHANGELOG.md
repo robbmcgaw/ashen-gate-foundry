@@ -1,3 +1,12 @@
+## 0.13.0 — 2026-10-25
+
+Stage art belongs to the Cinder itself, not only to a character's copy. Additive: a Cinder with no stage art looks exactly as before; no migration.
+
+- **Stage art on the Cinder.** Manage → Cinders has a **Stage art** card with one row per Cinder (Ember, Frost, Gale, Echo, …) and **Stage art…** (the same editor as Stages…). It works with nobody bearing the Cinder and applies to every bearer. Saved in a world setting keyed by the permanent Cinder id, so a General Manager re-import never wipes it.
+- **Order used for a Cinder:** the bearer's own **Stages…** first, then this stage art, then `cinder.artStages` on the imported record, then `cinder.art`. **Auto again**, **Hold this stage** and **Change art…** work as before; bearers with no stages of their own pick the new art up at once, and a hold past the new number of stages is cleared.
+- **API (GM only, checked in the data layer):** `api.cinder.setDefinitionArtStages(idOrName, stages | null)` and `getDefinitionArtStages(idOrName)` (a permanent id such as the Cinder's, or its name; `null` goes back to the imported record's stages). `api.cinder.stages(instanceId)` also reports `world`, `record` and `source`. Everything else is unchanged.
+- Saved data: one new world setting (default empty); unreadable entries are ignored. No registry, flag or id change.
+
 ## 0.12.2 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

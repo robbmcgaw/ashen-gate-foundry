@@ -8,6 +8,7 @@ import {SLOT_KIND,SLOT_LABEL,bearerItemsOf,bearerTag,planBearerItems,bearerItemD
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
 import {cleanArt,artInput,resolveArt} from './orb.mjs';
 import {stageState,stagesInput,holdInput} from './stages.mjs';
+import {DEFINITION_ART_SETTING,cleanOverrides,withOverride,resolveStages,matchDefinition} from './definition-art.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
 export const MAX_CINDERS_SETTING='maxCindersPerActor';
@@ -52,10 +53,15 @@ export function createCinders(deps){
   const definitionName=(id,fallback='Unnamed Cinder')=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:fallback;};
   /** 0.9.0: the art the MUT-* definition gives its Cinders (cinder.art), or null. */
   const defArt=id=>definitionArt(definition(id));
-  /** 0.12.0: the art stages the MUT-* definition gives its Cinders (cinder.artStages), or null. */
-  const defStages=id=>definitionStages(definition(id));
-  /** The stages in force for one Cinder: its own override, else the definition's. */
-  const stagesOf=inst=>inst.artStages??defStages(inst.definitionId);
+  /** 0.12.0: the art stages the imported MUT-* record gives its Cinders (cinder.artStages), or null. */
+  const recordStages=id=>definitionStages(definition(id));
+  /** 0.13.0: the stages the GM gave this kind of Cinder (a world setting keyed by the permanent id; a re-import never touches it), or null. */
+  const overrides=()=>{try{return cleanOverrides(game.settings.get(module,DEFINITION_ART_SETTING));}catch{return {};}};
+  const overrideStages=id=>overrides()[id]??null;
+  /** The stages the kind gives every bearer: the GM's world stages, else the imported record's. */
+  const defStages=id=>overrideStages(id)??recordStages(id);
+  /** The stages in force for one Cinder: its own, else the kind's (world stages, then the imported record's). */
+  const stagesOf=inst=>resolveStages({own:inst.artStages,override:overrideStages(inst.definitionId),record:recordStages(inst.definitionId)}).stages;
   const unlockedCount=inst=>cleanAccount(inst.progression).unlocks.length;
   /** The art the bearer's pointer carries: the Cinder's own image, the definition's, and (0.12.0) the stage in use, so a player sees the
    * current stage only (the other stages and their thresholds stay in the GM-only registry). Keys left out when there is nothing to say. */
@@ -635,8 +641,38 @@ export function createCinders(deps){
   /** GM: one Cinder's art stages, {own, definition, stages (in force), unlocked, hold, state: stageState | null}. */
   function stagesInfo(instanceId){
     requireGM();const inst=readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
-    const stages=stagesOf(inst),unlocked=unlockedCount(inst);
-    return {own:inst.artStages,definition:defStages(inst.definitionId),stages,unlocked,hold:inst.stageHold,state:stageState(stages,unlocked,inst.stageHold)};
+    const r=resolveStages({own:inst.artStages,override:overrideStages(inst.definitionId),record:recordStages(inst.definitionId)}),unlocked=unlockedCount(inst);
+    return {own:inst.artStages,definition:defStages(inst.definitionId),world:overrideStages(inst.definitionId),record:recordStages(inst.definitionId),source:r.source,
+      stages:r.stages,unlocked,hold:inst.stageHold,state:stageState(r.stages,unlocked,inst.stageHold)};
+  }
+  /** The Cinder definitions in this world: [{id, name}] by name (the same ones New Cinder offers). */
+  const worldDefinitions=()=>[...(game.items?.contents??[]),...(game.journal?.contents??[])].map(d=>({d,id:sourceOf(d)?.sourceId}))
+    .filter(({d,id})=>typeof id==='string'&&id.startsWith('MUT-')&&lookup(id)?.document===d).map(({d,id})=>({id,name:d.name})).sort((a,b)=>a.name.localeCompare(b.name));
+  /** GM: what a kind of Cinder gives its bearers. key = a permanent id (MUT-…) or a name ("Echo", "Echo Cinder").
+   * {definitionId, name, world (the GM's stages or null), record (the imported record's or null), stages (in force for the kind), source: 'world'|'definition'|null, bearers}. */
+  function getDefinitionArtStages(key){
+    requireGM();const defs=worldDefinitions(),definitionId=matchDefinition(defs,key);
+    const world=overrideStages(definitionId),record=recordStages(definitionId),r=resolveStages({override:world,record});
+    return {definitionId,name:defs.find(d=>d.id===definitionId)?.name??'Unnamed Cinder',world,record,stages:r.stages,source:r.source,
+      bearers:store()?readRegistry().instances.filter(i=>i.definitionId===definitionId&&i.bearer).length:0};
+  }
+  /** GM: give a kind of Cinder its art stages (2 to 5 {art, at}), or null to go back to the imported record's. Every bearer without stages
+   * of their own follows it at once. Checked here, not just in the editor. */
+  async function setDefinitionArtStages(key,stages){
+    requireGM();const next=stagesInput(stages),definitionId=matchDefinition(worldDefinitions(),key);
+    return withRegistry(async()=>{
+      const before=overrideStages(definitionId);
+      if(JSON.stringify(before)===JSON.stringify(next))return {changed:false,definitionId,stages:next};
+      await game.settings.set(module,DEFINITION_ART_SETTING,withOverride(game.settings.get(module,DEFINITION_ART_SETTING),definitionId,next));
+      // Bearers without their own stages: keep a hold inside the new count, then refresh the copy on the character.
+      let registry=store()?readRegistry():null;
+      if(registry)for(const inst of registry.instances.filter(i=>i.definitionId===definitionId)){
+        const count=stagesOf(inst)?.length??0;let updated=inst;
+        if(inst.stageHold&&inst.stageHold>count){updated={...inst,stageHold:null,revision:inst.revision+1};registry=putInstance(registry,updated);await saveRegistry(registry);}
+        await mirrorSockets(updated);changed('stages',updated,{definition:true});
+      }
+      return {changed:true,definitionId,stages:next};
+    });
   }
   /** GM: this Cinder's own art stages (2 to 5 {art, at}), or null to use the definition's. Checked here, not just in the editor. */
   async function setArtStages(instanceId,stages){
@@ -833,7 +869,7 @@ export function createCinders(deps){
 
   const api={
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
-    list,previewPush,push:requestPush,validateDefinition,setArt,stages:stagesInfo,setArtStages,setStageHold,
+    list,previewPush,push:requestPush,validateDefinition,setArt,stages:stagesInfo,setArtStages,setStageHold,getDefinitionArtStages,setDefinitionArtStages,
     instances:()=>readRegistry().instances,
     create,bind,transfer,unbind,rehook,migrate,adoptLegacy,report,repair
   };
@@ -852,6 +888,7 @@ export function createCinders(deps){
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,SOCKETS_SETTING,{name:'Sockets per Cinder',hint:'GM: how many items a Cinder can hold in its sockets (default 3). A Cinder can have its own number (Manage), and perks or items can add sockets.',scope:'world',config:true,type:Number,default:3,range:{min:0,max:MAX_SOCKETS,step:1}});
+      game.settings.register(module,DEFINITION_ART_SETTING,{scope:'world',config:false,type:Object,default:{}});
       game.settings.register(module,INITIAL_POINTS_SETTING,{name:'Starting Cinder points',hint:'GM: points a Cinder gets the first time it is bound (once per Cinder; a transferred Cinder keeps its points and gets none).',scope:'world',config:true,type:Number,default:1,range:{min:0,max:CINDER_WALLET_CAP,step:1}});
     }
   };

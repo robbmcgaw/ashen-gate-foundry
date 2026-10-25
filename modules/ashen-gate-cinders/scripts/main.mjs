@@ -17,7 +17,7 @@ import {openStageEditor} from './stage-editor.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.12.2';
+const VERSION='0.13.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -169,7 +169,15 @@ function manageView(manageTab='cinders'){
     sockets,hasSockets:sockets.length>0,oneSocketHost:sockets.length===1,socketDefault:game.settings.get(MODULE,'socketsPerCinder'),
     canRepair:report.some(r=>r.repair),migrate,migrateText:`${migrate} ${migrate===1?'character has':'characters have'} Cinder tree progress but no Cinder.`,legacy:legacyWaiting(),definitions:cinderDefinitions().length,
     limit:game.settings.get(MODULE,'maxCindersPerActor'),initial,initialOne:initial===1,
+    kinds:cinderDefinitions().map(d=>kindArtView(d)),hasKinds:cinderDefinitions().length>0,
     ...subTabView('agc-manage','Manage sections',MANAGE_TABS.map(t=>t.id==='check'&&report.length?{...t,count:report.length}:t),manageTab)};
+}
+/** Manage → Cinders (0.13.0): one row per Cinder definition with the stage art it gives its bearers. */
+function kindArtView({id,name}){
+  let d=null;try{d=cinders.api.getDefinitionArtStages(id);}catch{d=null;}
+  const n=d?.stages?.length??0;
+  const text=!d?.stages?'No stage art yet':d.source==='world'?`${n} stages set for every bearer`:`${n} stages from the imported Cinder`;
+  return {definitionId:id,name,text,has:Boolean(d?.stages)};
 }
 const signed=v=>`${v>0?'+':''}${v}`;
 const TARGET_WORDS={'push.cost':'Push cost','backfire.chance':'Backfire chance','backfire.severity':'Backfire severity','strain.recovery':'rest recovery','sockets.count':'sockets'};
@@ -346,6 +354,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
           if(!await confirm(`${kindArt?'Show the default art for this kind of Cinder again (from its definition), on the Strain glow?':'Show the default orb for this Cinder again?'}\nThe image file stays in the Assets Library.`,{title:'Reset to the default orb?',yes:'Reset to default orb'}))return;
           await cinders.api.setArt(el.dataset.instance,null);notify('Cinder art reset to the default orb.');}break;
         case 'stages-edit':await this._stages(el.dataset.instance);return;
+        case 'kind-stages':await this._kindStages(el.dataset.definition);return;
         case 'stage-hold':{if(!game.user.isGM)throw Error('GM only');
           const info=cinders.api.stages(el.dataset.instance),r=await cinders.api.setStageHold(el.dataset.instance,el.dataset.mode==='auto'?null:info.state.index+1);
           if(r.changed)notify(el.dataset.mode==='auto'?'Art stage follows the unlocks again.':`Art held at stage ${r.hold}.`);}break;
@@ -466,6 +475,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const gm=game.user.isGM?`<h3>Managing Cinders (GM)</h3>
       <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers or unbinds it (Manage → Cinders). Strain stays with each character.</p>
       <p><strong>Sockets</strong> (Manage → Sockets): drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it, or use Attach…. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached.</p>
+      <p><strong>Stage art</strong> (Manage → Cinders): give a whole Cinder its art stages, with or without a bearer. Every bearer follows them unless their own Cinder has Stages… (Binding card); a re-import keeps them. General Manager's Assets tab fills them from files such as Echo_Cinder_Stage_1.webp.</p>
       <p><strong>Check</strong> (Manage → Check) lists anything out of step; Repair… fixes it after asking.</p>
       <p><strong>GM Setup</strong>: General holds Player Access, the Cinder limits, the Strain chip, art rotation and the Push offer; Strain holds the Strain editor. Both save with one Save Changes.</p>`:'';
     await infoDialog('Cinders help',`<h3>Strain</h3><p>Strain is one number per character. Pushes, crafting, hazards, items and spells can change it; a long rest removes ${strain.config().rest_recovery.long}. The band name and Backfire chance come from the GM's Strain config.</p>
@@ -555,6 +565,15 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     await openStageEditor({info:cinders.api.stages(instanceId),art:c.defaultArt??c.ownArt,name:c.name,
       pickImage:(current,setPath)=>this._filePicker(current,setPath),
       save:async stages=>{const r=await cinders.api.setArtStages(instanceId,stages);notify(stages?'Cinder art stages saved.':'This Cinder uses its definition\'s stages again.');return r;}});
+    this.render();
+  }
+  /** GM (0.13.0): the stage art of a whole kind of Cinder (no bearer needed); every bearer without stages of their own follows it. */
+  async _kindStages(definitionId){
+    if(!game.user.isGM)throw Error('GM only');
+    const d=cinders.api.getDefinitionArtStages(definitionId);
+    await openStageEditor({info:{own:d.world,definition:d.record,stages:d.stages,unlocked:0},name:d.name,scope:'kind',
+      pickImage:(current,setPath)=>this._filePicker(current,setPath),
+      save:async stages=>{const r=await cinders.api.setDefinitionArtStages(definitionId,stages);notify(stages?`${d.name} stage art saved.`:`${d.name} uses its imported stages again.`);return r;}});
     this.render();
   }
   async _setStage(instanceId){

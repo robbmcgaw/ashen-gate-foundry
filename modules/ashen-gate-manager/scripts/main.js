@@ -69,7 +69,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
-import {cindersApi, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
+import {cindersApi, cinderCaps, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
 import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
@@ -1964,7 +1964,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         oldUrl:r.from[i]?this.#assetUrl(r.from[i].art):'',hasOld:Boolean(r.from[i])}));
       const single=r.mode==='art'?r.to.map(t=>({fileName:t.fileName,toUrl:this.#assetUrl(t.art),oldUrl:r.fromArt?this.#assetUrl(r.fromArt):'',hasOld:Boolean(r.fromArt)})):[];
       return {...r,stages,single,hasStages:stages.length>0,hasSingle:single.length>0,canYes:r.ready,isYes:yes,isNo:!r.checked,yesTab:r.checked?true:false,noTab:!yes,conflict:blocked,
-        willChange:yes&&!blocked,cinderLabel:r.cinderName||`${r.word} (no Cinder yet)`,pickerOpen:a.cinderPickerKey===r.key,
+        willChange:yes&&!blocked,bearersOne:r.bearers===1,cinderLabel:r.cinderName||`${r.word} (no Cinder yet)`,pickerOpen:a.cinderPickerKey===r.key,
         summary:r.needsPick&&!r.chosen?'Pick one first':blocked?'Needs a choice':yes?'Will be linked':'Skipped',
         options:cinderPool.map(c=>({value:c.definitionId,label:c.name,selected:c.definitionId===r.definitionId})),
         canDifferent:cinderPool.length>0,hasExtras:r.extras.length>0,hasExisting:Boolean(r.from.length||r.fromArt)};
@@ -2000,12 +2000,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** The Cinders a stage-art file can go to (GM only; empty when Ashen Gate | Cinders or its API is missing). */
   #cinderList() {
     const api=cindersApi();
-    if(!game.user?.isGM||(!api?.canStages&&!api?.canArt))return [];
-    try{return cinderChoices({docs:this.#assetDocs(),instances:api.cinder.instances(),stagesOf:api.canRead?id=>api.cinder.stages(id):()=>null});}catch{return [];}
+    if(!game.user?.isGM||(!api?.canDefinition&&!api?.canStages&&!api?.canArt))return [];
+    try{
+      const instances=typeof api.cinder.instances==='function'?api.cinder.instances():[];
+      return cinderChoices({docs:this.#assetDocs(),instances,stagesOf:api.canRead?id=>api.cinder.stages(id):()=>null,
+        definitionOf:api.canDefinition?id=>api.cinder.getDefinitionArtStages(id):()=>null});
+    }catch{return [];}
   }
   /** Record matches for the files, with Cinder stage art (Echo_Cinder_Stage_1.webp …) taken out first so it is never also offered to a record. */
   #planLinks(files) {
-    const api=cindersApi(), caps=api?{canStages:api.canStages,canArt:api.canArt}:null;
+    const caps=cinderCaps(cindersApi());
     const {rows:cinderRows,rest}=planCinderArt(files,{user:game.user,cinders:this.#cinderList(),caps});
     return {...planAssetLinks(this.#assetDocs(),rest),cinderRows};
   }
@@ -2204,7 +2208,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     pane.querySelectorAll('[data-ag-assets-cinder-pick]').forEach(el=>el.addEventListener('change',event=>{
       const key=el.dataset.agAssetsCinderPick,row=cinderRowOf(key);if(!row||!event.target.value)return;
       const api=cindersApi();
-      if(!assignCinder(row,event.target.value,this.#cinderList(),api?{canStages:api.canStages,canArt:api.canArt}:null)){toast('That Cinder cannot be used here.',true);return;}
+      if(!assignCinder(row,event.target.value,this.#cinderList(),cinderCaps(api))){toast('That Cinder cannot be used here.',true);return;}
       a.cinderPickerKey=null;this.focusAfterRender=`[data-ag-assets-cinder-different="${CSS.escape(key)}"]`;void this.render();
     }));
     pane.querySelectorAll('[data-ag-assets-bulk]').forEach(el=>el.addEventListener('click',event=>{
