@@ -1,3 +1,11 @@
+## 0.61.0 — 2026-10-25
+
+Assets: Cinder stage art.
+
+- **Drop Cinder stage images and they are matched to the Cinder.** Files named like `Echo_Cinder_Stage_1.webp` (Ember, Frost, Gale, Echo, Lumen, Root, Stone, Tide, Veil; stages 1 to 5; any capitals; webp, png or jpg; spaces, dashes or underscores; `stage1` or `Stage 1`) are uploaded like any other Assets file, then shown in **Link files to records** as one row per Cinder, with its stages in order, the current image beside each new one, the reason ("Matched Cinder name and stage number") and Yes / No / Different… (pick another Cinder). **Find matching files** does the same for a folder. These files are no longer offered to NPCs, Items or other records.
+- **Link sets the Cinder's art stages through Ashen Gate | Cinders** (`api.cinder.setArtStages`). Unlocks needed are 0, 3, 6, 10, 14 (the first as many as there are stages), or the Cinder's own numbers when it already has the same number of stages. A single stage 1 image sets the Cinder's one image (`setArt`). A gap (stage 3 missing), an unbound Cinder, or a Cinders that is off or too old to do this is explained on the row and nothing is written. Nothing is written until Link; GM only, checked in the code as well as hidden in the window.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.60.16 — 2026-10-25
 
 Three new skins from the Studio look book: Black Ink, Iron and Ember, Moss Plum.

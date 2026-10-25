@@ -227,7 +227,8 @@ const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'ut
 const hbs = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
 test('the window previews after an upload, adds no new drop target, and the table shows reason, pick lists and old images', () => {
   assert.equal((hbs.match(/data-ag-assets-drop/g) ?? []).length, 1);
-  assert.match(main, /planAssetLinks\(this\.#assetDocs\(\),added\)/);
+  assert.match(main, /this\.#planLinks\(added\)/);
+  assert.match(main, /planAssetLinks\(this\.#assetDocs\(\),rest\)/);
   assert.match(main, /resolvePick\(row,event\.target\.value\)/);
   assert.match(hbs, /Why it fits/);
   assert.match(hbs, /data-ag-assets-pick="\{\{key\}\}"/);
