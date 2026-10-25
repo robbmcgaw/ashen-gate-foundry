@@ -9,7 +9,7 @@
 // ones only) is GM-only and is not a socket operation at all.
 // The GM-side checks are the real ones for the socket: the sender must be the user named in the request, connected,
 // allowed to use the journal, and (for a rename) the session's creator.
-import {JOURNAL_CONTRACT,SESSION_ID,MAX_HTML,GM_TARGET,gmOwnership,canDelete,canSetDate,nextNumber,freeId,cleanTitle,readSession,newSession,sortSessions,currentSession,
+import {JOURNAL_CONTRACT,SESSION_ID,MAX_HTML,GM_TARGET,gmOwnership,canDelete,canSetDate,canSetNumber,nextNumber,freeId,cleanNumber,sessionsWithNumber,isAutoName,cleanTitle,readSession,newSession,sortSessions,currentSession,
  entryOwnership,partyOwnership,personalOwnership,pageFlag,readPageFlag,canUseJournal,canReadPage,canWritePage,canRename,
  sanitizeHtml,searchJournal,sessionMarkdown,journalMarkdown,canExportKind} from './journal-core.mjs';
 
@@ -41,7 +41,7 @@ export function createJournalStore(deps){
  function rows(){
   const seen=new Set(),out=[];
   for(const entry of deps.entries()){const s=readSession(flagOf(entry,'session'));if(!s||seen.has(s.id))continue;seen.add(s.id);out.push({entry,session:s});}
-  return out.sort((a,b)=>b.session.number-a.session.number);
+  return out.sort((a,b)=>b.session.number-a.session.number||(a.session.id<b.session.id?1:-1));
  }
  function rowById(id){if(typeof id!=='string'||!SESSION_ID.test(id))return null;return rows().find(r=>r.session.id===id)??null;}
  const pagesOf=entry=>[...(entry?.pages??[])].map(page=>({page,flag:readPageFlag(flagOf(page,'journalPage'))})).filter(x=>x.flag);
@@ -60,12 +60,12 @@ export function createJournalStore(deps){
  function list({archived=false}={}){
   const me=deps.me();assertAllowed(me);
   const all=rows().map(r=>r.session),cur=currentSession(all);
-  return all.filter(s=>!s.archived||me.isGM&&archived).map(s=>({...s,current:s.id===cur?.id,canRename:canRename(me,s),canSetDate:canSetDate(me),canDelete:canDelete(me,s)}));
+  return all.filter(s=>!s.archived||me.isGM&&archived).map(s=>({...s,current:s.id===cur?.id,canRename:canRename(me,s),canSetDate:canSetDate(me),canSetNumber:canSetNumber(me),canDelete:canDelete(me,s)}));
  }
  function get(id){
   const me=deps.me();assertAllowed(me);const r=rowById(id);
   if(!r||r.session.archived&&!me.isGM)return null;
-  return {...r.session,current:currentSession(rows().map(x=>x.session))?.id===r.session.id,canRename:canRename(me,r.session),canSetDate:canSetDate(me),canDelete:canDelete(me,r.session)};
+  return {...r.session,current:currentSession(rows().map(x=>x.session))?.id===r.session.id,canRename:canRename(me,r.session),canSetDate:canSetDate(me),canSetNumber:canSetNumber(me),canDelete:canDelete(me,r.session)};
  }
  /** The pages this user may open in a session, party first: [{target, label, userId}]. */
  function pages(id){
@@ -113,25 +113,36 @@ export function createJournalStore(deps){
  function performCreate(input,requester){
   return serial(async()=>{
    assertAllowed(requester);
-   const all=rows().map(r=>r.session),{number,id}=freeId(nextNumber(all),all);
+   const all=rows().map(r=>r.session),chosen=customNext(),{number,id}=freeId(nextNumber(all,chosen),all);
    const session=newSession({number,id,name:input?.name,subtitle:input?.subtitle,createdBy:requester.id,now:now()});
    await deps.createEntry({name:`Game Journal — ${session.name}`,folder:await deps.folderId(),ownership:entryOwnership(),
     flags:{[MOD]:{session}},pages:[pageData(id,'party'),pageData(id,'gm'),...players().map(u=>pageData(id,'user',u))]});
+   // The GM's chosen number is used once; the next session goes back to highest + 1.
+   if(chosen!==null)await deps.setNextNumber?.(null);
    return session.id;
   });
  }
+ const rowFlag=r=>{const {numberInferred,storedNumber,...rest}=r.session;return rest;};
  function performRename(input,requester){
   return serial(async()=>{
    assertAllowed(requester);const r=rowById(input?.id);
    if(!r||r.session.archived&&!requester.isGM)throw new Error('That session is not available.');
    if(!canRename(requester,r.session))throw new Error('Only the GM and the player who started this session can rename it.');
    const t=cleanTitle({name:input.name,subtitle:input.subtitle,date:input.date});
+   // The number is the GM's to set; a player's rename that names another number is refused, not ignored.
+   const num=input.number===undefined||input.number===null||input.number===''?undefined:cleanNumber(input.number);
+   if(num!==undefined&&num!==r.session.number&&!canSetNumber(requester))throw new Error('Only the GM can change the session number.');
    // The date is the GM's to set; a player's rename that names another date is refused, not ignored.
    if(input.date!==undefined&&!canSetDate(requester)&&t.date!==(r.session.date??''))throw new Error('Only the GM can change the date.');
    const next={...r.session,name:t.name,subtitle:t.subtitle};
+   delete next.numberInferred;delete next.storedNumber;
+   if(num!==undefined&&canSetNumber(requester))next.number=num;
+   // A name that is only a number always follows the number, so the two can never disagree.
+   if(isAutoName(next.name))next.name=`Session ${next.number}`;
    if(input.date!==undefined){if(t.date)next.date=t.date;else delete next.date;}
-   if(JSON.stringify(next)!==JSON.stringify(r.session))
-    await r.entry.update({name:`Game Journal — ${t.name}`,[`flags.${MOD}.session`]:next});
+   // Also saves when only the stored flag was out of step with what is shown (a legacy counter versus the name).
+   if(JSON.stringify(next)!==JSON.stringify(rowFlag(r))||r.session.numberInferred)
+    await r.entry.update({name:`Game Journal — ${next.name}`,[`flags.${MOD}.session`]:next});
    return r.session.id;
   });
  }
@@ -173,7 +184,8 @@ export function createJournalStore(deps){
    pending.set(requestId,{ok,fail,timer});
    deps.socket.emit(SOCKET,{type:JOURNAL_SOCKET_TYPES.request,requestId,userId:me.id,op,
     id:payload?.id,name:typeof payload?.name==='string'?payload.name.slice(0,500):undefined,subtitle:typeof payload?.subtitle==='string'?payload.subtitle.slice(0,500):undefined,
-    date:typeof payload?.date==='string'?payload.date.slice(0,20):undefined});
+    date:typeof payload?.date==='string'?payload.date.slice(0,20):undefined,
+    number:typeof payload?.number==='number'||typeof payload?.number==='string'?String(payload.number).slice(0,8):undefined});
   });
  }
  /** Every client: receipts for its own requests; the primary GM: requests. Receipts carry only the session id. */
@@ -190,8 +202,8 @@ export function createJournalStore(deps){
    if(typeof senderId==='string'&&senderId!==msg.userId)throw new Error('Request sender mismatch.');
    const user=userById(msg.userId);if(!user?.active)throw new Error('Unknown requester.');
    if(!OPS.has(msg.op))throw new Error('Unknown Game Journal request.');
-   for(const k of ['name','subtitle','date'])if(msg[k]!==undefined&&typeof msg[k]!=='string')throw new TypeError('Names must be text.');
-   sessionIdValue=msg.op==='create'?await performCreate({name:msg.name,subtitle:msg.subtitle},user):await performRename({id:msg.id,name:msg.name,subtitle:msg.subtitle,date:msg.date},user);
+   for(const k of ['name','subtitle','date','number'])if(msg[k]!==undefined&&typeof msg[k]!=='string')throw new TypeError('Names must be text.');
+   sessionIdValue=msg.op==='create'?await performCreate({name:msg.name,subtitle:msg.subtitle},user):await performRename({id:msg.id,name:msg.name,subtitle:msg.subtitle,date:msg.date,number:msg.number},user);
    ok=true;
   }catch(e){message=e?.message||String(e);console.warn(`${MOD} | refused Game Journal ${msg.op} from ${msg.userId}: ${message}`);}
   deps.socket?.emit?.(SOCKET,{type:JOURNAL_SOCKET_TYPES.receipt,requestId:msg.requestId,userId:msg.userId,ok,message,sessionId:ok?sessionIdValue:null});
@@ -242,10 +254,27 @@ export function createJournalStore(deps){
   const note=`${sections.length} session${sections.length===1?'':'s'}${me.isGM?`, archived sessions included${archived?` (${archived})`:''}`:''}, oldest first.`;
   return {markdown:journalMarkdown(`${title} — every session`,sections,{note}),label:title,who,count:sections.length};
  }
+ const customNext=()=>{try{const v=deps.nextNumberSetting?.();return v===null||v===undefined||v===''?null:cleanNumber(v);}catch{return null;}};
+ /** GM: the number the next New session will use, and whether the GM chose it ({number, custom}). */
+ function nextSessionNumber(){
+  const me=deps.me();assertGM(me);const chosen=customNext();
+  return {number:nextNumber(rows().map(r=>r.session),chosen),custom:chosen!==null};
+ }
+ /** GM only: pick the number the next New session uses (null goes back to highest + 1). Used once, then cleared. */
+ async function setNextSessionNumber(value){
+  const me=deps.me();assertGM(me);
+  const n=value===null||value===undefined||String(value).trim()===''?null:cleanNumber(value);
+  await deps.setNextNumber?.(n);return nextSessionNumber();
+ }
+ /** GM: the other sessions (archived included) already showing this number, so the editor can warn before saving. */
+ function numberUsedBy(value,exceptId=null){
+  const me=deps.me();assertGM(me);const n=cleanNumber(value);
+  return sessionsWithNumber(rows().map(r=>r.session),n,exceptId).map(s=>({id:s.id,name:s.name,archived:s.archived}));
+ }
  const isJournalDoc=doc=>!!readSession(flagOf(doc,'session'))||!!readPageFlag(flagOf(doc,'journalPage'));
 
  return {contract:JOURNAL_CONTRACT,allowed,list,get,pages,read,write,
   create:(input={})=>request('create',input),rename:(id,input={})=>request('rename',{...input,id}),
   archive:id=>setArchived(id,true),restore:id=>setArchived(id,false),remove,ensurePages,search,exportMarkdown,exportJournal,onSocket,isJournalDoc,
-  sortSessions};
+  sortSessions,nextSessionNumber,setNextSessionNumber,numberUsedBy};
 }

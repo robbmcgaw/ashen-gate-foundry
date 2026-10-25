@@ -1,3 +1,13 @@
+## 0.24.0 — 2026-10-25
+
+One session number, starting at 0, that the GM can edit; and no hidden journal menu.
+- **Sessions start at 0.** A new journal's first session is *Session 0*, then one more than the highest.
+- **Edit the number.** The GM's pencil beside a session now has **Session number** (a whole number, 0 or more). Two sessions may share a number: the GM is asked first and can keep editing. Players never see the field and the store refuses a number from them (also over the socket).
+- **Next session number…** (GM, in the session list) sets the number the next *New session* uses, once; leave it alone to use the highest plus one.
+- **One number everywhere.** The page title, the session list and the Journal entry name all use it; a name that is only a number ("Session 0") follows the number, so it can no longer read "Session 2 - Session 0". The list no longer repeats the number on a second line.
+- **Export is one button** with every export under it. **Rename** is gone (use the pencil). **Archive session**, **Restore session** and **Delete session** are plain buttons next to Export, GM only (still refused by the store for anyone else). **Show archived sessions** is a visible toggle in the session list. Delete still asks "Delete <session>?" with a danger button that is never the default.
+- Saved data: nothing is renumbered. A session saved with a counter that disagrees with a name like "Session 0" (for example number 2, named Session 0) shows the name's number; nothing is written until the GM opens the pencil and saves, which stores that number once (re-running changes nothing). Ids (`SESSION-nnn`) never change. New setting `nextSessionNumber` (world, empty by default).
+
 ## 0.23.0 — 2026-10-24
 
 Pick links by name; IDs are made for you.

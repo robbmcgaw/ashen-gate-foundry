@@ -234,3 +234,6 @@
 /* 0.22.0 Group headers in the GM Quests list are kit folds: tighter body, count in the header. */
 .agq-gfold + .agq-gfold { margin-top: var(--ag-space-1); }
 .agq-gfold > .ag-fold__body { padding: var(--ag-space-1); }
+
+/* 0.24.0 GM session tools in the sidebar; Archive / Restore / Delete sit beside Export as plain buttons. */
+.agq-jside__gm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }

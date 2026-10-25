@@ -8,7 +8,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:class{constructor(o){this.o
   DialogV2:{wait:async o=>{dialogs.push(o);return o.buttons.find(b=>b.action===answer).callback();}}}}};
 const gm={id:'gm',name:'GM',isGM:true,active:true},alice={id:'alice',name:'Alice',isGM:false,active:true},bob={id:'bob',name:'Bob',isGM:false,active:true};
 const users=[gm,alice,bob];users.get=id=>users.find(u=>u.id===id);
-const settings={playerAccessEnabled:true,compendiumPackIds:'',openForPlayers:false};
+const settings={playerAccessEnabled:true,compendiumPackIds:'',openForPlayers:false,nextSessionNumber:1};
 const LEVELS={NONE:0,LIMITED:1,OBSERVER:2,OWNER:3};
 const permits=(own,u,l)=>u.isGM||(own[u.id]??own.default??0)>=LEVELS[l];
 const journal=[],emitted=[];
