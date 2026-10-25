@@ -72,6 +72,7 @@ import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
 import {cindersApi, cinderCaps, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
+import {ringRepairPlan, applyRingRepair, RING_SUBJECT_SCALE} from './token-ring.js';
 import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 import {classifyFiles, stageFiles, stageSummary, setFileUpload, setUnmatchedUpload, unmatchedTickState, uploadSelection, unmatchedInFolder, removalList, removalText, STATUS_LABEL} from './asset-stage.js';
 
@@ -333,7 +334,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
     this.assets = {cinderPickerKey:null, pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
-      scan:null, linkFiles:[], links:null, tokenRing:true, sceneTokens:true, staged:null, deleteList:new Set(), lastUpload:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
+      scan:null, linkFiles:[], links:null, tokenRing:true, sceneTokens:true, ringRepair:{plan:null,message:'',scene:true}, staged:null, deleteList:new Set(), lastUpload:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -1375,7 +1376,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
-      case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": await this.#assetsAction(name); break;
+      case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": case "assets-ring-scan": case "assets-ring-apply": case "assets-ring-cancel": await this.#assetsAction(name); break;
       case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
@@ -1946,6 +1947,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     for(const scene of game.scenes??[])for(const t of scene.tokens??[])if(t.actorId&&!t._source?.ring?.enabled)counts.set(t.actorId,(counts.get(t.actorId)??0)+1);
     return counts;
   }
+  /** Actors whose ring Manager turned on at subject scale 1 (hidden under square art), with their scene tokens. GM only. */
+  #ringRepairScan() {
+    if(!game.user?.isGM)return [];
+    const actors=(game.actors?.contents??[]).filter(d=>sourceFlag(d)?.sourceId).map(d=>({uuid:d.uuid,id:d.id,name:d.name,documentName:'Actor',type:d.type,sourceId:sourceFlag(d).sourceId,ring:d.prototypeToken?.ring}));
+    const tokens=(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId).map(t=>({actorId:t.actorId,sceneId:scene.id,id:t.id,ring:t._source?.ring})));
+    return ringRepairPlan(actors,tokens);
+  }
   #assetDocs() {
     const ringTokens=this.#ringTokenCounts();
     return allBoundDocuments().filter(doc=>!doc.getFlag(MODULE_ID,'lifecycle')?.archived).map(doc=>{
@@ -2051,6 +2059,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       noMatchRows,hasNoMatch:Boolean(links)&&!stale&&(noMatchRows.length>0||un.below>0),noMatchCount:un.files.length,noMatchOverflow:Math.max(0,un.files.length-noMatchRows.length),
       noMatchBelow:un.below,noMatchStale:Boolean(links)&&stale,deleteCount:listed.allowed.length,hasDeleteList:listed.allowed.length>0,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
+      repair:(()=>{const rr=a.ringRepair,plan=rr.plan;return {scanned:Array.isArray(plan),has:Boolean(plan?.length),message:rr.message,scene:rr.scene,
+        actorCount:plan?.length??0,tokenCount:rr.scene?(plan??[]).reduce((n,p)=>n+p.tokens.length,0):0,
+        rows:(plan??[]).slice(0,100).map(p=>({name:p.name,label:p.label,tokens:p.tokens.length})),overflow:Math.max(0,(plan?.length??0)-100)};})(),
       tokenRing:a.tokenRing,ringOffer:allRows.some(r=>r.ringLabel),ringCount:linkRows.filter(r=>r.ringWill).length,ringKept:linkRows.filter(r=>r.ringKeptNote).length,
       sceneTokens:a.sceneTokens,sceneTokenTotal:linkRows.reduce((n,r)=>n+r.ringOnScenes,0),sceneTokenOffer:allRows.some(r=>r.ringTokens>0),
       scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,cinderRows,hasCinderRows:cinderRows.length>0,hasAnyRows:linkRows.length>0||cinderRows.length>0,
@@ -2131,6 +2142,28 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           a.linkMessage=(plan.rows.length||plan.cinderRows.length)?this.#linkSummary(plan.rows,plan.cinderRows)
             :scan.ok?'No file in this folder (or under it) fits a record by its permanent id or by name. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
         }finally{a.scanning=false;}
+        break;
+      }
+      case 'assets-ring-scan': {
+        const plan=this.#ringRepairScan();
+        a.ringRepair={...a.ringRepair,plan,message:plan.length?'':'No hidden token rings found. Nothing to fix.'};
+        break;
+      }
+      case 'assets-ring-cancel': a.ringRepair={...a.ringRepair,plan:null,message:'Cleared. Nothing changed.'};this.focusAfterRender='[data-ag-action="assets-ring-scan"]';break;
+      case 'assets-ring-apply': {
+        const rr=a.ringRepair, plan=rr.plan??[];
+        if(!plan.length)return say('Find hidden token rings first.',true);
+        const tokenCount=rr.scene?plan.reduce((n,p)=>n+p.tokens.length,0):0;
+        const yes=await confirmDialog(`Resize the token ring of ${plan.length} Actor(s) so it shows around the art${tokenCount?`, and of ${tokenCount} token(s) of them already on scenes`:''}?\nOnly the ring's subject scale changes (to ${RING_SUBJECT_SCALE}). Colours, images and everything else stay as they are.`,
+          {title:'Fix hidden token rings?',yes:`Fix ${plan.length} ring(s)`});
+        if(!yes)return;
+        this.busy=true;
+        try{
+          const out=await applyRingRepair(plan,{user:game.user,sceneTokens:rr.scene,getDoc:uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null,
+            getTokens:actor=>(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId===actor.id).map(t=>({sceneId:scene.id,id:t.id,ring:t._source?.ring}))),
+            updateMany:updates=>globalThis.Actor.updateDocuments(updates),updateTokens:(sceneId,updates)=>game.scenes.get(sceneId).updateEmbeddedDocuments('Token',updates)});
+          a.ringRepair={...rr,plan:this.#ringRepairScan(),message:out.message};say(out.message,!out.ok);
+        }finally{this.busy=false;}
         break;
       }
       case 'assets-link-cancel': a.pickerKey=null;a.links=null;a.linkFiles=[];a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
@@ -2386,6 +2419,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     pane.querySelector('[data-ag-assets-token-ring]')?.addEventListener('change',event=>{
       a.tokenRing=event.currentTarget.checked;this.focusAfterRender='[data-ag-assets-token-ring]';void this.render();
+    });
+    pane.querySelector('[data-ag-assets-repair-scene]')?.addEventListener('change',event=>{
+      a.ringRepair={...a.ringRepair,scene:event.currentTarget.checked};this.focusAfterRender='[data-ag-assets-repair-scene]';void this.render();
     });
     pane.querySelector('[data-ag-assets-scene-tokens]')?.addEventListener('change',event=>{
       a.sceneTokens=event.currentTarget.checked;this.focusAfterRender='[data-ag-assets-scene-tokens]';void this.render();

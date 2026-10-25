@@ -611,6 +611,25 @@
       </div>
     </details>
 
+    <details class="ag-fold" data-ag-fold-key="assets-ring-repair">
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Fix hidden token rings</span><span class="ag-fold__hint">Rings turned on by an earlier version that sit under the art</span></summary>
+      <div class="ag-fold__body">
+        <p class="agmanager-tiny">Version 0.63.0 turned the token ring on without making room for it, so a square portrait covered it. This looks for Actors whose ring is on at Foundry's default size with exactly the colours Manager writes (green, red or black), and resizes only the ring's subject scale so the ring shows around the art. A ring you set up yourself, with other colours or a scale you chose, is never listed. Nothing is written until you confirm, and running it again changes nothing more.</p>
+        <div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="assets-ring-scan"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find hidden token rings</button></div>
+        <p class="agmanager-tiny" role="status">{{assets.repair.message}}</p>
+        {{#if assets.repair.has}}
+        <p class="aglink-count" role="status" aria-live="polite"><strong>{{assets.repair.actorCount}} Actor(s){{#if assets.repair.scene}} and {{assets.repair.tokenCount}} token(s) on scenes{{/if}} will be resized so the ring shows.</strong></p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-repair-scene {{#if assets.repair.scene}}checked{{/if}}> <strong>Also update tokens already on scenes</strong></label>
+        <ul class="agmanager-tiny">{{#each assets.repair.rows}}<li><strong>{{name}}</strong> ({{label}} ring){{#if tokens}}, {{tokens}} token(s) on scenes{{/if}}</li>{{/each}}</ul>
+        {{#if assets.repair.overflow}}<p class="agmanager-tiny">and {{assets.repair.overflow}} more.</p>{{/if}}
+        <footer class="ag-footer">
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="assets-ring-cancel">Cancel</button>
+          <button type="button" class="ag-btn" data-ag-action="assets-ring-apply"><i class="fa-solid fa-circle-dot" aria-hidden="true"></i> Fix {{assets.repair.actorCount}} ring(s)…</button>
+        </footer>
+        {{/if}}
+      </div>
+    </details>
+
     <details class="ag-fold" data-ag-fold-key="assets-missing" open>
       <summary class="ag-fold__summary"><span class="ag-fold__title">Missing art</span><span class="ag-fold__count">{{assets.missingCount}}</span><span class="ag-fold__hint">Records with no image or a generic one</span></summary>
       <div class="ag-fold__body">

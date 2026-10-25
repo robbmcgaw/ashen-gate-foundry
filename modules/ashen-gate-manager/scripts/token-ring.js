@@ -87,3 +87,58 @@ export function tokenRingUpdateFor(look, token) {
   if (isDefaultScale(ring.subject?.scale)) update['ring.subject.scale'] = RING_SUBJECT_SCALE;
   return update;
 }
+
+// ---------- One-time repair of rings that 0.63.0 turned on at subject scale 1 (hidden under square art) ----------
+const sameColour = (a, b) => !blank(a) && !blank(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+const hidden = (look, ring) => Boolean(look && ring?.enabled && isDefaultScale(ring.subject?.scale)
+  && sameColour(ring.colors?.ring, look.ring) && sameColour(ring.colors?.background, look.background));
+
+/**
+ * Which Actors (and their scene tokens) have a ring Manager itself wrote that is still hidden: ring on, subject scale still
+ * Foundry's default 1, and BOTH colours exactly the palette in RING_KINDS for that Actor. A ring the GM set up himself (any
+ * other colour, or a scale he chose) is never listed. `actors` are {uuid, id, name, documentName, type, sourceId, ring} and
+ * `tokens` are {actorId, sceneId, sceneName, id, ring}. Returns [{uuid, id, name, label, tokens:[{sceneId, id}]}].
+ */
+export function ringRepairPlan(actors, tokens = []) {
+  const out = [];
+  for (const a of actors ?? []) {
+    const look = ringKindFor(a);
+    if (!hidden(look, a.ring)) continue;
+    const mine = (tokens ?? []).filter(t => t.actorId === a.id && hidden(look, t.ring)).map(t => ({sceneId: t.sceneId, id: t.id}));
+    out.push({uuid: a.uuid, id: a.id, name: a.name, sourceId: a.sourceId, label: look.label, tokens: mine});
+  }
+  return out.sort((x, y) => x.name.localeCompare(y.name));
+}
+
+/**
+ * Applies a plan from ringRepairPlan. GM only (checked here). Each Actor is re-read live and skipped if it no longer matches
+ * (so running it twice changes nothing the second time). Writes `prototypeToken.ring.subject.scale` only, and the same single
+ * field on the Actor's matching scene tokens when `sceneTokens` is true.
+ * deps: {user, getDoc(uuid) → live Actor, getTokens(actor) → [{sceneId, id, ring}], updateMany(updates[]), updateTokens(sceneId, updates[])}
+ * Returns {ok, message, actors, tokens, skipped, errors}.
+ */
+export async function applyRingRepair(plan, {user, getDoc, getTokens = () => [], updateMany, updateTokens = async () => {}, sceneTokens = true} = {}) {
+  if (!user?.isGM) return {ok: false, message: 'Only a GM can fix token rings.', actors: 0, tokens: 0, skipped: 0, errors: []};
+  let actors = 0, tokens = 0, skipped = 0;
+  const errors = [];
+  for (const item of plan ?? []) {
+    const doc = getDoc(item.uuid);
+    const look = doc && ringKindFor({documentName: 'Actor', type: doc.type, sourceId: item.sourceId});
+    if (!doc || !hidden(look, doc.prototypeToken?.ring)) { skipped++; continue; }
+    try {
+      await updateMany([{_id: doc.id, 'prototypeToken.ring.subject.scale': RING_SUBJECT_SCALE}]);
+      actors++;
+    } catch (error) { errors.push({name: item.name, message: String(error?.message ?? error)}); continue; }
+    if (!sceneTokens) continue;
+    const byScene = new Map();
+    for (const t of getTokens(doc) ?? []) {
+      if (!item.tokens.some(p => p.id === t.id && p.sceneId === t.sceneId) || !hidden(look, t.ring)) continue;
+      (byScene.get(t.sceneId) ?? byScene.set(t.sceneId, []).get(t.sceneId)).push({_id: t.id, 'ring.subject.scale': RING_SUBJECT_SCALE});
+    }
+    for (const [sceneId, updates] of byScene) {
+      try { await updateTokens(sceneId, updates); tokens += updates.length; } catch (error) { errors.push({name: item.name, message: String(error?.message ?? error)}); }
+    }
+  }
+  const message = `${actors} Actor ring(s) resized so the ring shows${sceneTokens ? `, ${tokens} token(s) on scenes resized` : ''}${skipped ? `, ${skipped} skipped (changed since the preview)` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}.`;
+  return {ok: !errors.length || actors > 0, message, actors, tokens, skipped, errors};
+}
