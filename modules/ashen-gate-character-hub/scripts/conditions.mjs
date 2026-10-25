@@ -19,7 +19,7 @@
  */
 import {esc, dnd5eConfig, labelOf, MODULE_ID as MODULE_ID_FOR_SETTINGS} from './constants.mjs';
 import {canEdit} from './actions.mjs';
-import {conditionsData} from './data.mjs';
+import {conditionsData, isToggleableStatus, CONDITION_ICON_FALLBACK} from './data.mjs';
 import {targetedTokens, requestGM} from './marks.mjs';
 import {requirePart} from './visibility.mjs';
 
@@ -36,11 +36,15 @@ export const cleanMode = mode => mode === 'target' ? 'target' : 'self';
 export function conditionChoices(actor) {
   let shared = null;
   try { shared = utilitiesConditions()?.choices?.(); } catch { shared = null; }
-  if (Array.isArray(shared) && shared.length) return shared.filter(c => c?.id).map(({id, label, img}) => ({id, label: label || id, img: img || ''}));
+  // 0.50.1: whatever the list's source, only ids Foundry can toggle are offered (an older Utilities, or another module, may name one it cannot).
+  if (Array.isArray(shared) && shared.length) {
+    const ok = shared.filter(c => c?.id && isToggleableStatus(c.id)).map(({id, label, img}) => ({id, label: label || id, img: img || CONDITION_ICON_FALLBACK}));
+    if (ok.length) return ok;
+  }
   const base = conditionsData(actor ?? {}).map(({id, label, img}) => ({id, label, img}));
   // 0.46.1: Exhaustion is offered too (Utilities' tracker offers it), put on and off with the same toggleStatusEffect.
   const ex = statusConfigFor('exhaustion');
-  if (ex && !base.some(c => c.id === 'exhaustion')) base.push({id: 'exhaustion', label: dnd5eConfig().conditionTypes?.exhaustion?.label ? labelOf(dnd5eConfig().conditionTypes.exhaustion) : 'Exhaustion', img: ex.img ?? ex.icon ?? ''});
+  if (ex && !base.some(c => c.id === 'exhaustion')) base.push({id: 'exhaustion', label: dnd5eConfig().conditionTypes?.exhaustion?.label ? labelOf(dnd5eConfig().conditionTypes.exhaustion) : 'Exhaustion', img: ex.img ?? ex.icon ?? CONDITION_ICON_FALLBACK});
   return base.sort((a, b) => a.label.localeCompare(b.label));
 }
 const statusConfigFor = id => { const reg = globalThis.CONFIG?.statusEffects; const list = Array.isArray(reg) ? reg : Object.entries(reg ?? {}).map(([k, v]) => ({...v, id: v?.id ?? k})); return list.find(e => e?.id === id) ?? null; };
@@ -107,6 +111,19 @@ export function conditionDecision({actor, name = actor?.name ?? 'that character'
 }
 
 const hasStatus = (actor, id) => actor?.statuses?.has?.(id) === true;
+/**
+ * 0.50.1: why Foundry refused a toggle, as one plain phrase (never its raw "Invalid status ID" text, an id or a stack);
+ * the caller puts the condition and character names around it.
+ */
+export function statusErrorReason(err) {
+  const raw = String(err?.message ?? err ?? '');
+  if (/invalid status id/i.test(raw)) return "Foundry doesn't recognise that condition";
+  const clean = raw.split('\n')[0].replace(/\s*["'][^"']*["']/g, '').replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '');
+  return clean && clean.length <= 140 ? clean : 'Foundry refused the change';
+}
+async function toggle(actor, statusId, active) {
+  try { return await actor.toggleStatusEffect(statusId, {active}); } catch (err) { throw new Error(statusErrorReason(err)); }
+}
 async function change(decision, actor, statusId, active, {self = null, token = null} = {}) {
   if (decision.route === 'gm') {
     return requestGM('condition-toggle', {sourceUuid: self?.uuid, sceneId: token?.document?.parent?.id ?? token?.scene?.id ?? globalThis.canvas?.scene?.id, tokenId: token?.document?.id ?? token?.id, statusId, active});
@@ -117,7 +134,8 @@ async function change(decision, actor, statusId, active, {self = null, token = n
     return active ? u.apply(decision.actorId, statusId) : u.remove(decision.actorId, statusId);
   }
   if (typeof actor?.toggleStatusEffect !== 'function') throw new Error('this Foundry version has no toggleStatusEffect()');
-  return actor.toggleStatusEffect(statusId, {active});
+  if (!isToggleableStatus(statusId)) throw new Error("Foundry doesn't recognise that condition");
+  return toggle(actor, statusId, active);
 }
 
 /**
@@ -202,7 +220,8 @@ export async function conditionToggleOnGM(msg, user) {
     if (!u || typeof u.canChangeActor !== 'function') throw new Error('Ashen Gate | Utilities is needed to change conditions on a token that is not yours.');
     if (!callOk(() => u.canChangeActor(target, statusId, active, user.id))) throw new Error(refusalText(target, target.name, active, u));
   }
-  await target.toggleStatusEffect(statusId, {active});
+  if (!isToggleableStatus(statusId)) throw new Error(`Couldn't change that condition on ${target.name}: Foundry doesn't recognise it.`);
+  try { await toggle(target, statusId, active); } catch (err) { throw new Error(`Couldn't change that condition on ${target.name}: ${err.message}.`); }
   if (hasStatus(target, statusId) !== active) throw new Error(`${target.name} still ${active ? 'does not have' : 'has'} it: another effect or module keeps it.`);
   return active ? 'applied' : 'removed';
 }

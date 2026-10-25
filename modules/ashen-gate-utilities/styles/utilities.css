@@ -327,3 +327,13 @@
 .agu-overlay .agu-ov-chip {display:inline-flex;align-items:center;gap:0;padding:0 var(--ag-space-1);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-raised);font-size:var(--ag-text-sm,var(--ag-text-md));line-height:1.5;}
 .agu-overlay .agu-ov-chip > span {margin:0;}
 .agu-overlay .agu-ov-none {margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm,var(--ag-text-md));line-height:1.5;}
+
+/* 0.31.0: condition icons: a small picture beside the list, chips in the overlay, and the GM's Condition icons fold. The name is always text. */
+.ag-utilities .agu-pick, .agu-overlay .agu-ov-controls {display:flex;align-items:center;gap:var(--ag-space-2);}
+.ag-utilities .agu-pick select {flex:1 1 auto;min-width:0;}
+.agu-overlay .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:contain;flex:none;border:0;margin-right:var(--ag-space-1);}
+.agu-overlay .agu-ov-controls .agu-pick-icon {margin-right:0;}
+.ag-utilities .agu-icon-list {list-style:none;margin:var(--ag-space-2) 0 0;padding:0;}
+.ag-utilities .agu-icon-row {display:flex;align-items:center;gap:var(--ag-space-2);min-height:var(--ag-row-h);flex-wrap:wrap;}
+.ag-utilities .agu-icon-row .agu-icon-name {flex:1 1 10rem;}
+.ag-utilities .agu-icon-row .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);}

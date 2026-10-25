@@ -245,8 +245,8 @@ test('F: chips for this character and the current targets; ✕ only where allowe
   const sheet = new Hub({document: me});
   let html = await sheet._renderHTML();
   const strip = html.slice(html.indexOf('agch-hotbar--conds'), html.indexOf('agch-bottombar'));
-  assert.match(strip, /<li class="is-self"> Prone<button type="button" class="agch-placed__off" data-action="cond-remove" data-uuid="Actor\.actor1" data-status="prone"/);
-  assert.match(strip, /<li class="is-target"> \[TEST\] gob: Blinded<\/li>/, 'not theirs: no ✕');
+  assert.match(strip, /<li class="is-self"><img src="[^"]*" alt=""> Prone<button type="button" class="agch-placed__off" data-action="cond-remove" data-uuid="Actor\.actor1" data-status="prone"/);
+  assert.match(strip, /<li class="is-target"><img src="[^"]*" alt=""> \[TEST\] gob: Blinded<\/li>/, 'not theirs: no ✕');
   assert.match(strip, /role="radiogroup" aria-label="Put the condition on"><button type="button" role="radio" aria-checked="true"[^>]*data-mode="self"/);
   assert.match(strip, /data-mode="target"[^>]*>Target <span class="ag-badge">1<\/span>/, 'the target count, as marks use the same targets');
   assert.ok(html.indexOf('agch-hotbar--marks') < html.indexOf('agch-hotbar--conds'), 'right under Mastery & marks');

@@ -7,6 +7,6 @@ test('the shared list: native statuses A to Z, exhaustion stays (0.29.2), no rea
  const entries=statusEntries({prone:{name:'Prone',img:'p.svg'},blinded:{name:'Blinded',icon:'b.svg'},exhaustion:{name:'Exhaustion'},'ag-strain-high':{name:'Strain'},dead:{name:'Dead'}});
  const list=sharedConditionChoices(entries,{label:id=>({prone:'Prone',blinded:'Blinded',dead:'Dead'})[id]??id});
  assert.deepEqual(list.map(c=>c.id),['blinded','dead','exhaustion','prone']);
- assert.deepEqual(list[0],{id:'blinded',label:'Blinded',img:'b.svg'});
+ assert.deepEqual(list[0],{id:'blinded',label:'Blinded',img:'b.svg',custom:false});
  assert.equal(list[3].img,'p.svg');
 });

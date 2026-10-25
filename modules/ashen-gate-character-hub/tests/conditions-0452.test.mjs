@@ -33,7 +33,7 @@ const utilities = (allow = () => true, {playerCharacter = () => false} = {}) => 
 
 test('the list is Utilities\' own when it offers one, else dnd5e\'s', () => {
   world({utilities: utilities()});
-  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['prone', 'dead']);
+  assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['prone'], '0.50.1: Utilities names dead, which Foundry has no status for here, so it is not offered');
   world();
   assert.deepEqual(conds.conditionChoices(makeActor()).map(c => c.id), ['blinded', 'exhaustion', 'poisoned', 'prone'], '0.46.1: Exhaustion is offered too');
 });
