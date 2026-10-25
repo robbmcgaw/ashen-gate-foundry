@@ -85,7 +85,20 @@ const SKINS = Object.freeze([
   Object.freeze({id:'ag-frontier-map',label:'Ashen Gate — Frontier Map',description:'Sepia cartography with faint contour lines and a compass rose',
     stylesheet:'styles/skins/frontier-map.css',tokens:skinTokens({
     surface:'#ecdfc1',sunken:'#f6ecd5',raised:'#e8dbbb',text:'#231911',muted:'#54402a',border:'#8a714d',
-    accent:'#7a3b1d',onAccent:'#fff6e4',danger:'#80241a',ok:'#285225',warn:'#6b4300',focus:'#1d4e89'})})
+    accent:'#7a3b1d',onAccent:'#fff6e4',danger:'#80241a',ok:'#285225',warn:'#6b4300',focus:'#1d4e89'})}),
+  // Look-book skins (0.60.16, from the Studio appearance look book): structural stylesheets that also carry type, corner, depth and density tokens.
+  Object.freeze({id:'ag-black-ink',label:'Ashen Gate — Black Ink',description:'OLED black with bone-white capitals, square corners and thin outlines',
+    stylesheet:'styles/skins/black-ink.css',tokens:skinTokens({
+    surface:'#0a0a0b',sunken:'#000000',raised:'#141416',text:'#f4f4f2',muted:'#a3a3a0',border:'#6b6b70',
+    accent:'#e8e4da',onAccent:'#0a0a0b',danger:'#ff8a7d',ok:'#8fe0ae',warn:'#f2c14e',focus:'#ffffff'})}),
+  Object.freeze({id:'ag-iron-ember',label:'Ashen Gate — Iron and Ember',description:'A cold forge: iron plates, engraved capitals and an orange glow on what matters',
+    stylesheet:'styles/skins/iron-ember.css',tokens:skinTokens({
+    surface:'#1d1d20',sunken:'#131315',raised:'#2a2a2f',text:'#f1ece6',muted:'#b0a8a0',border:'#6a6a74',
+    accent:'#ff7f32',onAccent:'#1d0c00',danger:'#ff8d86',ok:'#8fd6a0',warn:'#f5c453',focus:'#ffb36b'})}),
+  Object.freeze({id:'ag-moss-plum',label:'Ashen Gate — Moss Plum',description:'Deep forest green with antler-bone text, rounded corners and soft lamplight depth',
+    stylesheet:'styles/skins/moss-plum.css',tokens:skinTokens({
+    surface:'#17201a',sunken:'#0f1611',raised:'#1f2b23',text:'#ece8d8',muted:'#a9b5a2',border:'#587063',
+    accent:'#d8cba4',onAccent:'#1a1d10',danger:'#f29a82',ok:'#8fd6a0',warn:'#e8bf5e',focus:'#f0e3b8'})})
 ]);
 export const DEFAULT_SKIN_ID = 'ag-default';
 const findSkin = id => SKINS.find(s=>s.id===id);

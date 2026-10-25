@@ -52,7 +52,7 @@ function pairsOf(id){
 }
 
 const ids=new Set(createAppearanceController({currentUser:()=>({id:'u'}),getSetting:()=>'',setSetting:async()=>{},subscribeSettings:()=>()=>{}}).listSkins().map(s=>s.id));
-test('every new skin is registered',()=>{for(const id of NEW_SKINS)assert.ok(ids.has(id),id);assert.equal(ids.size,5+2+NEW_SKINS.length);});
+test('every new skin is registered',()=>{for(const id of NEW_SKINS)assert.ok(ids.has(id),id);assert.equal(ids.size,5+2+NEW_SKINS.length+3);});
 
 for(const id of NEW_SKINS){
   test(`${id}: all token pairings meet their contrast floor`,()=>{

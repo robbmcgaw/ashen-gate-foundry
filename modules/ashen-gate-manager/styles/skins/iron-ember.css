@@ -1,0 +1,157 @@
+/*
+ * Ashen Gate skin: Iron and Ember (ag-iron-ember). Loaded by General Manager only while this skin is the effective one, and
+ * every rule is scoped to html[data-ag-skin="ag-iron-ember"], so it is inert otherwise. Colours come from the skin's
+ * --ag-* tokens (scripts/appearance.js). Ported from the Studio appearance look book: Iron and Ember.
+ * This file carries the look book's type, corner, border, depth and density tokens, because the kit's scale tokens
+ * are not skin tokens. Compact tokens apply unless html[data-ag-size="comfortable"]; the Comfortable block scales
+ * them the way the kit's own Comfortable set scales Compact (text +1px, spacing x1.3, control and row heights x1.2).
+ * Fonts: "Alegreya Sans" (body) and "Cinzel" (headings) come first in the stack, then safe fallbacks. The module does not
+ * load web fonts, so the named family shows only where it is installed on the device.
+ * Generic element rules use :where() (zero specificity) like the kit, so module CSS still wins.
+ * No web fonts, no images, no animation.
+ */
+html[data-ag-skin="ag-iron-ember"] {
+  --ag-font-body: "Alegreya Sans", "Gill Sans", "Segoe UI", "Signika", system-ui, sans-serif;
+  --ag-font-display: "Cinzel", "Trajan Pro", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --ag-radius-sm: 4px;
+  --ag-radius: 6px;
+  --ag-radius-lg: 10px;
+  --ag-radius-window: 10px;
+  --ag-radius-control: 6px;
+  --ag-radius-field: 6px;
+  --ag-shadow: 0 2px 0 rgb(0 0 0 / .55), 0 12px 30px rgb(0 0 0 / .55);
+  --ag-shadow-sm: 0 1px 0 rgb(0 0 0 / .5), 0 4px 10px rgb(0 0 0 / .35);
+  --agx-title-case: uppercase;
+  --agx-title-ls: .09em;
+  --agx-title-weight: 700;
+  --agx-tab-radius: 6px 6px 0 0;
+  --agx-hair: color-mix(in srgb, var(--ag-border) 65%, transparent);
+}
+html[data-ag-skin="ag-iron-ember"]:not([data-ag-size="comfortable"]) {
+  --ag-text-xs: 13px;
+  --ag-text-sm: 14px;
+  --ag-text-md: 15.5px;
+  --ag-text-lg: 17px;
+  --ag-text-xl: 21px;
+  --ag-space-1: 3px;
+  --ag-space-2: 6px;
+  --ag-space-3: 9px;
+  --ag-space-4: 12px;
+  --ag-space-5: 16px;
+  --ag-space-6: 22px;
+  --ag-control-h: 36px;
+  --ag-control-h-sm: 28px;
+  --ag-row-h: 42px;
+}
+html[data-ag-skin="ag-iron-ember"][data-ag-size="comfortable"] {
+  --ag-text-xs: 14px;
+  --ag-text-sm: 15px;
+  --ag-text-md: 16.5px;
+  --ag-text-lg: 18px;
+  --ag-text-xl: 23px;
+  --ag-space-1: 4px;
+  --ag-space-2: 8px;
+  --ag-space-3: 12px;
+  --ag-space-4: 16px;
+  --ag-space-5: 21px;
+  --ag-space-6: 29px;
+  --ag-control-h: 43px;
+  --ag-control-h-sm: 34px;
+  --ag-row-h: 50px;
+}
+html[data-ag-skin="ag-iron-ember"] :is(.ag-app, .ag-launchers, .ag-sidebar-launch-group) {
+  --ag-shadow: 0 2px 0 rgb(0 0 0 / .55), 0 12px 30px rgb(0 0 0 / .55);
+  --ag-shadow-sm: 0 1px 0 rgb(0 0 0 / .5), 0 4px 10px rgb(0 0 0 / .35);
+}
+
+/* ---------- Window ---------- */
+html[data-ag-skin="ag-iron-ember"] .application.ag-app {
+  border: 1px solid var(--ag-border);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), var(--ag-shadow);
+}
+html[data-ag-skin="ag-iron-ember"] .application.ag-app > .window-header {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--agx-hair);
+}
+html[data-ag-skin="ag-iron-ember"] .application.ag-app > .window-header .window-title {
+  font-family: var(--ag-font-display);
+  font-weight: var(--agx-title-weight);
+  text-transform: var(--agx-title-case);
+  letter-spacing: var(--agx-title-ls);
+}
+html[data-ag-skin="ag-iron-ember"] .application.ag-app > .window-content {
+  background-color: var(--ag-surface);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--ag-text) 5%, transparent), transparent 180px);
+}
+
+/* ---------- Titles ---------- */
+:where(html[data-ag-skin="ag-iron-ember"]) :where(.ag-app) :where(h1, h2, h3, h4, legend) {
+  font-family: var(--ag-font-display);
+  font-weight: var(--agx-title-weight);
+  text-transform: var(--agx-title-case);
+  letter-spacing: var(--agx-title-ls);
+}
+html[data-ag-skin="ag-iron-ember"] .ag-header {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--agx-hair);
+}
+html[data-ag-skin="ag-iron-ember"] .ag-header :where(h1, h2) {
+  font-family: var(--ag-font-display);
+  font-weight: var(--agx-title-weight);
+  text-transform: var(--agx-title-case);
+  letter-spacing: var(--agx-title-ls);
+}
+html[data-ag-skin="ag-iron-ember"] .ag-footer { border-top: 1px solid var(--agx-hair); }
+html[data-ag-skin="ag-iron-ember"] .ag-section__title { font-family: var(--ag-font-display); font-weight: var(--agx-title-weight); text-transform: var(--agx-title-case); letter-spacing: var(--agx-title-ls); }
+html[data-ag-skin="ag-iron-ember"] .ag-section__head { border-bottom: 1px solid var(--agx-hair); }
+
+/* ---------- Tabs: tinted fill and an accent underline on the selected tab, text colour kept readable ---------- */
+html[data-ag-skin="ag-iron-ember"] .ag-tabs {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--agx-hair);
+}
+html[data-ag-skin="ag-iron-ember"] .ag-tabs > :where(button, a, .ag-tab) {
+  border-radius: var(--agx-tab-radius);
+}
+html[data-ag-skin="ag-iron-ember"] .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  color: var(--ag-text);
+  background: color-mix(in srgb, var(--ag-accent) 14%, transparent);
+  border-color: transparent;
+  box-shadow: inset 0 -2px 0 var(--ag-accent);
+}
+
+/* ---------- Controls: the look book draws control edges in the stronger border (3:1 on every surface) ---------- */
+:where(html[data-ag-skin="ag-iron-ember"]) :where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) { border-color: var(--ag-border-strong); }
+html[data-ag-skin="ag-iron-ember"] :is(.ag-btn:not(.ag-btn--primary, .ag-btn--ghost, .ag-btn--danger)) { border-color: var(--ag-border-strong); }
+
+/* ---------- Buttons ---------- */
+html[data-ag-skin="ag-iron-ember"] :is(.ag-btn--primary, .ag-app button.primary) {
+  box-shadow: 0 0 16px color-mix(in srgb, var(--ag-accent) 45%, transparent);
+}
+html[data-ag-skin="ag-iron-ember"] :is(.ag-btn:not(.ag-btn--primary, .ag-btn--ghost), .ag-app button.danger) {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), inset 0 -1px 0 rgb(0 0 0 / .4);
+}
+
+/* ---------- Cards and lists ---------- */
+html[data-ag-skin="ag-iron-ember"] .ag-card {
+  border-radius: var(--ag-radius-lg);
+  box-shadow: var(--ag-shadow-sm);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--ag-text) 7%, transparent), transparent);
+}
+html[data-ag-skin="ag-iron-ember"] :is(.ag-rows, .ag-table-wrap, .ag-notice) { box-shadow: var(--ag-shadow-sm); }
+html[data-ag-skin="ag-iron-ember"] .ag-row.is-selected, html[data-ag-skin="ag-iron-ember"] .ag-row[aria-current="true"] { box-shadow: inset 3px 0 0 var(--ag-accent); }
+html[data-ag-skin="ag-iron-ember"] .ag-empty { border: 1px dashed var(--ag-border); }
+html[data-ag-skin="ag-iron-ember"] .ag-devtools { border-style: dashed; }
+
+/* ---------- Chips, badges, meters and tooltips follow the control corner ---------- */
+html[data-ag-skin="ag-iron-ember"] :is(.ag-chip, .ag-segmented, .ag-badge, .ag-rarity-badge, .ag-tab__count, .ag-meter__track, .ag-meter__fill) { border-radius: var(--ag-radius-control); }
+html[data-ag-skin="ag-iron-ember"] .ag-segmented > button { border-radius: var(--ag-radius-control); }
+html[data-ag-skin="ag-iron-ember"] :is(#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip) { border-radius: var(--ag-radius); box-shadow: var(--ag-shadow-sm); }
+html[data-ag-skin="ag-iron-ember"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group]) { border-radius: var(--ag-radius); box-shadow: var(--ag-shadow-sm); }
+html[data-ag-skin="ag-iron-ember"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button) { border-radius: var(--ag-radius-control); }
+html[data-ag-skin="ag-iron-ember"] .application.ag-dialog .form-footer { border-top: 1px solid var(--agx-hair); padding-top: var(--ag-space-3); }
+
+/* ---------- Kit parts that keep the kit look in this skin ----------
+ * .ag-app .ag-badge .ag-btn .ag-btn-group .ag-card .ag-card-grid .ag-chip .ag-chip-group .ag-cluster .ag-devtools .ag-dialog .ag-empty .ag-eyebrow .ag-field .ag-file .ag-fold .ag-footer .ag-form-grid .ag-gm-flag .ag-header .ag-hotbar .ag-icon-chip .ag-kv .ag-launcher .ag-launchers .ag-link .ag-list .ag-meter .ag-notice .ag-orb .ag-pad .ag-picker .ag-pips .ag-portrait .ag-rarity-badge .ag-rarity-edge .ag-reflist .ag-row .ag-rows .ag-scroll .ag-search .ag-section .ag-segmented .ag-sidebar-launch-button .ag-sidebar-launch-group .ag-siderail .ag-slot .ag-split .ag-sr-only .ag-stack .ag-steps .ag-tab .ag-table .ag-table-wrap .ag-tabs .ag-toolbar .ag-tooltip .ag-version .ag-window
+ * (the parts listed above read the skin tokens; only the rules in this file differ)
+ */

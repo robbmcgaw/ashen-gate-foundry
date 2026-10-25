@@ -6,6 +6,17 @@ Assets: Cinder stage art.
 - **Link sets the Cinder's art stages through Ashen Gate | Cinders** (`api.cinder.setArtStages`). Unlocks needed are 0, 3, 6, 10, 14 (the first as many as there are stages), or the Cinder's own numbers when it already has the same number of stages. A single stage 1 image sets the Cinder's one image (`setArt`). A gap (stage 3 missing), an unbound Cinder, or a Cinders that is off or too old to do this is explained on the row and nothing is written. Nothing is written until Link; GM only, checked in the code as well as hidden in the window.
 - Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
 
+## 0.60.16 — 2026-10-25
+
+Three new skins from the Studio look book: Black Ink, Iron and Ember, Moss Plum.
+
+- **Black Ink:** OLED black, bone-white capitals (Space Grotesk), no rounding at all, thin outlines, flat, dense.
+- **Iron and Ember:** iron plates with engraved capitals (Cinzel headings, Alegreya Sans text), 6 to 10px corners, bevels, layered cards and an orange glow on the primary button.
+- **Moss Plum:** Moss and Bone colours (deep green, antler-bone text) and compact density, with Dusk Plum's type (Outfit), rounded corners, borders and soft depth.
+- They appear in My Appearance and the GM Setup world default with swatches. Existing skins and the default are unchanged. A saved skin id that no longer exists still falls back to Standard.
+- Fonts are not downloaded: each skin names its family first, then a safe fallback stack, so the named font shows only where it is installed. Comfortable size scales each skin's text, spacing and control heights.
+- Saved data: no change; no migration. Tested with mocked data only (logic and contrast, not the live Forge UI).
+
 ## 0.60.15 — 2026-10-25
 
 Companion items can say which Hub socket they fit.
