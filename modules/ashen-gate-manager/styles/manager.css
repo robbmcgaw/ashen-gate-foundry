@@ -380,5 +380,10 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 /* 0.68.0 reference links (rich text anywhere: sheets, tooltips, journal pages). Looks like a Foundry content link, but is ours. */
 a.agm-ref-link{color:var(--ag-accent-ink,inherit);text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 a.agm-ref-link i{margin-right:0.2em}
+/* 0.69.0: an Item's Related list. A player sees only the lines they can open; a list with none is not drawn at all. */
+body:not(.agm-viewer-gm) [data-ag-managed-links] li:not(:has(a.agm-ref-link)){display:none}
+body:not(.agm-viewer-gm) [data-ag-managed-links]:not(:has(a.agm-ref-link)){display:none}
+[data-ag-managed-links] h4{margin:0.6em 0 0.2em}
+[data-ag-managed-links] ul{margin:0;padding-left:1.2em}
 a.agm-ref-link:focus-visible{outline:2px solid var(--ag-accent,currentColor);outline-offset:1px}
 .agm-codex-card.is-focused{border-color:var(--ag-accent);box-shadow:inset 0 0 0 1px var(--ag-accent)}

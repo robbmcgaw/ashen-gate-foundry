@@ -8,6 +8,8 @@
  *    world, becomes plain text: the author's label when it is a real name, otherwise a neutral word ("Person", "Handout").
  *  - Players see a document only when they have Observer permission on it and its record is not GM-only. An NPC Actor
  *    is shown to a player only when the NPC Codex reveals it to them (the GM answers that), and it opens the Codex.
+ *  - A quest, order or contract is a link only when the Quest Log reports it to this viewer (GM: any; player: a visible one);
+ *    it opens in the Quest Log. Otherwise plain text.
  *  - Clicks go through one delegated listener on our own links (a.agm-ref-link), never through Foundry's or Monk's
  *    Enhanced Journal's content-link handling. The GM's Actor links call actor.sheet.render(true) directly.
  * The anchor carries no id or uuid for anything the viewer may not see.
@@ -23,13 +25,14 @@ const cleanLabel = s => String(s ?? '').replace(/[{}\[\]\r\n]/g, '').trim().slic
 
 /** A neutral word for a record nobody may name here, by id prefix. Never the id. */
 const NEUTRAL = {NPC: 'Person', CRE: 'Creature', HANDOUT: 'Handout', ITEM: 'Item', LOC: 'Location', ROUTE: 'Route', QUEST: 'Quest',
-  FAC: 'Faction', REC: 'Recipe', MAT: 'Material', PROF: 'Profession', PERK: 'Perk', SHOP: 'Shop', TABLE: 'Table', JOURNAL: 'Journal'};
+  FAC: 'Faction', ORDER: 'Order', CONTRACT: 'Contract', REC: 'Recipe', MAT: 'Material', PROF: 'Profession', PERK: 'Perk', SHOP: 'Shop', TABLE: 'Table', JOURNAL: 'Journal'};
 export function neutralLabel(id) { return NEUTRAL[String(id ?? '').split('-')[0]] ?? 'Related record'; }
 /** The author's label when it is a real name (not empty, not an id), else ''. */
 export function authorLabel(label) { const l = cleanLabel(label); return l && !ID_LIKE.test(l) ? l : ''; }
 
 export const ICONS = {Item: 'fa-solid fa-suitcase', JournalEntry: 'fa-solid fa-book-open', Actor: 'fa-solid fa-user',
-  RollTable: 'fa-solid fa-table-list', Macro: 'fa-solid fa-code', codex: 'fa-solid fa-address-book'};
+  RollTable: 'fa-solid fa-table-list', Macro: 'fa-solid fa-code', codex: 'fa-solid fa-address-book', quest: 'fa-solid fa-scroll'};
+const QUEST_ID = /^(?:QUEST|ORDER|CONTRACT)-/;
 
 /**
  * Index of the world's Manager-bound documents: id -> [doc], plus journal id -> [Item twin ids] from refs.
@@ -73,10 +76,17 @@ export function canSee(doc, viewer, moduleId = 'ashen-gate-manager') {
 /**
  * What one viewer gets for one reference. Pure.
  * ctx: {viewer, index (buildReferenceIndex), codex: Map npcId -> name of NPCs the Codex reveals to this player (null = unknown)}
- * Returns {mode: 'sheet', uuid, name, icon, documentName} | {mode: 'codex', npc, name, icon} | {mode: 'text', name}.
+ * A quest, order or contract (QUEST-/ORDER-/CONTRACT-) lives in the Quest Log, not in the world's documents: `quest(id)` (0.69.0)
+ * returns its name when this viewer may see it (null otherwise) and it opens in the Quest Log.
+ * Returns {mode: 'sheet', uuid, name, icon, documentName} | {mode: 'codex', npc, name, icon} | {mode: 'quest', quest, name, icon} | {mode: 'text', name}.
  */
-export function resolveReference(id, label, {viewer, index, codex = null, moduleId = 'ashen-gate-manager'} = {}) {
+export function resolveReference(id, label, {viewer, index, codex = null, quest = null, moduleId = 'ashen-gate-manager'} = {}) {
   const fallback = {mode: 'text', name: authorLabel(label) || neutralLabel(id)};
+  if (QUEST_ID.test(String(id ?? '')) && ID_LIKE.test(id)) {
+    let name = '';
+    try { name = String(quest?.(id) ?? '').trim(); } catch { name = ''; }
+    return name ? {mode: 'quest', quest: id, name, icon: ICONS.quest} : fallback;
+  }
   if (!ID_LIKE.test(String(id ?? '')) || !index) return fallback;
   for (const cid of candidateIds(id, index.twins)) {
     const docs = index.byId.get(cid) ?? [];
@@ -100,6 +110,7 @@ export function resolveReference(id, label, {viewer, index, codex = null, module
 export function referenceHtml(r) {
   if (r.mode === 'sheet') return `<a href="#" class="agm-ref-link" data-ag-ref-open="sheet" data-ag-ref-uuid="${esc(r.uuid)}" data-tooltip="${esc(`Open ${r.name}`)}"><i class="${esc(r.icon)}" aria-hidden="true"></i> ${esc(r.name)}</a>`;
   if (r.mode === 'codex') return `<a href="#" class="agm-ref-link" data-ag-ref-open="codex" data-ag-ref-npc="${esc(r.npc)}" data-tooltip="${esc(`Open ${r.name} in the NPC Codex`)}"><i class="${esc(r.icon)}" aria-hidden="true"></i> ${esc(r.name)}</a>`;
+  if (r.mode === 'quest') return `<a href="#" class="agm-ref-link" data-ag-ref-open="quest" data-ag-ref-quest="${esc(r.quest)}" data-tooltip="${esc(`Open ${r.name} in the Quest Log`)}"><i class="${esc(r.icon)}" aria-hidden="true"></i> ${esc(r.name)}</a>`;
   return `<span class="agm-ref-text">${esc(r.name)}</span>`;
 }
 
@@ -135,7 +146,7 @@ export function convertLegacyBlock(html, relationLabel = t => t) {
  * (player only; the NPCs the Codex reveals to this user); `openCodex(npcId)`; `fromUuid`; `notify(text)`.
  */
 export function createReferenceLinks({game, moduleId = 'ashen-gate-manager', getDocs, codexNames = async () => null,
-  openCodex = async () => {}, fromUuid = async () => null, notify = () => {}, now = () => Date.now()}) {
+  openCodex = async () => {}, questName = () => null, openQuest = async () => {}, fromUuid = async () => null, notify = () => {}, now = () => Date.now()}) {
   let index = null, codexCache = null;
   const CODEX_TTL = 30000;
   const viewer = () => game.user ?? null;
@@ -154,7 +165,7 @@ export function createReferenceLinks({game, moduleId = 'ashen-gate-manager', get
     invalidateCodex() { codexCache = null; },
     async resolve(id, label) {
       const codex = /^NPC-|^CRE-/.test(String(id)) ? await codexFor() : null;
-      return resolveReference(id, label, {viewer: viewer(), index: getIndex(), codex, moduleId});
+      return resolveReference(id, label, {viewer: viewer(), index: getIndex(), codex, quest: questName, moduleId});
     },
     /** TextEditor enricher: match = [token, id, label]. Returns an element (or null to leave the text). */
     async enrich(match) {
@@ -177,6 +188,13 @@ export function createReferenceLinks({game, moduleId = 'ashen-gate-manager', get
           if (!npc) return null;
           await openCodex(npc);
           return {opened: 'codex', npc};
+        }
+        if (link.dataset.agRefOpen === 'quest') {
+          const quest = link.dataset.agRefQuest;
+          // Re-checked now: the Quest Log answers for this viewer (a quest hidden since the page was drawn is not opened).
+          if (!quest || !String(questName(quest) ?? '').trim()) { notify('That record is not available to you.'); return {opened: null}; }
+          await openQuest(quest);
+          return {opened: 'quest', quest};
         }
         const doc = await fromUuid(link.dataset.agRefUuid);
         if (!doc || !canSee(doc, viewer(), moduleId)) { notify('That record is not available to you.'); return {opened: null}; }

@@ -113,5 +113,21 @@ A description can show a linked record (for example a crafted item's recipe, or 
 - **What it says:** the record's name with its type icon (item, journal, person, NPC Codex). Never the id. A target the viewer may not see, or one that is not in the world, is plain text: the author's label when it is a real name, otherwise a neutral word (Person, Handout, Location, ...).
 - **Who sees what:** the GM sees everything. A player gets a link only to a document they have Observer permission on whose record is not GM-only. An NPC is a link for a player only when the NPC Codex reveals it to them (the connected GM answers); it opens the NPC Codex at that NPC. Otherwise it is plain text.
 - **Clicking:** Manager handles its own links with one listener, so they work inside Monk's Enhanced Journal and in locked hover cards. The GM's NPC links open the Actor sheet directly. Foundry's normal content links are unchanged.
+- **Related lists (0.69.0):** an Item that points at a person, a handout or a quest ends with a short **Related** list of these links, written by Import and Sync from package as Manager's own section at the end of the description (see below). Quests, orders and contracts open in the Quest Log when it is installed and the viewer may see them.
 - **Older imports:** imports before 0.54.2 appended a "References" section of raw ids. When the GM loads the world, Manager turns that section into a "Related" list of these links (only the section Manager wrote; nothing else in the text). As before, the next import or sync of an unedited record removes the section.
 - **API:** `api.references.resolve(id, label)` returns what this viewer gets (`{mode: 'sheet' | 'codex' | 'text', name, ...}`); `api.references.convertLegacy()` (GM) re-runs the conversion. `api.codex.openPlayerView(id)` opens the player Codex at one NPC.
+
+## Related lists on Items (0.69.0)
+
+An Item's description may end with a short **Related** list so players can jump to the person, handout or quest it belongs with. It is written only where it helps, from the record's typed `refs`:
+
+| A ref qualifies when | It does not when |
+|---|---|
+| its target is a person (`NPC-`), a handout (`HANDOUT-` journal, or its Item twin `ITEM-HANDOUT-`), or a quest, order or contract (`QUEST-`, `ORDER-`, `CONTRACT-`) | the target is anything else (`LOC-`, `MAT-`, `REC-`, `SHOP-`, `FAC-`, `PROF-`, `PERK-`, `CRE-`, plain `ITEM-`), or the relation is structural (`requires_material`, `produces`, `starting_recipe`, `crafted_by`, `located_at`, `perk_of`, `for_faction`, ...) |
+
+- Any other relation name works (`related` is the plain one). A few get a lead-in: `offers_objective` "Offers", `associated_objective` "Associated with", `fulfills_objective` "Fulfills", `found_with` "Found with", `created_by` "Made by", `offered_by` "Offered by".
+- Up to 5 lines, handouts first, then people, then quests; one line per target (a journal and its Item twin are one handout). An Item does not list itself, its own journal, or the journal it is the player copy of. GM-only records get no list.
+- The list is Manager's section (`data-ag-managed-links`) at the very end of the description, after the table, Effect & Rules and Outcomes and limits. Every Import and Sync from package rewrites that section from the record: importing twice gives identical text; a record that no longer qualifies loses its list, and Sync shows no change for an Item that already has the right one.
+- An Item whose description you edited in Foundry is left alone (preview: Kept: edited / conflict). Nothing else in a description changes, and no saved data needs migrating.
+- Players see the record's name, or a neutral word, and only for lines they may open; the rest are hidden. The GM sees all lines.
+- For authors: nothing to add. Use `refs` with a `relation` (anything not structural) and the permanent id of the person, handout or quest.
