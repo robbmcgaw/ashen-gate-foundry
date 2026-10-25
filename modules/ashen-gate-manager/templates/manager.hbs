@@ -410,7 +410,7 @@
           {{#if assets.multiSource}}<label class="ag-field--inline">Source <select data-ag-assets-source {{#if assets.uploading}}disabled{{/if}}>{{#each assets.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-refresh {{#if assets.uploading}}disabled{{/if}}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
         </div></div>
-      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Drop several images on the bar below (Cinder stage art such as Echo_Cinder_Stage_1.webp is grouped per Cinder): after they are added, Manager looks for records they fit (a file named after a record's permanent id, or a name such as Oren_Vale.webp) and shows a preview in Link files to records. Nothing is changed until you press Link.</p>
+      <p class="agmanager-tiny">Browse and add art files. {{#if assets.onForge}}On The Forge this is your Assets Library; pick Foundry data folder to look at the world's own files instead.{{else}}This is the Foundry data folder.{{/if}} Drop several images on the bar below (Cinder stage art such as Echo_Cinder_Stage_1.webp is grouped per Cinder). Manager first reads the file names and tells you which fit a record (a file named after a record's permanent id, or a name such as Oren_Vale.webp) and which fit none; files that fit no record are not uploaded unless you tick them. Nothing is uploaded until you press the upload button, and nothing is linked until you press Link.</p>
       <nav class="agassets-crumbs" aria-label="Folder path">
         {{#each assets.crumbs}}{{#if current}}<span class="agassets-crumb" aria-current="page"><strong>{{label}}</strong></span>{{else}}<button type="button" class="ag-link" data-ag-assets-open="{{target}}">{{label}}</button><span aria-hidden="true"> / </span>{{/if}}{{/each}}
       </nav>
@@ -426,6 +426,42 @@
         <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
         <span>Drop images here to add them to <strong>{{#each assets.crumbs}}{{#if current}}{{label}}{{/if}}{{/each}}</strong>, or use Choose files…. Several at once is fine.</span>
       </div>
+      {{#if assets.hasStaged}}{{#with assets.staged}}
+      <section class="ag-section agstage" aria-label="Files waiting to upload">
+        <div class="ag-section__head"><h4 class="ag-section__title">Files waiting to upload</h4></div>
+        <p class="aglink-count" role="status" aria-live="polite"><strong>{{summary}}</strong></p>
+        {{#if hasUnmatched}}
+        <h5>Unmatched files ({{unmatched}})</h5>
+        <p class="agmanager-tiny">These file names fit no record, so they are not uploaded unless you tick them. Rename a file after the record (for example Oren_Vale.webp) and drop it again, or tick it to upload it anyway.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-stage-unmatched data-some="{{unmatchedSome}}" {{#if unmatchedAll}}checked{{/if}}> <strong>Upload unmatched files too</strong></label>
+        <ul class="ag-rows agm-scrollcap" aria-label="Unmatched files">
+          {{#each unmatchedRows}}<li class="ag-row agstage-row">
+            <label class="ag-field--inline"><input type="checkbox" data-ag-assets-stage-file="{{key}}" {{#if upload}}checked{{/if}} aria-label="Upload {{name}}"> Upload</label>
+            {{#if thumb}}<img class="agstage-thumb" src="{{thumb}}" alt="" loading="lazy" decoding="async">{{/if}}
+            <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{reason}}{{#if exists}} A file with this name is already in the folder; you will be asked before it is replaced.{{/if}}</span></span>
+            <span class="ag-badge ag-badge--warn">{{label}}</span>
+          </li>{{/each}}
+        </ul>
+        {{/if}}
+        {{#if hasMatched}}
+        <h5>Matched files ({{matchedRows.length}})</h5>
+        <ul class="ag-rows agm-scrollcap" aria-label="Matched files">
+          {{#each matchedRows}}<li class="ag-row agstage-row">
+            <label class="ag-field--inline"><input type="checkbox" data-ag-assets-stage-file="{{key}}" {{#if upload}}checked{{/if}} aria-label="Upload {{name}}"> Upload</label>
+            {{#if thumb}}<img class="agstage-thumb" src="{{thumb}}" alt="" loading="lazy" decoding="async">{{/if}}
+            <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{reason}}{{#if exists}} A file with this name is already in the folder; you will be asked before it is replaced.{{/if}}</span></span>
+            <span class="ag-badge ag-badge--{{tone}}">{{label}}</span>
+          </li>{{/each}}
+        </ul>
+        {{/if}}
+        {{#if hasRejected}}<ul class="ag-rows" aria-label="Files that cannot be added">{{#each rejected}}<li class="ag-row"><span class="ag-badge ag-badge--danger">Not added</span><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{message}}</span></span></li>{{/each}}</ul>{{/if}}
+        <p class="agmanager-tiny" role="status">{{note}}</p>
+        <footer class="ag-footer">
+          <button type="button" class="ag-btn ag-btn--ghost" id="assets-stage-cancel" data-ag-assets-stage-cancel>Cancel</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-assets-upload-go {{#unless canGo}}disabled{{/unless}}><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> {{goLabel}}</button>
+        </footer>
+      </section>
+      {{/with}}{{/if}}
       <p class="agmanager-tiny">Rename, move and delete are not offered to modules by Foundry or The Forge, so they are not here.{{#if assets.onForge}} <a class="ag-btn ag-btn--sm" href="{{assets.manageUrl}}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Manage on Forge…</a>{{else}} Use your host's file manager.{{/if}}</p>
       {{#if assets.uploading}}<div class="ag-cluster agclean-running" aria-label="Upload progress">
         <progress class="agclean-bar" data-ag-assets-upload-bar max="1" value="0" aria-label="Files uploaded"></progress>
@@ -536,9 +572,35 @@
         </tbody></table></div>
         {{/if}}
         {{#if assets.linkOverflow}}<p class="agmanager-tiny">Showing the first 300 of {{assets.linkCount}}. Open a deeper folder to link the rest.</p>{{/if}}
+        {{#if assets.noMatchStale}}<p class="agmanager-tiny" role="status">You opened another folder. Open the folder you checked, or press Find matching files here, to see its files with no match.</p>{{/if}}
+        {{#if assets.hasNoMatch}}
+        <section class="ag-section agnomatch" aria-label="Files with no match">
+          <div class="ag-section__head"><h4 class="ag-section__title">Files with no match</h4><span class="ag-fold__count">{{assets.noMatchCount}}</span></div>
+          <p class="agmanager-tiny">These files in this folder fit no record and are not the image of any record, so they are not linked. They stay in the library. Foundry and The Forge do not let a module delete files, so Manager cannot do it for you: tick the ones to delete, copy the list, then delete them in the Assets Library. Check that no scene or other record outside this world uses a file first.</p>
+          {{#if assets.noMatchRows.length}}
+          <div class="ag-cluster aglink-bulk" role="group" aria-label="Choose files to delete">
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-nomatch-bulk="add">Add all to the delete list</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-nomatch-bulk="clear">Keep all in the library</button>
+          </div>
+          <ul class="ag-rows agm-scrollcap" aria-label="Files with no match">
+            {{#each assets.noMatchRows}}<li class="ag-row agstage-row">
+              <label class="ag-field--inline"><input type="checkbox" data-ag-assets-nomatch-toggle="{{path}}" {{#if onList}}checked{{/if}} aria-label="Put {{name}} on the delete list"> {{#if onList}}On the delete list{{else}}Keep in library{{/if}}</label>
+              <img class="agstage-thumb" src="{{url}}" alt="" loading="lazy" decoding="async">
+              <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{reason}}</span></span>
+            </li>{{/each}}
+          </ul>
+          {{#if assets.noMatchOverflow}}<p class="agmanager-tiny">Showing the first 300 of {{assets.noMatchCount}}.</p>{{/if}}
+          <div class="ag-cluster">
+            <button type="button" class="ag-btn" data-ag-assets-nomatch-copy {{#unless assets.hasDeleteList}}disabled{{/unless}}><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy {{assets.deleteCount}} file name(s) to delete</button>
+            {{#if assets.onForge}}<a class="ag-btn" href="{{assets.manageUrl}}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Open the Assets Library</a>{{else}}<span class="agmanager-tiny">Use your host's file manager to delete them.</span>{{/if}}
+          </div>
+          {{/if}}
+          {{#if assets.noMatchBelow}}<p class="agmanager-tiny">{{assets.noMatchBelow}} more file(s) with no match are in folders below this one. Open that folder to see them; only the folder you are viewing is listed.</p>{{/if}}
+        </section>
+        {{/if}}
         <footer class="ag-footer">
           <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="assets-link-cancel">Cancel</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="assets-link-apply" {{#unless assets.linkCanApply}}disabled{{/unless}}><i class="fa-solid fa-link" aria-hidden="true"></i> Link {{assets.linkTicked}}…</button>
+          <button type="button" class="ag-btn{{#unless assets.hasStaged}} ag-btn--primary{{/unless}}" data-ag-action="assets-link-apply" {{#unless assets.linkCanApply}}disabled{{/unless}}><i class="fa-solid fa-link" aria-hidden="true"></i> Link {{assets.linkTicked}}…</button>
         </footer>
         {{/if}}
         {{/if}}

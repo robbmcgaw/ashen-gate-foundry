@@ -55,10 +55,11 @@ export function crumbs(target, rootLabel = 'Library') {
   const parts = joinPath(target).split('/').filter(Boolean);
   return [{label: rootLabel, target: ''}, ...parts.map((label, i) => ({label, target: parts.slice(0, i + 1).join('/')}))];
 }
+/** A path without a leading slash, query string or URL encoding, for comparing. */
+export function cleanPath(p) { let t = String(p ?? '').trim().replace(/^\.?\//, '').split(/[?#]/)[0]; try { t = decodeURIComponent(t); } catch { /* keep as is */ } return t; }
 /** Compares two image paths ignoring a leading slash, query string and URL encoding. */
 export function samePath(a, b) {
-  const clean = p => { let t = String(p ?? '').trim().replace(/^\.?\//, '').split(/[?#]/)[0]; try { t = decodeURIComponent(t); } catch { /* keep as is */ } return t; };
-  return Boolean(norm(a)) && clean(a) === clean(b);
+  return Boolean(norm(a)) && cleanPath(a) === cleanPath(b);
 }
 
 /** A folder name the GM may create: letters, digits, spaces, dot, dash, underscore. No slashes, no leading dot. */
@@ -304,7 +305,9 @@ const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileNa
  *   rows            {key, uuid, documentName, type, name, fileName, from, fromToken, to, state, stateLabel, checked,
  *                   noteText, alsoFound, matchKind, reason, rank, needsPick, pickBy, candidates, chosen};
  *   unmatched       records no file matched, by id or by name (counted, not listed);
- *   unmatchedFiles  image files that fit no record.
+ *   unmatchedFiles  image files that fit no record;
+ *   fits, ambiguous, linked  Sets of file paths: fits some record, fits several records equally (needs a pick), is already the
+ *                   image of a record. Used by classifyFiles (asset-stage.js) for the staged upload and the no-match list.
  */
 export function planAssetLinks(docs, files) {
   const bound = docs.filter(d => d.sourceId);
@@ -312,6 +315,10 @@ export function planAssetLinks(docs, files) {
   const idMatches = matchFilesToIds(files, new Set(bound.map(d => d.sourceId)));
   const idPaths = new Set([...idMatches.values()].flatMap(h => [h.file.path, ...h.others.map(o => o.path)]));
   const rows = [], covered = new Set(), idDone = new Set();
+  const fits = new Set(), ambiguous = new Set(), linked = new Set(); // file paths: fits a record / fits several / already a record's image
+  for (const h of idMatches.values()) { fits.add(h.file.path); for (const o of h.others) fits.add(o.path); }
+  const imgs = new Set(bound.flatMap(d => [d.img, d.tokenImg]).filter(Boolean).map(cleanPath));
+  for (const f of files ?? []) if (imgs.has(cleanPath(f.path))) linked.add(f.path);
   const make = (fields, extra) => ({key: fields.uuid, alsoFound: [], alsoFits: [], needsPick: false, pickBy: '', candidates: [], chosen: '', ...fields, ...extra});
 
   // 1. permanent-id files
@@ -330,13 +337,15 @@ export function planAssetLinks(docs, files) {
   for (const f of guessFiles) {
     let best = 0, list = [];
     for (const r of recs) {
-      if (samePath(r.doc.img, f.file.path)) { covered.add(r.doc.uuid); continue; }
+      if (samePath(r.doc.img, f.file.path)) { covered.add(r.doc.uuid); linked.add(f.file.path); continue; }
       const level = matchLevel(f.words, r.words, {partial: r.doc.documentName === 'Actor'});
       if (!level) continue;
       if (level.rank > best) { best = level.rank; list = [{rec: r, level}]; } else if (level.rank === best) list.push({rec: r, level});
     }
     if (!list.length) continue;
+    fits.add(f.file.path);
     for (const c of list) covered.add(c.rec.doc.uuid);
+    if (list.length > 1) ambiguous.add(f.file.path);
     if (list.length === 1) { (byRecord.get(list[0].rec.doc.uuid) ?? byRecord.set(list[0].rec.doc.uuid, []).get(list[0].rec.doc.uuid)).push({file: f.file, level: list[0].level, rec: list[0].rec}); continue; }
     // a tie between records: ask
     const candidates = list.map(c => ({value: c.rec.doc.uuid, label: `${c.rec.doc.name} (${kindWord(c.rec.doc)})`, fields: rowFields(c.rec.doc, f.file), level: c.level}))
@@ -352,6 +361,7 @@ export function planAssetLinks(docs, files) {
     if (best.length === 1) {
       rows.push(make(rowFields(doc, best[0].file), {alsoFits: weaker, matchKind: best[0].level.kind, reason: best[0].level.reason, rank: top}));
     } else {
+      for (const e of best) ambiguous.add(e.file.path);
       const candidates = best.map(e => ({value: e.file.path, label: e.file.name, fields: rowFields(doc, e.file), level: e.level})).sort((a, b) => a.label.localeCompare(b.label));
       rows.push(make({...BLANK_FIELDS, uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name}, {alsoFits: weaker, key: doc.uuid, matchKind: best[0].level.kind,
         reason: 'More than one file fits this record. Pick the right one.', rank: top, needsPick: true, pickBy: 'record', candidates}));
@@ -362,7 +372,8 @@ export function planAssetLinks(docs, files) {
   const unmatched = linkable.filter(d => !covered.has(d.uuid)).length;
   const used = new Set(rows.flatMap(r => [r.to, r.filePath, ...r.candidates.flatMap(c => [c.fields.to])]).filter(Boolean));
   const imageFiles = (files ?? []).filter(f => isImageName(f.name));
-  return {rows, unmatched, unmatchedFiles: imageFiles.filter(f => !idPaths.has(f.path) && !used.has(f.path)).length};
+  for (const p of used) fits.add(p);
+  return {rows, unmatched, unmatchedFiles: imageFiles.filter(f => !idPaths.has(f.path) && !used.has(f.path)).length, fits, ambiguous, linked};
 }
 
 /**

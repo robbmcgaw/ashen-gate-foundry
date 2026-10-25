@@ -334,6 +334,8 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 
 /* ---------- Items → Assets: Yes / No / Different… on each match (0.60.13) ---------- */
 .aglink-bulk{margin-block:var(--ag-space-2)}
+.agstage-row{align-items:center}
+.agstage-thumb{width:2.5rem;height:2.5rem;object-fit:contain;border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken);flex:none}
 .aglink-count{margin:var(--ag-space-2) 0;font-size:var(--ag-text-base)}
 .aglink-choice{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .aglink-choice .ag-segmented > button{min-width:3rem;min-height:2rem}

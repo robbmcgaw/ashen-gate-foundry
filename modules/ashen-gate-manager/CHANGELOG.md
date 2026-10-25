@@ -1,3 +1,15 @@
+## 0.65.0 — 2026-10-25
+
+Assets: see which dropped files fit no record before anything is uploaded, and list the ones that fit none.
+
+- **Match first, upload second.** Dropping files on the bar (or **Choose files…**) no longer uploads them at once. Manager reads the file names (no network): record permanent ids, record names and Cinder stage names, the same matching **Link files to records** uses. **Files waiting to upload** says, for example, "5 files: 3 matched, 1 needs a pick, 1 with no match."
+- **Unmatched files are not uploaded unless you say so.** Each file has an **Upload** tick; files that fit no record start unticked (`UPLOAD_UNMATCHED_BY_DEFAULT` in `scripts/asset-stage.js` is the one setting), and **Upload unmatched files too** ticks or unticks them all. A file that fits two records equally counts as "needs a pick", not as unmatched, and is ticked. Thumbnails come from the file on your computer, nothing is sent.
+- **One button.** Nothing is uploaded until you press **Upload N files and preview links**; with everything matched that is one click. Cancel uploads nothing. An unticked file is skipped: not uploaded and not deleted. The result reads "N uploaded, M ready to link, K skipped", and after you press Link "N uploaded, M linked, K skipped".
+- **Files already in the library that fit no record** (from **Find matching files**, or because you ticked them) are listed under **Files with no match** in **Link files to records**, with a thumbnail and **Keep in library** (default) or **On the delete list** per file, plus **Add all to the delete list** and **Keep all in the library**.
+- **Manager cannot delete files.** Foundry's FilePicker gives modules browse, create folder and upload only, and The Forge's Assets Library is reached through it (see 0.57.0); no supported delete was found, and none is faked. **Copy N file names to delete** copies the folder-and-name of the files on the list, and **Open the Assets Library** opens the Forge page where you delete them. Only files that fit no record, are not the image of any Manager record or of any Actor, Item, scene, token, tile, journal, table or macro in the world, and are directly in the folder you are viewing can be on the list (`removalList`, GM only); files in folders below are counted, not listed.
+- The count "N file(s) fit no record" now matches the list: a file that is already a record's image, is used elsewhere in the world, or fits a record only as a second choice is not counted.
+- NPC, Item, Cinder stage art and token ring linking are unchanged. GM only. Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.64.0 — 2026-10-25
 
 `supersedes`: a new record can take over from an old permanent id and replace the old document in place.
