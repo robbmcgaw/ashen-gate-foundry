@@ -1,3 +1,14 @@
+## 0.60.16 — 2026-10-25
+
+Three new skins from the Studio look book: Black Ink, Iron and Ember, Moss Plum.
+
+- **Black Ink:** OLED black, bone-white capitals (Space Grotesk), no rounding at all, thin outlines, flat, dense.
+- **Iron and Ember:** iron plates with engraved capitals (Cinzel headings, Alegreya Sans text), 6 to 10px corners, bevels, layered cards and an orange glow on the primary button.
+- **Moss Plum:** Moss and Bone colours (deep green, antler-bone text) and compact density, with Dusk Plum's type (Outfit), rounded corners, borders and soft depth.
+- They appear in My Appearance and the GM Setup world default with swatches. Existing skins and the default are unchanged. A saved skin id that no longer exists still falls back to Standard.
+- Fonts are not downloaded: each skin names its family first, then a safe fallback stack, so the named font shows only where it is installed. Comfortable size scales each skin's text, spacing and control heights.
+- Saved data: no change; no migration. Tested with mocked data only (logic and contrast, not the live Forge UI).
+
 ## 0.60.15 — 2026-10-25
 
 Companion items can say which Hub socket they fit.

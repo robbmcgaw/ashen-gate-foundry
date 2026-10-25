@@ -13,7 +13,7 @@ import {pathToFileURL} from 'node:url';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const modulesDir = path.join(root, 'modules');
 const MANAGER = 'ashen-gate-manager';
-const SKIN_FILES = ['stone-tablet', 'tome-pages', 'ledger-book', 'field-journal', 'frontier-map'].map(n => `styles/skins/${n}.css`);
+const SKIN_FILES = ['stone-tablet', 'tome-pages', 'ledger-book', 'field-journal', 'frontier-map', 'black-ink', 'iron-ember', 'moss-plum'].map(n => `styles/skins/${n}.css`);
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
