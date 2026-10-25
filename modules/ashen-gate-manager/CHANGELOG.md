@@ -1,3 +1,15 @@
+## 0.68.0 — 2026-10-25
+
+Reference links show names, prefer a handout's Item, and open NPCs reliably (also inside Monk's Enhanced Journal).
+
+- **Names, not ids:** references to other records now show the record's name with a type icon (for example a person or a handout) instead of `NPC-...` / `HANDOUT-...`. A record the viewer may not see, or one missing from the world, is plain text with the author's wording or a neutral word.
+- **Item twin first:** a reference to a handout journal opens its player Item twin when the world has one and the viewer may see it; otherwise the journal.
+- **Players:** links only to documents they may see (Observer permission, not GM-only). An NPC reference opens the NPC Codex at that NPC when the Codex reveals it to them; otherwise it is plain text, not a dead link.
+- **GM:** NPC references open the Actor sheet directly, through Manager's own click handler, so Monk's Enhanced Journal no longer swallows them. Foundry's normal content links are unchanged.
+- **Older "References" sections** (imports before 0.54.2, the ones listing `related: <id>`) are turned into a "Related" list of these links when the GM loads the world. Only that section changes; an unedited description stays unedited, and the next import of the record still removes it as before.
+- Import: `[[AGREF]]` markers and related-record cells that point at an Actor or a handout journal are written as `@AGRef[<id>]{Label}` (resolved when shown); other targets stay Foundry `@UUID` links. Sync from package treats both forms as unchanged.
+- API: `api.references.resolve(id, label)`, `api.references.convertLegacy()` (GM); `api.codex.openPlayerView(id)` takes an optional NPC id.
+
 ## 0.67.0 — 2026-10-25
 
 NPC Codex: revealing to one or more players is much faster.

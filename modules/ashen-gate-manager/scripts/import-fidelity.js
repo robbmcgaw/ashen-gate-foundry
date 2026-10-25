@@ -79,6 +79,8 @@ export function resolveUuid(index,id){
   if(matches.length>1)return {status:'ambiguous',id,uuids:matches.map(m=>m.uuid)};
   return {status:'resolved',id,...matches[0]};
 }
+/** 0.68.0: targets written as @AGRef (viewer-resolved) instead of a fixed @UUID link. */
+export const viewerResolved=(id,type)=>type==='Actor'||(type==='JournalEntry'&&/^HANDOUT-/.test(String(id)));
 export function resolveRichText(html,index){
   if(typeof html!=='string') return {text:html,resolved:[],issues:[]};
   const resolved=[],issues=[];
@@ -87,7 +89,11 @@ export function resolveRichText(html,index){
     const result=resolveUuid(index,id);
     if(result.status!=='resolved'){issues.push({level:'error',id,message:`AGREF ${id}: ${result.status}${result.uuids?' ('+result.uuids.join(', ')+')':''}.`});return token;}
     resolved.push(id);
-    return `@UUID[${result.uuid}]{${safeLinkLabel(label && label!==id ? label : result.name)}}`;
+    const text=safeLinkLabel(label && label!==id ? label : result.name);
+    // 0.68.0: an Actor, or a handout journal (which may have a player Item twin), becomes a Manager reference link that is
+    // resolved for each viewer when shown (see reference-links.mjs); everything else stays a Foundry content link.
+    if(viewerResolved(id,result.type)) return `@AGRef[${id}]{${text||'Related record'}}`;
+    return `@UUID[${result.uuid}]{${text}}`;
   });
   if((html.match(/\[\[AGREF:/g)??[]).length!==[...html.matchAll(MARKER)].length)
     issues.push({level:'error',id:'AGREF',message:'Malformed AGREF marker remains.'});
@@ -120,7 +126,7 @@ export function resolveTypedRefs(refs,index,excludeIds=[],moduleRecord=null){
  * Related-record cells (0.60.3). Contract: an author marks an element (normally a table cell) in a description with
  * data-ag-ref="<relation>" and puts the target's plain display name inside, e.g. <td data-ag-ref="created_by">Iron Caltrops</td>.
  * <relation> is the relation of one of the record's typed refs (created_by, gathered_by, ...). On import the cell content becomes a
- * world-local content link, @UUID[...]{Iron Caltrops}, when that target exists in the world and `canLink(target_id)` allows it;
+ * world-local content link, @UUID[...]{Iron Caltrops} (0.68.0: @AGRef[<id>]{...} for an Actor or handout journal), when that target exists in the world and `canLink(target_id)` allows it;
  * otherwise it stays plain text. The marker attribute is kept so every re-import resolves again from the source text. Nothing is
  * appended for refs that have no marker, and a raw id or relation name is never shown.
  * `bindings` = resolveTypedRefs(...).bindings; `nameOf(target_id)` = the target's display name; returns the new html.
@@ -129,13 +135,15 @@ const REF_ID_LIKE=/^[A-Z]+(?:-[A-Z0-9_]+)+$/;
 export function resolveRefCells(html,bindings,{nameOf=()=>'',canLink=()=>false}={}){
   if(typeof html!=='string'||!html.includes('data-ag-ref'))return html;
   return html.replace(/(<([a-z][a-z0-9]*)\b[^>]*\bdata-ag-ref="([A-Za-z0-9_]+)"[^>]*>)([\s\S]*?)(<\/\2>)/g,(whole,open,tag,relation,inner,close)=>{
-    let label=inner.replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g,'$1').replace(/<[^>]*>/g,'').replace(/[{}\[\]]/g,'').trim();
+    let label=inner.replace(/@(?:UUID|AGRef)\[[^\]]*\]\{([^}]*)\}/g,'$1').replace(/<[^>]*>/g,'').replace(/[{}\[\]]/g,'').trim();
     const candidates=(bindings??[]).filter(b=>b.relation===relation);
     const named=candidates.filter(b=>label&&String(nameOf(b.target_id)).toLowerCase()===label.toLowerCase());
     const pick=named[0]??(candidates.length===1?candidates[0]:null);
     if(!label||REF_ID_LIKE.test(label))label=pick?safeLinkLabel(nameOf(pick.target_id)||''):'';
     if(!label)return `${open}${close}`;
-    return pick&&canLink(pick.target_id)?`${open}@UUID[${pick.uuid}]{${label}}${close}`:`${open}${label}${close}`;
+    if(!pick||!canLink(pick.target_id))return `${open}${label}${close}`;
+    // 0.68.0: an Actor or handout journal target is an @AGRef, resolved for each viewer when shown (see resolveRichText).
+    return viewerResolved(pick.target_id,String(pick.uuid).split('.')[0])?`${open}@AGRef[${pick.target_id}]{${label}}${close}`:`${open}@UUID[${pick.uuid}]{${label}}${close}`;
   });
 }
 
