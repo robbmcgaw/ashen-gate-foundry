@@ -539,7 +539,7 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.60.15');
+  assert.equal(manifest.version, '0.60.16');
   assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /m);
 });
 
