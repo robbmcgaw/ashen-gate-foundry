@@ -22,8 +22,19 @@ const UNSAFE_KEY = /macro|script|^flags\.core\.|^(?:_id|_stats|ownership|folder|
 const UNSAFE_TEXT = /<\s*script|javascript:|@macro\[|\bon[a-z]+\s*=/i;
 /** Item flags a package may set: dotted path -> allowed values. Everything else in `flags` is dropped with a warning. */
 export const ITEM_FLAG_ALLOW = Object.freeze({
-  'ashen-gate-character-hub.companion.role': ['mount-gear', 'mount-perk', 'pet-clothing', 'pet-perk']
+  'ashen-gate-character-hub.companion.role': ['mount-gear', 'mount-perk', 'pet-clothing', 'pet-perk'],
+  'ashen-gate-character-hub.companion.slot': ['saddle', 'tack', 'head', 'body']
 });
+const ROLE_PATH = 'ashen-gate-character-hub.companion.role';
+const SLOT_PATH = 'ashen-gate-character-hub.companion.slot';
+/** The one role each slot value may go with (the slot only says which Hub sockets the item fits). */
+export const SLOT_ROLE = Object.freeze({saddle: 'mount-gear', tack: 'mount-gear', head: 'pet-clothing', body: 'pet-clothing'});
+/** Why a slot value would not be imported, or '' when it is fine. `role` is the item's own companion.role flag. */
+function slotProblem(slot, role) {
+  if (!ITEM_FLAG_ALLOW[SLOT_PATH].includes(slot)) return `${JSON.stringify(slot)} is not a slot (use ${ITEM_FLAG_ALLOW[SLOT_PATH].join(', ')})`;
+  if (SLOT_ROLE[slot] !== role) return `slot ${slot} goes only with companion.role ${SLOT_ROLE[slot]}, but this item's role flag is ${role === undefined ? 'missing' : JSON.stringify(role)}`;
+  return '';
+}
 
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const isObj = v => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
@@ -127,8 +138,9 @@ export function validateItemFlags(flags, label = 'foundry.data') {
   if (flags === undefined) return [];
   if (!isObj(flags)) return [`${label}.flags must be an object.`];
   const errors = [];
+  // companion.slot is never an error: a bad or mismatched slot is dropped with a preview warning (flagWarnings).
   for (const [path, value] of Object.entries(leaves(flags)))
-    if (ITEM_FLAG_ALLOW[path] && !ITEM_FLAG_ALLOW[path].includes(value)) errors.push(`${label}.flags.${path} must be one of ${ITEM_FLAG_ALLOW[path].join(', ')}.`);
+    if (path !== SLOT_PATH && ITEM_FLAG_ALLOW[path] && !ITEM_FLAG_ALLOW[path].includes(value)) errors.push(`${label}.flags.${path} must be one of ${ITEM_FLAG_ALLOW[path].join(', ')}.`);
   return errors;
 }
 
@@ -136,8 +148,10 @@ export function validateItemFlags(flags, label = 'foundry.data') {
 export function allowedItemFlags(flags) {
   const out = {};
   if (!isObj(flags)) return out;
-  for (const [path, value] of Object.entries(leaves(flags))) {
+  const all = leaves(flags);
+  for (const [path, value] of Object.entries(all)) {
     if (!ITEM_FLAG_ALLOW[path]?.includes(value)) continue;
+    if (path === SLOT_PATH && slotProblem(value, all[ROLE_PATH]) ) continue;
     const keys = path.split('.');
     let o = out;
     for (const k of keys.slice(0, -1)) o = o[k] ??= {};
@@ -152,8 +166,13 @@ export function flagWarnings(record) {
   if (!isObj(data)) return [];
   const warnings = [];
   if (isObj(data.flags)) {
-    const dropped = Object.keys(leaves(data.flags)).filter(p => !ITEM_FLAG_ALLOW[p]);
-    if (dropped.length) warnings.push(`${record.id}: flags not imported (only ${Object.keys(ITEM_FLAG_ALLOW).join(', ')} is): ${dropped.slice(0, 5).join(', ')}${dropped.length > 5 ? ', …' : ''}.`);
+    const all = leaves(data.flags);
+    const dropped = Object.keys(all).filter(p => !ITEM_FLAG_ALLOW[p]);
+    if (SLOT_PATH in all) {
+      const why = slotProblem(all[SLOT_PATH], ROLE_PATH in all && ITEM_FLAG_ALLOW[ROLE_PATH].includes(all[ROLE_PATH]) ? all[ROLE_PATH] : undefined);
+      if (why) warnings.push(`${record.id}: companion.slot not imported: ${why}.`);
+    }
+    if (dropped.length) warnings.push(`${record.id}: flags not imported (only ${Object.keys(ITEM_FLAG_ALLOW).join(', ')} are): ${dropped.slice(0, 5).join(', ')}${dropped.length > 5 ? ', …' : ''}.`);
   }
   for (const e of Array.isArray(data.effects) ? data.effects : [])
     if (isObj(e?.flags) && Object.keys(e.flags).length) warnings.push(`${record.id}: effect ${e.eff_id ?? '?'} flags are not imported (Manager writes its own effect id).`);

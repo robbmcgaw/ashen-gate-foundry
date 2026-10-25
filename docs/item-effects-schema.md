@@ -75,6 +75,7 @@ Nothing in an effect is ever run. Manager writes it as data only.
 | Path | Allowed values |
 |---|---|
 | `ashen-gate-character-hub.companion.role` | `mount-gear`, `mount-perk`, `pet-clothing`, `pet-perk` |
+| `ashen-gate-character-hub.companion.slot` (Manager 0.60.15) | `saddle`, `tack` (role `mount-gear` only); `head`, `body` (role `pet-clothing` only). A bad or mismatched value is dropped with a preview warning, not an error. |
 
 `flags` must be an object. An allowed path with any other value is an error. An allowed flag is a managed field like `name`, so re-import updates it and keeps a local edit. `flags.ashen-gate-manager.*` is always written by Manager from the record (its source id), so an authored one is dropped. Any other flag, such as `core.*` or another module's, is dropped, and the preview names it.
 

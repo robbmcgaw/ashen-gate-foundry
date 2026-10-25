@@ -45,7 +45,7 @@ An item can name the kind of socket it goes in with one optional flag, `flags.as
 | `mount-perk`, `pet-perk` | none | perks have no sockets |
 
 Rules:
-- A slot is valid only with its matching role (the role from the flag or the id prefix). A mismatched slot (e.g. `head` on `mount-gear`), an unknown value, or a slot on an item with no role is ignored and the item counts as unclassified.
+- A slot is valid only with its matching role. The Hub takes the role from the flag or the id prefix; Manager's import is stricter and requires the role flag on the same record (see Slot flag (import)). A mismatched slot (e.g. `head` on `mount-gear`), an unknown value, or a slot on an item with no role is ignored and the item counts as unclassified.
 - A **classified** item fits only a socket of its own type: a `saddle` item only the Saddle, a `tack` item only a Tack socket, `head` only Head, `body` only Body. A wrong drop is refused with a plain message.
 - An **unclassified** item (no valid slot; all older data) keeps the earlier behaviour: it fits any socket of its kind (mount gear any mount socket, pet clothing any pet socket), so nothing breaks before content is classified.
 - Dropped on a box (not a socket), an item goes to the first free socket of its type.
@@ -85,7 +85,21 @@ The usual Manager Item record. Nothing new is required.
 | `foundry.document_type` | `"Item"` | |
 | `foundry.data` | `{name, type, img, system, effects?, flags?}` | `type`: `equipment`, `loot` or `feat`. `system.description.value` (HTML) is the text the Hub summarises. `system.armor.value` for barding. `system.rarity` for the rarity colour. |
 | `foundry.data.effects` | array (Manager 0.37.0+) | The bonuses, as Active Effects with `transfer: false` ([format](item-effects-schema.md)). |
-| `foundry.data.flags` | object (Manager 0.37.0+) | `ashen-gate-character-hub.companion.role` (optional, the id prefix already gives the role) and, new in Hub 0.48.0, `ashen-gate-character-hub.companion.slot` (optional, see Slot). |
+| `foundry.data.flags` | object (Manager 0.37.0+) | `ashen-gate-character-hub.companion.role` and `.slot` are imported (Manager 0.60.15+ for `.slot`; see Slot flag (import)). Both optional; the id prefix already gives the role. |
+
+## Slot flag (import)
+
+Manager 0.60.15 and later. Optional item flag `flags.ashen-gate-character-hub.companion.slot` says which Hub sockets the item fits. It has no other effect.
+
+| `companion.role` | Allowed `companion.slot` |
+|---|---|
+| `mount-gear` | `saddle` or `tack` |
+| `pet-clothing` | `head` or `body` |
+| `mount-perk`, `pet-perk` | none |
+
+- The role flag must be on the same record, because the slot is checked against it. The id prefix alone is not enough.
+- A slot that is not one of the four values, or does not match the role, is not imported. The preview names the record and the reason, and `node scripts/validate-content.mjs` reports the same as a note. The rest of the Item imports.
+- Managed like the role: written on create, updated on re-import and Sync unless the GM edited it in Foundry, and included in the stored baseline.
 
 ## Synthetic example
 

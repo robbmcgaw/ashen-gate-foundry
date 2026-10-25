@@ -1,3 +1,12 @@
+## 0.60.15 — 2026-10-25
+
+Companion items can say which Hub socket they fit.
+
+- **New optional item flag `ashen-gate-character-hub.companion.slot`.** Allowed values: `saddle` or `tack` (only with role `mount-gear`), `head` or `body` (only with role `pet-clothing`). It only controls which Character Hub sockets the item fits. It is a managed field like `companion.role`: written when the Item is created, updated on re-import and in Sync from package, kept if you edited it in Foundry, and part of the stored baseline.
+- **A slot that is not a slot, or does not match the role, is not imported.** The preview says why (for example "companion.slot not imported: slot head goes only with companion.role pet-clothing, but this item's role flag is mount-gear"). The rest of the Item imports normally; nothing wrong is ever written. The slot needs the role flag on the same record.
+- `scripts/validate-content.mjs` reports the same warnings as notes. `docs/companion-items-schema.md` and `docs/item-effects-schema.md` list the new flag.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.60.14 — 2026-10-25
 
 Fixes from a live Foundry V14 test run.
