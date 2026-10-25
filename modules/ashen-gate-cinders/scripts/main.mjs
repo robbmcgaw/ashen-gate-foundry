@@ -14,10 +14,11 @@ import {orbArt,strainTone,ringModel,orbitModel,ART_FOLDER} from './orb.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fileButton,bindFileButtons} from './ag-html.mjs';
 import {draftFromConfig,draftDirty,setDraftField,addBand,removeBand,checkDraft,editorView} from './strain-editor.mjs';
 import {openStageEditor} from './stage-editor.mjs';
+import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.13.0';
+const VERSION='0.14.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -369,6 +370,9 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         case 'cinder-bind':await this._bind(el.dataset.instance,false);break;
         case 'cinder-transfer':await this._bind(el.dataset.instance,true);break;
         case 'cinder-unbind':await this._unbind(el.dataset.instance);break;
+        case 'cinder-delete':{const gone=await this._deleteCinder(el.dataset.instance);
+          // Deleted: the row is gone, so focus goes to New Cinder. Cancelled or refused: it stays on the button used.
+          this._focus=gone?'[data-act="cinder-new"]':focusKey(el);this.render();return;}
         case 'cinder-migrate':await this._migrate();break;
         case 'cinder-adopt':await adoptLegacy();break;
         case 'cinder-repair':await this._repair();break;
@@ -473,7 +477,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   async _help(){
     const gm=game.user.isGM?`<h3>Managing Cinders (GM)</h3>
-      <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers or unbinds it (Manage → Cinders). Strain stays with each character.</p>
+      <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers, unbinds or deletes it (Manage → Cinders). Delete Cinder… lists what it removes first and refuses a Cinder that still has a bearer (Unbind… it first). Strain stays with each character.</p>
       <p><strong>Sockets</strong> (Manage → Sockets): drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it, or use Attach…. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached.</p>
       <p><strong>Stage art</strong> (Manage → Cinders): give a whole Cinder its art stages, with or without a bearer. Every bearer follows them unless their own Cinder has Stages… (Binding card); a re-import keeps them. General Manager's Assets tab fills them from files such as Echo_Cinder_Stage_1.webp.</p>
       <p><strong>Check</strong> (Manage → Check) lists anything out of step; Repair… fixes it after asking.</p>
@@ -615,6 +619,16 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const name=cinders.definitionName(inst.definitionId),bearer=game.actors?.get(inst.bearer.actorId)?.name??'its bearer';
     if(!await confirmDanger(`Unbind ${name} from ${bearer}?\nIts powers, signature ability and passive leave ${bearer}'s sheet. The Cinder keeps its points and unlocks. Strain is not changed.`,{title:`Unbind ${name}?`,yes:'Unbind Cinder'}))return;
     await cinders.api.unbind(instanceId);notify(`${name} unbound.`);
+  }
+  /** GM: Delete Cinder… Plan first (nothing written), a refusal while a character still bears it, then a danger confirmation listing what goes. */
+  async _deleteCinder(instanceId){
+    if(!game.user.isGM)throw Error('GM only');
+    const plan=cinders.api.planDeleteCinder(instanceId);
+    if(plan.blocked){await infoDialog(`${plan.name} cannot be deleted yet`,`<p>${escape(boundMessage(plan))}</p>`);return false;}
+    if(!await confirmDanger(confirmText(plan),{title:`Delete ${plan.name}?`,yes:`Delete ${plan.name}`}))return false;
+    const r=await cinders.api.deleteCinder(instanceId,{confirm:true});
+    notify(`Deleted ${r.name}. Removed ${r.removed.total} record${r.removed.total===1?'':'s'}.`);
+    return true;
   }
   async _migrate(){
     if(!game.user.isGM)throw Error('GM only');

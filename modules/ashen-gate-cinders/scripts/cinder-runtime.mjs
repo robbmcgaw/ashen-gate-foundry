@@ -8,6 +8,7 @@ import {SLOT_KIND,SLOT_LABEL,bearerItemsOf,bearerTag,planBearerItems,bearerItemD
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
 import {cleanArt,artInput,resolveArt} from './orb.mjs';
 import {stageState,stagesInput,holdInput} from './stages.mjs';
+import {matchCinder,planCinderDelete,boundMessage} from './cinder-delete.mjs';
 import {DEFINITION_ART_SETTING,cleanOverrides,withOverride,resolveStages,matchDefinition} from './definition-art.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
@@ -698,6 +699,49 @@ export function createCinders(deps){
       changed('stage',updated,{hold});return {changed:true,hold};
     });
   }
+  // ---- Delete Cinder (0.14.0, GM) ----
+  /** Everything outside the registry that names this Cinder's instance id, on playable characters (level backups are left alone):
+   * bearer links (Actor flag pointers), this module's signature-ability / passive copies, and "attached" marks on items. */
+  function leftoversOf(instanceId){
+    const out={links:[],bearerItems:[],marks:[]};
+    for(const actor of playable()){
+      const base={actorId:actor.id,actorName:actor.name};
+      if(pointersOf(actor).some(p=>p.instanceId===instanceId))out.links.push(base);
+      for(const {id,item,tag} of taggedOn(actor))if(tag.instanceId===instanceId)out.bearerItems.push({...base,itemId:id,itemName:item.name??'Item'});
+      for(const item of actor.items??[])if(markerOf(item)?.instanceId===instanceId&&!bearerTag(item,module))out.marks.push({...base,itemId:item.id,itemName:item.name??'Item'});
+    }
+    return out;
+  }
+  function deletePlanFor(registry,key){
+    const named=registry.instances.map(i=>({instanceId:i.instanceId,name:definitionName(i.definitionId)}));
+    const instanceId=matchCinder(named,key),record=registry.instances.find(i=>i.instanceId===instanceId)??null;
+    const bearerActor=record?.bearer?actorById(record.bearer.actorId):null;
+    return planCinderDelete({instanceId,record,name:record?definitionName(record.definitionId):'Unnamed Cinder',
+      bearer:bearerActor?{actorId:bearerActor.id,name:bearerActor.name}:null,leftovers:leftoversOf(instanceId)});
+  }
+  /** GM: what deleting a Cinder would remove, with counts. Writes nothing. key = the Cinder's id, or its name when only one Cinder has it.
+   * plan.blocked is set while a character in this world still bears it (delete refuses until it is unbound). */
+  function planDeleteCinder(key){requireGM();return deletePlanFor(readRegistry(),key);}
+  /** GM: delete one Cinder and the records that belong to it only. Needs {confirm: true}. Refuses a Cinder that still has a bearer in this world.
+   * Cleans the characters first and removes the record last, so a failure leaves the Cinder in Manage and Delete can simply be run again. */
+  async function deleteCinder(key,{confirm=false}={}){
+    requireGM();
+    if(confirm!==true)throw Error('Deleting a Cinder needs {confirm: true}. Call planDeleteCinder first to see what it removes.');
+    return withRegistry(async()=>{
+      const registry=readRegistry(),plan=deletePlanFor(registry,key);
+      if(plan.blocked)throw Error(boundMessage(plan));
+      if(plan.empty)throw Error('Unknown Cinder');
+      const left=leftoversOf(plan.instanceId),failed=[];
+      const attempt=async(label,fn)=>{try{await fn();}catch(error){failed.push(`${label}: ${error?.message??error}`);}};
+      for(const b of left.bearerItems)await attempt(`${b.itemName} on ${b.actorName}`,async()=>{const item=itemOf(actorById(b.actorId),b.itemId);if(item)await item.delete();});
+      for(const m of left.marks)await attempt(`${m.itemName} on ${m.actorName}`,()=>setMarker(itemOf(actorById(m.actorId),m.itemId),null));
+      for(const l of left.links)await attempt(`${l.actorName}'s bearer link`,()=>{const actor=actorById(l.actorId);return setPointers(actor,pointersOf(actor).filter(p=>p.instanceId!==plan.instanceId));});
+      if(failed.length)throw Error(`${plan.name} was not deleted because ${failed[0]}${failed.length>1?` (and ${failed.length-1} more)`:''}. Nothing else was removed from Manage; run Delete again.`);
+      if(plan.hasRecord)await saveRegistry({...registry,instances:registry.instances.filter(i=>i.instanceId!==plan.instanceId)});
+      for(const actorId of new Set([null,...left.links.map(l=>l.actorId),...left.bearerItems.map(b=>b.actorId)]))changed('delete',{instanceId:plan.instanceId,definitionId:plan.definitionId,bearer:null},{actorId});
+      return {deleted:true,instanceId:plan.instanceId,name:plan.name,removed:plan.counts,lines:plan.lines};
+    });
+  }
   /** GM drop target: an Item dropped on a socket. A world Item is copied into the bearer's inventory first (and removed again if attaching fails). */
   async function attachDropped(instanceId,itemDoc,{slot=null}={}){
     requireGM();
@@ -870,7 +914,7 @@ export function createCinders(deps){
   const api={
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
     list,previewPush,push:requestPush,validateDefinition,setArt,stages:stagesInfo,setArtStages,setStageHold,getDefinitionArtStages,setDefinitionArtStages,
-    instances:()=>readRegistry().instances,
+    instances:()=>readRegistry().instances,planDeleteCinder,deleteCinder,
     create,bind,transfer,unbind,rehook,migrate,adoptLegacy,report,repair
   };
   /** The scope owner for "cinder" modifiers (contract ag-modifier/1): General Manager 0.41.0+ calls validate on import. */
