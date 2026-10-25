@@ -4,6 +4,7 @@ import {confirmDialog,confirmDanger,guardDirty,formDialog,promptText,infoDialog,
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind,objectiveRecords,objectiveName} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
+import {runSupersede} from './supersede.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent} from './standing-view.mjs';
@@ -121,6 +122,26 @@ async function deleteFolder(key){
   if(folder)await doc.setFlag(MODULE_ID,'folderIndex',index);
   if(folder||docs.length)await reproject();
   return {deleted:Boolean(folder),key,name:folder?.name??null,moved:{factions,deities}};
+}
+/**
+ * 0.17.0, GM only, idempotent: `supersedes` for information entries. api.supersedeIds({OLD_ENTRY_ID: 'NEW_ENTRY_ID'}, {dryRun, definitions}).
+ * Renames the entry in the stored definition and moves what the party learned (group knowledge) to the new id. Nothing else
+ * changes (standings, claims, requests, rewards, tracks). dryRun writes nothing and reports `changed`. An old id that is not there is skipped.
+ */
+async function supersedeIds(map,options={}){
+  return runSupersede(map,options,{
+    assertGM,
+    factions:()=>defs().map(d=>({docId:d.id,faction:getFaction(d)})),
+    groups:()=>game.journal.filter(d=>getGroup(d)).map(d=>({docId:d.id,state:getGroup(d)})),
+    writeGroup:async(docId,{set,remove})=>{
+      const update={};
+      for(const [id,value] of Object.entries(set))update[`flags.${MODULE_ID}.groupClaims.knowledge.${id}`]=value;
+      for(const id of remove)update[`flags.${MODULE_ID}.groupClaims.knowledge.-=${id}`]=null;
+      await game.journal.get(docId).update(update);
+    },
+    writeEntries:(docId,entries)=>game.journal.get(docId).update({[`flags.${MODULE_ID}.faction.entries`]:entries}),
+    after:reproject
+  });
 }
 const userViewDoc=user=>game.journal.find(d=>getView(d)?.user_id===user.id);
 async function ensureView(user){assertGM();if(user.isGM)throw Error('Only players receive filtered views.');let doc=userViewDoc(user);if(doc)return doc;const secret=rid()+rid();return JournalEntry.create({name:`Factions • Player View • ${user.name}`,folder:(await ensureStorageFolder()).id,ownership:{default:NONE,[user.id]:OBS},flags:{[MODULE_ID]:{playerView:{user_id:user.id,capability:secret,payload:{folders:[],factions:[]}}}}});}
@@ -962,6 +983,8 @@ Hooks.once('ready',()=>{
     importFactions:data=>importFactions(data),
     // 0.16.0, GM only: delete a folder by key; its factions move to Other factions and are never deleted.
     deleteFolder:key=>deleteFolder(key),
+    // 0.17.0, GM only: move saved entry ids to the ids that supersede them (see scripts/supersede.mjs).
+    supersedeIds:(map,options)=>supersedeIds(map,options),
     // Optional read-only GM source relationship API. It never resolves or reveals Quest state.
     refreshPlayerViews:async()=>{assertGM();await reproject();return {status:'requested'};},
     getObjectiveRefs:(factionId)=>{assertGM();const doc=definition(factionId);if(!doc)throw Error('Faction not found.');return structuredClone(objectiveRefs(getFaction(doc)));},

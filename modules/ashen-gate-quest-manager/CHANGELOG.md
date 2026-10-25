@@ -1,3 +1,10 @@
+## 0.25.0 — 2026-10-25
+
+`api.supersedeIds` for General Manager's `supersedes`.
+
+- **`api.supersedeIds({OLD_ID: 'NEW_ID'}, {dryRun})`** (GM only, safe to run again): a quest, order or contract that named an old id (its giver, issuing faction or any typed link) names the new one, and the remembered link name moves with it. Progress and reveal state are untouched. Quest, Order and Contract ids are not re-keyed. General Manager calls it when you apply a package; nothing happens by itself.
+- Saved data: no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.24.0 — 2026-10-25
 
 One session number, starting at 0, that the GM can edit; and no hidden journal menu.

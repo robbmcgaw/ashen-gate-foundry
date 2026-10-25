@@ -25,6 +25,23 @@ function overwriteRow(r) {
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Now</th><th scope="col">Package</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
 }
 
+/** The "Replaces" list: one row per record that supersedes a document in this world, with a Yes / No / Skip choice. Nothing is written before Apply. */
+function replacesFold(plan) {
+  const offers = plan.offers ?? [];
+  const rows = offers.map(o => {
+    const name = `supersede-${o.newId}`;
+    const choice = (value, label) => `<label class="ag-field--inline"><input type="radio" name="${esc(name)}" value="${value}" data-ag-sync-supersede="${esc(o.newId)}" ${o.choice === value ? 'checked' : ''} ${o.state !== 'offer' ? 'disabled' : ''}> ${label}</label>`;
+    const help = o.state !== 'offer' ? esc(o.reason ?? 'Cannot be replaced.')
+      : o.choice === 'yes' ? 'The same document is kept (tokens, ownership, folder, links) and takes the new content.'
+      : o.choice === 'no' ? 'The new record is added as its own document; the old one is kept.' : 'Neither is changed in this sync.';
+    return `<li class="ag-row"><fieldset class="ag-row__main agm-supersede"><legend><strong>${esc(o.newName)}</strong> <span class="ag-badge">${esc(o.kind)}</span> replaces <strong>${esc(o.oldName)}</strong></legend>
+      <div class="ag-cluster">${choice('yes', 'Yes, replace it')}${choice('no', 'No, add separately')}${choice('skip', 'Skip for now')}</div>
+      <span class="agmanager-tiny">${help}</span>
+      <details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(o.oldId)} → ${esc(o.newId)}</code></details></fieldset></li>`;
+  }).join('');
+  return group('Replaces', offers.length, offers.length ? `<p class="agmanager-tiny">These new records take over from a document already in your world. Pick Yes, No or Skip for each; nothing is written until you confirm below.</p><ul class="ag-rows">${rows}</ul>` : '<p class="agmanager-tiny">No record replaces a document in your world.</p>', {open: offers.length > 0});
+}
+
 /**
  * state: {inputs:[{name, imports, skipped}], skipped:[{filename, reason}], fileButton, deleteUnscoped, plan, phrase,
  *   busy, progress:{pct, label}|null, stopping, result:{message, tone}|null, message}
@@ -58,6 +75,7 @@ export function syncView(state) {
       parts.push(`<div class="ag-cluster agmanager-summary" role="group" aria-label="Sync preview totals">
         <span class="ag-badge ag-badge--ok"><strong>${c.create}</strong> create</span>
         <span class="ag-badge ag-badge--ok"><strong>${c.overwrite}</strong> overwrite</span>
+        ${c.rebind ? `<span class="ag-badge ag-badge--ok"><strong>${c.rebind}</strong> replaced in place</span>` : ''}
         <span class="ag-badge ag-badge--danger"><strong>${c.delete}</strong> delete</span>
         <span class="ag-badge"><strong>${c.untouched}</strong> untouched</span>
         ${c.keptEdited ? `<span class="ag-badge ag-badge--warn"><strong>${c.keptEdited}</strong> kept: edited in your world${c.keptRemoved ? ` (${c.keptRemoved} no longer in the package)` : ''}</span>` : ''}
@@ -68,6 +86,9 @@ export function syncView(state) {
       const rows = g => plan.rows.filter(r => r.group === g);
       const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
       const list = (items, fn, cap = SHOWN_ROWS) => `<ul class="ag-rows">${items.slice(0, cap).map(fn).join('')}</ul>${more(Math.min(cap, items.length), items.length)}`;
+      if ((plan.offers ?? []).length) parts.push(replacesFold(plan));
+      const reb = rows('rebind');
+      if (reb.length) parts.push(group('Replaced in place', reb.length, list(reb, overwriteRow), {open: reb.length <= 12}));
       parts.push(group('Create', creates.length, creates.length ? list(creates, line) : '<p class="agmanager-tiny">Nothing new.</p>'));
       parts.push(group('Overwrite', over.length, `${over.length ? list(over, overwriteRow) : '<p class="agmanager-tiny">No content differs.</p>'}${meta.length ? `<p class="agmanager-tiny">Also refreshes metadata on ${meta.length} record(s) whose content already matches.</p>` : ''}`, {open: over.length > 0 && over.length <= 12}));
       parts.push(group('Delete', del.length, del.length ? list(del, line, del.length) : '<p class="agmanager-tiny">Nothing is deleted.</p>', {open: del.length > 0 && del.length <= 40}));
@@ -76,7 +97,7 @@ export function syncView(state) {
       const refused = keep.filter(r => !r.keptEdited && (r.refused || r.kept || r.notRemoved)), quiet = keep.length - refused.length - kept.length - keptGone.length;
       parts.push(group('Untouched', c.untouched, `${refused.length ? list(refused, line) : ''}<p class="agmanager-tiny">${quiet} record(s) already match the package${plan.outOfScope?.records ? `; ${plan.outOfScope.records} Manager-imported record(s) belong to other package lines or have no line; documents without Manager's flag are never listed or changed` : ''}.</p>`, {open: refused.length > 0 && refused.length <= 12}));
     }
-    const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0);
+    const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0);
     if (!plan.errors.length && !ready) parts.push('<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> The world already matches these files. Nothing to do.</p>');
     if (ready) {
       parts.push(`<div class="ag-field agm-sync-confirm"><label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>

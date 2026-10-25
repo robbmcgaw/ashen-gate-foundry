@@ -24,6 +24,10 @@ Drop an item on a reward level (from the Items sidebar, a compendium, or any cha
 - An item dragged off a sheet is copied into a GM-only **holding copy** (Items sidebar → folder *Ashen Gate Rewards (Renown)*). The sheet keeps its item. Removing the reward deletes its holding copy.
 - When the GM approves a claim, the item is found by its permanent id first, then by its link, and copied to the character with everything inside it (containers). A claim is never granted twice. If the item is missing, the GM is told and the request stays waiting.
 
+## Superseded entries (0.17.0)
+
+A faction or deity file may carry `supersedes: ["<old id>"]` on a faction/deity and on its information entries. General Manager passes the pairs to `api.supersedeIds({OLD: 'NEW'}, {dryRun, definitions})` (GM only, safe to run again), which renames the entry in the stored definition and moves what the party learned for it. Standings, claims, rewards and tracks are untouched. See `docs/supersedes-schema.md`.
+
 ## Relation to other modules
 
 Independent. General Manager hands faction files to `api.previewFactionsImport` / `api.importFactions` (GM only): new factions are added, existing ones are never changed. A faction can hold typed Objective references; with Quest Manager active the GM-only `getObjectiveRefs` and `auditObjectiveRefs` report on them, and Renown never resolves or reveals Quest state itself.

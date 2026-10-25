@@ -94,7 +94,7 @@ export function moduleLinkNote(recId, targetId, owner, active) {
 /** Existing index accepts world source flags with entityType/scope, or full source records.
  * `moduleLinks` lists absent optional links to records another module owns; they are informational, not warnings.
  * `isModuleActive(moduleId)` (optional) lets the caller feature-detect the owning module for the wording. */
-export function checkContractGraph(records, externalIndex = new Map(), isModuleActive = null) {
+export function checkContractGraph(records, externalIndex = new Map(), isModuleActive = null, aliases = null) {
   const errors=[],warnings=[],moduleLinks=[];
   const internal=new Map(records.map(rec=>[rec.id,rec]));
   for (const rec of records) if (rec.entity_type === 'Location') {
@@ -107,7 +107,10 @@ export function checkContractGraph(records, externalIndex = new Map(), isModuleA
   // A bare Set of known ids (no type or scope to compare) still resolves links; anything else is ignored.
   const external=externalIndex instanceof Map ? externalIndex : externalIndex instanceof Set ? new Map([...externalIndex].map(id=>[id,{}])) : new Map();
   for (const rec of records) for (const link of rec.refs ?? []) {
-    const target=internal.get(link.target_id) ?? external.get(link.target_id);
+    let target=internal.get(link.target_id) ?? external.get(link.target_id);
+    // 0.64.0: a link that still uses an id a record in this package supersedes resolves to the new record (with a note).
+    const renamed=!target && aliases instanceof Map ? aliases.get(link.target_id) : undefined;
+    if (renamed && internal.has(renamed)) { target=internal.get(renamed); warnings.push(`${rec.id}: reference ${link.target_id} is superseded by ${renamed}; update the reference to the new id.`); }
     if (!target) {
       const owner=ownerModuleFor(link.target_id);
       const active=owner && typeof isModuleActive==='function' ? Boolean(isModuleActive(owner.moduleId)) : undefined;

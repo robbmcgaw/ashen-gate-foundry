@@ -1,3 +1,11 @@
+## 0.17.0 — 2026-10-25
+
+`supersedes` for information entries and a GM-only `api.supersedeIds`.
+
+- A faction or deity file may now carry `supersedes: ["<old id>"]` on a faction/deity and on its information entries (the closed source schema accepted no unknown keys before). It is an instruction to the importer and is not stored in the definition.
+- **`api.supersedeIds({OLD_ENTRY_ID: 'NEW_ENTRY_ID'}, {dryRun, definitions})`** (GM only, safe to run again): renames the entry in the stored definition (with `definitions`, the new entry's name and text replace the old) and moves what the party learned for it (`knowledge`) to the new id. Standings, claims, requests, rewards, choices and track ids are not touched. An old id that is not there is skipped; a faction or deity id is reported and not renamed. General Manager calls it when you apply a package.
+- Saved data: no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.16.3 — 2026-10-24
 
 - **Related quests and contracts: pick the quest by name.** *Quest, work order or contract* is a searchable list (grouped Quest, Work order, Contract) instead of a box to paste an id into. Saved references now read as the quest's name; one whose quest has been deleted reads *Missing* (Remove still works). If Quest Log is off, the list says so and saved references show their kind. The id stays in the *Details* disclosure of each saved reference.

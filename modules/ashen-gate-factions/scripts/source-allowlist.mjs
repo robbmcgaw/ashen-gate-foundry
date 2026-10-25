@@ -5,12 +5,12 @@
  * Pure JS; no Foundry API, reward ownership, or permission side effects.
  */
 const BASE=['id','entity_type','status','version','provenance','visibility','refs'];
-const FACTION=[...BASE,'scope','name','leader','public_role','folder_key','tags','discovery','renown_track','individual_track','entries','rewards'];
-const DEITY=[...BASE,'scope','name','tags','discovery','individual_track','entries','rewards','deity'];
+const FACTION=[...BASE,'supersedes','scope','name','leader','public_role','folder_key','tags','discovery','renown_track','individual_track','entries','rewards'];
+const DEITY=[...BASE,'supersedes','scope','name','tags','discovery','individual_track','entries','rewards','deity'];
 const DEITY_PROFILE=['symbol','title','domain','tier','blurb','portfolio','teachings','followers','practices','saying','relations'];
 const TRACK=[...BASE,'default_scope','milestones'];
 const MILESTONE=['id','key','name','threshold','benefit','selection_mode'];
-const ENTRY=['id','name','text','uuid','link_mode','unlock','threshold'];
+const ENTRY=['supersedes','id','name','text','uuid','link_mode','unlock','threshold'];
 // 0.14.0: item rewards may carry the permanent item id (item_id) and a picture (img); both optional.
 const REWARD=['id','key','audience','milestone_id','name','teaser','description','kind','uuid','item_id','img','tags','behavior','usage_limit'];
 const REF=['relation','target_id','mode'];
@@ -34,12 +34,13 @@ function provenance(value,path){closed(value,PROVENANCE,path);strings(value.sour
 function refs(value,path){list(value,path,(ref,p)=>{closed(ref,REF,p);text(ref.relation,`${p}.relation`,true);if(typeof ref.target_id!=='string'||!SOURCE_ID.test(ref.target_id))throw new Error(`${p}.target_id: canonical ID required`);choice(ref.mode,['required','optional'],`${p}.mode`);});}
 function envelope(value,path,type,idPattern){if(!idPattern.test(value.id??''))throw new Error(`${path}.id: invalid canonical identity`);choice(value.entity_type,[type],`${path}.entity_type`);choice(value.status,STATUS,`${path}.status`);text(value.version,`${path}.version`,true);provenance(value.provenance,`${path}.provenance`);choice(value.visibility,VISIBILITY,`${path}.visibility`);refs(value.refs,`${path}.refs`);}
 function track(value,path){closed(value,TRACK,path);envelope(value,path,'RenownTrack',TRACK_ID);choice(value.default_scope,['group','individual'],`${path}.default_scope`);list(value.milestones,`${path}.milestones`,(row,p)=>{closed(row,MILESTONE,p);text(row.id,`${p}.id`,true);text(row.key,`${p}.key`,true);text(row.name,`${p}.name`,true);natural(row.threshold,`${p}.threshold`);text(row.benefit,`${p}.benefit`);choice(row.selection_mode,['all','choose_one'],`${p}.selection_mode`);},5,5);}
-function entry(value,path){closed(value,ENTRY,path);text(value.id,`${path}.id`,true);text(value.name,`${path}.name`,true);choice(value.unlock,['manual','group_renown','individual_renown'],`${path}.unlock`);choice(value.link_mode,['preview','document'],`${path}.link_mode`);optional(value.text,`${path}.text`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.threshold,`${path}.threshold`,natural);}
+function supersedes(value,path){optional(value,path,(v,p)=>{list(v,p,(x,q)=>text(x,q,true),1);if(new Set(v).size!==v.length)throw new Error(`${p}: duplicate id`);});}
+function entry(value,path){closed(value,ENTRY,path);supersedes(value.supersedes,`${path}.supersedes`);text(value.id,`${path}.id`,true);text(value.name,`${path}.name`,true);choice(value.unlock,['manual','group_renown','individual_renown'],`${path}.unlock`);choice(value.link_mode,['preview','document'],`${path}.link_mode`);optional(value.text,`${path}.text`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.threshold,`${path}.threshold`,natural);}
 function reward(value,path){closed(value,REWARD,path);for(const key of ['id','key','milestone_id','name'])text(value[key],`${path}.${key}`,true);choice(value.audience,['group','individual'],`${path}.audience`);choice(value.kind,['custom','uuid'],`${path}.kind`);choice(value.behavior,['one_time','repeatable_service','passive'],`${path}.behavior`);strings(value.tags,`${path}.tags`);natural(value.usage_limit,`${path}.usage_limit`);optional(value.teaser,`${path}.teaser`,text);optional(value.description,`${path}.description`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.img,`${path}.img`,text);if(value.item_id!==undefined&&(typeof value.item_id!=='string'||!SOURCE_ID.test(value.item_id)))throw new Error(`${path}.item_id: permanent item id required`);if(value.kind==='uuid')text(value.uuid,`${path}.uuid`,true);}
 /** Reject arbitrary top-level AND nested data. This does not migrate or rewrite the input. */
 export function assertReusableFactionSource(value){
  if(value?.entity_type==='Deity')return assertReusableDeitySource(value);
- closed(value,FACTION,'Faction');envelope(value,'Faction','Faction',ROOT_ID);
+ closed(value,FACTION,'Faction');envelope(value,'Faction','Faction',ROOT_ID);supersedes(value.supersedes,'Faction.supersedes');
  choice(value.scope,SCOPE,'Faction.scope');text(value.name,'Faction.name',true);text(value.leader,'Faction.leader');text(value.public_role,'Faction.public_role');
  optional(value.folder_key,'Faction.folder_key',text);optional(value.tags,'Faction.tags',strings);
  closed(value.discovery,['placeholder','sharing_enabled'],'Faction.discovery');for(const key of ['placeholder','sharing_enabled'])if(typeof value.discovery[key]!=='boolean')throw new TypeError(`Faction.discovery.${key}: boolean required`);
@@ -49,7 +50,7 @@ export function assertReusableFactionSource(value){
 }
 /** Deity source: the faction envelope without group track, leader, description or folder, plus a closed `deity` profile. */
 export function assertReusableDeitySource(value){
- closed(value,DEITY,'Deity');envelope(value,'Deity','Deity',/^DEITY-[A-Z0-9-]+$/);
+ closed(value,DEITY,'Deity');envelope(value,'Deity','Deity',/^DEITY-[A-Z0-9-]+$/);supersedes(value.supersedes,'Deity.supersedes');
  choice(value.scope,SCOPE,'Deity.scope');text(value.name,'Deity.name',true);optional(value.tags,'Deity.tags',strings);
  closed(value.discovery,['placeholder','sharing_enabled'],'Deity.discovery');for(const key of ['placeholder','sharing_enabled'])if(typeof value.discovery[key]!=='boolean')throw new TypeError(`Deity.discovery.${key}: boolean required`);
  track(value.individual_track,'Deity.individual_track');

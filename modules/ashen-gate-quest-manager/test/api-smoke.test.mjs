@@ -16,7 +16,7 @@ globalThis.ui={actors:{element:null},notifications:{info:()=>{},error:()=>{}}};
 await import('../scripts/main.mjs');
 callbacks.get('init')();callbacks.get('ready')();
 test('mock boot publishes exact-ID consumer and Quest-owned Assignment API',()=>{
- assert.equal(module.api.version,'0.24.0');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
+ assert.equal(module.api.version,'0.25.0');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
 });
 test('direct non-GM APIs reject hidden Player Access, including resolver',()=>{
  game.user=alice;access=false;

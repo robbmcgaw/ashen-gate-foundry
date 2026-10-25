@@ -34,7 +34,7 @@ test('header: brand, then version, then Help only (0.17.0, QL-03); tabs are type
  // On Party the character select sits in the Character notes heading; on Individual it is in the toolbar.
  assert.doesNotMatch(html.slice(0,html.indexOf('agq-split')),/id="ag-actor"/);
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.24\.0<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.25\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" id="agq-tab-(\w+)" data-tab="\1" aria-selected="(true|false)" aria-controls="agq-panel" tabindex="(0|-1)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[4],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','journal','quests','setup']);
