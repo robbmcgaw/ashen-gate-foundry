@@ -107,6 +107,14 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
 }
 ```
 
+### Bulk reveals (Manager 0.67.0)
+
+Storage is unchanged. These GM-only `api.codex` calls change several rules in one write and never touch GM-only fields (`portrayal`, `session_role`, `stat_block`, `gm_notes`):
+
+- `setRevealMany(id, {fields | preset, mode: 'hidden' | 'party' | 'actors', characters})`. `fields` are `discovery` (name and portrait) and the revealable keys above. Characters are added to each field's `actors`; a field already shown to the whole party is left alone. Everything is validated first, then written once.
+- `revealTo(id, {party: true | characters: [...], fields | preset})` for macros. Characters are player-character Actor ids or exact names. `preset` is `basics` (`discovery`, `role`, `appearance`) or `everything` (`discovery` and every revealable field that has content).
+- `undoReveal(id)` restores the fields the last bulk reveal changed, only if they are unchanged since. The undo is in memory, not saved.
+
 ## Synthetic example record
 
 ```json

@@ -188,7 +188,25 @@ ul.agcodex-value{padding-left:var(--ag-space-5);white-space:normal}
 .agcodex-reveals-head{align-items:center;margin:0 0 var(--ag-space-2)}
 .agcodex-chars__pop{top:calc(100% + var(--ag-space-1));right:0;bottom:auto;left:auto;min-width:12rem;max-height:15rem;overflow:auto}
 .agcodex-chars__pop label{display:flex;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-1) var(--ag-space-2)}
-.agcodex-who{max-width:14rem;margin:0;color:var(--ag-accent-ink);font-size:var(--ag-text-xs);text-align:right}
+.agcodex-chips{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--ag-space-1);max-width:18rem}
+.agcodex-rowwrap{display:flex;align-items:center;gap:var(--ag-space-1);padding-right:var(--ag-space-2)}
+.agcodex-rowwrap>.agcodex-row{flex:1 1 auto;min-width:0;width:auto}
+.agcodex-revealto{flex:none}
+.agcodex-bulk{display:grid;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface)}
+.agcodex-bulk h4{margin:0}
+.agcodex-bulk__cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:var(--ag-space-3)}
+.agcodex-bulk__group{display:grid;gap:var(--ag-space-1);align-content:start;min-width:0;margin:0;padding:0;border:0}
+.agcodex-bulk__group>legend{padding:0;color:var(--ag-muted);font-size:var(--ag-text-xs);letter-spacing:.06em;text-transform:uppercase}
+.agcodex-bulk__tools,.agcodex-dialog__tools{display:flex;flex-wrap:wrap;gap:var(--ag-space-1)}
+.agcodex-bulk__chars{display:grid;gap:var(--ag-space-1);max-height:12rem;overflow:auto}
+.agcodex-bulk__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
+.agcodex-note{margin:0;min-height:var(--ag-control-h-sm);color:var(--ag-ok-ink)}
+.agcodex-pick{display:flex;align-items:center;gap:var(--ag-space-2);min-height:var(--ag-control-h-sm)}
+.agcodex-pick small{color:var(--ag-muted)}
+.agcodex-dialog{display:grid;gap:var(--ag-space-3)}
+.agcodex-dialog__group{display:grid;gap:var(--ag-space-1);margin:0}
+.agcodex-dialog__list{display:grid;gap:var(--ag-space-1);max-height:14rem;overflow:auto}
+.agcodex-dialog__summary{margin:0;font-weight:600}
 .agcodex-links,.agm-codex-player dd{display:flex;flex-wrap:wrap;gap:var(--ag-space-2)}
 .agcodex-link,.agm-codex-link{display:inline-flex;align-items:baseline;gap:var(--ag-space-2);padding:calc(var(--ag-space-1) / 2) var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-raised);font-size:var(--ag-text-sm)}
 /* Openable deity links are buttons (0.46.0) styled as the same pill. */

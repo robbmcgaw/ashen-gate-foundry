@@ -11,7 +11,8 @@ import {sourceMetadata as projectionSourceMetadata} from './source-projection.mj
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical, baselineFields} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
-import {renderPlayerCodexHtml} from "./codex.js";
+import {renderPlayerCodexHtml, isNpcDefinition} from "./codex.js";
+import {askRevealTo, bulkStatus} from "./codex-reveal-dialog.mjs";
 import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibraryRows, groupLibraryRows} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
@@ -283,7 +284,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>: Manager first reads the file names and shows how many fit a record and how many fit none, under <em>Files waiting to upload</em>. Files that fit no record start unticked and are not uploaded unless you tick them (or tick <em>Upload unmatched files too</em>); nothing is uploaded until you press the upload button, and files already there are only replaced if you say so. Afterwards <em>Link files to records</em> lists the files in the folder with <em>Files with no match</em>: tick the ones to delete and copy the list, because Foundry and The Forge give modules no way to delete files, so you delete them in the Assets Library (<em>Open the Assets Library</em>). Manager never deletes a file, and never lists one that is a record’s image. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (nine Cinders, stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
-  '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
+  '<p><strong>NPC Codex:</strong> <em>Reveal to…</em> (on every NPC in the list, on the open NPC and in the header menu of an NPC&rsquo;s Actor sheet) picks characters and fields in one small window. On <em>Reveals</em>, tick several fields, choose Hidden, Whole party or chosen characters, then <em>Apply</em>; <em>Reveal basics</em> and <em>Reveal everything player-safe</em> do it in one click, and <em>Undo last reveal</em> puts the last one back. The chips show who can see each field now; per-field controls below fine-tune one field. All of this applies at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
@@ -374,7 +375,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.codexSearch = "";
     this.codexFilter = "all";
     this.codexPreview = "";
-    this.codexMessage = "Reveal an NPC to the party or to single characters, field by field. Players only ever receive what is revealed.";
+    this.codexMessage = "Reveal an NPC to the party or to single characters: use Reveal to… for a quick pick, or tick several fields on Reveals. Players only ever receive what is revealed.";
+    // 0.67.0: the Reveals tab's multi-field panel keeps its ticks per NPC across re-renders; codexNote is the last reveal's confirmation line.
+    this.codexBulk = new Map();
+    this.codexNote = null;
     this.libraryMessage = "Browse Manager-imported Items, Journals, Actors, Roll Tables and Macros by permanent ID.";
     this.profile = "session-safe";
     this.moodSceneId = "";
@@ -1401,6 +1405,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "library-next": this.libraryPage++;await this.render();break;
       case "codex-save": case "codex-cancel": case "codex-close": case "codex-hide-all": case "codex-export": case "codex-player-view": case "codex-open-actor":
+      case "codex-bulk-apply": case "codex-preset-basics": case "codex-preset-everything": case "codex-undo":
         await this.#codexAction(name);break;
       case "library-previous": this.libraryPage=Math.max(0,this.libraryPage-1);await this.render();break;
       case "library-inspect-clear": this.libraryFocus=null;await this.render();break;
@@ -3562,7 +3567,10 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         initials:initialsOf(e.name)}));
     const found=all.find(e=>e.id===this.codexFocus)??null;
     // Who knows: a kit segmented radio group (Hidden | Party) plus a Characters menu; with characters picked neither radio is on.
-    const seg=(key,rule,mode)=>({key,isHidden:mode==='hidden',isParty:mode==='party',isActors:mode==='actors',
+    // 0.67.0: chips say at a glance who can see the field now (text, never colour alone).
+    const nameOfChar=id=>chars.find(c=>c.id===id)?.name??'Unknown character';
+    const chipsOf=rule=>rule.party?[{text:'Whole party',cls:'ag-badge--ok'}]:rule.actors.length?rule.actors.map(id=>({text:nameOfChar(id),cls:'ag-badge--accent'})):[{text:'Hidden',cls:''}];
+    const seg=(key,rule,mode)=>({key,isHidden:mode==='hidden',isParty:mode==='party',isActors:mode==='actors',chips:chipsOf(rule),
       hiddenTab:mode==='party'?-1:0,partyTab:mode==='party'?0:-1,actorCount:rule.actors.length,
       chars:chars.map(c=>({...c,checked:rule.actors.includes(c.id)}))});
     const detail=found?{...found,initials:initialsOf(found.name),
@@ -3570,6 +3578,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       fields:found.fields.map(f=>({...f,...seg(f.key,f.rule,f.mode),isLinks:f.key==='links'})),
       gmFields:found.gmFields.map(f=>Array.isArray(f.value)?{label:f.label,items:f.value}:{label:f.label,text:f.value}),
       linksText:found.gmLinks.join(' ')}:null;
+    if(detail)detail.bulk=this.#bulkView(detail,chars);
     // Unsaved Notes & links (0.46.0) survive re-renders until Save Changes or Cancel.
     if(detail&&this.codexDraft?.id===detail.id)Object.assign(detail,{learned:this.codexDraft.learned,notes:this.codexDraft.notes,linksText:this.codexDraft.links});
     // 0.40.0: a deity link opens Renown's Pantheon when Renown is active and knows it; otherwise plain text with a tooltip.
@@ -3589,10 +3598,41 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       rows,total:all.length,known:all.filter(e=>e.discoveryMode!=='hidden').length,
       hidden:all.filter(e=>e.discoveryMode==='hidden').length,detail,chars,hasChars:chars.length>0,
       search:this.codexSearch,filterAll:this.codexFilter==='all',filterKnown:this.codexFilter==='known',filterHidden:this.codexFilter==='hidden',
-      previewOptions:[{value:'',label:'GM (everything)'},{value:'party',label:'The party'},...chars.map(c=>({value:c.id,label:c.name}))]
+      previewOptions:[{value:'',label:'GM (everything)'},{value:'party',label:'The party'},...chars.map(c=>({value:c.id,label:c.owners?.length?`${c.name} (${c.owners.join(', ')})`:c.name}))]
         .map(o=>({...o,selected:o.value===this.codexPreview})),
       previewHtml,previewing:Boolean(previewHtml),message:this.codexMessage,
       playerAccess:Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))};
+  }
+  /** 0.67.0: per-NPC ticks for the multi-field panel (selections, not saved data). */
+  #bulkFor(id) {
+    let b=this.codexBulk.get(id);
+    if(!b){b={keys:new Set(),mode:'party',chars:new Set()};this.codexBulk.set(id,b);}
+    return b;
+  }
+  #bulkView(detail,chars) {
+    const b=this.#bulkFor(detail.id),known=new Set(chars.map(c=>c.id));
+    for(const id of [...b.chars])if(!known.has(id))b.chars.delete(id);
+    const rows=[{key:'discovery',label:'Name and portrait',empty:false},...detail.fields.map(f=>({key:f.key,label:f.label,empty:f.empty}))];
+    for(const r of rows)if(r.empty)b.keys.delete(r.key);
+    const st=bulkStatus({count:b.keys.size,mode:b.mode,charCount:b.chars.size});
+    const note=this.codexNote?.id===detail.id?this.codexNote.text:'';
+    let canUndo=false;try{canUndo=codexService().canUndoReveal(detail.id);}catch{/* not a GM */}
+    return {fields:rows.map(r=>({...r,checked:b.keys.has(r.key)})),
+      isHidden:b.mode==='hidden',isParty:b.mode==='party',isActors:b.mode==='actors',
+      hiddenTab:b.mode==='hidden'?0:-1,partyTab:b.mode==='party'?0:-1,actorsTab:b.mode==='actors'?0:-1,
+      chars:chars.map(c=>({id:c.id,name:c.name,ownerText:(c.owners??[]).join(', '),checked:b.chars.has(c.id)})),
+      applyLabel:st.label,applyDisabled:st.disabled,presetsOk:st.presetsOk,hint:st.hint,note,canUndo};
+  }
+  /** Reflects the panel's ticks into the open window without a re-render, so focus and scroll stay put. */
+  #syncBulk(root) {
+    const panel=root.querySelector('[data-ag-codex-bulk]');if(!panel)return;
+    const b=this.#bulkFor(this.codexFocus),st=bulkStatus({count:b.keys.size,mode:b.mode,charCount:b.chars.size});
+    panel.querySelectorAll('[data-ag-codex-bulk-mode] [role="radio"]').forEach(r=>{const on=r.dataset.mode===b.mode;r.setAttribute('aria-checked',on?'true':'false');r.setAttribute('tabindex',on?'0':'-1');r.classList?.toggle('is-selected',on);});
+    panel.querySelectorAll('[data-ag-codex-bulk-key]').forEach(el=>{el.checked=b.keys.has(el.dataset.agCodexBulkKey);});
+    panel.querySelectorAll('[data-ag-codex-bulk-char]').forEach(el=>{el.checked=b.chars.has(el.value);});
+    const apply=panel.querySelector('[data-ag-codex-apply]');if(apply){apply.textContent=st.label;apply.disabled=st.disabled;}
+    panel.querySelectorAll('[data-ag-codex-preset]').forEach(el=>{el.disabled=!st.presetsOk;});
+    const hint=panel.querySelector('[data-ag-codex-bulk-hint]');if(hint)hint.textContent=st.hint;
   }
   #bindCodex(root) {
     const run=fn=>fn().catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
@@ -3615,7 +3655,41 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     root.querySelectorAll('[data-ag-codex-actor]').forEach(el=>el.addEventListener('change',e=>{run(async()=>{
       await codexService().setReveal(this.codexFocus,el.dataset.agCodexActor,{mode:'actor',actorId:el.value,on:el.checked});
       this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
+    // 0.67.0: Reveal to... on a list row and on the open NPC; the focus returns to the button that opened it.
+    root.querySelectorAll('[data-ag-codex-revealto]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
+      run(()=>this.#revealToDialog(el.dataset.agCodexRevealto,el));}));
+    // Multi-field panel: ticks live in this.codexBulk; changes are reflected in place (no re-render).
+    const panel=root.querySelector('[data-ag-codex-bulk]');
+    if(panel&&this.codexFocus){
+      const b=this.#bulkFor(this.codexFocus);
+      panel.querySelectorAll('[data-ag-codex-bulk-key]').forEach(el=>el.addEventListener('change',()=>{
+        if(el.checked)b.keys.add(el.dataset.agCodexBulkKey);else b.keys.delete(el.dataset.agCodexBulkKey);this.#syncBulk(root);}));
+      panel.querySelectorAll('[data-ag-codex-bulk-keys]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
+        b.keys.clear();
+        if(el.dataset.agCodexBulkKeys==='all')panel.querySelectorAll('[data-ag-codex-bulk-key]:not(:disabled)').forEach(k=>b.keys.add(k.dataset.agCodexBulkKey));
+        this.#syncBulk(root);}));
+      panel.querySelectorAll('[data-ag-codex-bulk-char]').forEach(el=>el.addEventListener('change',()=>{
+        if(el.checked){b.chars.add(el.value);b.mode='actors';}else b.chars.delete(el.value);this.#syncBulk(root);}));
+      panel.querySelectorAll('[data-ag-codex-bulk-chars]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
+        b.chars.clear();
+        if(el.dataset.agCodexBulkChars==='all'){panel.querySelectorAll('[data-ag-codex-bulk-char]').forEach(c=>b.chars.add(c.value));b.mode='actors';}
+        this.#syncBulk(root);}));
+      bindSkinPicker(panel.querySelector('[data-ag-codex-bulk-mode]'),mode=>{b.mode=mode;this.#syncBulk(root);},{valueKey:'mode'});
+    }
     bindDeityLinks(root);
+  }
+  /** One reveal result into the visible confirmation line and the toast. */
+  #noteReveal(id,result) {
+    this.codexNote={id,text:result.message};this.codexMessage='Saved.';
+  }
+  /** Reveal to... (row or open NPC): pick characters and fields, confirm, apply through the GM-only service. */
+  async #revealToDialog(id,trigger) {
+    const svc=codexService();
+    const pick=await askRevealTo({entry:svc.get(id),characters:svc.characters()});
+    this.focusAfterRender=`[data-ag-codex-revealto="${id}"]`;
+    if(!pick){await this.render();return;}
+    const result=await svc.setRevealMany(id,{fields:pick.fields,mode:pick.mode,characters:pick.characters});
+    this.#noteReveal(id,result);toast(result.message);await this.render();
   }
   async #codexAction(name) {
     const svc=codexService();
@@ -3637,6 +3711,24 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         if(!yes)return;
         for(const key of ['discovery',...entry.fields.map(f=>f.key)])await svc.setReveal(entry.id,key,{mode:'hidden'});
         this.codexMessage=`${entry.name} is hidden from players.`;break;
+      }
+      case 'codex-bulk-apply': case 'codex-preset-basics': case 'codex-preset-everything': {
+        const b=this.#bulkFor(this.codexFocus),preset=name==='codex-preset-basics'?'basics':name==='codex-preset-everything'?'everything':null;
+        const mode=b.mode,opts={mode,characters:[...b.chars],...(preset?{preset}:{fields:[...b.keys]})};
+        this.focusAfterRender=`[data-ag-action="${name}"]`;
+        if(mode==='hidden'){
+          const entry=svc.get(this.codexFocus);
+          const yes=await confirmDanger(`Hide ${b.keys.size} field${b.keys.size===1?'':'s'} of ${entry.name} from all players? The Undo button stays available right after.`,
+            {title:'Hide these fields from players?',yes:`Hide ${b.keys.size} field${b.keys.size===1?'':'s'}`});
+          if(!yes)return;
+        }
+        const result=await svc.setRevealMany(this.codexFocus,opts);
+        this.#noteReveal(this.codexFocus,result);toast(result.message);break;
+      }
+      case 'codex-undo': {
+        this.focusAfterRender='[data-ag-codex-apply]';
+        const result=await svc.undoReveal(this.codexFocus);
+        this.codexNote={id:this.codexFocus,text:result.message};this.codexMessage='Saved.';toast(result.message);break;
       }
       case 'codex-export': downloadJson(`AG_NPC_Codex_${new Date().toISOString().slice(0,10)}.json`,svc.exportAll());
         this.codexMessage='Codex exported (GM file: it contains GM-only fields).';break;
@@ -4331,6 +4423,25 @@ const initialsOf=name=>String(name??'').split(/\s+/).filter(w=>/^[A-Za-z]/.test(
 let codexApi=null;
 let codexPlayerApp=null;
 const codexService=()=>codexApi??=createCodexService({game,moduleId:MODULE_ID});
+/** 0.67.0: Reveal to… from outside the Codex window (an NPC Actor sheet, a macro). GM only; the service re-checks. */
+async function openRevealDialog(id){
+  const svc=codexService();
+  const pick=await askRevealTo({entry:svc.get(id),characters:svc.characters()});
+  if(!pick)return null;
+  const result=await svc.setRevealMany(id,{fields:pick.fields,mode:pick.mode,characters:pick.characters});
+  toast(result.message);
+  if(activeApp?.rendered){activeApp.codexNote={id,text:result.message};void activeApp.render();}
+  return result;
+}
+/** Header button on an Ashen Gate NPC's Actor sheet. Reads the sheet it was clicked on, so one handler serves every sheet. */
+let revealSheetBusy=false; // Foundry versions differ on onClick vs action; either way the dialog opens once
+function revealFromSheet(){
+  const doc=this?.document,def=doc?.getFlag?.(MODULE_ID,'source')?.definition;
+  if(revealSheetBusy||!game.user?.isGM||!isNpcDefinition(def))return;
+  revealSheetBusy=true;
+  const opener=globalThis.document?.activeElement;
+  openRevealDialog(def.id).catch(err=>toast(err.message,true)).finally(()=>{revealSheetBusy=false;if(opener?.isConnected)opener.focus?.();});
+}
 const openCodexPlayerView=()=>{codexPlayerApp??=new AshenGateCodexPlayer();return codexPlayerApp.render({force:true});};
 let appearanceController=null;
 let definitionsReader=null;
@@ -4521,6 +4632,11 @@ Hooks.once("ready",()=>{
     codex:Object.freeze({
       list:()=>codexService().list(), get:id=>codexService().get(id), characters:()=>codexService().characters(),
       setReveal:(id,key,opts)=>codexService().setReveal(id,key,opts), setDetails:(id,patch)=>codexService().setDetails(id,patch),
+      // 0.67.0, GM only: bulk reveals on top of setReveal (one write per call, all checked first), a macro-friendly revealTo,
+      // one level of undo per NPC, and the Reveal to… dialog.
+      setRevealMany:(id,opts)=>codexService().setRevealMany(id,opts), revealTo:(id,opts)=>codexService().revealTo(id,opts),
+      undoReveal:id=>codexService().undoReveal(id), canUndoReveal:id=>codexService().canUndoReveal(id),
+      openRevealTo:id=>openRevealDialog(id),
       previewAs:actorIds=>codexService().previewAs(actorIds), exportAll:()=>codexService().exportAll(),
       forPlayer:()=>codexService().forPlayer(),
       playerAccessEnabled:()=>codexService().playerAccessEnabled(),
@@ -4563,6 +4679,16 @@ function addManagerSidebarButton(app,html) {
     return activeApp.render({force:true});
   }});
 }
+// 0.67.0: GM-only "Reveal to…" in the header menu of an Ashen Gate NPC's Actor sheet (ApplicationV2 header controls).
+// Feature-detected and fail-soft: any problem leaves the sheet exactly as it was.
+if(typeof Hooks.on==='function') Hooks.on('getHeaderControlsApplicationV2',(app,controls)=>{
+  try{
+    if(!game.user?.isGM||!Array.isArray(controls)||app?.document?.documentName!=='Actor')return;
+    if(!isNpcDefinition(app.document.getFlag?.(MODULE_ID,'source')?.definition))return;
+    if(app.options?.actions)app.options.actions.agmRevealTo=revealFromSheet;
+    controls.push({icon:'fa-solid fa-eye',label:'Reveal to…',action:'agmRevealTo',visible:true,onClick:()=>revealFromSheet.call(app)});
+  }catch{/* the sheet keeps its normal header */}
+});
 if(typeof Hooks.on==='function') Hooks.on('renderItemDirectory',addManagerSidebarButton);
 if(typeof Hooks.on==='function') Hooks.on('renderSidebarTab',(app,html)=>{
   const tab=app?.tabName??app?.id??'';

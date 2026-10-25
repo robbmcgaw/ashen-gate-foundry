@@ -909,11 +909,11 @@
         </div>
       </div>
       <div class="aglib-rows">
-        {{#each codex.rows}}<button type="button" class="agcodex-row {{#if focused}}is-focused{{/if}}" data-ag-codex-focus="{{id}}" {{#if focused}}aria-current="true"{{/if}}>
+        {{#each codex.rows}}<div class="agcodex-rowwrap"><button type="button" class="agcodex-row {{#if focused}}is-focused{{/if}}" data-ag-codex-focus="{{id}}" {{#if focused}}aria-current="true"{{/if}}>
           {{#if img}}<img class="agcodex-portrait" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait" aria-hidden="true">{{initials}}</span>{{/if}}
           <span class="agcodex-row__text"><span class="aglib-row__name">{{name}}</span>
             <span class="aglib-row__meta">{{#if role}}<span class="agmanager-tiny">{{role}}</span>{{/if}}<span class="ag-badge{{#if discovery.party}} ag-badge--ok{{/if}}">{{discoveryLabel}}</span>{{#if revealedCount}}<span class="ag-badge aglib-num">{{revealedCount}} field(s)</span>{{/if}}</span></span>
-        </button>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPCs yet</p><p class="ag-empty__text">NPC records (<code>entity_type: "NPC"</code>) appear here once you import them on the Import tab.</p></div>{{/each}}
+        </button><button type="button" class="ag-btn ag-btn--sm agcodex-revealto" data-ag-codex-revealto="{{id}}" aria-label="Reveal {{name}} to players…" data-tooltip="Reveal {{name}} to players…" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-eye" aria-hidden="true"></i> Reveal to…</button></div>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPCs yet</p><p class="ag-empty__text">NPC records (<code>entity_type: "NPC"</code>) appear here once you import them on the Import tab.</p></div>{{/each}}
       </div>
       <div class="aglib-selbar">
         <details class="aglib-menu">
@@ -934,6 +934,7 @@
         {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
         <div class="aglib-detail__title"><h3>{{name}}</h3>
           <div class="aglib-row__meta">{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></div></div>
+        <button type="button" class="ag-btn" data-ag-codex-revealto="{{id}}"><i class="fa-solid fa-eye" aria-hidden="true"></i> Reveal to…</button>
         <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
         <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="codex-close" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
@@ -942,13 +943,37 @@
       {{#if ../codex.onReveals}}
       <div class="ag-section__head agcodex-reveals-head"><span class="ag-badge ag-badge--accent">Applies now</span><span class="agmanager-tiny">Each choice saves at once. Players see it next time they open the codex.</span>
         <button type="button" class="ag-btn ag-btn--sm ag-btn--danger aglib-end" data-ag-action="codex-hide-all"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide from players…</button></div>
+      {{#with bulk}}
+      <section class="agcodex-bulk" aria-label="Reveal several fields at once" data-ag-codex-bulk>
+        <h4>Reveal several fields at once</h4>
+        <div class="agcodex-bulk__cols">
+          <fieldset class="agcodex-bulk__group"><legend>Fields</legend>
+            <div class="agcodex-bulk__tools"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-codex-bulk-keys="all">Select all revealable</button><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-codex-bulk-keys="none">Select none</button></div>
+            {{#each fields}}<label class="agcodex-pick"><input type="checkbox" data-ag-codex-bulk-key="{{key}}" {{#if checked}}checked{{/if}} {{#if empty}}disabled{{/if}}> <span>{{label}}{{#if empty}} <small>Not set</small>{{/if}}</span></label>{{/each}}
+          </fieldset>
+          <fieldset class="agcodex-bulk__group"><legend>Who</legend>
+            <div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who learns the ticked fields" data-ag-codex-bulk-mode><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Whole party</button><button type="button" role="radio" aria-checked="{{#if isActors}}true{{else}}false{{/if}}" tabindex="{{actorsTab}}" data-mode="actors">Chosen characters</button></div>
+            <div class="agcodex-bulk__chars" role="group" aria-label="Characters">{{#each chars}}<label class="agcodex-pick"><input type="checkbox" data-ag-codex-bulk-char value="{{id}}" {{#if checked}}checked{{/if}}> <span>{{name}}{{#if ownerText}} <small>({{ownerText}})</small>{{/if}}</span></label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner). The whole party still works.</p>{{/each}}</div>
+            {{#if chars.length}}<div class="agcodex-bulk__tools"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-codex-bulk-chars="all">All</button><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-codex-bulk-chars="none">Clear</button></div>{{/if}}
+          </fieldset>
+        </div>
+        <div class="agcodex-bulk__actions">
+          <span class="agmanager-tiny">One click:</span>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-action="codex-preset-basics" data-ag-codex-preset {{#unless presetsOk}}disabled{{/unless}}>Reveal basics</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-action="codex-preset-everything" data-ag-codex-preset {{#unless presetsOk}}disabled{{/unless}}>Reveal everything player-safe</button>
+          <button type="button" class="ag-btn ag-btn--primary aglib-end" data-ag-action="codex-bulk-apply" data-ag-codex-apply aria-describedby="agcodex-bulk-hint" {{#if applyDisabled}}disabled{{/if}}>{{applyLabel}}</button>
+        </div>
+        <p class="agmanager-tiny" id="agcodex-bulk-hint" data-ag-codex-bulk-hint>{{hint}}</p>
+        <p class="agcodex-note" role="status" aria-live="polite" data-ag-codex-note>{{note}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="codex-undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last reveal</button>{{/if}}</p>
+      </section>
+      {{/with}}
       <div class="agcodex-field agcodex-field--discovery">
         <div><div class="agcodex-label">Players know this NPC</div><p class="agmanager-tiny">Name and portrait. Nothing else shows to a player until this includes them.</p></div>
         {{#with discoverySeg}}<div class="agcodex-control"><div class="agcodex-seg-wrap"><div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who knows: {{label}}" data-ag-codex-seg="{{key}}"><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" class="agcodex-seg__party" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Party</button></div>
           <details class="aglib-menu agcodex-chars"><summary class="ag-btn ag-btn--sm{{#if isActors}} is-on{{/if}}" aria-label="Characters who know: {{label}}">Characters{{#if isActors}} ({{actorCount}}){{/if}} <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
             <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
           </details></div>
-          {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>{{/with}}
+          <div class="agcodex-chips" role="group" aria-label="Can see this now"><span class="agmanager-tiny">Can see:</span>{{#each chips}}<span class="ag-badge {{cls}}">{{text}}</span>{{/each}}</div></div>{{/with}}
       </div>
       {{#each fields}}
       <div class="agcodex-field">
@@ -960,7 +985,7 @@
           <details class="aglib-menu agcodex-chars"><summary class="ag-btn ag-btn--sm{{#if isActors}} is-on{{/if}}" aria-label="Characters who know: {{label}}">Characters{{#if isActors}} ({{actorCount}}){{/if}} <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
             <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
           </details></div>
-          {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>
+          <div class="agcodex-chips" role="group" aria-label="Can see this now"><span class="agmanager-tiny">Can see:</span>{{#each chips}}<span class="ag-badge {{cls}}">{{text}}</span>{{/each}}</div></div>
       </div>
       {{/each}}
       {{/if}}
