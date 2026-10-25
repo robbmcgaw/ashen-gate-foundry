@@ -202,6 +202,16 @@ test('NPC Codex export files are checked with the restore planner and kept out o
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
+test('Companion slot flag (Manager 0.60.15): valid passes, bad or mismatched slot is a note and not an error', async () => {
+  const gear = companion => item({id: 'ITEM-MOUNT-TEST-SADDLE', foundry: {document_type: 'Item', folder_path: 'Ashen Gate/Test',
+    data: {name: '[TEST] Saddle', type: 'equipment', flags: {'ashen-gate-character-hub': {companion}}}}});
+  assert.deepEqual(await checkContent(pack([gear({role: 'mount-gear', slot: 'saddle'})])), {kind: 'manager', errors: [], notes: []});
+  const bad = await checkContent(pack([gear({role: 'mount-gear', slot: 'head'})]));
+  assert.deepEqual(bad.errors, []);
+  assert.match(bad.notes.join(' '), /companion\.slot not imported: slot head goes only with companion\.role pet-clothing/);
+  assert.match((await checkContent(pack([gear({role: 'mount-gear', slot: 'crown'})]))).notes.join(' '), /"crown" is not a slot/);
+});
+
 test('Item effects (Manager 0.37.0): valid effects pass, bad ones fail with the validator message, dropped flags are notes', async () => {
   const effect = (over = {}) => ({eff_id: 'walk', name: '[TEST] Walk speed', transfer: false, changes: [{key: 'system.attributes.movement.speeds.walk', mode: 'add', value: 10}], ...over});
   const gear = (effects, flags) => item({id: 'ITEM-MOUNT-TEST-SADDLE', foundry: {document_type: 'Item', folder_path: 'Ashen Gate/Test',
