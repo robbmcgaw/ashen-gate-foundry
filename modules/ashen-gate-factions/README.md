@@ -24,6 +24,8 @@ Drop an item on a reward level (from the Items sidebar, a compendium, or any cha
 - An item dragged off a sheet is copied into a GM-only **holding copy** (Items sidebar → folder *Ashen Gate Rewards (Renown)*). The sheet keeps its item. Removing the reward deletes its holding copy.
 - When the GM approves a claim, the item is found by its permanent id first, then by its link, and copied to the character with everything inside it (containers). A claim is never granted twice. If the item is missing, the GM is told and the request stays waiting.
 
+Reward descriptions, teasers and rank benefits keep line breaks (`\n` in the source text; shown with `white-space: pre-line`, still escaped plain text).
+
 ## Import update mode (0.18.0)
 
 `options = {mode: 'skip' | 'update', overwriteEdited: false}`, GM only; `api.importOptions` (`ag-renown-import/1`) reports that it is available.

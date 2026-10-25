@@ -1,3 +1,12 @@
+## 0.18.1 — 2026-10-25
+
+Line breaks in reward text are kept.
+
+- Reward descriptions and teasers, and rank benefits, now show the line breaks the author wrote (`\n` in the source text), so a reward can read "what it does / Limit: / Price:" on separate lines. This is display only (CSS `white-space: pre-line`); the text is still escaped plain text, never HTML. Information entries already kept their line breaks.
+- **Add a reward** now has a multi-line Description box (it was a single line). Edit… on a reward already had one, and keeps line breaks when saved.
+- Import and update mode (0.18.0) carry the line breaks through unchanged; a change that is only a line break counts as a change in the preview. The source schema already accepted `\n` in `description`, `teaser` and `benefit` and puts no length limit on them, so nothing was raised.
+- Saved data: no change, no migration. Tested with mocked data only (logic and stylesheet, not the live Forge UI).
+
 ## 0.18.0 — 2026-10-25
 
 Import update mode: refresh the factions and deities already in your world from a newer file.

@@ -2,7 +2,7 @@
   "id": "ashen-gate-factions",
   "title": "Ashen Gate | Renown",
   "description": "Renown (formerly Factions & Renown): group and per-character standing with factions and deities, with discovery, rewards and service requests. Foundry V14.",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -21,5 +21,5 @@
   "socket": true,
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-factions/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-factions-v0.18.0/ashen-gate-factions.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-factions-v0.18.1/ashen-gate-factions.zip"
 }
