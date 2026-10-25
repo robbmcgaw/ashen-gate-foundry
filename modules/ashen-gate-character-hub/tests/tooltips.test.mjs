@@ -52,10 +52,13 @@ test('every item element in the Hub gets the rich tooltip: list rows, slots, Oth
   assert.match(html, new RegExp(`class="agch-idlink agch-idlink--class" data-action="item-sheet" data-id="fighter" data-ag-always aria-label="[^"]+" ${tip('Actor.actor1.Item.fighter')}`), 'identity line in the header (0.37.0)');
   assert.match(html, new RegExp(`data-action="hotbar-use" data-hotbar-slot="0" ${tip('Actor.actor1.Item.hm')}`), 'quick bar');
   assert.match(html, new RegExp(`data-action="mark-apply" data-mark="vex" ${tip('Actor.actor1.Item.ss')}`), 'mastery button shows its weapon');
-  for (const t of ['inventory', 'magic', 'features']) {
+  for (const t of ['inventory', 'features']) {
     html = await render(t, actor);
     assert.match(html, /class="agch-item__name" data-action="item-sheet" data-id="\w+" data-ag-always data-tooltip-html=/, t);
   }
+  // 0.51.0: a compact spell row's name expands the description; hovering it still shows dnd5e's hover card.
+  html = await render('magic', actor);
+  assert.match(html, /class="agch-item__name agch-spell__name" data-action="spell-expand" data-id="\w+" data-key="[^"]+" data-ag-always aria-expanded="false" aria-controls="[^"]+" tabindex="-1" data-tooltip-html=/, 'magic');
 });
 
 test('companion gear and pet clothing get it too; observers get the same dnd5e tooltip (dnd5e decides what they see)', async () => {

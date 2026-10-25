@@ -714,6 +714,35 @@
 .agch-app .agch-drawer .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); justify-content: center; gap: var(--ag-space-1); }
 .agch-app .agch-drawer .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
 
+/* 0.51.0 Magic: compact one-line spell rows, description on demand, pinned column headings, prepared count. */
+.agch-app .agch-spelllist > .agch-card__headrow { position: sticky; top: var(--agch-band-h, 0); z-index: 4; }
+.agch-app .agch-spells { --agch-icon-size: var(--ag-icon-chip); }
+.agch-app .agch-spell .agch-card__main { flex-wrap: wrap; align-items: center; }
+.agch-app .agch-spell__chev { flex: 0 0 auto; display: inline-grid; place-items: center; width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; background: none; color: var(--ag-muted); cursor: pointer; }
+.agch-app .agch-spell__chev:hover, .agch-app .agch-spell__chev:focus-visible { color: var(--ag-accent); }
+.agch-app .agch-spell__chev i { transition: rotate .15s; }
+.agch-app .agch-spell__chev[aria-expanded="true"] i { rotate: 90deg; }
+.agch-app .agch-spell__detail { white-space: normal; display: grid; gap: var(--ag-space-2); justify-items: start; }
+.agch-app .agch-spell__text { margin: 0; white-space: pre-line; }
+.agch-app .agch-spell__facts { display: none; margin: 0; gap: var(--ag-space-1) var(--ag-space-3); flex-wrap: wrap; }
+.agch-app .agch-spell__facts > div { display: flex; gap: var(--ag-space-1); }
+.agch-app .agch-spell__facts dt { color: var(--ag-muted); }
+.agch-app .agch-spell__facts dt::after { content: ":"; }
+.agch-app .agch-spell__facts dd { margin: 0; }
+.agch-app .agch-flag { font-weight: 600; }
+.agch-app .agch-prepcount { flex: 0 0 auto; order: 99; margin-inline-start: auto; }
+.agch-app .agch-prepcount.is-full { border-color: var(--ag-ok); }
+.agch-app .agch-prepcount.is-over { border-color: var(--ag-warn); }
+.agch-app .agch-filtermenu__opts { display: grid; gap: var(--ag-space-1); padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
+.agch-app .agch-switchrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+@container (max-width: 640px) {
+  .agch-app .agch-spell .agch-card__fact--late { display: none; }
+  .agch-app .agch-spell__facts { display: flex; }
+  .agch-app .agch-spell .agch-card__actions { flex-basis: auto; margin-inline-start: auto; }
+  .agch-app .agch-spell .agch-card__main { flex: 1 1 8rem; }
+}
+@media (prefers-reduced-motion: reduce) { .agch-app .agch-spell__chev i { transition: none; } }
+
 /* Compact mode (0.29.0): one column (name, art with slots, HP; 0.32.0 also the stats) and the hotbars; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }

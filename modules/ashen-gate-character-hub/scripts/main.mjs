@@ -14,6 +14,8 @@ import {registerListSortSetting} from './organize.mjs';
 import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket, registerMarkHooks} from './marks.mjs';
+import {registerSpellViewSetting} from './spell-rows.mjs';
+import {registerPrepSettings, guardPrepareUpdate} from './spell-prep.mjs';
 import {registerConditionSettings} from './conditions.mjs';
 import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
 import {backupsFor, restoreBackup} from './level-restore.mjs';
@@ -148,6 +150,9 @@ if (globalThis.Hooks) {
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.
     registerListSortSetting(game.settings);
+    // 0.51.0: Show spell descriptions (per user) and the GM's Enforce spell preparation limits (world).
+    registerSpellViewSetting(game.settings, () => renderAllHubs());
+    registerPrepSettings(game.settings, () => renderAllHubs());
     // 0.31.0: the built-in look (per user) and its world default, used while General Manager's appearance is absent.
     registerLookSettings(game.settings, () => renderAllHubs());
     journey.registerJourneySettings(game.settings);
@@ -173,6 +178,8 @@ if (globalThis.Hooks) {
   for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, () => { renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
+  // 0.51.0: a player preparing a spell past their class's limit from any sheet is stopped (spell-prep.mjs; never throws).
+  Hooks.on('preUpdateItem', (item, changes, options, userId) => guardPrepareUpdate(item, changes, options, userId));
   // 0.47.0: the GM's client builds companionSlots from the old companions list (idempotent; the old flag stays).
   Hooks.once('ready', () => { void migrateAllCompanionSlots().catch(err => console.warn(`${MODULE_ID} | companions migration`, err)); });
   // 0.45.1: an attack roll ends the Sap on the attacker and the Vex they placed on a creature they target (marks.mjs).

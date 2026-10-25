@@ -79,6 +79,8 @@ export function itemFacts(item) {
  * Columns a list shows: {key, label} for a fact, rendered from row.facts[key] unless the column has its own
  * render(row). Every list also has the item (image + name + summary) first and Actions last.
  */
+/** C (concentration) and R (ritual) badges: the letter is the visible text, the word is read out and shown on hover (0.51.0). */
+export const flagBadges = f => `${f.concentration ? ' <span class="ag-badge agch-flag" data-tooltip="Concentration"><span aria-hidden="true">C</span><span class="ag-sr-only">Concentration</span></span>' : ''}${f.ritual ? ' <span class="ag-badge agch-flag" data-tooltip="Ritual"><span aria-hidden="true">R</span><span class="ag-sr-only">Ritual</span></span>' : ''}`;
 export const COLUMNS = {
   damage: {key: 'damage', label: 'Damage'},
   toHit: {key: 'toHit', label: 'To hit'},
@@ -90,15 +92,15 @@ export const COLUMNS = {
   level: {key: 'level', label: 'Level'},
   school: {key: 'school', label: 'School'},
   castTime: {key: 'activation', label: 'Casting time'},
-  duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${r.facts.concentration ? ' <span class="ag-badge" data-tooltip="Concentration">C</span>' : ''}${r.facts.ritual ? ' <span class="ag-badge" data-tooltip="Ritual">R</span>' : ''}`},
-  components: {key: 'components', label: 'Components'},
+  duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${flagBadges(r.facts)}`, late: true},
+  components: {key: 'components', label: 'Components', late: true},
   quantity: {key: 'quantity', label: 'Qty'},
   weight: {key: 'weight', label: 'Weight'},
   value: {key: 'value', label: 'Value'},
   type: {key: 'type', label: 'Type'}
 };
 
-const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.label)}">${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
+export const cell = (col, row) => `<span class="agch-card__fact${col.late ? ' agch-card__fact--late' : ''}" data-label="${esc(col.label)}">${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
 
 /**
  * One item card. `expanded` (Set of item ids) keeps "More" open across re-renders. `lead` is HTML before the image
@@ -140,10 +142,10 @@ export const headHtml = columns => `<li class="agch-card__headrow" aria-hidden="
  * A list of cards with a header row and stripes. `card(row, i)` returns a row's card options; `after(row)` adds HTML
  * after a row (container contents). Stripes count only item rows.
  */
-export function cardList(rows, columns, {card = () => ({}), after = () => '', listKey = '', expanded = null} = {}) {
+export function cardList(rows, columns, {card = () => ({}), after = () => '', listKey = '', expanded = null, cls = ''} = {}) {
   let i = 0;
   const body = rows.map(r => cardHtml(r, columns, {alt: (i++ % 2) === 1, expanded, listKey, ...card(r)}) + after(r)).join('');
-  return `<ul class="ag-list agch-cards" style="--agch-cols:${columns.length}">${headHtml(columns)}${body}</ul>`;
+  return `<ul class="ag-list agch-cards${cls ? ` ${cls}` : ''}" style="--agch-cols:${columns.length}">${headHtml(columns)}${body}</ul>`;
 }
 
 /** A container's fold toggle and the attributes for its contents row (fold state shared with 0.10.0 sections). */

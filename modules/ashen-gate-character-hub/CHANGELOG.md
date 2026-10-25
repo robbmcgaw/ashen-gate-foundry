@@ -1,3 +1,15 @@
+## 0.51.0 — 2026-10-25
+
+Magic gets compact rows, and spell preparation now has limits.
+
+- **One line per spell.** Star, small icon, name, school, casting time, range, duration (with **C** concentration and **R** ritual badges that have text, a tooltip and a spoken name), components, Prepare / Always and Cast. The description is hidden: click the name or the chevron to open it in a row beneath (keyboard accessible, focus stays on the control, remembered across redraws). Hovering a name still shows the item hover card. The open row has an **Open <spell>** button for the item sheet, since the name no longer opens it in compact rows.
+- **Show spell descriptions** (per user, default off; a switch in Magic → Filters, applies now) brings back the long rows with the description under the name.
+- **Level groups** fold with remembered state and keep their slot counts; the **column headings stay pinned** under the toolbar while the list scrolls. In a narrow window duration and components move into the open row; nothing scrolls sideways.
+- **Preparation limits.** Each class's limit comes from dnd5e (`system.spellcasting.preparation.max`). A player who tries to prepare past it gets "You can prepare N spells as a <Class>. Unprepare one first." with one-click **Unprepare <Spell> and prepare <New spell>** choices and Cancel (the default). The standard sheet's Prepare toggle is held to the same limit (`preUpdateItem`, only for the user who made the change). Always-prepared, cantrips, at-will, innate, ritual-only and unassigned spells are never counted or blocked; a wizard's spellbook is unlimited; a class with no limit from dnd5e is not blocked. The GM is never blocked and is told "Over the limit". New world setting **Enforce spell preparation limits** (GM Setup → Spell preparation, default on).
+- **Prepared count** in the spell-level strip: "Prepared 4/6", or per class ("Wizard 4/6") when multiclassed, with a tooltip and aria-label; at the limit it reads "full" with a check icon. It sits inside the strip's existing row, so no spacing changes.
+- Saved data: no change; two new settings (`showSpellDescriptions` per user, `enforcePrepLimits` world) with defaults; no migration.
+- Tests use mocked Foundry and prove the logic, not the live UI. Please check in Forge as described in the pull request.
+
 ## 0.50.1 — 2026-10-25
 
 - **A condition Foundry can't toggle is never offered.** The conditions list (and the recent-condition chips) offer only statuses Foundry can find, whether the list comes from this Hub or from Utilities, so Apply can no longer hit Foundry's "Invalid status ID" error. dnd5e's automatic effects (encumbrance) are left out, and a status is looked up by the name it is registered under.

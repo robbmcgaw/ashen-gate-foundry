@@ -1,4 +1,5 @@
 /** Companions tab (0.48.0: a Mount box and up to three Pet boxes) and the GM Setup tab (player visibility, look). */
+import {enforcementOn} from './spell-prep.mjs';
 import {esc, MODULE_ID} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX, KIND_TITLE, TYPE_FLAG, companionKindOf, companionBoxes, gearChoices, perkChoices, tierOf, linkableActors, actorStats, legacyItemCompanions, defaultPetSlots, petSlotOverrides, MAX_PET_SLOTS, COMPANION_TYPES} from './companions.mjs';
@@ -182,7 +183,15 @@ function companionTypesCard() {
     <ul class="agch-vis agch-ctypes">${rows}</ul>` : '<p class="agch-muted">No NPC Actors yet.</p>'}</div></section>`;
 }
 
-/** GM Setup: settings only (player visibility, pet slots, companion types, look). */
+/** GM Setup → Spell preparation: the world switch for the class limits (the GM is never blocked, only told). */
+function preparationCard() {
+  const key = sectionKey('gm', 'spellprep');
+  return `<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Spell preparation')}</h3><div${bodyAttrs(key)}>
+    <p class="agch-muted">With this on, a player who tries to prepare a spell past what their class can prepare (dnd5e's preparation limit) is stopped, on the Hub and on the standard sheet, and offered to swap one prepared spell for it. You are never stopped on any character; you are told when you go over. Always-prepared, at-will, innate and ritual-only spells and cantrips never count, wizard spellbook spells are not limited, and a class dnd5e gives no limit for is not limited.</p>
+    <label class="agch-switchrow"><input type="checkbox" data-edit="prep-enforce"${enforcementOn() ? ' checked' : ''}> <span>Enforce spell preparation limits</span> <span class="ag-badge">Applies now</span></label></div></section>`;
+}
+
+/** GM Setup: settings only (player visibility, pet slots, companion types, spell preparation, look). */
 export function gmSetupTab() {
-  return `${visibilityCard()}${petSlotsCard()}${companionTypesCard()}${lookSetupCard()}`;
+  return `${visibilityCard()}${petSlotsCard()}${companionTypesCard()}${preparationCard()}${lookSetupCard()}`;
 }
