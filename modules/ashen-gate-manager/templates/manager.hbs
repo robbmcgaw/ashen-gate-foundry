@@ -509,6 +509,10 @@
         {{#if assets.ringOffer}}
         <p class="aglink-ring"><label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-token-ring {{#if assets.tokenRing}}checked{{/if}}> <strong>Turn on token ring</strong></label>
           <span class="agmanager-tiny">Applies to the Actors linked in this batch. Foundry's built-in ring: green for NPC people, red for bestiary creatures, black for Ashen creatures. {{#if assets.tokenRing}}{{assets.ringCount}} will get a ring{{#if assets.ringKept}}; {{assets.ringKept}} already have one and stay as they are{{/if}}.{{else}}No ring will be changed.{{/if}} Actors that already have a ring on, player characters and Actors without a rule are never changed. Nothing is written until you press Link.</span></p>
+        {{#if assets.sceneTokenOffer}}
+        <p class="aglink-ring"><label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-scene-tokens {{#if assets.sceneTokens}}checked{{/if}} {{#unless assets.tokenRing}}disabled{{/unless}}> <strong>Also update tokens already on scenes</strong></label>
+          <span class="agmanager-tiny">A token already placed on a scene keeps its own copy of the ring, so only tokens you place from now on get the ring unless this is ticked. {{#if assets.tokenRing}}{{#if assets.sceneTokens}}{{assets.sceneTokenTotal}} token(s) on scenes will get the ring{{else}}No token already on a scene will be changed{{/if}}{{else}}Needs Turn on token ring.{{/if}}. Only tokens whose own ring is off are changed; a token with its ring on is left as it is.</span></p>
+        {{/if}}
         {{/if}}
         {{#if assets.linkRows.length}}
         <div class="ag-table-wrap agm-scrollcap"><table class="ag-table aglink"><thead><tr><th scope="col">Use this match?</th><th scope="col">Record</th><th scope="col">File</th><th scope="col">Why it fits</th><th scope="col">Image now</th><th scope="col">New image</th></tr></thead><tbody>
@@ -536,7 +540,7 @@
             {{else}}<span class="agm-icon__path">{{fileName}}</span>{{/if}}{{#if alsoFound.length}}<div class="agmanager-tiny">Other files with this name: {{#each alsoFound}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}{{#if alsoFits.length}}<div class="agmanager-tiny">Also fits this name (a weaker match, so not offered): {{#each alsoFits}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.</div>{{/if}}</td>
           <td data-label="Why it fits"><span class="agmanager-tiny">{{reason}}</span></td>
           <td data-label="Image now">{{#if to}}<div class="agm-icon">{{#if fromUrl}}<img class="agm-icon__thumb" src="{{fromUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}<div class="agm-icon__text"><span class="ag-badge ag-badge--{{stateTone}}">{{stateLabel}}</span>{{#if from}}<div class="agmanager-tiny agm-icon__path">{{from}}</div>{{/if}}{{#if hasFromToken}}<div class="agmanager-tiny">Token: <span class="agm-icon__path">{{fromToken}}</span></div>{{/if}}{{#if noteText}}<div class="agmanager-tiny">{{noteText}}</div>{{/if}}</div></div>{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
-          <td data-label="New image">{{#if to}}{{#if willChange}}<div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="ag-badge ag-badge--ok">Will change</span><div class="agm-icon__path">{{fileName}}</div>{{#if isActor}}<div class="agmanager-tiny">Portrait and token image{{#if ringWill}}, and a {{ringLabel}} token ring{{/if}}{{#if ringKeptNote}}; its token ring is already on and stays as it is{{/if}}</div>{{/if}}</div></div>
+          <td data-label="New image">{{#if to}}{{#if willChange}}<div class="agm-icon"><img class="agm-icon__thumb" src="{{toUrl}}" alt="" loading="lazy" decoding="async" width="32" height="32"><div class="agm-icon__text"><span class="ag-badge ag-badge--ok">Will change</span><div class="agm-icon__path">{{fileName}}</div>{{#if isActor}}<div class="agmanager-tiny">Portrait and token image{{#if ringWill}}, and a {{ringLabel}} token ring{{#if ringOnScenes}} (also on {{ringOnScenes}} token(s) already on scenes){{/if}}{{/if}}{{#if ringKeptNote}}; its token ring is already on and stays as it is{{/if}}</div>{{/if}}</div></div>
             {{else if conflict}}<span class="agmanager-tiny">Waiting for you to choose between the rows</span>
             {{else}}<span class="ag-badge">Skipped</span> <span class="agmanager-tiny">Stays as it is</span>{{/if}}{{else}}<span class="agmanager-tiny">Pick first</span>{{/if}}</td>
         </tr>{{/each}}
@@ -603,6 +607,25 @@
           <button type="button" class="ag-btn{{#unless assets.hasStaged}} ag-btn--primary{{/unless}}" data-ag-action="assets-link-apply" {{#unless assets.linkCanApply}}disabled{{/unless}}><i class="fa-solid fa-link" aria-hidden="true"></i> Link {{assets.linkTicked}}…</button>
         </footer>
         {{/if}}
+        {{/if}}
+      </div>
+    </details>
+
+    <details class="ag-fold" data-ag-fold-key="assets-ring-repair">
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Fix hidden token rings</span><span class="ag-fold__hint">Rings turned on by an earlier version that sit under the art</span></summary>
+      <div class="ag-fold__body">
+        <p class="agmanager-tiny">Version 0.63.0 turned the token ring on without making room for it, so a square portrait covered it. This looks for Actors whose ring is on at Foundry's default size with exactly the colours Manager writes (green, red or black), and resizes only the ring's subject scale so the ring shows around the art. A ring you set up yourself, with other colours or a scale you chose, is never listed. Nothing is written until you confirm, and running it again changes nothing more.</p>
+        <div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="assets-ring-scan"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find hidden token rings</button></div>
+        <p class="agmanager-tiny" role="status">{{assets.repair.message}}</p>
+        {{#if assets.repair.has}}
+        <p class="aglink-count" role="status" aria-live="polite"><strong>{{assets.repair.actorCount}} Actor(s){{#if assets.repair.scene}} and {{assets.repair.tokenCount}} token(s) on scenes{{/if}} will be resized so the ring shows.</strong></p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-repair-scene {{#if assets.repair.scene}}checked{{/if}}> <strong>Also update tokens already on scenes</strong></label>
+        <ul class="agmanager-tiny">{{#each assets.repair.rows}}<li><strong>{{name}}</strong> ({{label}} ring){{#if tokens}}, {{tokens}} token(s) on scenes{{/if}}</li>{{/each}}</ul>
+        {{#if assets.repair.overflow}}<p class="agmanager-tiny">and {{assets.repair.overflow}} more.</p>{{/if}}
+        <footer class="ag-footer">
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="assets-ring-cancel">Cancel</button>
+          <button type="button" class="ag-btn" data-ag-action="assets-ring-apply"><i class="fa-solid fa-circle-dot" aria-hidden="true"></i> Fix {{assets.repair.actorCount}} ring(s)…</button>
+        </footer>
         {{/if}}
       </div>
     </details>

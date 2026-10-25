@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {ringKindFor, ringUpdateFor, RING_KINDS, RING_RULES} from '../scripts/token-ring.js';
+import {ringKindFor, ringUpdateFor, tokenRingUpdateFor, ringRepairPlan, applyRingRepair, RING_KINDS, RING_RULES, RING_SUBJECT_SCALE} from '../scripts/token-ring.js';
 import {planAssetLinks, applyAssetLinks} from '../scripts/assets.js';
 
 const M = 'ashen-gate-manager', GM = {isGM: true}, P = 'https://assets.test/u1/art/';
@@ -39,8 +39,9 @@ test('colour rule: a creature that merely starts with ASH is not Ashen, and unkn
 test('ring update: off → enabled with both colours; V14 field paths; subject left alone', () => {
   const out = ringUpdateFor({...actor('CRE-ASHEN-TEST'), prototypeToken: {ring: {enabled: false, colors: {ring: null, background: null}}}});
   assert.equal(out.status, 'enable');
-  assert.deepEqual(out.update, {'prototypeToken.ring.enabled': true, 'prototypeToken.ring.colors.ring': '#000000', 'prototypeToken.ring.colors.background': '#2b2b2b'});
-  assert.ok(!Object.keys(out.update).some(k => k.includes('subject')));
+  assert.deepEqual(out.update, {'prototypeToken.ring.enabled': true, 'prototypeToken.ring.colors.ring': '#000000', 'prototypeToken.ring.colors.background': '#2b2b2b', 'prototypeToken.ring.subject.scale': 0.6});
+  assert.equal(RING_SUBJECT_SCALE, 0.6); // below 1 so Foundry pads the token and the ring frames square art (see token-ring.js)
+  assert.ok(!Object.keys(out.update).some(k => k.includes('subject.texture')));
   assert.match(RING_KINDS.person.ring, /^#[0-9a-f]{6}$/i);
 });
 
@@ -48,7 +49,9 @@ test('ring update: an existing configured ring is never touched; a GM colour on 
   const on = ringUpdateFor({...actor('NPC-TEST-ONE'), prototypeToken: {ring: {enabled: true, colors: {ring: '#123456', background: null}}}});
   assert.deepEqual(on, {update: {}, status: 'kept', look: RING_KINDS.person});
   const off = ringUpdateFor({...actor('NPC-TEST-ONE'), prototypeToken: {ring: {enabled: false, colors: {ring: '#123456', background: ''}}}});
-  assert.deepEqual(Object.keys(off.update).sort(), ['prototypeToken.ring.colors.background', 'prototypeToken.ring.enabled']);
+  assert.deepEqual(Object.keys(off.update).sort(), ['prototypeToken.ring.colors.background', 'prototypeToken.ring.enabled', 'prototypeToken.ring.subject.scale']);
+  const kept = ringUpdateFor({...actor('NPC-TEST-ONE'), prototypeToken: {ring: {enabled: false, subject: {scale: 0.85}}}}); // a GM-chosen scale stays
+  assert.ok(!('prototypeToken.ring.subject.scale' in kept.update));
   assert.equal(ringUpdateFor({...actor('LOC-X'), prototypeToken: {}}).status, 'none');
   assert.equal(ringUpdateFor(actor('NPC-TEST-ONE')).status, 'enable'); // no prototypeToken at all
 });
@@ -71,7 +74,7 @@ test('Link with the box ticked writes the ring with the images; nothing else; on
   assert.equal(out.ok, true);
   const upd = id => w.written.flatMap(x => x.updates).find(u => u._id === `Actor_${id}`);
   assert.deepEqual(upd('NPC-TEST-ONE'), {_id: 'Actor_NPC-TEST-ONE', img: `${P}NPC-TEST-ONE.webp`, 'prototypeToken.texture.src': `${P}NPC-TEST-ONE.webp`,
-    'prototypeToken.ring.enabled': true, 'prototypeToken.ring.colors.ring': RING_KINDS.person.ring, 'prototypeToken.ring.colors.background': RING_KINDS.person.background});
+    'prototypeToken.ring.enabled': true, 'prototypeToken.ring.colors.ring': RING_KINDS.person.ring, 'prototypeToken.ring.colors.background': RING_KINDS.person.background, 'prototypeToken.ring.subject.scale': 0.6});
   assert.equal(upd('CRE-ASHEN-TEST')['prototypeToken.ring.colors.ring'], '#000000');
   assert.equal(upd('CRE-TEST-BEAST')['prototypeToken.ring.colors.ring'], RING_KINDS.creature.ring);
   assert.deepEqual(Object.keys(upd('FAC-TEST')).sort(), ['_id', 'img', 'prototypeToken.texture.src']); // no rule: no ring
@@ -113,8 +116,138 @@ test('wiring: the window has the box ticked by default, passes it to Link, and r
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   const hbs = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   assert.match(main, /links:null, tokenRing:true,/);
-  assert.match(main, /applyAssetLinks\(rows,\{[^}]*tokenRing:a\.tokenRing\}/);
+  assert.match(main, /applyAssetLinks\(rows,\{[^}]*tokenRing:a\.tokenRing,sceneTokens:a\.tokenRing&&a\.sceneTokens,getTokens,updateTokens\}/);
+  assert.match(main, /links:null, tokenRing:true, sceneTokens:true,/);
+  assert.match(hbs, /data-ag-assets-scene-tokens \{\{#if assets\.sceneTokens\}\}checked\{\{\/if\}\}/);
   assert.match(main, /ringEnabled:doc\.documentName==='Actor'\?Boolean\(doc\.prototypeToken\?\.ring\?\.enabled\)/);
   assert.match(hbs, /data-ag-assets-token-ring \{\{#if assets\.tokenRing\}\}checked\{\{\/if\}\}> <strong>Turn on token ring<\/strong>/);
   assert.doesNotMatch(hbs, /Tokenizer/);
+});
+
+// ---- tokens already placed on scenes (0.66.1) ----
+const sceneWorld = (docs, tokens) => {
+  const w = world(docs), scenes = [];
+  return {...w, scenes, getTokens: d => tokens.filter(t => t.actorId === d.id), updateTokens: async (sceneId, updates) => { scenes.push({sceneId, updates}); }};
+};
+
+test('token update: ring off → on with blanks filled; ring already on → untouched', () => {
+  const look = RING_KINDS.creature;
+  assert.deepEqual(tokenRingUpdateFor(look, {ring: {enabled: false}}), {'ring.enabled': true, 'ring.colors.ring': look.ring, 'ring.colors.background': look.background, 'ring.subject.scale': 0.6});
+  assert.deepEqual(tokenRingUpdateFor(look, {ring: {enabled: true, colors: {ring: '#111111'}}}), {});
+  assert.deepEqual(Object.keys(tokenRingUpdateFor(look, {ring: {enabled: false, colors: {ring: '#111111', background: '#222222'}, subject: {scale: 0.9}}})), ['ring.enabled']);
+  assert.deepEqual(tokenRingUpdateFor(null, {ring: {}}), {});
+});
+
+test('Link with both boxes ticked also updates ring-off tokens of the Actors it turned a ring on for', async () => {
+  const docs = [doc('NPC-TEST-ONE', 'Test Person'), doc('CRE-TEST-BEAST', 'Test Beast', {ringEnabled: true}), doc('FAC-TEST', 'Test Other')];
+  const plan = planAssetLinks(docs, ['NPC-TEST-ONE', 'CRE-TEST-BEAST', 'FAC-TEST'].map(i => f(`${i}.webp`)));
+  const ids = id => `Actor_${id}`;
+  const tokens = [{actorId: ids('NPC-TEST-ONE'), sceneId: 'S1', id: 'T1', ring: {enabled: false}}, {actorId: ids('NPC-TEST-ONE'), sceneId: 'S1', id: 'T2', ring: {enabled: true}},
+    {actorId: ids('NPC-TEST-ONE'), sceneId: 'S2', id: 'T3', ring: {enabled: false, colors: {ring: '#abcdef'}}}, {actorId: ids('CRE-TEST-BEAST'), sceneId: 'S1', id: 'T4', ring: {enabled: false}},
+    {actorId: ids('FAC-TEST'), sceneId: 'S1', id: 'T5', ring: {enabled: false}}];
+  const w = sceneWorld(docs, tokens);
+  // the beast's ring is already on in the live world, so its tokens are left alone
+  w.getDoc('Actor.CRE-TEST-BEAST').prototypeToken.ring = {enabled: true, colors: {}};
+  const out = await applyAssetLinks(plan.rows, {user: GM, moduleId: M, getDoc: w.getDoc, updateMany: w.updateMany, tokenRing: true, sceneTokens: true, getTokens: w.getTokens, updateTokens: w.updateTokens});
+  assert.equal(out.ok, true);
+  assert.deepEqual(w.scenes.map(s => [s.sceneId, s.updates.map(u => u._id)]), [['S1', ['T1']], ['S2', ['T3']]]);
+  assert.ok(!('ring.colors.ring' in w.scenes[1].updates[0])); // the GM's colour on T3 is kept
+  assert.match(out.message, /2 token\(s\) already on scenes updated/);
+});
+
+test('scene tokens are untouched unless that box is ticked, and never without the ring box', async () => {
+  const docs = [doc('NPC-TEST-ONE', 'Test Person')];
+  const tokens = [{actorId: 'Actor_NPC-TEST-ONE', sceneId: 'S1', id: 'T1', ring: {enabled: false}}];
+  for (const opts of [{tokenRing: true, sceneTokens: false}, {tokenRing: false, sceneTokens: true}, {}]) {
+    const w = sceneWorld(docs, tokens);
+    await applyAssetLinks(planAssetLinks(docs, [f('NPC-TEST-ONE.webp')]).rows, {user: GM, moduleId: M, getDoc: w.getDoc, updateMany: w.updateMany, getTokens: w.getTokens, updateTokens: w.updateTokens, ...opts});
+    assert.equal(w.scenes.length, 0, JSON.stringify(opts));
+  }
+});
+
+test('a failed token write is reported but the images and Actor rings stay linked', async () => {
+  const docs = [doc('NPC-TEST-ONE', 'Test Person')];
+  const w = sceneWorld(docs, [{actorId: 'Actor_NPC-TEST-ONE', sceneId: 'S1', id: 'T1', ring: {enabled: false}}]);
+  const out = await applyAssetLinks(planAssetLinks(docs, [f('NPC-TEST-ONE.webp')]).rows, {user: GM, moduleId: M, getDoc: w.getDoc, updateMany: w.updateMany, tokenRing: true, sceneTokens: true,
+    getTokens: w.getTokens, updateTokens: async () => { throw new Error('scene locked'); }});
+  assert.equal(out.applied.length, 1);
+  assert.equal(out.errors[0].documentName, 'Token');
+  assert.match(out.message, /write error/);
+});
+
+// ---- one-time repair of hidden rings written by 0.63.0 (0.66.1) ----
+const PAL = RING_KINDS;
+const mine = (id, extra = {}) => ({uuid: `Actor.${id}`, id: `A_${id}`, name: id, documentName: 'Actor', type: 'npc', sourceId: id,
+  ring: {enabled: true, colors: {ring: PAL.person.ring, background: PAL.person.background}, subject: {scale: 1}}, ...extra});
+const tok = (actorId, id, ring, sceneId = 'S1') => ({actorId, sceneId, id, ring});
+const hiddenRing = look => ({enabled: true, colors: {ring: look.ring, background: look.background}, subject: {scale: 1}});
+
+test('repair plan: only Manager-coloured, enabled, scale-1 rings of NPC-/CRE- Actors; GM-configured rings never listed', () => {
+  const actors = [
+    mine('NPC-TEST-A'),
+    mine('CRE-TEST-B', {ring: hiddenRing(PAL.creature)}),
+    mine('CRE-ASHEN-C', {ring: {...hiddenRing(PAL.ashen), colors: {ring: '#000000', background: '#2B2B2B'}}}), // colour case does not matter
+    mine('NPC-TEST-GM', {ring: {...hiddenRing(PAL.person), colors: {ring: '#123456', background: PAL.person.background}}}), // GM colour
+    mine('NPC-TEST-SCALE', {ring: {...hiddenRing(PAL.person), subject: {scale: 0.8}}}), // GM scale, or already fixed
+    mine('NPC-TEST-OFF', {ring: {...hiddenRing(PAL.person), enabled: false}}),
+    mine('CRE-TEST-WRONG', {ring: hiddenRing(PAL.person)}), // green on a creature: not Manager's colour for it
+    mine('FAC-TEST', {ring: hiddenRing(PAL.person)}), mine('NPC-TEST-PC', {type: 'character'})];
+  const plan = ringRepairPlan(actors, []);
+  assert.deepEqual(plan.map(p => p.name), ['CRE-ASHEN-C', 'CRE-TEST-B', 'NPC-TEST-A']);
+});
+
+test('repair plan: counts scene tokens only where their own ring is a hidden Manager ring', () => {
+  const actors = [mine('NPC-TEST-A')];
+  const tokens = [tok('A_NPC-TEST-A', 'T1', hiddenRing(PAL.person)), tok('A_NPC-TEST-A', 'T2', {enabled: false}), tok('A_NPC-TEST-A', 'T3', {...hiddenRing(PAL.person), colors: {ring: '#abcdef'}}),
+    tok('A_NPC-TEST-A', 'T4', {...hiddenRing(PAL.person), subject: {scale: 0.6}}, 'S2'), tok('A_OTHER', 'T5', hiddenRing(PAL.person))];
+  assert.deepEqual(ringRepairPlan(actors, tokens)[0].tokens, [{sceneId: 'S1', id: 'T1'}]);
+});
+
+const repairWorld = (actors, tokens) => {
+  const live = new Map(actors.map(a => [a.uuid, {id: a.id, type: a.type, prototypeToken: {ring: structuredClone(a.ring)}}])), wrote = [], sceneWrites = [];
+  return {wrote, sceneWrites, live, deps: {user: GM, getDoc: u => live.get(u) ?? null, getTokens: d => tokens.filter(t => t.actorId === d.id),
+    updateMany: async u => { wrote.push(...u); for (const x of u) { const d = [...live.values()].find(v => v.id === x._id); d.prototypeToken.ring.subject.scale = x['prototypeToken.ring.subject.scale']; } },
+    updateTokens: async (sid, u) => { sceneWrites.push([sid, u]); for (const x of u) tokens.find(t => t.id === x._id).ring.subject.scale = x['ring.subject.scale']; }}};
+};
+
+test('repair writes only subject.scale, on the Actor and its matching tokens; idempotent', async () => {
+  const actors = [mine('NPC-TEST-A')];
+  const tokens = [tok('A_NPC-TEST-A', 'T1', hiddenRing(PAL.person)), tok('A_NPC-TEST-A', 'T2', {enabled: false})];
+  const w = repairWorld(actors, tokens);
+  const plan = ringRepairPlan(actors, tokens);
+  const out = await applyRingRepair(plan, {...w.deps, sceneTokens: true});
+  assert.equal(out.ok, true);
+  assert.deepEqual(w.wrote, [{_id: 'A_NPC-TEST-A', 'prototypeToken.ring.subject.scale': 0.6}]);
+  assert.deepEqual(w.sceneWrites, [['S1', [{_id: 'T1', 'ring.subject.scale': 0.6}]]]);
+  assert.match(out.message, /1 Actor ring\(s\) resized.*1 token\(s\) on scenes resized/);
+  const again = await applyRingRepair(plan, {...w.deps, sceneTokens: true}); // same stale plan, second run
+  assert.equal(again.actors, 0); assert.equal(again.skipped, 1); assert.equal(w.wrote.length, 1);
+  assert.equal(ringRepairPlan(actors.map(a => ({...a, ring: w.live.get(a.uuid).prototypeToken.ring})), tokens).length, 0);
+});
+
+test('repair without the scene box leaves tokens alone; a GM changing the ring after the preview is respected; non-GM refused', async () => {
+  const actors = [mine('NPC-TEST-A'), mine('NPC-TEST-B')];
+  const tokens = [tok('A_NPC-TEST-A', 'T1', hiddenRing(PAL.person))];
+  const w = repairWorld(actors, tokens);
+  const plan = ringRepairPlan(actors, tokens);
+  w.live.get('Actor.NPC-TEST-B').prototypeToken.ring.colors.ring = '#00ff00'; // GM recoloured it since the preview
+  const out = await applyRingRepair(plan, {...w.deps, sceneTokens: false});
+  assert.equal(w.sceneWrites.length, 0);
+  assert.deepEqual(w.wrote.map(x => x._id), ['A_NPC-TEST-A']);
+  assert.equal(out.skipped, 1);
+  const denied = await applyRingRepair(plan, {...w.deps, user: {isGM: false}});
+  assert.equal(denied.ok, false);
+  assert.equal(w.wrote.length, 1);
+});
+
+test('wiring: Fix hidden token rings fold, confirmation, scene box ticked by default, no raw ids', () => {
+  const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
+  const hbs = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
+  assert.match(main, /ringRepair:\{plan:null,message:'',scene:true\}/);
+  assert.match(main, /title:'Fix hidden token rings\?'/);
+  assert.match(hbs, /<span class="ag-fold__title">Fix hidden token rings<\/span>/);
+  assert.match(hbs, /data-ag-assets-repair-scene \{\{#if assets\.repair\.scene\}\}checked\{\{\/if\}\}/);
+  assert.match(hbs, /data-ag-action="assets-ring-apply"/);
+  const fold = hbs.slice(hbs.indexOf('data-ag-fold-key="assets-ring-repair"'), hbs.indexOf('data-ag-fold-key="assets-missing"'));
+  assert.doesNotMatch(fold, /\{\{sourceId\}\}|\{\{uuid\}\}|\{\{id\}\}/);
 });
