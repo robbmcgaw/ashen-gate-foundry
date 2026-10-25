@@ -1,3 +1,14 @@
+## 0.67.0 — 2026-10-25
+
+NPC Codex: revealing to one or more players is much faster.
+
+- **Reveals sub-tab, reveal several fields at once:** tick fields (**Select all revealable** / **Select none**), choose who (**Hidden**, **Whole party** or **Chosen characters**, picked from checkable chips that show each character's name and player, with **All** and **Clear**), then **Apply to N fields**. Characters you pick are added to what each field already shows; a field already shown to the whole party is left as it is. Hiding asks for a labelled confirmation first. The per-field controls stay for fine tuning, and each field now shows chips for who can see it ("Whole party", character names, "Hidden") so you do not need Player preview to check.
+- **One-click presets:** **Reveal basics** (name and portrait, role, appearance) and **Reveal everything player-safe** (everything that has content; portrayal, session role, stat block and GM notes are never included) to the chosen audience. **Undo last reveal** puts back what the last bulk reveal on that NPC changed, as long as nothing has touched those fields since. Undo is remembered only while the window session lasts; nothing new is saved in the world.
+- **Reveal to…:** a button on every NPC row, on the open NPC and, for GMs, in the header menu of an Ashen Gate NPC's Actor sheet. A small window: tick characters (default: the whole party, or the players who are online when only some are), tick fields (default: name and portrait, role, appearance, signature line), confirm. Keyboard accessible; focus returns to the button that opened it.
+- A confirmation line after every reveal ("Revealed 3 fields to Aldric and Merra."). The Player preview picker now shows each character with their player.
+- **API (GM only):** `api.codex.setRevealMany(id, {fields | preset, mode, characters})`, `revealTo(id, {party | characters, fields | preset})` for macros (characters by id or exact name), `undoReveal(id)`, `canUndoReveal(id)`, `openRevealTo(id)`; `characters()` also returns `owners` and `present`. Every call checks everything first and writes once. `setReveal` is unchanged. GM-only fields can never be revealed.
+- Saved data: no change and no migration; reveals are still `{party, actors[]}` per field on the NPC Actor.
+
 ## 0.66.1 — 2026-10-25
 
 Assets: the token ring now actually shows, and can be applied to tokens already on scenes. Fixes 0.63.0.

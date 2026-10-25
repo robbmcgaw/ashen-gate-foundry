@@ -5,7 +5,8 @@
  * player projection for that user's characters. Nothing hidden is sent.
  */
 import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEntry, playerCodex,
-  buildCodexExport, planRevealsImport, linkKind, isLinkId, knowsRule, resolvePlayerLinks, DEITY_TIPS} from './codex.js';
+  buildCodexExport, planRevealsImport, linkKind, isLinkId, knowsRule, resolvePlayerLinks, DEITY_TIPS,
+  applyReveals, undoReveals, presetKeys, checkRevealKeys, revealMessage} from './codex.js';
 
 export const CODEX_QUERY = 'ashen-gate-manager.codexForPlayer';
 export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
@@ -35,9 +36,15 @@ export function createCodexService({game, moduleId}) {
     if (hits.length > 1) throw new Error('Two Actors carry this NPC record. Fix the duplicate in Items → Records first.');
     return hits[0];
   };
-  /** Player characters a GM can reveal to: character Actors with a player owner. */
-  const characters = () => actors().filter(a => a.type === 'character' && a.hasPlayerOwner)
-    .map(a => ({id: a.id, name: a.name})).sort((a, b) => a.name.localeCompare(b.name));
+  /** Player characters a GM can reveal to: character Actors with a player owner. owners = those players' names;
+   * present = an owner is connected right now. GM view only. */
+  const characters = () => {
+    const users = [...(game.users?.values?.() ?? game.users?.contents ?? [])].filter(u => u && !u.isGM);
+    return actors().filter(a => a.type === 'character' && a.hasPlayerOwner).map(a => {
+      const own = users.filter(u => { try { return a.testUserPermission?.(u, 'OWNER'); } catch { return false; } });
+      return {id: a.id, name: a.name, owners: own.map(u => u.name).filter(Boolean), present: own.some(u => u.active)};
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  };
   const actorIdsFor = user => {
     if (!user) return [];
     const owned = actors().filter(a => a.type === 'character' && a.testUserPermission?.(user, 'OWNER')).map(a => a.id);
@@ -111,6 +118,34 @@ export function createCodexService({game, moduleId}) {
     }
     return names;
   };
+  /** One level of undo per NPC for the last bulk reveal, kept in memory on the GM's client (never saved with the world). */
+  const undoStack = new Map();
+  /** Resolve characters given as Actor ids or exact names to player-character ids. Anything else is refused. */
+  const resolveCharacters = list => {
+    const known = characters(), out = [];
+    for (const raw of Array.isArray(list) ? list : []) {
+      const want = String(raw ?? '').trim();
+      const byId = known.find(c => c.id === want);
+      const byName = known.filter(c => c.name.toLowerCase() === want.toLowerCase());
+      if (byId) out.push(byId);
+      else if (byName.length === 1) out.push(byName[0]);
+      else throw new Error(byName.length > 1 ? `More than one character is named "${want}". Use the Actor id.` : `"${want}" is not a player character.`);
+    }
+    return [...new Map(out.map(c => [c.id, c])).values()];
+  };
+  /** Keys with something to show now, for presets: discovery always; a field only when the record or Codex has content. */
+  const revealableKeys = n => ['discovery', ...gmEntry(n, {}).fields.filter(f => !f.empty).map(f => f.key)];
+  const bulk = async (id, {keys, mode, characterIds = [], names = []}) => {
+    const n = find(id);
+    const out = applyReveals(normalizeState(n.state, n.def), {keys, mode, actorIds: characterIds});
+    if (out.changed.length) {
+      await write(n, out.state);
+      undoStack.set(id, {before: out.before, after: out.after, mode, names});
+    }
+    return {id, name: String(n.def.name ?? '') || n.name, keys: out.keys, changed: out.changed, mode, names,
+      message: revealMessage({count: out.keys.length, mode, names, already: out.keys.length - out.changed.length}),
+      canUndo: undoStack.has(id)};
+  };
   const write = async (npc, state) => { await npc.actor.setFlag(moduleId, CODEX_FLAG, state); return state; };
   const accessOn = () => { try { return Boolean(game.settings.get(moduleId, CODEX_ACCESS_SETTING)); } catch { return false; } };
 
@@ -120,6 +155,39 @@ export function createCodexService({game, moduleId}) {
       return npcs().map(n => gmEntry(n, {nameOf, characters: chars})).sort((a, b) => a.name.localeCompare(b.name)); },
     get: id => { requireGM(); return gmEntry(find(id), {nameOf, characters: characters()}); },
     async setReveal(id, key, opts) { requireGM(); const n = find(id); return write(n, setReveal(normalizeState(n.state, n.def), key, opts)); },
+    /**
+     * 0.67.0, GM only: set several fields to one audience in a single write. fields: reveal keys ('discovery' = name and
+     * portrait, plus the Codex fields) or preset: 'basics' | 'everything'. mode: 'hidden' | 'party' | 'actors' (characters:
+     * Actor ids or exact names, ADDED to what each field already shows). All checked before anything is saved.
+     */
+    async setRevealMany(id, {fields, preset, mode, characters: who} = {}) {
+      requireGM(); const n = find(id);
+      if (fields && preset) throw new Error('Give fields or a preset, not both.');
+      const keys = preset ? presetKeys(preset).filter(k => revealableKeys(n).includes(k)) : checkRevealKeys(fields);
+      const chosen = mode === 'actors' ? resolveCharacters(who) : [];
+      return bulk(id, {keys, mode, characterIds: chosen.map(c => c.id), names: chosen.map(c => c.name)});
+    },
+    /**
+     * 0.67.0, GM only, macro friendly: reveal part of an NPC to the party or to named characters.
+     * revealTo('NPC-...', {party: true, preset: 'basics'}) or revealTo(id, {characters: ['Aldric'], fields: ['role', 'wants']}).
+     */
+    async revealTo(id, {party = false, characters: who, fields, preset} = {}) {
+      requireGM();
+      const picked = Array.isArray(who) && who.length > 0;
+      if (party && picked) throw new Error('Reveal to the party or to characters, not both.');
+      if (!party && !picked) throw new Error('Choose the party or at least one character.');
+      if (!fields && !preset) throw new Error('Choose fields or a preset.');
+      return service.setRevealMany(id, {fields, preset, mode: party ? 'party' : 'actors', characters: who});
+    },
+    /** True while the last bulk reveal on this NPC can still be undone. */
+    canUndoReveal: id => { requireGM(); return undoStack.has(id); },
+    async undoReveal(id) {
+      requireGM(); const n = find(id), last = undoStack.get(id);
+      if (!last) throw new Error('There is no reveal to undo for this NPC.');
+      const out = undoReveals(normalizeState(n.state, n.def), last);
+      await write(n, out.state); undoStack.delete(id);
+      return {id, name: String(n.def.name ?? '') || n.name, keys: out.keys, message: `Undid the last reveal on ${String(n.def.name ?? '') || n.name}.`};
+    },
     async setDetails(id, patch) {
       requireGM(); const n = find(id);
       const {state, rejected} = setDetails(normalizeState(n.state, n.def), patch);

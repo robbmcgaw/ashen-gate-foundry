@@ -93,6 +93,78 @@ export function setReveal(state, key, {mode, actorId = null, on = true} = {}) {
   return next;
 }
 
+/**
+ * 0.67.0: bulk reveals, built on the same {party, actors[]} rule. Nothing here changes how a reveal is stored.
+ * Keys a GM can reveal: 'discovery' (name and portrait) plus REVEAL_FIELDS. GM_FIELDS are never in this list.
+ */
+export const REVEAL_KEYS = Object.freeze(['discovery', ...REVEAL_FIELDS]);
+export const REVEAL_KEY_LABELS = Object.freeze({discovery: 'Name and portrait', ...FIELD_LABELS});
+/** Ticked by default in the Reveal to... dialog: what anyone meeting the NPC would see. */
+export const DEFAULT_REVEAL_KEYS = Object.freeze(['discovery', 'role', 'appearance', 'signature_line']);
+export const REVEAL_PRESETS = Object.freeze({
+  basics: Object.freeze({label: 'Reveal basics', keys: Object.freeze(['discovery', 'role', 'appearance'])}),
+  everything: Object.freeze({label: 'Reveal everything player-safe', keys: REVEAL_KEYS})
+});
+export function presetKeys(name) {
+  const preset = REVEAL_PRESETS[name];
+  if (!preset) throw new Error(`Unknown preset "${name}". Use one of: ${Object.keys(REVEAL_PRESETS).join(', ')}.`);
+  return [...preset.keys];
+}
+/** Validates a list of reveal keys (all or nothing): at least one, each revealable. Returns them de-duplicated, in display order. */
+export function checkRevealKeys(keys) {
+  const list = uniq(Array.isArray(keys) ? keys : []);
+  if (!list.length) throw new Error('Choose at least one field to reveal.');
+  for (const key of list) {
+    if (!REVEAL_KEYS.includes(key)) throw new Error(GM_FIELDS.includes(key)
+      ? `"${key}" is a GM-only field and cannot be revealed.`
+      : `"${key}" is not a Codex field. Reveal "discovery" or one of: ${REVEAL_FIELDS.join(', ')}.`);
+  }
+  return REVEAL_KEYS.filter(k => list.includes(k));
+}
+const ruleOf = (state, key) => key === 'discovery' ? state.discovery : state.fields[key];
+const sameRule = (a, b) => a.party === b.party && a.actors.length === b.actors.length && a.actors.every((id, i) => id === b.actors[i]);
+/**
+ * Set several rules to one audience at once. mode: 'hidden' | 'party' | 'actors' (with actorIds, which are ADDED to each
+ * field's characters; a field already shown to the whole party stays as it is). Validates everything first, so a bad key
+ * changes nothing. Returns {state, changed: keys that actually changed, before, after} for undo.
+ */
+export function applyReveals(state, {keys, mode, actorIds = []} = {}) {
+  const list = checkRevealKeys(keys);
+  const ids = uniq((Array.isArray(actorIds) ? actorIds : []).filter(a => typeof a === 'string' && a));
+  if (!['hidden', 'party', 'actors'].includes(mode)) throw new Error('Reveal must be hidden, party or characters.');
+  if (mode === 'actors' && !ids.length) throw new Error('Choose at least one character.');
+  const next = normalizeState(state), changed = [], before = {}, after = {};
+  for (const key of list) {
+    const rule = ruleOf(next, key), was = structuredClone(rule);
+    if (mode === 'hidden') { rule.party = false; rule.actors = []; }
+    else if (mode === 'party') rule.party = true;
+    else if (!rule.party) rule.actors = uniq([...rule.actors, ...ids]);
+    if (!sameRule(was, rule)) { changed.push(key); before[key] = was; after[key] = structuredClone(rule); }
+  }
+  return {state: next, keys: list, changed, before, after};
+}
+/** Puts back the rules recorded by applyReveals, but only while they are still exactly as that action left them. */
+export function undoReveals(state, {before, after} = {}) {
+  const next = normalizeState(state), keys = Object.keys(before ?? {});
+  if (!keys.length) throw new Error('There is nothing to undo.');
+  if (keys.some(k => !REVEAL_KEYS.includes(k) || !sameRule(ruleOf(next, k), normalizeRule(after?.[k])))) {
+    throw new Error('These reveals changed after that action, so it cannot be undone safely.');
+  }
+  for (const k of keys) { const rule = ruleOf(next, k), old = normalizeRule(before[k]); rule.party = old.party; rule.actors = old.actors; }
+  return {state: next, keys};
+}
+/** 'Aldric', 'Aldric and Merra', 'Aldric, Merra and Tor'. */
+export function joinNames(names) {
+  const list = names.filter(Boolean);
+  return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
+export function revealMessage({count, mode, names = [], already = 0}) {
+  const noun = `${count} field${count === 1 ? '' : 's'}`;
+  const note = already ? ` (${already} already ${already === 1 ? 'was' : 'were'} visible)` : '';
+  if (mode === 'hidden') return `Hid ${noun} from players.`;
+  return `Revealed ${noun} to ${mode === 'party' ? 'the whole party' : joinNames(names)}${note}.`;
+}
+
 /** GM-editable text and links. Links are filtered to known id prefixes; anything else is reported. */
 export function setDetails(state, {learned, notes, links} = {}) {
   const next = normalizeState(state);
