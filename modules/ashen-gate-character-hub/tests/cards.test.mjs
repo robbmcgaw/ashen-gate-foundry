@@ -147,8 +147,8 @@ test('Magic: toolbar with search, group and sort; group by school; columns follo
   assert.match(b, /data-key="magic:0"[\s\S]*data-key="magic:1"/, 'spell levels as folding groups');
   assert.match(b, /<span>Casting time<\/span><span>Range<\/span><span>Duration<\/span><span>Components<\/span>/, '0.33.0 (CH-08): four fact columns');
   assert.match(b, /\[TEST\] Bless<\/button><span class="agch-item__badges"><span class="ag-badge">Enchantment<\/span>/, 'the school sits beside the name (grouped by level: no level badge)');
-  assert.match(b, /1 Minute <span class="ag-badge" data-tooltip="Concentration">C<\/span>/);
-  assert.match(b, /data-tooltip="Ritual">R</);
+  assert.match(b, /1 Minute <span class="ag-badge agch-flag" data-tooltip="Concentration"><span aria-hidden="true">C<\/span><span class="ag-sr-only">Concentration<\/span><\/span>/);
+  assert.match(b, /data-tooltip="Ritual"><span aria-hidden="true">R</);
   assert.match(b, /data-action="spell-prepare" data-id="bl"[\s\S]*data-action="item-use" data-id="bl"/, 'Prepare and Cast kept');
   await EDITS['list-sort'](sheet, {dataset: {tab: 'magic', field: 'group'}, value: 'school'});
   b = body(await sheet._renderHTML());

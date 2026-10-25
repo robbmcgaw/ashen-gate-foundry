@@ -15,6 +15,8 @@ import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
 import {coinIcon} from './coins.mjs';
 import {ADD_LABELS, addReason} from './item-add.mjs';
+import {showDescriptions, descriptionsToggle, spellList, preparedIndicator} from './spell-rows.mjs';
+import {preparationSummary} from './spell-prep.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
@@ -61,10 +63,10 @@ function starBtn(actor, row, off) {
   return `<button type="button" class="agch-star${on ? ' is-on' : ''}" data-action="item-favorite" data-id="${esc(row.id)}" aria-pressed="${on}" data-tooltip="${on ? `Remove ${esc(row.name)} from favourites` : `Add ${esc(row.name)} to favourites`}" aria-label="${on ? 'Unfavourite' : 'Favourite'} ${esc(row.name)}"${off ? ' disabled' : ''}><i class="${on ? 'fa-solid' : 'fa-regular'} fa-star" aria-hidden="true"></i></button>`;
 }
 /** Favourites first, in their own group: the starred rows (they also stay in their normal group). */
-function favouritesSection(actor, tab, rows, columns, card, expanded) {
+function favouritesSection(actor, tab, rows, columns, card, expanded, list = null) {
   if (!favoritesSupported(actor)) return '';
   const favs = rows.filter(r => isFavorite(actor, actor.items?.get?.(r.id)));
-  return favs.length ? sectionHtml(sectionKey(tab, 'favourites'), `<i class="fa-solid fa-star agch-star__head" aria-hidden="true"></i> Favourites <span class="ag-badge">${favs.length}</span>`, cardList(favs, columns, {card, expanded, listKey: `${tab}-fav`})) : '';
+  return favs.length ? sectionHtml(sectionKey(tab, 'favourites'), `<i class="fa-solid fa-star agch-star__head" aria-hidden="true"></i> Favourites <span class="ag-badge">${favs.length}</span>`, (list ?? cardList)(favs, columns, {card, expanded, listKey: `${tab}-fav`})) : '';
 }
 
 // ---------- Combat ----------
@@ -170,12 +172,12 @@ export const activeFilters = (tab, f = {}) => Object.entries(f).filter(([k, v]) 
  * the filters that are on. Clear filters sits beside it while any filter is on. The popover is a Hub menu
  * (sheet.menu 'filters:<tab>'), so a click outside or Escape closes it.
  */
-export function filtersControl(ctx, tab, chips) {
+export function filtersControl(ctx, tab, chips, extra = '') {
   const f = ctx.sheet?.listFilters?.[tab] ?? {}, n = activeFilters(tab, f), open = ctx.sheet?.menu === `filters:${tab}`;
   const any = Object.values(f).some(isOn);
   const pop = open ? `<div class="agch-menu agch-filtermenu" role="group" aria-label="Filters">
       <header class="agch-menu__head"><strong>Group, sort and filter</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>
-      <div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}</div>` : '';
+      <div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}${extra}</div>` : '';
   return `<span class="agch-filterwrap"><button type="button" class="ag-btn ag-btn--sm agch-filtersbtn${n ? ' is-on' : ''}" data-action="filters-menu" data-tab="${tab}" data-ag-always aria-haspopup="true" aria-expanded="${open}"><i class="fa-solid fa-filter" aria-hidden="true"></i><span>Filters${n ? ` (${n})` : ''}</span></button>${pop}</span>
     ${any ? `<button type="button" class="ag-chip agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
 }
@@ -190,26 +192,28 @@ function magicTab(ctx) {
   // 0.33.0 (CH-08): four fact columns; the spell level and school sit beside the name (unless the list is grouped by them).
   const columns = [C.castTime, C.range, C.duration, C.components];
   const spellBadges = r => `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}`;
+  const long = showDescriptions();
+  const list = long ? (rows, cols, o) => cardList(rows, cols, {...o, cls: 'agch-spelllist'}) : spellList;
   const card = s => ({iconUse: !off, controls: `${prep(s)}${btn('item-use', 'Cast', {kind: 'sm', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off})}`, star: starBtn(actor, s, off), badges: spellBadges(s)});
   const all = d.levels.flatMap(l => l.spells), shown = filterRows(all, f, {slotsLeft: d.slotsLeft, pact: d.pact});
   const slotBadge = l => l.slots ? ` <span class="ag-badge" data-tooltip="Slots left">${pips(l.slots.value, l.slots.max)} slots</span>` : '';
   // Spell-level buttons (dnd5e's slots): click to show only that level, again to show all.
   const strip = `<div class="agch-slotstrip" role="group" aria-label="Show one spell level">${d.levels.filter(l => l.spells.length || l.slots).map(l =>
     filterBtn('magic', 'level', String(l.level), `${esc(l.label)}${l.slots ? ` <b>${pips(l.slots.value, l.slots.max)}</b>` : ''}`, f.level !== null && f.level !== undefined && Number(f.level) === l.level, `Show only ${l.label}${l.slots ? ` (${l.slots.value} of ${l.slots.max} slots left)` : ''}`)).join('')}
-    ${d.pact ? `<span class="ag-badge" data-tooltip="Pact Magic slots">Pact (level ${d.pact.level}) ${pips(d.pact.value, d.pact.max)}</span>` : ''}</div>`;
+    ${d.pact ? `<span class="ag-badge" data-tooltip="Pact Magic slots">Pact (level ${d.pact.level}) ${pips(d.pact.value, d.pact.max)}</span>` : ''}${preparedIndicator(preparationSummary(actor))}</div>`;
   let sections;
   if (group === 'level') {
     sections = d.levels.filter(l => f.level === null || f.level === undefined || Number(f.level) === l.level).map(l => {
       const rows = sortRows(shown.filter(s => s.level === l.level), sort);
-      return rows.length || !l.spells.length ? sectionHtml(sectionKey('magic', l.level), `${esc(l.label)}${slotBadge(l)}`, rows.length ? cardList(rows, columns, {card, expanded, listKey: `magic-${l.level}`}) : empty('No spells at this level.')) : '';
+      return rows.length || !l.spells.length ? sectionHtml(sectionKey('magic', l.level), `${esc(l.label)}${slotBadge(l)}`, rows.length ? list(rows, columns, {card, expanded, listKey: `magic-${l.level}`}) : empty('No spells at this level.')) : '';
     }).join('');
   } else {
     const groups = groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All spells'});
     orderGroups(groups, group);
-    sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
+    sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), list(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
   }
-  return dropZone(ctx, 'magic', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${filtersControl(ctx, 'magic', filterToggles('magic', f))}${addEnd(ctx, 'magic')}</div>${strip}`)}
-    ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded)}${sections || empty('Nothing matches.', 'Change the search or use Clear filters.')}
+  return dropZone(ctx, 'magic', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${filtersControl(ctx, 'magic', filterToggles('magic', f), `<div class="agch-filtermenu__opts">${descriptionsToggle()}</div>`)}${addEnd(ctx, 'magic')}</div>${strip}`)}
+    ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded, list)}${sections || empty('Nothing matches.', 'Change the search or use Clear filters.')}
     <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. Add spell… picks a spell from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
 

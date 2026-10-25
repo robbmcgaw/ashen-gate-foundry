@@ -33,6 +33,8 @@ import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut, isPoppedOut, hostWindows, releaseHosting} from './popout.mjs';
 import {placePopovers} from './popover.mjs';
+import {toggleSpell, setShowDescriptions, syncBandHeight} from './spell-rows.mjs';
+import {setEnforcement} from './spell-prep.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
 import {captureScroll, restoreScroll, captureFocus, restoreFocus, focusFirstIn, fieldKey} from './redraw.mjs';
@@ -147,7 +149,9 @@ export const ACTIONS = {
   'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
   'item-unequip': (s, t) => items.unequipItem(s.document, t.dataset.id),
   'item-attune': (s, t) => items.setAttuned(s.document, t.dataset.id, t.dataset.attuned === '1'),
-  'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
+  'spell-prepare': (s, t) => items.togglePreparedAsk(s.document, t.dataset.id),
+  // 0.51.0: a spell's description opens in place under its row (no redraw: the focus stays on the button).
+  'spell-expand': (s, t) => toggleSpell(s, t),
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
   'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.kind, t.dataset.uuid),
@@ -493,6 +497,9 @@ export const EDITS = {
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
+  // 0.51.0: Show spell descriptions (this user) and the GM's Enforce spell preparation limits (world).
+  'spell-descriptions': async (s, i) => { const r = await setShowDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
+  'prep-enforce': async (s, i) => { const r = await setEnforcement(i.checked === true); if (!r?.ok) s.render(); return r; },
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; },
   'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; },
   // The Conditions strip's list: remembered while the Hub is open, no redraw (Apply reads it).
@@ -670,6 +677,7 @@ export function createHubSheetClass(Base) {
         mountEmbeds(content, this._embeds);
         applyFilter(content, this.filters[this.tab] ?? '');
         restoreScroll(content, this._agchScroll[view]);
+        syncBandHeight(content);   // 0.51.0: Magic's column headings pin under the toolbar band
         placePopovers(content);   // 0.34.0: Filters and the header menus stay inside the window
         this._bindTabs(content);
         const pop = popNow && popNow !== popBefore ? content.querySelector?.(POPOVER_SELECTOR) : null;

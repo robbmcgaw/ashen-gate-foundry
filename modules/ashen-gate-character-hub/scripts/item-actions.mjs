@@ -9,6 +9,7 @@ import {attunementData, SLOTS} from './items.mjs';
 import {electrumHidden} from './partners.mjs';
 import {choiceDialog} from './ag-dialogs.mjs';
 import {renderBeside} from './popout.mjs';
+import {prepareCheck, limitMessage, limitInfo, notifyGmOver, CHECKED} from './spell-prep.mjs';
 
 const refuse = error => ({ok: false, error});
 const SLOT_IDS = new Set(SLOTS.map(s => s.id));
@@ -87,12 +88,57 @@ export async function setCurrency(actor, key, raw) {
   return run('change currency', () => actor.update({[`system.currency.${key}`]: v}));
 }
 
+/**
+ * Prepares or unprepares a spell. Unpreparing always works. Preparing past the class's limit (dnd5e's
+ * system.spellcasting.preparation.max) is refused for a player with a plain error, {code: 'prep-limit', limit}; a GM is
+ * never refused but is told "over the limit"; a class with no known maximum is allowed (result.note 'limit unknown').
+ */
 export async function togglePrepared(actor, id) {
   const {item, error} = guard(actor, id); if (error) return error;
   if (item.type !== 'spell') return refuse(`${item.name} is not a spell.`);
   if (num(item.system.prepared) === 2) return refuse(`${item.name} is always prepared.`);
   if (item.system.canPrepare !== true) return refuse(`${item.name} is not a prepared spell for its spellcasting method.`);
-  return run('change preparation', () => item.update({'system.prepared': Number(!item.system.prepared)}));
+  const options = {[CHECKED]: true};
+  if (item.system.prepared) return run('change preparation', () => item.update({'system.prepared': 0}, options));
+  const c = prepareCheck(actor, item);
+  if (c.blocked) return {...refuse(limitMessage(c.class)), code: 'prep-limit', limit: limitInfo(c.class)};
+  if (c.gmOver) notifyGmOver(c.class);
+  if (c.unknown) console.debug(`${MODULE_ID} | preparation limit unknown for ${c.class.name}; allowed`);
+  const r = await run('change preparation', () => item.update({'system.prepared': 1}, options));
+  return c.unknown && r.ok ? {...r, note: 'limit unknown'} : r;
+}
+
+/** The dialog for a refused prepare: Cancel (the default) and one "Unprepare X and prepare Y" button per prepared spell. */
+export function limitPrompt(item, limit) {
+  const list = limit.prepared.map(p => `<li>${esc(p.name)}</li>`).join('');
+  return {title: 'Preparation limit reached',
+    content: `<p>${esc(limitMessage({name: limit.className, max: limit.max}))}</p><p>Prepared as ${esc(limit.className)}:</p><ul>${list}</ul>`,
+    choices: limit.prepared.map(p => ({action: `unprepare:${p.id}`, label: `Unprepare ${p.name} and prepare ${item.name}`}))};
+}
+/** Default ask: Cancel is the default button (Enter never swaps a spell). Resolves the chosen action or null. */
+export async function askPrepareLimit({title, content, choices}) {
+  const D = globalThis.foundry?.applications?.api?.DialogV2;
+  if (!D?.wait) return choiceDialog(title, content, choices);
+  const result = await D.wait({   // ag-lint-allow: Cancel must be the default button
+    classes: ['ag-app', 'ag-dialog', 'ag-dialog--choice'], window: {title}, content, modal: true, rejectClose: false,
+    buttons: [{action: 'cancel', label: 'Cancel', default: true, callback: () => null},
+      ...choices.map(c => ({action: c.action, label: c.label, class: 'ag-dialog__choice', default: false, callback: () => c.action}))]
+  });
+  return choices.some(c => c.action === result) ? result : null;
+}
+/** The Hub's Prepare button: togglePrepared, and on a limit refusal the dialog that swaps one prepared spell for this one. */
+export async function togglePreparedAsk(actor, id, {ask = askPrepareLimit} = {}) {
+  const r = await togglePrepared(actor, id);
+  if (r.ok || r.code !== 'prep-limit') return r;
+  const item = ownedItem(actor, id);
+  let choice;
+  try { choice = await ask(limitPrompt(item, r.limit)); } catch (err) { return refuse(`Could not ask about the preparation limit: ${err?.message ?? err}`); }
+  if (!choice || choice === 'cancel') return {ok: false, cancelled: true, error: null};
+  const out = choice.startsWith('unprepare:') ? choice.slice(10) : '';
+  if (!r.limit.prepared.some(p => p.id === out)) return refuse('Unknown choice.');
+  const un = await togglePrepared(actor, out);
+  if (!un.ok) return un;
+  return togglePrepared(actor, id);
 }
 
 /** dnd5e's own favourite id for an item on its actor (a relative UUID, ".Item.<id>"). */
