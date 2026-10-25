@@ -112,9 +112,9 @@ test('overlay: a card per character with condition chips, × only where removal 
  game.user=alice;
  const overlay=await api.conditions.openOverlay();assert.equal(game.settings.get(ID,'overlayOpen'),true);
  const html=await overlay._renderHTML();
- assert.match(html,/<span class="agu-ov-name">Wren<\/span>[\s\S]*<li class="agu-ov-chip"><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
- assert.match(html,/<li class="agu-ov-chip"><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
- assert.match(html,/<span class="agu-ov-name">Ash<\/span>[\s\S]*?<li class="agu-ov-chip"><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
+ assert.match(html,/<span class="agu-ov-name">Wren<\/span>[\s\S]*<li class="agu-ov-chip"><img class="agu-status-icon" src="[^"]*" alt=""><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
+ assert.match(html,/<li class="agu-ov-chip"><img class="agu-status-icon" src="[^"]*" alt=""><span>thinking <small>\(Custom\)<\/small><\/span><\/li>/,'Custom shown without ×');
+ assert.match(html,/<span class="agu-ov-name">Ash<\/span>[\s\S]*?<li class="agu-ov-chip"><img class="agu-status-icon" src="[^"]*" alt=""><span>Blinded<\/span><\/li>/,'another player\'s character: no ×');
  game.user=gm;const gmHtml=await overlay._renderHTML();assert.equal((gmHtml.match(/data-ov-remove/g)||[]).length,3,'GM can remove everything');
  game.user=alice;
 });

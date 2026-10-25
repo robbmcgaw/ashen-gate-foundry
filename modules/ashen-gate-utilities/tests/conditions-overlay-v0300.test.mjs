@@ -49,7 +49,7 @@ test('markup: every player character is a button card with aria-pressed; empty c
  assert.ok(!html.includes('Innkeeper'),'a character nobody plays and without conditions is not a card');
  assert.equal((html.match(/<button type="button" class="agu-ov-pick" data-ov-select data-actor="[^"]+" aria-pressed="false">/g)||[]).length,3);
  assert.equal((html.match(/<p class="agu-ov-none">No conditions<\/p>/g)||[]).length,2,'Ash and Quill are empty');
- assert.match(html,/<li class="agu-ov-chip"><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
+ assert.match(html,/<li class="agu-ov-chip"><img class="agu-status-icon" src="[^"]*" alt=""><span>Prone<\/span><button[^>]*data-ov-remove[^>]*data-status="prone"/);
  assert.ok(!html.includes('aria-pressed="true"'),'nothing selected yet');
  assert.match(html,/Select a character to change its conditions/);
  assert.ok(disabledSelect(html)&&disabledApply(html),'controls wait for a selection');

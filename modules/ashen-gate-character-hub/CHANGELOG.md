@@ -1,3 +1,10 @@
+## 0.50.1 — 2026-10-25
+
+- **A condition Foundry can't toggle is never offered.** The conditions list (and the recent-condition chips) offer only statuses Foundry can find, whether the list comes from this Hub or from Utilities, so Apply can no longer hit Foundry's "Invalid status ID" error. dnd5e's automatic effects (encumbrance) are left out, and a status is looked up by the name it is registered under.
+- **A refused change reads as one plain line** naming the condition and the character, for example "Half Cover was not put on Quest: Foundry doesn't recognise that condition.", never Foundry's raw text.
+- Every condition in the list has an icon: its own, or a generic one. With Ashen Gate | Utilities active, the icon is the one the GM picked there (Utilities → Conditions → Condition icons).
+- Saved data: no change; no migration.
+
 ## 0.50.0 — 2026-10-25
 
 The "Link quick bar to Foundry's hotbar?" question is gone: the two bars simply stay in sync.

@@ -1,4 +1,4 @@
-import {ID,VERSION,isPlayerCharacter,overlayCards,overlayControlState,sharedConditionChoices,unknownStatusLabel,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,planStashDelete,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
+import {ID,VERSION,isPlayerCharacter,overlayCards,overlayControlState,sharedConditionChoices,unknownStatusLabel,statusIsToggleable,manualStatusEntries,friendlyStatusError,cleanConditionIcons,conditionIconChange,resolveConditionIcon,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,planStashDelete,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
@@ -46,14 +46,24 @@ const statusName=k=>game.i18n.localize(statusConfig(k)?.name??k);
 const statusLabel=(actor,k)=>statusConfig(k)?statusName(k):unknownStatusLabel(actor,k);
 const nativeIds=()=>statusList().map(x=>x.id);
 /** 0.29.1: the one conditions list the tracker's Apply and the Character Hub's conditions strip both offer: native statuses by name, without read-only ones (Strain chip) and exhaustion (it has levels: the pill beside HP). */
-const conditionChoices=()=>sharedConditionChoices(statusList(),{label:statusName});
+const conditionChoices=()=>sharedConditionChoices(statusList(),{label:statusName,registry:globalThis.CONFIG?.statusEffects,icons:conditionIcons()});
+/* 0.31.0: custom condition icons: a world setting {statusId: image path}, set only by the GM, shown wherever Utilities lists a condition.
+   Only the manager's own lists use them; CONFIG.statusEffects and the token's status icon are left alone. */
+const storedIcons=()=>{try{return game.settings.get(ID,'conditionIcons')}catch{return {}}};
+const customStatusIds=()=>[...new Set(allCharacters().flatMap(a=>[...(a.statuses??[])]))].filter(id=>!statusConfig(id)&&!isReadOnlyStatus(id));
+/** Conditions that exist: the toggleable native ones, plus Custom statuses now on a character. Nothing else can hold an icon. */
+const iconableIds=()=>[...manualStatusEntries(statusList()).filter(e=>!isReadOnlyStatus(e.id)&&statusIsToggleable(globalThis.CONFIG?.statusEffects,e.id)).map(e=>e.id),...customStatusIds()];
+const conditionIcons=()=>cleanConditionIcons(storedIcons(),iconableIds());
+const iconFor=id=>resolveConditionIcon({custom:conditionIcons()[id],status:statusConfig(id)});
+const anyLabel=id=>statusConfig(id)?statusName(id):unknownStatusLabel(allCharacters().find(a=>hasStatus(a,id)),id);
+async function setConditionIcon(id,path=''){const d=conditionIconChange({user:game.user,icons:storedIcons(),id,path,validIds:iconableIds()});if(!d.ok)throw Error(d.reason);await game.settings.set(ID,'conditionIcons',d.icons);return d.icons;}
 const getUnlocks=()=>game.settings.get(ID,'conditionUnlocks')||{};
 // 0.23.0: GM Setup "owners manage conditions" (world, default off) and condition controllers {userId:true} (world, GM only).
 const ownersManage=()=>game.settings.get(ID,'ownersManageConditions')===true;
 const getControllers=()=>game.settings.get(ID,'conditionControllers')||{};
 const controlsConditions=(user=game.user)=>Boolean(user&&!user.isGM&&isController(getControllers(),user.id));
 /** 0.29.2: the unlock and owners-manage settings no longer decide anything (owners manage their own characters; players manage non-player actors). */
-const conditionRules=()=>({nativeIds:nativeIds(),controllers:getControllers(),users:[...game.users]});
+const conditionRules=()=>({nativeIds:nativeIds(),applyIds:conditionChoices().map(c=>c.id),controllers:getControllers(),users:[...game.users]});
 /** Party characters this user can see (Limited or better); the GM and condition controllers see all of them. */
 const partyCharacters=(user=game.user)=>allCharacters().filter(a=>user?.isGM||controlsConditions(user)||a.testUserPermission?.(user,'LIMITED'));
 const canRemove=(actor,id,user=game.user)=>removalDecision({user,actor,statusId:id,...conditionRules()}).ok;
@@ -244,7 +254,17 @@ function tableView(app){if(!isGM())return '';
 }
 function drawPanel(app){const d=app.lastDraw;if(!d?.length)return '';
  return `<section class="ag-card agu-card"><h3>Last draw</h3>${rowsHTML(d.map(r=>r.kind==='document'?rowHTML({lead:r.img?`<img class="ag-row__icon agu-status-icon" src="${E(r.img)}" alt="">`:'',title:E(r.label),end:`<span class="ag-badge">Document</span>${btn('open-uuid','Open',{kind:'sm',attrs:`data-open-uuid="${E(r.uuid)}" aria-label="Open ${E(r.label)}"`})}`}):rowHTML({title:E(r.label)})))}</section>`;}
-function conditionIcon(id){const cfg=statusConfig(id),img=cfg?.img??cfg?.icon;return typeof img==='string'&&img&&!/^\s*javascript:/i.test(img)?`<img class="agu-status-icon" src="${E(img)}" alt="">`:'';}
+function conditionIcon(id){return `<img class="agu-status-icon" src="${E(iconFor(id))}" alt="">`;}
+const optionIcon=(x,selected)=>`<option value="${E(x.id)}" data-icon="${E(x.img)}" ${x.id===selected?'selected':''}>${E(x.label)}</option>`;
+/** A small picture of the picked condition beside its list; the name stays in the list itself. */
+const pickIcon=(choices,pick,id)=>`<img class="agu-status-icon agu-pick-icon" id="${id}" src="${E(choices.find(x=>x.id===pick)?.img??'')}" alt="">`;
+/** GM only: one row per condition with its icon, Choose icon… and Reset icon (they change the saved icon now). */
+function conditionIconsFold(){
+ if(!isGM())return '';
+ const choices=conditionChoices(),custom=customStatusIds().map(id=>({id,label:anyLabel(id),img:iconFor(id),custom:Boolean(conditionIcons()[id])})),all=[...choices,...custom],icons=conditionIcons();
+ const rows=all.map(x=>{const has=Boolean(icons[x.id]);return `<li class="agu-icon-row"><img class="agu-status-icon" src="${E(x.img)}" alt=""><span class="agu-icon-name">${E(x.label)}${has?' <span class="ag-badge">Custom icon</span>':''}</span>${btn('pick-condition-icon','Choose icon…',{kind:'sm',attrs:`data-status="${E(x.id)}" aria-label="Choose an icon for ${E(x.label)}"`})}${btn('reset-condition-icon','Reset icon',{kind:'ghost sm',disabled:!has,attrs:`data-status="${E(x.id)}" aria-label="Reset the icon of ${E(x.label)}"`})}</li>`;}).join('');
+ return fold({key:'condition-icons',title:'Condition icons',count:Object.keys(icons).length?`${Object.keys(icons).length} custom`:undefined,body:`<p class="ag-field__hint"><span class="ag-badge ag-badge--warn agu-now" ${tip('These buttons change the saved icon now; they do not wait for any Save Changes')}><i class="fa-solid fa-bolt" aria-hidden="true"></i> Applies now</span> Pick your own picture for a condition. It shows beside the condition in this window, the overlay and the Character Hub conditions list. Token status icons are not changed.</p><ul class="agu-icon-list">${rows}</ul>`});
+}
 function statusSourceLine(actor,id){
  const sources=resolveStatusSources(actor,id);
  if(!sources.length)return `<span class="agu-source">No active effect found for this status; it may come from the system or another module.</span>`;
@@ -271,7 +291,7 @@ function conditionsView(app){const characters=partyCharacters();const actor=char
   return rowHTML({title:`<span class="agu-status-title">${conditionIcon(id)}${E(statusLabel(actor,id))}${unknown?`<span class="ag-badge ag-badge--warn" ${tip('Not a native Foundry status')}>Custom</span>`:''}${isReadOnlyStatus(id)?`<span class="ag-badge" ${tip(READ_ONLY_STATUS_HINT)}><i class="fa-solid fa-lock" aria-hidden="true"></i>Read only</span>`:''}</span>`,meta:isReadOnlyStatus(id)?`${E(READ_ONLY_STATUS_HINT)}.`:unknown&&showSources?statusSourceLine(actor,id):'',end:canRemove(actor,id)?btn('remove-status','Remove',{kind:'sm',attrs:`data-status="${E(id)}" aria-label="Remove ${E(statusLabel(actor,id))} from ${E(actor.name)}"`}):'',cls:'agu-condition-row'});}):[];
  const detailList=details.length?rowsHTML(details):`<p class="ag-field__hint">No conditions on this character right now.</p>`;
  const overlayOn=game.settings.get(ID,'overlayOpen')===true;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'sm',icon:'fa-up-right-from-square',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters to show',isGM()?'Create a character to see its conditions here.':'Party characters appear here once your GM shares them with you.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${detailList}${actor&&canApplyTo(actor)?`<div class="agu-compact"><label class="ag-field">Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,x.label,pick)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div>${controllersLine()}<p class="ag-field__hint">Who may change conditions, Custom and read-only statuses: see Help.</p></section>`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'sm',icon:'fa-up-right-from-square',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters to show',isGM()?'Create a character to see its conditions here.':'Party characters appear here once your GM shares them with you.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${detailList}${actor&&canApplyTo(actor)?`<div class="agu-compact"><label class="ag-field">Native condition<span class="agu-pick">${pickIcon(known,pick,'agu-condition-icon')}<select id="agu-condition-status">${known.map(x=>optionIcon(x,pick)).join('')}</select></span></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div>${controllersLine()}${conditionIconsFold()}<p class="ag-field__hint">Who may change conditions, Custom and read-only statuses: see Help.</p></section>`;
 }
 /** Rolls → History (GM): finished and cancelled checks, newest first. */
 function historyView(app){if(!isGM())return '';
@@ -365,7 +385,7 @@ class UtilitiesApp extends ApplicationV2 {
   for(const b of root.querySelectorAll('[id^="agu-rolls-tab-"]'))b.addEventListener('click',()=>{this.rollsSub=b.dataset.tab;this.render().catch(error);});
   const start=root.querySelector('[data-start-rolls] details');
   start?.addEventListener('toggle',()=>{this.startOpen=start.open;});
-  root.querySelector('#agu-condition-status')?.addEventListener('change',e=>{this.conditionPick=e.target.value;});
+  root.querySelector('#agu-condition-status')?.addEventListener('change',e=>{this.conditionPick=e.target.value;const pic=root.querySelector('#agu-condition-icon'),src=e.target.selectedOptions?.[0]?.dataset?.icon;if(pic&&src)pic.src=src;});
   bindFolds(root,this.ui);
   for(const r of root.querySelectorAll('input[name="agu-mode"]'))r.addEventListener('change',()=>{this.rollMode=r.value;const group=r.value==='group';
    for(const el of root.querySelectorAll('[data-group-only]'))el.hidden=!group;
@@ -469,6 +489,10 @@ class UtilitiesApp extends ApplicationV2 {
   }
   if(action==='table-send'){if(!isGM())throw Error('GM only.');await sendMessage(root.querySelector('#agu-table-message')?.value||'',root);this.tableDraft='';await this.render();return;}
   if(action==='remove-status'){const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');await removeFromUI(actor,b.dataset.status);await this.render();return;}
+  if(action==='pick-condition-icon'){if(!isGM())throw Error('GM only.');const id=b.dataset.status,FP=foundry.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker?.implementation??globalThis.FilePicker;
+   if(!iconableIds().includes(id))throw Error('That condition no longer exists.');if(!FP)throw Error('The file picker is not available.');
+   new FP({type:'image',current:conditionIcons()[id]||'',callback:path=>{setConditionIcon(id,path).then(()=>ui.notifications?.info(`Icon set for ${anyLabel(id)}.`)).catch(error);}}).render(true);return;}
+  if(action==='reset-condition-icon'){if(!isGM())throw Error('GM only.');const id=b.dataset.status;await setConditionIcon(id,'');ui.notifications?.info(`${anyLabel(id)} uses its own icon again.`);return;}
   if(action==='add-status'){
    const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');const id=root.querySelector('#agu-condition-status')?.value;this.conditionPick=id;
    if(isReadOnlyStatus(id))throw Error(`${statusName(id)} can't be applied here. ${READ_ONLY_STATUS_HINT}.`);
@@ -525,7 +549,7 @@ const controllerList=()=>[...game.users].filter(u=>!u.isGM&&isController(getCont
 const stillThere=(actor,statusId)=>Error(`${statusName(statusId)} is still on ${actor.name}: another effect or module keeps it. Check its source.`);
 async function executeRemoval(actor,statusId,user){
  const d=removalDecision({user,actor,statusId,...conditionRules()});if(!d.ok)throw Error(d.reason);
- if(nativeIds().includes(statusId)){await actor.toggleStatusEffect(statusId,{active:false});if(hasStatus(actor,statusId))throw stillThere(actor,statusId);return `Removed ${statusName(statusId)} from ${actor.name}.`;}
+ if(nativeIds().includes(statusId)){try{await actor.toggleStatusEffect(statusId,{active:false});}catch(e){throw Error(friendlyStatusError(e,{label:statusName(statusId),actorName:actor.name,verb:'remove'}));}if(hasStatus(actor,statusId))throw stillThere(actor,statusId);return `Removed ${statusName(statusId)} from ${actor.name}.`;}
  const r=await removeUnknownStatus(actor,statusId);
  if(hasStatus(actor,statusId))throw stillThere(actor,statusId);
  return r.disabled?`Disabled ${r.disabled} item effect(s) and deleted ${r.deleted} on ${actor.name}.`:`Removed "${statusName(statusId)}" from ${actor.name}.`;
@@ -538,7 +562,7 @@ async function removeCondition(actorId,statusId){
 /** 0.23.0: apply a native condition. Runs on the GM client (directly, or for a player's request after re-checking). */
 async function executeApply(actor,statusId,user){statusId=resolveStatusId(statusId,nativeIds());
  const d=applyDecision({user,actor,statusId,...conditionRules()});if(!d.ok)throw Error(d.reason);
- await actor.toggleStatusEffect(statusId,{active:true});
+ try{await actor.toggleStatusEffect(statusId,{active:true});}catch(e){throw Error(friendlyStatusError(e,{label:statusName(statusId),actorName:actor.name,verb:'apply'}));}
  if(!hasStatus(actor,statusId))throw Error(`${statusName(statusId)} was not applied to ${actor.name}: Foundry or another module refused it.`);
  return `Applied ${statusName(statusId)} to ${actor.name}.`;
 }
@@ -634,10 +658,10 @@ function overlayHTML(app){
  const st=overlayState(app);
  const cards=overlayCards(partyCharacters(),{users:[...game.users],label:(id,a)=>statusLabel(a,id),isNative:id=>Boolean(statusConfig(id)),canRemove:(a,id)=>canRemove(a,id)});
  const target=st.actor?(st.enabled&&st.applyOk?`Changing conditions for ${st.actor.name}.`:st.reason||`Changing conditions for ${st.actor.name}.`):'Select a character to change its conditions.';
- const head=`<div class="agu-ov-head">${overlayFadeHTML()}<div class="agu-ov-controls"><select id="agu-ov-status" class="agu-ov-status" aria-label="${E(st.actor?`Condition to apply to ${st.actor.name}`:'Condition to apply')}" aria-describedby="agu-ov-target" ${st.enabled?'':'disabled'}>${st.choices.map(x=>option(x.id,x.label,st.pick)).join('')}</select>${btn('ov-apply','Apply',{kind:'primary sm',disabled:!st.applyOk,attrs:'data-ov-apply aria-describedby="agu-ov-target"'})}</div><p class="ag-field__hint agu-ov-target" id="agu-ov-target" role="status">${E(target)}</p></div>`;
+ const head=`<div class="agu-ov-head">${overlayFadeHTML()}<div class="agu-ov-controls">${pickIcon(st.choices,st.pick,'agu-ov-icon')}<select id="agu-ov-status" class="agu-ov-status" aria-label="${E(st.actor?`Condition to apply to ${st.actor.name}`:'Condition to apply')}" aria-describedby="agu-ov-target" ${st.enabled?'':'disabled'}>${st.choices.map(x=>optionIcon(x,st.pick)).join('')}</select>${btn('ov-apply','Apply',{kind:'primary sm',disabled:!st.applyOk,attrs:'data-ov-apply aria-describedby="agu-ov-target"'})}</div><p class="ag-field__hint agu-ov-target" id="agu-ov-target" role="status">${E(target)}</p></div>`;
  const card=c=>{const sel=st.actor?.id===c.actorId;
   return `<div class="agu-ov-card${sel?' is-selected':''}"><button type="button" class="agu-ov-pick" data-ov-select data-actor="${E(c.actorId)}" aria-pressed="${sel}">${c.img?`<img class="agu-ov-portrait" src="${E(c.img)}" alt="">`:''}<span class="agu-ov-name">${E(c.name)}</span>${sel?'<i class="fa-solid fa-check agu-ov-check" aria-hidden="true"></i>':''}</button>`
-  +(c.conditions.length?`<ul class="agu-ov-chips">${c.conditions.map(x=>`<li class="agu-ov-chip"><span>${E(x.label)}${x.custom?' <small>(Custom)</small>':''}${x.readOnly?` <small ${tip(READ_ONLY_STATUS_HINT)}>(Read only)</small>`:''}</span>${x.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(c.actorId)}" data-status="${E(x.id)}" ${tip(`Remove ${x.label}`)} aria-label="Remove ${E(x.label)} from ${E(c.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}</li>`).join('')}</ul>`:'<p class="agu-ov-none">No conditions</p>')+'</div>';};
+  +(c.conditions.length?`<ul class="agu-ov-chips">${c.conditions.map(x=>`<li class="agu-ov-chip">${conditionIcon(x.id)}<span>${E(x.label)}${x.custom?' <small>(Custom)</small>':''}${x.readOnly?` <small ${tip(READ_ONLY_STATUS_HINT)}>(Read only)</small>`:''}</span>${x.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(c.actorId)}" data-status="${E(x.id)}" ${tip(`Remove ${x.label}`)} aria-label="Remove ${E(x.label)} from ${E(c.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}</li>`).join('')}</ul>`:'<p class="agu-ov-none">No conditions</p>')+'</div>';};
  return `<div class="agu-overlay">${head}${cards.length?`<div class="agu-ov-cards">${cards.map(card).join('')}</div>`:empty('No characters to show','Party characters appear here once your GM shares them with you.')}</div>`;
 }
 const savedOverlayPosition=()=>{const p=game.settings.get(ID,'overlayPosition')||{};return Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(p[k])).map(k=>[k,p[k]]));};
@@ -1480,6 +1504,7 @@ Hooks.once('init',()=>{
  game.settings.register(ID,'history',{name:'Utilities: Interaction History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
  game.settings.register(ID,'lastResult',{name:'Utilities: Last Finished Check',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
  // Characters whose owners may remove conditions: {actorId:true}. Absent means locked.
+ game.settings.register(ID,'conditionIcons',{name:'Utilities: Custom Condition Icons',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
  game.settings.register(ID,'conditionUnlocks',{name:'Utilities: Condition Removal Unlocks',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
  // 0.23.0: owners apply/remove native conditions on all their characters (default off); condition controllers {userId:true}.
  game.settings.register(ID,'ownersManageConditions',{name:'Utilities: Owners Manage Conditions',scope:'world',config:false,type:Boolean,default:false,onChange:refreshWindows});
@@ -1508,7 +1533,7 @@ Hooks.once('ready',()=>{
  installItemTips();
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
-  conditions:{contract:'ag-utilities-conditions/1',canChangeActor,isPlayerCharacter:a=>isPlayerCharacter(a,[...game.users]),choices:()=>conditionChoices().map(c=>({...c})),isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>permitted()&&canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>permitted()&&applyDecision({user:game.user,actor:game.actors.get(actorId),statusId:resolveStatusId(statusId,nativeIds()),...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
+  conditions:{contract:'ag-utilities-conditions/1',canChangeActor,icons:{get:()=>({...conditionIcons()}),set:setConditionIcon,reset:id=>setConditionIcon(id,'')},isPlayerCharacter:a=>isPlayerCharacter(a,[...game.users]),choices:()=>conditionChoices().map(c=>({...c})),isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>permitted()&&canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>permitted()&&applyDecision({user:game.user,actor:game.actors.get(actorId),statusId:resolveStatusId(statusId,nativeIds()),...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
   stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,deleteItem,listItems:listStashItems},
   rolls:{contract:'ag-utilities-rolls/1',modes:[...ROLL_OPEN_MODES],skills:[...SKILL_IDS],open:openRolls},
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},

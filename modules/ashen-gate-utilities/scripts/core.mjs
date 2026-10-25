@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.30.4';
+export const VERSION = '0.31.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -227,12 +227,86 @@ export const unknownStatusLabel = (actor, statusId) => {
   return e ? e.name : statusId;
 };
 /**
+ * 0.31.0: whether Actor#toggleStatusEffect(id) can find `id` in the registry. Foundry V14 looks the id up as a KEY of
+ * CONFIG.statusEffects (older cores search an array by `id`), so an id that is only a group name, an alias or a typo throws
+ * "Invalid status ID". Only these ids may ever be offered to a toggle.
+ */
+export function statusIsToggleable(registry, id) {
+  if (typeof id !== 'string' || !id) return false;
+  if (Array.isArray(registry)) return registry.some(e => e?.id === id);
+  if (registry instanceof Map) return Boolean(registry.get(id)) && typeof registry.get(id) === 'object';
+  return Boolean(registry) && typeof registry === 'object' && Object.hasOwn(registry, id) && Boolean(registry[id]) && typeof registry[id] === 'object';
+}
+/**
+ * 0.31.0: the statuses that make no sense to toggle by hand: dnd5e's automatic effects (`hud: false`, e.g. encumbrance), and
+ * a group name such as "cover" (dnd5e puts Half, Three-Quarters and Total Cover in the exclusive group "cover"; each is its own
+ * status). Returns the entries that remain.
+ */
+export function manualStatusEntries(entries) {
+  const groups = new Set(entries.map(e => e.exclusiveGroup).filter(g => typeof g === 'string' && g));
+  return entries.filter(e => e.hud !== false && !groups.has(e.id));
+}
+/** 0.31.0: the exclusive-group names of the registry mapped to the statuses in them: {cover: ['coverHalf', ...]} (ordered by `order`). */
+export function statusGroups(entries) {
+  const out = {};
+  for (const e of [...entries].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))) if (typeof e.exclusiveGroup === 'string' && e.exclusiveGroup) (out[e.exclusiveGroup] ??= []).push(e.id);
+  return out;
+}
+/** Generic picture when a condition has neither a custom nor its own icon (a Foundry core icon). */
+export const CONDITION_ICON_FALLBACK = 'icons/svg/aura.svg';
+const ICON_PATH = /\.(png|jpe?g|webp|svg|gif|avif)(\?[^\s]*)?$/i;
+/** 0.31.0: an image path as stored: a trimmed string of up to 300 characters ending in an image extension, relative or https; else ''. */
+export function cleanIconPath(v) {
+  if (typeof v !== 'string') return '';
+  const t = v.trim();
+  if (!t || t.length > 300 || /[\u0000-\u001f<>"'`\\]/.test(t) || t.startsWith('//') || (/^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https:\/\//i.test(t))) return '';
+  return ICON_PATH.test(t) ? t : '';
+}
+/** 0.31.0: the saved custom icons {id: path} reduced to ids that exist (`validIds`) with a valid path; anything else is ignored. */
+export function cleanConditionIcons(raw, validIds = []) {
+  const ok = new Set(validIds), out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, path] of Object.entries(raw)) { const p = cleanIconPath(path); if (p && ok.has(id)) out[id] = p; }
+  return out;
+}
+/** 0.31.0: the icon shown for a condition: custom > the status's own image > the generic one. `status` is the registry entry or null. */
+export function resolveConditionIcon({custom = '', status = null} = {}) {
+  return cleanIconPath(custom) || cleanIconPath(status?.img ?? status?.icon) || CONDITION_ICON_FALLBACK;
+}
+/**
+ * 0.31.0: who may set or reset a custom icon, and the new map. GM only (checked here, in the write, not just by hiding buttons).
+ * `path` '' resets. A condition that does not exist, or a path that is not an image, is refused and nothing changes.
+ */
+export function conditionIconChange({user, icons = {}, id, path = '', validIds = []} = {}) {
+  if (!user?.isGM) return {ok: false, reason: 'Only the GM can change condition icons.'};
+  if (typeof id !== 'string' || !validIds.includes(id)) return {ok: false, reason: 'That condition does not exist.'};
+  const next = {...cleanConditionIcons(icons, validIds)};
+  if (path === '' || path === null || path === undefined) { delete next[id]; return {ok: true, icons: next, reset: true}; }
+  const p = cleanIconPath(path);
+  if (!p) return {ok: false, reason: 'Choose an image file (png, jpg, webp, svg, gif or avif).'};
+  next[id] = p;
+  return {ok: true, icons: next, reset: false};
+}
+/**
+ * 0.31.0: one friendly line for a failed condition change, never a raw Foundry error, stack or id.
+ * "Couldn't apply Half Cover to Quest: Foundry doesn't recognise that condition."
+ */
+export function friendlyStatusError(err, {label = 'that condition', actorName = 'the character', verb = 'apply'} = {}) {
+  const prep = verb === 'apply' ? 'to' : 'from', raw = String(err?.message ?? err ?? '');
+  const head = `Couldn't ${verb} ${label} ${prep} ${actorName}`;
+  if (/invalid status id/i.test(raw)) return `${head}: Foundry doesn't recognise that condition.`;
+  const clean = raw.split('\n')[0].replace(/\s*["'][^"']*["']/g, '').replace(/\s+/g, ' ').trim();
+  return clean && clean.length <= 140 ? `${head}: ${clean.replace(/[.\s]+$/, '')}.` : `${head}.`;
+}
+/**
  * 0.29.2: the shared conditions list, from `statusEntries(...)` rows: not read-only, not exhaustion, with a label and an image,
  * sorted by label. [{id, label, img}]
+ * 0.31.0: only statuses a toggle can find (`registry`, when given), never an automatic effect or a group name (manualStatusEntries),
+ * and `img` follows the icon chain: `icons[id]` (the GM's custom icon) > the status's own image > the generic one.
  */
-export function sharedConditionChoices(entries, {label = e => e.name ?? e.id} = {}) {
-  return entries.filter(e => !isReadOnlyStatus(e.id))
-    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: typeof (e.img ?? e.icon) === 'string' ? (e.img ?? e.icon) : ''}))
+export function sharedConditionChoices(entries, {label = e => e.name ?? e.id, registry = null, icons = {}} = {}) {
+  return manualStatusEntries(entries).filter(e => !isReadOnlyStatus(e.id) && (registry === null || statusIsToggleable(registry, e.id)))
+    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: resolveConditionIcon({custom: icons[e.id], status: e}), custom: Boolean(cleanIconPath(icons[e.id]))}))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 /** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
@@ -308,11 +382,11 @@ export function removalDecision({user, actor, statusId, nativeIds = [], controll
   return {ok: true, reason: ''};
 }
 /** 0.23.0: whether `user` may apply native `statusId` to `actor`. Same people as removal; never a Custom or read-only status. */
-export function applyDecision({user, actor, statusId, nativeIds = [], controllers = {}, users}) {
+export function applyDecision({user, actor, statusId, nativeIds = [], applyIds = null, controllers = {}, users}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be applied here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
-  if (typeof statusId !== 'string' || !nativeIds.includes(statusId)) return {ok: false, reason: 'Unknown native status.'};
+  if (typeof statusId !== 'string' || !(applyIds ?? nativeIds).includes(statusId)) return {ok: false, reason: 'Unknown native status.'};
   const r = conditionRole({user, actor, controllers, users});
   if (!r.role) return {ok: false, reason: r.reason};
   if (hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} already has that condition.`};

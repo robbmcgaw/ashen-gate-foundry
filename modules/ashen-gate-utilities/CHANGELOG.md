@@ -1,3 +1,11 @@
+## 0.31.0 — 2026-10-25
+
+- **Only real conditions are offered.** The condition lists (Conditions tab, overlay, and the Character Hub's list through Utilities) now offer only statuses Foundry can toggle. A group name (dnd5e's "cover" group) or dnd5e's automatic effects (encumbrance) are never offered; Half Cover, Three-Quarters Cover and Total Cover are separate conditions.
+- **A refused change reads as one plain line**, for example "Couldn't apply Half Cover to Quest: Foundry doesn't recognise that condition." instead of Foundry's raw "Invalid status ID" message.
+- **Condition icons.** Each condition shows a small icon beside its name: in the overlay chips, beside the Apply list in the Conditions tab and the overlay (it follows the picked condition), and in the existing rows. Order: your custom icon, then the condition's own Foundry icon, then a generic one. The name is always shown as text.
+- **Your own icons (GM).** Conditions tab → *Condition icons*: **Choose icon…** (file picker, images only) and **Reset icon** per condition, including Custom statuses currently on a character. Saved in the world (new setting, nothing to migrate), shown everywhere Utilities lists a condition. Players only see the result; the write is refused for non-GMs. Token status icons are not changed.
+- API: `conditions.icons.get()`, `.set(id, path)` and `.reset(id)` (GM only) added to `ag-utilities-conditions/1`; the shared `choices()` list carries the icon in `img`.
+
 ## 0.30.4 — 2026-10-24
 
 - **Bigger pictures in the Party stash.** Item pictures in the stash table (the Utilities window and the Party stash view in the Character Hub's Inventory tab) are about twice as large, show the whole icon, and the rows stay aligned. Compact density gets a proportionally smaller size.

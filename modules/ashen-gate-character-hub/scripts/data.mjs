@@ -7,9 +7,14 @@ import {dnd5eConfig, labelOf, num} from './constants.mjs';
 /** CONFIG.statusEffects is an array in older cores and may be keyed by id in V14; accept both. */
 function statusEffects() {
   const s = globalThis.CONFIG?.statusEffects;
-  return Array.isArray(s) ? s : Object.entries(s ?? {}).map(([id, e]) => ({id, ...e}));
+  // 0.50.1: the KEY is the id (Actor#toggleStatusEffect looks the key up), so it wins over any `id` inside the entry.
+  return Array.isArray(s) ? s : Object.entries(s ?? {}).filter(([, e]) => e && typeof e === 'object').map(([id, e]) => ({...e, id}));
 }
 export const statusEffectIds = () => new Set(statusEffects().map(e => e?.id).filter(Boolean));
+/** 0.50.1: whether Actor#toggleStatusEffect(id) can find `id` (a registry key; older cores: an entry's id). Never offer anything else. */
+export const isToggleableStatus = id => typeof id === 'string' && statusEffectIds().has(id);
+/** Generic picture for a condition with no icon of its own (a Foundry core icon). */
+export const CONDITION_ICON_FALLBACK = 'icons/svg/aura.svg';
 
 function speciesName(actor) {
   const r = actor.system?.details?.race;
@@ -62,8 +67,8 @@ export function conditionsData(actor) {
   const types = dnd5eConfig().conditionTypes ?? {}, effects = new Map(statusEffects().filter(e => e?.id).map(e => [e.id, e]));
   const active = actor.statuses ?? new Set();
   return Object.entries(types)
-    .filter(([id, c]) => id !== 'exhaustion' && !c?.pseudo && effects.has(id))
-    .map(([id, c]) => ({id, label: labelOf(c) || id, active: active.has(id), img: c?.img || c?.icon || effects.get(id)?.img || effects.get(id)?.icon || ''}))
+    .filter(([id, c]) => id !== 'exhaustion' && !c?.pseudo && effects.has(id) && effects.get(id).hud !== false)
+    .map(([id, c]) => ({id, label: labelOf(c) || id, active: active.has(id), img: c?.img || c?.icon || effects.get(id)?.img || effects.get(id)?.icon || CONDITION_ICON_FALLBACK}))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 

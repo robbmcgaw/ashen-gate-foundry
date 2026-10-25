@@ -244,7 +244,7 @@ test('conditions carry their status icon when dnd5e provides one', () => {
   CONFIG.DND5E.conditionTypes.prone.img = 'prone.svg';
   const c = conditionsData(makeActor());
   assert.equal(c.find(x => x.id === 'prone').img, 'prone.svg');
-  assert.equal(c.find(x => x.id === 'blinded').img, '');
+  assert.equal(c.find(x => x.id === 'blinded').img, 'icons/svg/aura.svg', 'no icon of its own: the generic one');
 });
 
 test('conditions strip (0.34.0): active ones as chips with ✕, every condition in the list; observers see it disabled', async () => {
