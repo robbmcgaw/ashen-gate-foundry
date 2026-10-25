@@ -73,6 +73,7 @@ import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTER
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
 import {cindersApi, cinderCaps, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
 import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
+import {classifyFiles, stageFiles, stageSummary, setFileUpload, setUnmatchedUpload, unmatchedTickState, uploadSelection, unmatchedInFolder, removalList, removalText, STATUS_LABEL} from './asset-stage.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -280,7 +281,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
-  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (nine Cinders, stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
+  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>: Manager first reads the file names and shows how many fit a record and how many fit none, under <em>Files waiting to upload</em>. Files that fit no record start unticked and are not uploaded unless you tick them (or tick <em>Upload unmatched files too</em>); nothing is uploaded until you press the upload button, and files already there are only replaced if you say so. Afterwards <em>Link files to records</em> lists the files in the folder with <em>Files with no match</em>: tick the ones to delete and copy the list, because Foundry and The Forge give modules no way to delete files, so you delete them in the Assets Library (<em>Open the Assets Library</em>). Manager never deletes a file, and never lists one that is a record’s image. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (nine Cinders, stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
@@ -332,7 +333,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
     this.assets = {cinderPickerKey:null, pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
-      scan:null, linkFiles:[], links:null, tokenRing:true, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
+      scan:null, linkFiles:[], links:null, tokenRing:true, staged:null, deleteList:new Set(), lastUpload:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -1028,7 +1029,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async #pickFile(kind,file,files=[file]) {
     if(!file)return;
     if(kind==='sync')return this.#syncPick(files).catch(err=>this.#fail(err));
-    if(kind==='assets')return this.#assetsUpload(files).catch(err=>this.#fail(err));
+    if(kind==='assets')return this.#assetsStage(files).catch(err=>this.#fail(err));
     if(kind==='import')return this.#importFile(file);
     if(kind==='rules')return this.#importRules(file).catch(err=>this.#fail(err));
     if(kind==='codex')return this.#codexImport(file).catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
@@ -1967,6 +1968,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #assetsGo(target,focus) {
     const a=this.assets;
     if(a.uploading)return;
+    this.#assetsDropStage();
     a.target=target;a.listing=null;a.query='';
     this.focusAfterRender=focus??null;void this.render();
   }
@@ -2011,6 +2013,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         options:cinderPool.map(c=>({value:c.definitionId,label:c.name,selected:c.definitionId===r.definitionId})),
         canDifferent:cinderPool.length>0,hasExtras:r.extras.length>0,hasExisting:Boolean(r.from.length||r.fromArt)};
     });
+    const st=a.staged, sum=st?stageSummary(st.items):null;
+    const stageRow=i=>({...i,key:i.id,tone:i.status==='matched'?'ok':'warn',mustPick:i.status==='ambiguous'});
+    const staged=st?{summary:sum.line,total:sum.total,unmatchedRows:st.items.filter(i=>i.status==='unmatched').map(stageRow),
+      matchedRows:st.items.filter(i=>i.status!=='unmatched').map(stageRow),hasUnmatched:sum.unmatched>0,hasMatched:sum.total-sum.unmatched>0,
+      unmatchedAll:unmatchedTickState(st.items)==='all',unmatchedSome:unmatchedTickState(st.items)==='some',unmatched:sum.unmatched,
+      toUpload:sum.toUpload,skipped:sum.skipped,canGo:sum.toUpload>0,rejected:st.rejected,hasRejected:st.rejected.length>0,
+      goLabel:`Upload ${sum.toUpload} file${sum.toUpload===1?'':'s'} and preview links`,
+      note:sum.toUpload?`${sum.skipped?`${sum.skipped} will not be uploaded or deleted. `:''}Nothing is uploaded until you press the button.`:'No file is ticked, so nothing will be uploaded.'}:null;
+    const stale=Boolean(links)&&links.target!==undefined&&links.target!==a.target;
+    const un=links&&!stale?unmatchedInFolder(links.classified,{user:game.user,target:a.target}):{files:[],below:0};
+    const noMatchRows=un.files.slice(0,300).map(f=>({name:f.name,path:f.path,url:this.#assetUrl(f.path),reason:f.reason,onList:a.deleteList.has(f.path)}));
+    const listed=removalList([...a.deleteList],links?.classified,{user:game.user,target:a.target});
+    const noMatchTotal=(links?.classified??[]).filter(f=>f.status==='unmatched').length;
     const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
     const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
     const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
@@ -2022,14 +2037,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       dirs,tiles,fileCount:files.length,folderCount:dirs.length,moreCount:Math.max(0,files.length-tiles.length),
       emptyFolder:Boolean(l?.ok)&&!l.files.length&&!l.dirs.length,noMatches:Boolean(l?.ok)&&(l.files.length||l.dirs.length)&&!files.length&&!dirs.length,
       uploading:a.uploading,uploads:a.uploads.map(r=>({...r,label:UPLOAD_LABEL[r.status]??r.status,tone:UPLOAD_TONE[r.status]??''})),hasUploads:a.uploads.length>0,
-      uploadMessage:a.uploadMessage,
+      uploadMessage:a.uploadMessage,staged,hasStaged:Boolean(staged),
+      noMatchRows,hasNoMatch:Boolean(links)&&!stale&&(noMatchRows.length>0||un.below>0),noMatchCount:un.files.length,noMatchOverflow:Math.max(0,un.files.length-noMatchRows.length),
+      noMatchBelow:un.below,noMatchStale:Boolean(links)&&stale,deleteCount:listed.allowed.length,hasDeleteList:listed.allowed.length>0,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
       tokenRing:a.tokenRing,ringOffer:allRows.some(r=>r.ringLabel),ringCount:linkRows.filter(r=>r.ringWill).length,ringKept:linkRows.filter(r=>r.ringKeptNote).length,
       scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,cinderRows,hasCinderRows:cinderRows.length>0,hasAnyRows:linkRows.length>0||cinderRows.length>0,
       linkTicked:counts.willLink+cinderWill,linkSkipped:counts.skipped+cinderAll.length-cinderWill,linkConflicts:counts.conflicts+cinderBlocked.size,linkUndecided:counts.undecided+cinderAll.filter(r=>r.needsPick&&!r.chosen).length,
       linkCountLine:`${counts.willLink+cinderWill} will be linked, ${counts.skipped+cinderAll.length-cinderWill} skipped.`,linkCanApply:counts.willLink+cinderWill>0&&!counts.conflicts&&!cinderBlocked.size,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
-      scanSummary:!links?'':links.fromUpload?`Checked the ${a.linkFiles.length} file(s) you just added. ${links.unmatchedFiles} of them fit no record.`
-        :`Looked through ${links.folders} folder(s) and ${a.linkFiles.length} image file(s)${a.scan?.complete===false?' (the scan stopped early; open a deeper folder to narrow it)':''}. ${links.unmatched} record(s) have no file that fits and ${links.unmatchedFiles} file(s) fit no record.`,
+      scanSummary:!links?'':links.fromUpload?`Checked the ${a.linkFiles.length} file(s) you just added. ${noMatchTotal} of them fit no record.`
+        :`Looked through ${links.folders} folder(s) and ${a.linkFiles.length} image file(s)${a.scan?.complete===false?' (the scan stopped early; open a deeper folder to narrow it)':''}. ${links.unmatched} record(s) have no file that fits and ${noMatchTotal} file(s) fit no record.`,
       missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
       missingRows:missingShown,missingCount:missing.length,missingOverflow:Math.max(0,missing.length-missingShown.length),
       missingScanned:Boolean(foundNames),message:a.message
@@ -2054,7 +2071,30 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #planLinks(files) {
     const caps=cinderCaps(cindersApi());
     const {rows:cinderRows,rest}=planCinderArt(files,{user:game.user,cinders:this.#cinderList(),caps});
-    return {...planAssetLinks(this.#assetDocs(),rest),cinderRows};
+    const plan=planAssetLinks(this.#assetDocs(),rest);
+    return {...plan,cinderRows,classified:classifyFiles(files,{plan,cinderRows,inUse:this.#worldImagePaths()})};
+  }
+  /** Every image path a document in the world uses (portraits, tokens, scenes, tiles…), so a file in use is never offered for deleting. */
+  #worldImagePaths() {
+    const set=new Set(), add=v=>{if(typeof v==='string'&&v)set.add(v);};
+    try{
+      for(const d of game.actors??[]){add(d.img);add(d.prototypeToken?.texture?.src);}
+      for(const d of game.items??[])add(d.img);
+      for(const d of game.scenes??[]){add(d.background?.src);add(d.thumb);for(const t of d.tokens??[])add(t.texture?.src);for(const t of d.tiles??[])add(t.texture?.src);}
+      for(const d of game.journal??[]){add(d.img);for(const pg of d.pages??[])add(pg.src);}
+      for(const d of game.tables??[])add(d.img);
+      for(const d of game.macros??[])add(d.img);
+    }catch{ /* a collection that cannot be read adds nothing */ }
+    return set;
+  }
+  #assetsDropStage() {
+    const a=this.assets;
+    if(!a.staged)return;
+    this.#revokeThumbs(a.staged);
+    a.staged=null;a.linkMessage='The files waiting to upload were cleared. Nothing was uploaded.';
+  }
+  #revokeThumbs(staged) {
+    for(const i of staged?.items??[])if(i.thumb)try{URL.revokeObjectURL(i.thumb);}catch{ /* none */ }
   }
   async #assetsAction(name) {
     if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
@@ -2076,7 +2116,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           const scan=await scanFolders(picker,{source,target:a.target,user:game.user});
           a.scan=scan;a.linkFiles=scan.files;
           const plan=this.#planLinks(scan.files);
-          a.links={...plan,folders:scan.folders};
+          a.links={...plan,folders:scan.folders,target:a.target};a.deleteList=new Set();
           a.linkMessage=(plan.rows.length||plan.cinderRows.length)?this.#linkSummary(plan.rows,plan.cinderRows)
             :scan.ok?'No file in this folder (or under it) fits a record by its permanent id or by name. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
         }finally{a.scanning=false;}
@@ -2104,15 +2144,55 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           if(rows.length)outs.push(await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany,tokenRing:a.tokenRing}));
           if(cinderRows.length)outs.push(await applyCinderArt(cinderRows,{user:game.user,api:cindersApi()}));
           const out={ok:outs.every(o=>o.ok),message:outs.map(o=>o.message).filter(Boolean).join(' ')};
-          a.pickerKey=null;a.cinderPickerKey=null;a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
-          a.linkMessage=out.message;say(out.message,!out.ok);
+          const linked=outs.reduce((n,o)=>n+(o.applied?.length??0),0);
+          a.pickerKey=null;a.cinderPickerKey=null;a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload,target:a.links.target};
+          a.linkMessage=a.lastUpload?`${a.lastUpload.uploaded} uploaded, ${linked} linked, ${a.lastUpload.skipped} skipped. ${out.message}`:out.message;a.lastUpload=null;say(a.linkMessage,!out.ok);
         }finally{this.busy=false;}
         break;
       }
     }
     await this.render();
   }
-  async #assetsUpload(files) {
+  /** Drop or Choose files…: match the file NAMES against the records first (no network). Nothing is uploaded until the GM presses Upload. */
+  async #assetsStage(files) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets;
+    if(a.uploading||!files?.length||!a.listing?.ok)return;
+    const out=stageFiles(files,{user:game.user,target:a.target,existing:(a.listing?.files??[]).map(f=>f.name),classify:pseudo=>this.#planLinks(pseudo).classified});
+    if(!out.ok)return toast(out.message,true);
+    this.#revokeThumbs(a.staged);
+    a.uploadMessage='';
+    if(!out.items.length){
+      a.staged=null;a.uploads=out.rejected;a.uploadMessage='Nothing was uploaded: none of these files can be added.';
+    }else{
+      for(const i of out.items){try{i.thumb=URL.createObjectURL(i.file);}catch{i.thumb='';}}
+      a.staged={items:out.items,rejected:out.rejected,target:a.target};a.uploads=[];
+      a.linkMessage='';
+    }
+    this.focusAfterRender=out.items.length?'[data-ag-assets-upload-go]':null;
+    await this.render();
+  }
+  async #assetsStageAction(name,el) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets, st=a.staged;
+    if(!st||a.uploading)return;
+    if(name==='cancel'){this.#revokeThumbs(st);a.staged=null;a.uploadMessage='Nothing was uploaded.';this.focusAfterRender='[data-ag-assets-refresh]';}
+    else if(name==='file'){setFileUpload(st.items,el.dataset.agAssetsStageFile,el.checked);this.focusAfterRender=`[data-ag-assets-stage-file="${CSS.escape(el.dataset.agAssetsStageFile)}"]`;}
+    else if(name==='unmatched'){setUnmatchedUpload(st.items,el.checked);this.focusAfterRender='[data-ag-assets-stage-unmatched]';}
+    else if(name==='go')return this.#assetsUploadStaged();
+    await this.render();
+  }
+  async #assetsUploadStaged() {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets, st=a.staged;
+    if(!st||a.uploading)return;
+    const sel=uploadSelection(st.items,{user:game.user});
+    if(!sel.ok)return toast(sel.message,true);
+    if(!sel.files.length){a.uploadMessage='No file is ticked, so nothing was uploaded. Tick the files to add, or cancel.';toast(a.uploadMessage,true);await this.render();return;}
+    this.#revokeThumbs(st);a.staged=null;
+    await this.#assetsUpload(sel.files,{skipped:sel.skipped.length});
+  }
+  async #assetsUpload(files,{skipped=0}={}) {
     if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
     const a=this.assets;
     if(a.uploading||!files?.length||!a.listing?.ok)return;
@@ -2135,28 +2215,53 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const out=await uploadFiles(files,{picker:filePickerClass(),source,target,user:game.user,existing:(a.listing?.files??[]).map(f=>f.name),decide,onProgress,signal:a.abort.signal});
       a.uploads=out.results;
       const count=s=>out.results.filter(r=>r.status===s).length;
-      a.uploadMessage=out.cancelled&&!out.results.some(r=>['uploaded','replaced'].includes(r.status))?'Nothing was uploaded.'
-        :`${count('uploaded')} uploaded, ${count('replaced')} replaced, ${count('skipped')} skipped, ${count('failed')+count('rejected')} not uploaded${count('not started')?`, ${count('not started')} not started`:''}.`;
-      toast(a.uploadMessage,!out.ok&&!out.cancelled);
       added=out.results.filter(r=>['uploaded','replaced'].includes(r.status)&&r.path).map(r=>({name:r.name,path:r.path}));
-    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkFiles=[];a.linkMessage='';}
+      const sent=count('uploaded')+count('replaced'), notSent=count('skipped')+skipped, bad=count('failed')+count('rejected');
+      a.lastUpload={uploaded:sent,skipped:notSent};
+      a.uploadMessage=out.cancelled&&!sent?'Nothing was uploaded.'
+        :`${sent} uploaded${count('replaced')?` (${count('replaced')} replaced)`:''}, ${notSent} skipped${bad?`, ${bad} could not be uploaded`:''}${count('not started')?`, ${count('not started')} not started`:''}.`;
+      toast(a.uploadMessage,!out.ok&&!out.cancelled);
+    }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkFiles=[];a.linkMessage='';a.deleteList=new Set();}
     if(added.length){
       // Look for records the new files fit (permanent id first, then name). Only a preview: nothing is written until Link.
       const plan=this.#planLinks(added);
-      a.linkFiles=added;a.links={...plan,folders:0,fromUpload:true};
+      a.linkFiles=added;a.links={...plan,folders:0,fromUpload:true,target};
       a.linkMessage=(plan.rows.length||plan.cinderRows.length)?`${this.#linkSummary(plan.rows,plan.cinderRows)} See Link files to records below.`:'None of the files you just added fit a record by its permanent id or by name. Nothing changed.';
+      a.uploadMessage=a.uploadMessage.replace(/, (\d+) skipped/,`, ${plan.rows.filter(r=>!r.needsPick).length+plan.cinderRows.length} ready to link, $1 skipped`);
     }
     await this.render();
   }
-  async #copyAssetPath(path) {
-    try{await (game.clipboard?.copyPlainText?.(path)??navigator.clipboard.writeText(path));toast('Path copied.');}
-    catch{toast('Could not copy the path.',true);}
+  async #copyAssetPath(path,done='Path copied.') {
+    try{await (game.clipboard?.copyPlainText?.(path)??navigator.clipboard.writeText(path));toast(done);}
+    catch{toast('Could not copy.',true);}
+  }
+  /** Files that fit no record: the list to delete in the Assets Library (Foundry gives modules no delete). Only files removalList allows. */
+  async #assetsNoMatchAction(name,el) {
+    if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
+    const a=this.assets, links=a.links;
+    if(!links||a.uploading)return;
+    const un=unmatchedInFolder(links.classified,{user:game.user,target:a.target});
+    if(name==='toggle'){
+      const path=el.dataset.agAssetsNomatchToggle;
+      if(!un.files.some(f=>f.path===path))return;
+      if(el.checked)a.deleteList.add(path);else a.deleteList.delete(path);
+      this.focusAfterRender=`[data-ag-assets-nomatch-toggle="${CSS.escape(path)}"]`;
+    }else if(name==='add'){for(const f of un.files)a.deleteList.add(f.path);this.focusAfterRender='[data-ag-assets-nomatch-bulk="add"]';}
+    else if(name==='clear'){a.deleteList=new Set();this.focusAfterRender='[data-ag-assets-nomatch-bulk="clear"]';}
+    else if(name==='copy'){
+      const list=removalList([...a.deleteList],links.classified,{user:game.user,target:a.target});
+      if(!list.allowed.length)return toast('No file is on the delete list.',true);
+      await this.#copyAssetPath(removalText(list.allowed),`Copied ${list.allowed.length} file name(s). Delete them in the Assets Library.`);
+      return;
+    }
+    await this.render();
   }
   #bindAssets(root) {
     const a=this.assets, pane=root.querySelector('[data-ag-assets]');
     if(!pane)return;
     pane.querySelector('[data-ag-assets-source]')?.addEventListener('change',event=>{
       if(a.uploading)return;
+      this.#assetsDropStage();
       a.source=event.target.value;a.target='';a.listing=null;a.query='';a.scan=null;a.linkFiles=[];a.links=null;a.linkMessage='';
       this.focusAfterRender='[data-ag-assets-source]';void this.render();
     });
@@ -2188,9 +2293,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       drop.addEventListener('dragleave',()=>over(false));
       drop.addEventListener('drop',event=>{
         event.preventDefault();over(false);
-        void this.#assetsUpload([...(event.dataTransfer?.files??[])]).catch(err=>this.#fail(err));
+        void this.#assetsStage([...(event.dataTransfer?.files??[])]).catch(err=>this.#fail(err));
       });
     }
+    // Staged upload (0.65.0): per-file ticks, the bulk tick for files that fit no record, Upload and Cancel. Nothing uploads before Upload.
+    pane.querySelectorAll('[data-ag-assets-stage-file]').forEach(el=>el.addEventListener('change',()=>void this.#assetsStageAction('file',el).catch(err=>this.#fail(err))));
+    const bulkTick=pane.querySelector('[data-ag-assets-stage-unmatched]');
+    if(bulkTick){bulkTick.indeterminate=bulkTick.dataset.some==='true';bulkTick.addEventListener('change',()=>void this.#assetsStageAction('unmatched',bulkTick).catch(err=>this.#fail(err)));}
+    pane.querySelector('[data-ag-assets-upload-go]')?.addEventListener('click',event=>{event.preventDefault();void this.#assetsStageAction('go').catch(err=>this.#fail(err));});
+    pane.querySelector('[data-ag-assets-stage-cancel]')?.addEventListener('click',event=>{event.preventDefault();void this.#assetsStageAction('cancel').catch(err=>this.#fail(err));});
+    // Files that fit no record (already in the library): the delete list. Manager cannot delete; it builds the list.
+    pane.querySelectorAll('[data-ag-assets-nomatch-toggle]').forEach(el=>el.addEventListener('change',()=>void this.#assetsNoMatchAction('toggle',el).catch(err=>this.#fail(err))));
+    pane.querySelectorAll('[data-ag-assets-nomatch-bulk]').forEach(el=>el.addEventListener('click',event=>{event.preventDefault();void this.#assetsNoMatchAction(el.dataset.agAssetsNomatchBulk,el).catch(err=>this.#fail(err));}));
+    pane.querySelector('[data-ag-assets-nomatch-copy]')?.addEventListener('click',event=>{event.preventDefault();void this.#assetsNoMatchAction('copy').catch(err=>this.#fail(err));});
     // Per-row choice (0.60.13): Yes / No, "Different record…" with a searchable picker, and the bulk buttons.
     // Every one re-renders and puts focus back on the control used; nothing here writes to the world.
     const rowOf=key=>a.links?.rows.find(r=>r.key===key);
@@ -2260,7 +2375,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     pane.querySelectorAll('[data-ag-assets-bulk]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();const kind=el.dataset.agAssetsBulk;a.pickerKey=null;
-      if(kind==='reset')a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
+      if(kind==='reset')a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload,target:a.links.target};
       else{setAllChoices(a.links?.rows??[],kind);setAllCinderChoices(a.links?.cinderRows??[],kind);}
       this.focusAfterRender=`[data-ag-assets-bulk="${kind}"]`;void this.render();
     }));

@@ -331,7 +331,7 @@ const hbs = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url)
 test('Assets is an Items sub-tab, and every asset action in the window checks the GM first', () => {
   assert.ok(ITEM_VIEWS.some(v => v.id === 'assets' && v.label === 'Assets'));
   assert.equal(ITEM_VIEWS.find(v => v.id === 'assets').filters, false);
-  for (const fn of ['async #assetsAction(name)', 'async #assetsUpload(files)']) {
+  for (const fn of ['async #assetsAction(name)', 'async #assetsStage(files)', 'async #assetsStageAction(name,el)', 'async #assetsUploadStaged()', 'async #assetsUpload(files,', 'async #assetsNoMatchAction(name,el)']) {
     const at = main.indexOf(fn);
     assert.ok(at > 0, fn);
     assert.match(main.slice(at, at + 160), /if\(!game\.user\?\.isGM\)throw new Error\('Only a GM can manage assets\.'\)/);

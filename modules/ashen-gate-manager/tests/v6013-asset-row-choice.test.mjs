@@ -153,7 +153,8 @@ test('the table has Yes / No / Different…, a searchable picker, bulk buttons, 
   assert.match(fold, /role="radiogroup" aria-label=/);
   assert.match(fold, /data-label="Image now"/);
   // 0.63.0: the one tick box is the batch-wide "Turn on token ring"; rows still choose with Yes / No, never a checkbox.
-  assert.deepEqual(fold.match(/<input type="checkbox"[^>]*>/g), ['<input type="checkbox" data-ag-assets-token-ring {{#if assets.tokenRing}}checked{{/if}}>']);
+  // 0.65.0: the Files with no match list has its own delete-list ticks; they are not part of the Yes / No table.
+  assert.deepEqual(fold.match(/<input type="checkbox"[^>]*>/g).filter(t => !/nomatch-toggle/.test(t)), ['<input type="checkbox" data-ag-assets-token-ring {{#if assets.tokenRing}}checked{{/if}}>']);
   assert.doesNotMatch(fold, /\{\{sourceId\}\}|\{\{uuid\}\}<|\{\{id\}\}/);
   assert.match(main, /linkCountLine:`\$\{counts\.willLink\+cinderWill\} will be linked, /);
   assert.match(main, /linkCanApply:counts\.willLink\+cinderWill>0&&!counts\.conflicts/);
