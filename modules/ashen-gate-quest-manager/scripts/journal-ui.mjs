@@ -6,7 +6,7 @@
 // the book (its own page, never sent to players).
 import {cleanText as E} from './core.mjs';
 import {emptyState} from './gm-panels.mjs';
-import {sanitizeHtml,MAX_NAME,MAX_SUBTITLE,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock} from './journal-core.mjs';
+import {cleanNumber,sanitizeHtml,MAX_NAME,MAX_SUBTITLE,MAX_NUMBER,isAutoName,GM_TARGET,sessionHeading,sessionDate,autoDate,autoFormatHtml,journalFilename,isBlankPage,SEED_HTML,firstBlockIsQuote,unquoteFirstBlock} from './journal-core.mjs';
 
 const KINDS={primary:'ag-btn ag-btn--primary',secondary:'ag-btn',danger:'ag-btn ag-btn--danger',ghost:'ag-btn ag-btn--ghost'};
 const tip=t=>t?` data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`:'';
@@ -130,14 +130,15 @@ export function buildJournalModel(store,jv,me){
 function sessionRow(s,m){
  const on=s.id===m.session?.id;
  if(m.renaming===s.id&&s.canRename)return `<div class="ag-row agq-jsession agq-jsession--edit is-selected" data-session-row="${E(s.id)}">
-  <label class="ag-field">Name<input id="agq-jr-name" maxlength="${MAX_NAME}" value="${E(s.name)}"></label>
+  ${s.canSetNumber?`<label class="ag-field">Session number<input type="number" id="agq-jr-number" min="0" max="${MAX_NUMBER}" step="1" inputmode="numeric" value="${E(s.number)}"><span class="ag-field__hint">${s.numberInferred?`This session was saved as number ${E(s.storedNumber)} but named Session ${E(s.number)}. Showing ${E(s.number)}; Save keeps the number you enter here.`:'The first session is 0. Two sessions may share a number.'}</span></label>`:''}
+  <label class="ag-field">${isAutoName(s.name)?'Name (follows the number)':'Name'}<input id="agq-jr-name" maxlength="${MAX_NAME}" value="${E(s.name)}"></label>
   <label class="ag-field">Subtitle (optional)<input id="agq-jr-subtitle" maxlength="${MAX_SUBTITLE}" value="${E(s.subtitle)}" placeholder="e.g. The road to the gate"></label>
   ${s.canSetDate?`<label class="ag-field">Date<input type="date" id="agq-jr-date" value="${E(sessionDate(s))}"><span class="ag-field__hint">Set to the day the session started. Change it to the day you played; clear it to go back to that.</span></label>`:''}
   <div class="agq-jsession__actions">${jbtn('Cancel','rename-cancel',{kind:'ghost',sm:true})}${jbtn('Save','rename-save',{kind:'primary',sm:true,data:{id:s.id}})}</div></div>`;
  const badges=[s.current?'<span class="ag-badge ag-badge--accent">Current</span>':'',s.archived?`<span class="ag-badge">${icon('fa-box-archive')}Archived</span>`:''].join('');
  return `<div class="ag-row agq-jsession${on?' is-selected':''}" data-session-row="${E(s.id)}"${on?' aria-current="true"':''}>
-  <button type="button" class="agq-jsession__main" data-jaction="select" data-id="${E(s.id)}">${icon(on?'fa-folder-open':'fa-folder')}<span class="agq-jsession__text"><span class="ag-row__title">${E(s.name)}</span>${s.subtitle?`<span class="ag-row__meta agq-jsession__sub">${E(s.subtitle)}</span>`:''}<span class="agq-jsession__meta">Session ${E(s.number)}${day(s)?` · ${E(day(s))}`:''}${badges}</span></span></button>
-  ${s.canRename?jbtn(`Rename ${s.name}`,'rename',{kind:'ghost',sm:true,iconOnly:true,icon:'fa-pen',data:{id:s.id},title:m.noGM?'Renaming needs a GM connected':'Rename this session',disabled:!!m.noGM}):''}</div>`;
+  <button type="button" class="agq-jsession__main" data-jaction="select" data-id="${E(s.id)}">${icon(on?'fa-folder-open':'fa-folder')}<span class="agq-jsession__text"><span class="ag-row__title">${E(sessionHeading(s))}</span>${s.subtitle?`<span class="ag-row__meta agq-jsession__sub">${E(s.subtitle)}</span>`:''}<span class="agq-jsession__meta">${day(s)?`${E(day(s))} `:''}${badges}</span></span></button>
+  ${s.canRename?jbtn(`Edit ${sessionHeading(s)}`,'rename',{kind:'ghost',sm:true,iconOnly:true,icon:'fa-pen',data:{id:s.id},title:m.noGM?'Editing needs a GM connected':'Edit this session: name, subtitle, number and date',disabled:!!m.noGM}):''}</div>`;
 }
 /** The list part of the sidebar: sessions, or the search results while a search is typed. */
 export function journalListHTML(m){
@@ -152,6 +153,7 @@ export function journalSidebarHTML(m){
  return `<aside class="ag-split__list agq-jside" aria-label="Sessions" data-ag-scroll="journal-list">
   <div class="agq-jside__tools"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agq-journal-search" placeholder="Search journals" aria-label="Search the sessions and journal pages you can read" value="${E(m.query)}"></label>${jbtn('New session','new',{sm:true,icon:'fa-plus',title:'Start a new session: a party journal and one for each player',disabled:!!m.noGM})}</div>
   ${m.noGM?'<p class="ag-field__hint agq-jside__hint">New session needs a GM connected.</p>':''}
+  ${m.isGM?`<div class="agq-jside__gm">${jbtn('Next session number…','next-number',{kind:'ghost',sm:true,icon:'fa-hashtag',title:'Choose the number the next New session gets'})}<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-jaction="toggle-archived" aria-pressed="${m.showArchived}">${icon(m.showArchived?'fa-square-check':'fa-square')} Show archived sessions</button></div>`:''}
   <div id="agq-journal-list">${journalListHTML(m)}</div></aside>`;
 }
 // 0.17.0 Players pick My journal / Party journal with the kit's segmented control (radios, arrow keys); the GM picks
@@ -166,23 +168,24 @@ export function journalDetailHTML(m){
  const s=m.session;
  if(!s)return `<section class="ag-split__detail agq-jdetail">${emptyState('No session open','Pick a session on the left, or start one with New session.',{iconName:'fa-book-open'})}</section>`;
  const p=m.page,canWrite=!!p?.canWrite;
-// 0.22.2 One slim title row. The less-used actions live in one "More…" menu (real buttons; arrow keys, Home/End, Escape).
+// 0.24.0 One slim title row. Export is the one menu (real buttons; arrow keys, Home/End, Escape). Archive, Restore and Delete are
+// plain buttons, drawn for the GM only (the store refuses them to anyone else as well). There is no Rename: the pencil edits.
  const whyNoPlayer=m.isGM?"Pick a player's journal under Whose journal to export it.":'Switch to My journal to export it.';
  const item=(label,action,o={})=>jbtn(label,action,{kind:'ghost',...o}).replace('<button ','<button role="menuitem" tabindex="-1" ');
- const moreItems=[
+ const exportItems=[
   item('Export Journal','export-player',{icon:'fa-file-arrow-down',disabled:!m.exportUserId,
    title:m.exportUserId?(m.isGM?`Download every session of ${m.exportUserName}, archived sessions included, as one Markdown file`:'Download every session of your journal as one Markdown file'):whyNoPlayer}),
   m.exportUserId?'':`<span class="ag-field__hint agq-jmenu__why">Export Journal is off: ${E(whyNoPlayer)}</span>`,
   item('Export Group Journal','export-group',{icon:'fa-users',
    title:m.isGM?'Download the party journal of every session, archived sessions included, as one Markdown file':'Download the party journal of every session as one Markdown file'}),
   m.isGM?item('Export GM Journal','export-gm',{icon:'fa-eye-slash',title:'Download your GM-only notes from every session, archived sessions included, as one Markdown file. Players cannot do this.'}):'',
-  m.isGM?item('Export This Session','export',{icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'}):'',
-  s.canRename?item('Rename session…','rename',{icon:'fa-pen',data:{id:s.id},disabled:!!m.noGM,title:m.noGM?'Renaming needs a GM connected':'Change this session\'s name, subtitle and date'}):'',
-  m.isGM?`<button type="button" role="menuitemcheckbox" tabindex="-1" class="ag-btn ag-btn--ghost" data-jaction="toggle-archived" aria-checked="${m.showArchived}">${icon(m.showArchived?'fa-square-check':'fa-square')} Show archived sessions</button>`:'',
-  m.isGM?(s.archived?`${item('Restore session','restore',{icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session…','delete',{kind:'danger',icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}).replace('<button ','<button role="menuitem" tabindex="-1" '):''}`
-   :jbtn('Archive session','archive',{kind:'danger',icon:'fa-box-archive'}).replace('<button ','<button role="menuitem" tabindex="-1" ')):''
+  m.isGM?item('Export This Session','export',{icon:'fa-file-arrow-down',title:'Download only this session (party journal and every player journal) as a Markdown file'}):''
  ].filter(Boolean).join('');
- const more=`<div class="agq-jmore"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" id="agq-jmore-btn" data-jmenu="toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="agq-jmore-menu">${icon('fa-ellipsis')} More…</button><div class="agq-jmenu" id="agq-jmore-menu" role="menu" aria-label="More journal actions" hidden>${moreItems}</div></div>`;
+ const exportMenu=`<div class="agq-jmore"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" id="agq-jmore-btn" data-jmenu="toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="agq-jmore-menu">${icon('fa-file-arrow-down')} Export</button><div class="agq-jmenu" id="agq-jmore-menu" role="menu" aria-label="Export" hidden>${exportItems}</div></div>`;
+ const gmButtons=m.isGM?(s.archived
+  ?`${jbtn('Restore session','restore',{kind:'ghost',sm:true,icon:'fa-box-open'})}${s.canDelete?jbtn('Delete session','delete',{kind:'danger',sm:true,icon:'fa-trash-can',title:'Permanently delete this archived session and all its pages'}):''}`
+  :jbtn('Archive session','archive',{kind:'danger',sm:true,icon:'fa-box-archive'})):'';
+ const more=`${exportMenu}${gmButtons}`;
  const meta=[day(s)?`<span class="agq-jhead__date">${E(day(s))}</span>`:'',s.subtitle?`<span class="agq-jhead__sub">${E(s.subtitle)}</span>`:''].filter(Boolean).join(' <span aria-hidden="true">·</span> ');
  const notes=[
   s.archived?notice('warn','fa-box-archive','This session is archived: players no longer see it and its pages are read only. Restore it to write again.'):'',
@@ -231,7 +234,7 @@ export function installJournal(App,ctx){
    const pane=root.querySelector('.agq-journal');if(!pane)return;
    this.jMenu?.abort?.();
    if(typeof AbortController==='function'){this.jMenu=new AbortController();bindMenu(root.querySelector('.agq-jmore'),{signal:this.jMenu.signal});}
-   // After a menu action redraws the window, focus goes back to the More… button, not to the top of the page.
+   // After a menu action redraws the window, focus goes back to the Export button, not to the top of the page.
    if(jv.refocus==='more'){jv.refocus=null;root.querySelector('#agq-jmore-btn')?.focus?.();}
    pane.addEventListener('click',e=>{const b=e.target?.closest?.('[data-jaction]');if(b&&pane.contains(b))this.journalAction(b.dataset.jaction,b,root).catch(ctx.notify);});
    const search=root.querySelector('#agq-journal-search');
@@ -388,10 +391,26 @@ export function installJournal(App,ctx){
    if(action==='rename-cancel'){jv.renaming=null;return void await this.render();}
    if(action==='rename-save'){
     const name=root.querySelector('#agq-jr-name')?.value??'',subtitle=root.querySelector('#agq-jr-subtitle')?.value??'';
-    const input={name,subtitle},dateEl=root.querySelector('#agq-jr-date'),was=store.get(id);
+    const input={name,subtitle},dateEl=root.querySelector('#agq-jr-date'),was=store.get(id),numEl=root.querySelector('#agq-jr-number');
+    if(numEl){
+     // Typed edits stay in the form when the number is refused or the GM backs out of a duplicate.
+     const n=cleanNumber(numEl.value);input.number=n;
+     const same=game.user?.isGM?store.numberUsedBy(n,id):[];
+     if(same.length&&n!==was?.number&&!await ctx.confirm(`${same.map(x=>x.name).join(', ')} already uses Session number ${n}. Two sessions can share a number, but the list is clearer when each has its own.`,{title:`Session ${n} is already used`,yes:`Use ${n} anyway`,no:'Keep editing'}))return;
+    }
+    // A name that is only a number follows the number field.
+    if(numEl&&isAutoName(name))input.name=`Session ${input.number}`;
     // The automatic date is not stored as the GM's own: typing the day it started (or clearing the field) keeps it automatic.
     if(dateEl)input.date=!dateEl.value||dateEl.value===autoDate(was?.createdAt)?'':dateEl.value;
     await store.rename(id,input);jv.renaming=null;return void await this.render();
+   }
+   if(action==='next-number'){
+    const cur=store.nextSessionNumber();
+    const r=await ctx.form('Next session number',[{name:'value',label:'Next session number',type:'number',value:String(cur.number),hint:cur.custom?'You chose this number. It is used once, then the next session is one more than the highest.':'Leave it as it is to use one more than the highest session number. The first session of a new journal is 0.'}],{ok:'Set next number'});
+    if(!r)return;
+    const n=cleanNumber(r.value);
+    if(!cur.custom&&n===cur.number)return void ctx.info(`The next session will be Session ${n}.`);
+    const out=await store.setNextSessionNumber(n);ctx.info(`The next session will be Session ${out.number}.`);return void await this.render();
    }
    // Everything below leaves the open page: save it first (a refused save stays put).
    if(!await this.flushJournal())return;
@@ -403,7 +422,7 @@ export function installJournal(App,ctx){
    if(action==='new'){
     // 0.20.0 The new session opens on its own page; the name form no longer pops open at the top of the list by itself.
     const sid=await store.create({});jv.sessionId=sid;jv.query='';jv.renaming=null;jv.target=game.user?.isGM?'party':'me';
-    ctx.info('New session started. Use the pencil beside it in the list to give it a name.');return void await this.render();
+    ctx.info('New session started. Use the pencil beside it in the list to give it a name or change its number.');return void await this.render();
    }
    if(action==='export-player'||action==='export-group'||action==='export-gm'){
     const kind=action.slice(7),isGM=!!game.user?.isGM;
@@ -430,7 +449,7 @@ export function installJournal(App,ctx){
   }
  });
 }
-/** The "More…" menu: opens on click or Down, arrow keys / Home / End move over the enabled items, Escape and Tab close it
+/** The Export menu: opens on click or Down, arrow keys / Home / End move over the enabled items, Escape and Tab close it
     (Escape returns focus to the button), a click outside closes it, choosing an item closes it and returns focus to the button
     (the item's action then runs through the pane's own click handler). */
 export function bindMenu(wrap,{signal,doc=globalThis.document}={}){

@@ -18,10 +18,34 @@ export const GM_TARGET='gm-notes';
 const LEVEL={NONE:0,OBSERVER:2,OWNER:3};
 
 export const sessionId=n=>`SESSION-${String(n).padStart(3,'0')}`;
-/** The number the next session gets: one more than the highest so far, archived sessions included. */
-export function nextNumber(sessions){return Math.max(0,...[...sessions].map(s=>Number.isInteger(s?.number)?s.number:0))+1;}
-/** A free id for that number (a raced duplicate number moves up until the id is unused). */
-export function freeId(n,sessions){const used=new Set([...sessions].map(s=>s?.id));let k=n;while(used.has(sessionId(k)))k++;return {number:k,id:sessionId(k)};}
+export const MAX_NUMBER=9999;
+/** A session number: a whole number from 0 up (0 is the first session of a new world). Throws a sentence the GM can act on. */
+export function cleanNumber(v){
+ const t=typeof v==='number'?String(v):String(v??'').trim();
+ if(!/^\d{1,4}$/.test(t)||Number(t)>MAX_NUMBER)throw new Error(`A session number is a whole number from 0 to ${MAX_NUMBER}.`);
+ return Number(t);
+}
+const validNumber=n=>Number.isInteger(n)&&n>=0&&n<=MAX_NUMBER;
+/** The number the next session gets: the GM's chosen number when one is set, else one more than the highest so far
+ *  (archived sessions included), and 0 when there are none yet. */
+export function nextNumber(sessions,chosen=null){
+ if(validNumber(chosen))return chosen;
+ const nums=[...sessions].map(s=>s?.number).filter(validNumber);
+ return nums.length?Math.max(...nums)+1:0;
+}
+/** A free id for that number. Ids are permanent and unrelated to the shown number once it is edited: when SESSION-nnn is
+ *  taken, the next id above every id in use is used. The number itself is never moved (duplicates are allowed). */
+export function freeId(n,sessions){
+ const ids=[...sessions].map(s=>s?.id).filter(Boolean),used=new Set(ids);
+ if(!used.has(sessionId(n)))return {number:n,id:sessionId(n)};
+ const top=Math.max(0,...ids.map(i=>SESSION_ID.test(i)?Number(i.slice(8)):0));
+ return {number:n,id:sessionId(top+1)};
+}
+/** The other sessions already showing this number (archived included): used to warn, never to refuse. */
+export const sessionsWithNumber=(sessions,n,exceptId=null)=>[...sessions].filter(s=>s?.number===n&&s.id!==exceptId);
+/** "Session 3" with nothing else in the name: a name that only repeats a number. It follows the session's number. */
+export const AUTO_NAME=/^Session\s+(\d{1,4})$/i;
+export const isAutoName=name=>AUTO_NAME.test(String(name??'').trim());
 
 const oneLine=v=>String(v??'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim();
 /** A calendar date as YYYY-MM-DD, or '' for none/automatic; refuses anything else. */
@@ -42,7 +66,9 @@ export const sessionDate=s=>s?.date||autoDate(s?.createdAt);
 /** "Session 3 - The road" for the journal's title; just the name when it already reads "Session 3" or has no number. */
 export function sessionHeading(s){
  const name=String(s?.name??'');
- return Number.isInteger(s?.number)&&s.number>0&&name.trim()!==`Session ${s.number}`?`Session ${s.number} - ${name}`:name;
+ if(!validNumber(s?.number))return name;
+ // A name that is only a number follows the session's number, so the header can never read "Session 2 - Session 0".
+ return isAutoName(name)?`Session ${s.number}`:`Session ${s.number} - ${name}`;
 }
 /** Cleans a name/subtitle pair; refuses an empty or too-long name or a too-long subtitle. A date is returned only when given. */
 export function cleanTitle({name,subtitle,date}={},{fallback=''}={}){
@@ -55,7 +81,12 @@ export function cleanTitle({name,subtitle,date}={},{fallback=''}={}){
 /** The stored session record, or null when the flag is missing or malformed (such an entry is ignored). */
 export function readSession(flag){
  if(!flag||typeof flag!=='object'||flag.v!==1||!SESSION_ID.test(flag.id??'')||!Number.isInteger(flag.number))return null;
- return {v:1,id:flag.id,number:flag.number,name:oneLine(flag.name)||`Session ${flag.number}`,subtitle:oneLine(flag.subtitle),
+ // Saved before the number was editable, a session can carry a counter (number) that disagrees with a name that is only
+ // a number ("Session 0"). Nothing is rewritten here: the name's number is shown (it is what the GM saw and typed), and
+ // the GM saving the session's editor stores it. `storedNumber` keeps what the flag held.
+ const raw=oneLine(flag.name),named=raw.match(AUTO_NAME),fromName=named?Number(named[1]):null;
+ const number=fromName!==null&&fromName!==flag.number?fromName:flag.number;
+ return {v:1,id:flag.id,number,...(number!==flag.number?{numberInferred:true,storedNumber:flag.number}:{}),name:isAutoName(raw)||!raw?`Session ${number}`:raw,subtitle:oneLine(flag.subtitle),
   createdAt:typeof flag.createdAt==='string'?flag.createdAt:'',createdBy:typeof flag.createdBy==='string'?flag.createdBy:'',archived:flag.archived===true,
   ...(typeof flag.date==='string'&&validDate(flag.date)?{date:flag.date}:{})};
 }
@@ -63,7 +94,7 @@ export function newSession({number,id,name,subtitle,createdBy,now}){
  return {v:1,id,number,...cleanTitle({name,subtitle},{fallback:`Session ${number}`}),createdAt:new Date(now).toISOString(),createdBy:String(createdBy??''),archived:false};
 }
 /** Newest first (by number). */
-export const sortSessions=list=>[...list].sort((a,b)=>b.number-a.number);
+export const sortSessions=list=>[...list].sort((a,b)=>b.number-a.number||(a.id<b.id?1:a.id>b.id?-1:0));
 /** The current session: the newest one that is not archived. */
 export const currentSession=list=>sortSessions(list.filter(s=>!s.archived))[0]??null;
 
@@ -110,6 +141,7 @@ export function canWritePage(user,page,session){
 }
 /** Deleting a session (archived ones only) and setting its date: the GM only. */
 export const canDelete=(user,session)=>!!user?.isGM&&!!session&&session.archived===true;
+export const canSetNumber=user=>!!user?.isGM;
 export const canSetDate=user=>!!user?.isGM;
 /** Rename policy: the GM, and the user who started the session. */
 export const canRename=(user,session)=>!!user&&!!session&&(user.isGM||!!session.createdBy&&session.createdBy===user.id);

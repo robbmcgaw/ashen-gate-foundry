@@ -13,8 +13,8 @@ globalThis.game={user:null};
 
 test('session ids, numbers and titles',()=>{
  assert.equal(sessionId(1),'SESSION-001');assert.equal(sessionId(1234),'SESSION-1234');
- assert.equal(nextNumber([]),1);assert.equal(nextNumber([{number:2},{number:7,archived:true}]),8,'archived sessions count');
- assert.deepEqual(freeId(2,[{id:'SESSION-002'},{id:'SESSION-003'}]),{number:4,id:'SESSION-004'});
+ assert.equal(nextNumber([]),0,'a new journal starts at 0');assert.equal(nextNumber([{number:2},{number:7,archived:true}]),8,'archived sessions count');
+ assert.deepEqual(freeId(2,[{id:'SESSION-002'},{id:'SESSION-003'}]),{number:2,id:'SESSION-004'},'the number is kept, the id moves');
  assert.deepEqual(cleanTitle({name:'  Into\nthe   dark ',subtitle:''}),{name:'Into the dark',subtitle:''});
  assert.deepEqual(cleanTitle({name:''},{fallback:'Session 3'}),{name:'Session 3',subtitle:''});
  assert.throws(()=>cleanTitle({name:'   '}),/needs a name/);
@@ -83,16 +83,18 @@ function fakePage(data,world,parent){
    if(!permits(this.ownership,world.me(),'OWNER'))throw new Error('Foundry: no permission');
    this.writes.push({by:world.me().id,change});this.text.content=change['text.content'];world.changed();}};
 }
-function makeWorld({access=true,hubShown=true}={}){
+// startAt: the GM's chosen number for the first session. Older tests were written for a journal that began at 1, so they keep that;
+// the 0.24.0 tests pass startAt:null to get a new world's real default (0).
+function makeWorld({access=true,hubShown=true,startAt=1}={}){
  const gm={id:'gm',name:'GM',isGM:true,active:true},alice={id:'alice',name:'Alice',isGM:false,active:true},bob={id:'bob',name:'Bob',isGM:false,active:true};
  const users=[gm,alice,bob];users.get=id=>users.find(u=>u.id===id);
  const bus=[];// socket: every client hears every emit (Foundry does not echo to the sender; nor does this)
- const world={users,entries:[],access,hubShown,current:gm,changes:0,me:()=>world.current,changed(){world.changes++;},bus,stores:new Map()};
+ const world={nextSetting:startAt,users,entries:[],access,hubShown,current:gm,changes:0,me:()=>world.current,changed(){world.changes++;},bus,stores:new Map()};
  const socket=owner=>({emit:(ch,msg)=>{assert.equal(ch,`module.${MOD}`);bus.push(msg);for(const [u,store] of world.stores)if(u!==owner)world.as(u,()=>store.onSocket(msg,owner));},on:()=>{}});
  world.as=(user,fn)=>{const prev=world.current;world.current=users.get(user);try{return fn();}finally{world.current=prev;}};
  world.store=userId=>{if(!world.stores.has(userId))world.stores.set(userId,createJournalStore({moduleId:MOD,users:()=>users,me:()=>world.current,entries:()=>world.entries,
   createEntry:async data=>{world.entries.push(fakeEntry(data,world));world.changed();},folderId:async()=>'folder-gj',
-  access:()=>world.access,hubShown:()=>world.hubShown,isPrimaryGM:()=>world.current?.isGM===true,socket:socket(userId),now:()=>Date.UTC(2026,9,22),timeout:200,randomId:(()=>{let n=0;return ()=>`r${userId}${++n}`;})()}));
+  access:()=>world.access,hubShown:()=>world.hubShown,nextNumberSetting:()=>world.nextSetting,setNextNumber:async n=>{world.nextSetting=n;},isPrimaryGM:()=>world.current?.isGM===true,socket:socket(userId),now:()=>Date.UTC(2026,9,22),timeout:200,randomId:(()=>{let n=0;return ()=>`r${userId}${++n}`;})()}));
   return world.stores.get(userId);};
  // Calls a store method as that user (each user is their own client).
  world.call=async(userId,fn)=>{const prev=world.current;world.current=users.get(userId);try{return await fn(world.store(userId));}finally{world.current=prev;}};
@@ -255,12 +257,12 @@ test('markup: sidebar newest first, toggle, toolbar, book; GM view of a player p
  assert.match(gh,/Whose journal<select id="agq-journal-who"><option value="party" >Party journal<\/option><option value="alice" selected>Alice&#39;s journal/);
  assert.match(gh,/contenteditable="false"/);assert.doesNotMatch(gh,/data-format=|data-journal-status/);
  assert.match(gh,/Only they can write it/);assert.match(gh,/Export This Session/);assert.match(gh,/Archive session/);assert.match(gh,/data-jaction="rename"/);
- // 0.22.2 The session actions are in the More… menu, not on rows of their own above the page.
+ // 0.24.0 Exports are one Export menu; Archive is a plain visible button beside it.
  assert.doesNotMatch(gh,/aria-label="Session actions"|agq-jactions|agq-jexport"/);
  assert.match(gh,/<header class="agq-jbar">[^]*id="agq-jmore-btn"[^]*<\/header>/);
- const menu=gh.slice(gh.indexOf('id="agq-jmore-menu"'),gh.indexOf('</header>'));
- assert.match(menu,/Export This Session[^]*Archive session/);
- assert.doesNotMatch(gh.slice(gh.indexOf('agq-jbar__tools'),gh.indexOf('id="agq-jmore-menu"')),/Export This Session|Export Journal|Archive session/,'not in the visible row');
+ const menu=gh.slice(gh.indexOf('id="agq-jmore-menu"'),gh.indexOf('</header>')),menuOnly=menu.slice(0,menu.indexOf('</div></div>'));
+ assert.match(menuOnly,/Export This Session/);assert.doesNotMatch(menuOnly,/Archive session/,'Archive is not nested in the menu');
+ assert.match(menu,/data-jaction="archive"/,'Archive is a visible button');
  gv.renaming='SESSION-002';
  assert.match(journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm')))),/id="agq-jr-name" maxlength="80" value="Second"[\s\S]*id="agq-jr-subtitle"[^>]*value="The gate"/);
 });
@@ -311,7 +313,8 @@ test('0.20.0 session heading: "Session N - name", no prefix when there is no num
  assert.equal(sessionHeading({number:3,name:'Market day'}),'Session 3 - Market day');
  assert.equal(sessionHeading({number:3,name:'Session 3'}),'Session 3');
  assert.equal(sessionHeading({name:'Market day'}),'Market day');
- assert.equal(sessionHeading({number:0,name:'Odd'}),'Odd');
+ assert.equal(sessionHeading({number:0,name:'Odd'}),'Session 0 - Odd','0 is a real number');
+ assert.equal(sessionHeading({number:2,name:'Session 0'}),'Session 2','a name that is only a number follows the number');
  const html=journalPaneHTML({isGM:false,sessions:[],pages:[],hits:null,query:'',showArchived:false,renaming:null,target:'me',stale:false,dirty:false,
   session:{id:'SESSION-003',number:3,name:'Market day',subtitle:'Rain',createdAt:'2026-10-22T12:00:00.000Z',archived:false},page:{html:'',canWrite:true,label:'My journal',missing:false},error:'',gm:null});
  assert.match(html,/<h2 class="agq-detail__title">Session 3 - Market day<\/h2>/);
@@ -420,7 +423,7 @@ test('0.20.0 Delete session… is offered to the GM on an archived session only,
  const s={id:'SESSION-001',number:1,name:'Old',subtitle:'',createdAt:'2026-10-22T12:00:00.000Z',archived:true,canDelete:true};
  const gm=journalPaneHTML({...base,session:s});
  assert.match(gm,/<button[^>]*ag-btn--danger[^>]*data-jaction="delete"|<button[^>]*data-jaction="delete"[^>]*ag-btn--danger/);
- assert.match(gm,/Delete session…/);
+ assert.match(gm,/Delete session</);
  assert.doesNotMatch(journalPaneHTML({...base,isGM:false,session:{...s,canDelete:false}}),/data-jaction="delete"/);
  assert.doesNotMatch(journalPaneHTML({...base,session:{...s,archived:false,canDelete:false}}),/data-jaction="delete"/);
 });
@@ -714,46 +717,46 @@ const paneFor=async(user,over={})=>{
 };
 const detailTop=html=>html.slice(html.indexOf('<section class="ag-split__detail'),html.indexOf('id="agq-journal-editor"'));
 
-test('0.22.2 the area above the page is two slim rows: title row (title, date, subtitle, whose journal, More…) then the formatting toolbar',async()=>{
+test('0.22.2 the area above the page is two slim rows: title row (title, date, subtitle, whose journal, Export) then the formatting toolbar',async()=>{
  const {html}=await paneFor('gm');const top=detailTop(html);
  const rows=[...top.matchAll(/<header class="agq-jbar">|<div class="agq-jtools"/g)].map(m=>m[0]);
  assert.deepEqual(rows,['<header class="agq-jbar">','<div class="agq-jtools"'],'exactly a title row, then the toolbar');
  const bar=top.slice(top.indexOf('<header class="agq-jbar">'),top.indexOf('</header>'));
  assert.match(bar,/<h2 class="agq-detail__title">Session 1 - Market day<\/h2>/);assert.match(bar,/agq-jbar__meta">[^]*agq-jhead__date[^]*·[^]*agq-jhead__sub">Rain/,'date and subtitle inline with the title');
- assert.match(bar,/Whose journal<select id="agq-journal-who"/);assert.match(bar,/id="agq-jmore-btn"[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*aria-controls="agq-jmore-menu"[^>]*>[^<]*<i[^>]*><\/i> More…<\/button>/);
+ assert.match(bar,/Whose journal<select id="agq-journal-who"/);assert.match(bar,/id="agq-jmore-btn"[^>]*aria-haspopup="menu"[^>]*aria-expanded="false"[^>]*aria-controls="agq-jmore-menu"[^>]*>[^<]*<i[^>]*><\/i> Export<\/button>/);
  assert.doesNotMatch(top,/ag-btn-group|aria-label="Session actions"|aria-label="Export journals"|type="checkbox"/,'no button rows, no checkbox rows');
  assert.doesNotMatch(html,/agq-journal-archived/,'Show archived sessions left the sidebar');
  assert.match(html,/aria-label="Formatting"/);assert.match(html,/data-journal-status/,'the pinned footer is still there');
 });
 
-test('0.22.2 More… holds every export, rename, archive and delete; each keeps its exact label and its reason text',async()=>{
+test('0.24.0 Export menu lists every export; Archive, Restore and Delete are plain buttons; there is no Rename item',async()=>{
  const {html}=await paneFor('gm');
- const menu=html.slice(html.indexOf('id="agq-jmore-menu"'),html.indexOf('</header>'));
- assert.match(menu,/role="menu" aria-label="More journal actions" hidden>/);
- const labels=[...menu.matchAll(/<button[^>]*role="menuitem[a-z]*"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
- assert.deepEqual(labels,['Export Journal','Export Group Journal','Export GM Journal','Export This Session','Rename session…','Show archived sessions','Archive session']);
- for(const b of menu.match(/<button[^>]*>/g))assert.match(b,/type="button"/);
- assert.match(menu,/role="menuitemcheckbox"[^>]*data-jaction="toggle-archived"[^>]*aria-checked="false"|data-jaction="toggle-archived"[^>]*aria-checked="false"/);
- // Export Journal waits for a player's journal: disabled, with its tooltip and its visible reason
- assert.match(menu,/<button[^>]*data-jaction="export-player"[^>]*disabled[^>]*data-tooltip="Pick a player&#39;s journal under Whose journal to export it\."/);
- assert.match(menu,/Export Journal is off: Pick a player&#39;s journal under Whose journal to export it\./);
+ const menu=html.slice(html.indexOf('id="agq-jmore-menu"'),html.indexOf('</header>')),menuOnly=menu.slice(0,menu.indexOf('</div></div>'));
+ assert.match(menuOnly,/role="menu" aria-label="Export" hidden>/);
+ const labels=[...menuOnly.matchAll(/<button[^>]*role="menuitem"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
+ assert.deepEqual(labels,['Export Journal','Export Group Journal','Export GM Journal','Export This Session']);
+ for(const b of menuOnly.match(/<button[^>]*>/g))assert.match(b,/type="button"/);
+ assert.doesNotMatch(html,/Rename session/);
+ assert.match(menu,/<button type="button" data-jaction="archive" class="ag-btn ag-btn--danger/,'Archive sits outside the menu');
+ assert.match(html,/data-jaction="toggle-archived"[^>]*aria-pressed="false"/,'Show archived sessions is a visible toggle in the sidebar');
+ assert.match(menuOnly,/<button[^>]*data-jaction="export-player"[^>]*disabled[^>]*data-tooltip="Pick a player&#39;s journal under Whose journal to export it\."/);
+ assert.match(menuOnly,/Export Journal is off: Pick a player&#39;s journal under Whose journal to export it\./);
  const bob=await paneFor('gm',{target:'bob'});assert.doesNotMatch(bob.html.match(/<button[^>]*data-jaction="export-player"[^>]*>/)[0],/disabled/);
- // Archived: Restore session and Delete session… replace Archive session
+ // Archived: Restore session and Delete session replace Archive session, still plain buttons.
  const w=makeWorld();const id=await w.call('gm',s=>s.create({name:'Old'}));await w.call('gm',s=>s.create({name:'New'}));await w.call('gm',s=>s.archive(id));
  const gm=w.users.get('gm'),arch=w.as('gm',()=>{globalThis.game.user=gm;return journalPaneHTML(buildJournalModel(w.store('gm'),{...newJournalView(true),sessionId:id,showArchived:true},gm));});
- const am=arch.slice(arch.indexOf('id="agq-jmore-menu"'),arch.indexOf('</header>'));
- assert.match(am,/Restore session/);assert.match(am,/ag-btn--danger[^>]*>[^<]*<i[^>]*><\/i> Delete session…|data-jaction="delete"[^>]*class="[^"]*ag-btn--danger/);assert.doesNotMatch(am,/Archive session/);
- assert.match(am,/aria-checked="true"/,'Show archived sessions reads as ticked');
+ const am=arch.slice(arch.indexOf('id="agq-jmore-menu"'),arch.indexOf('</header>')),after=am.slice(am.indexOf('</div></div>'));
+ assert.match(after,/data-jaction="restore"/);assert.match(after,/data-jaction="delete"[^>]*>|ag-btn--danger[^>]*data-jaction="delete"/);assert.doesNotMatch(am,/data-jaction="archive"/);
+ assert.match(arch,/data-jaction="toggle-archived"[^>]*aria-pressed="true"/);
 });
 
-test('0.22.2 players: the menu has only what they may use; GM-only controls are not rendered at all',async()=>{
+test('0.24.0 players: the menu has only what they may use; GM-only controls are not rendered at all',async()=>{
  const {html,w,id}=await paneFor('alice',{target:'me'});
  const menu=html.slice(html.indexOf('id="agq-jmore-menu"'),html.indexOf('</header>'));
- const labels=[...menu.matchAll(/role="menuitem[a-z]*"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
+ const labels=[...menu.matchAll(/role="menuitem"[^>]*>(?:<i[^>]*><\/i>)? ?([^<]+)<\/button>/g)].map(m=>m[1].trim());
  assert.deepEqual(labels,['Export Journal','Export Group Journal']);
  assert.doesNotMatch(html,/Export GM Journal|Export This Session|Archive session|Restore session|Delete session|Show archived|toggle-archived|export-gm|agq-journal-gm|GM-only|Whose journal/);
  assert.match(html,/role="radiogroup" aria-label="Which journal"/,'players keep the My / Party switch in the title row');
- // Alice started nothing: no rename item. The creator gets one.
  assert.doesNotMatch(menu,/Rename session/);
  // GM-only items are also refused in the data layer, not only left out of the markup
  await assert.rejects(w.call('alice',s=>s.archive(id)),/GM permission/);
@@ -778,7 +781,7 @@ test('0.22.2 More… menu keyboard: opens on click or Down, arrows and Home/End 
  btn.fire('click');outside.get('click')({target:new El()});assert.equal(menu.hidden,true,'a click elsewhere closes it');
 });
 
-test('0.22.2 window: Show archived sessions from the menu toggles the list; More… keeps focus after the redraw',async()=>{
+test('0.24.0 window: Show archived sessions toggles the list',async()=>{
  const {installJournal}=await import('../scripts/journal-ui.mjs');
  const {El:Fake}=await import('./helpers/fake-dom.mjs');
  let renders=0;class App{async render(){renders++;}}
@@ -786,6 +789,154 @@ test('0.22.2 window: Show archived sessions from the menu toggles the list; More
  const app=new App();app.jv=newJournalView(true);app.tab='journal';globalThis.game.user={isGM:true,id:'gm'};
  const item=Object.assign(new Fake(),{dataset:{},closest:sel=>sel==='.agq-jmenu'?{}:null});
  await app.journalAction('toggle-archived',item,{querySelector:()=>null});
- assert.equal(app.jv.showArchived,true);assert.equal(renders,1);assert.equal(app.jv.refocus,'more');
+ assert.equal(app.jv.showArchived,true);assert.equal(renders,1);
  await app.journalAction('toggle-archived',item,{querySelector:()=>null});assert.equal(app.jv.showArchived,false);
+});
+
+// ---- 0.24.0 session numbers: start at 0, the GM edits them, one number everywhere ----
+const legacy=(w,flag)=>{w.entries.push(fakeEntry({name:`Game Journal — ${flag.name}`,ownership:{default:2},flags:{[MOD]:{session:{v:1,subtitle:'',createdAt:'2026-10-23T00:00:00.000Z',createdBy:'gm',archived:false,...flag}}},folder:'f',pages:[]},w));};
+
+test('0.24.0 a new journal starts at session 0, then counts up from the highest; ids stay permanent',async()=>{
+ const w=makeWorld({startAt:null});
+ assert.equal(w.as('gm',()=>w.store('gm').nextSessionNumber().number),0);
+ const a=await w.call('gm',s=>s.create({}));const b=await w.call('gm',s=>s.create({name:'The road'}));
+ assert.deepEqual(w.entries.map(e=>e.getFlag(MOD,'session')).map(x=>[x.id,x.number,x.name]),[['SESSION-000',0,'Session 0'],['SESSION-001',1,'The road']]);
+ assert.equal(a,'SESSION-000');assert.equal(b,'SESSION-001');
+ assert.equal(sessionId(0),'SESSION-000');assert.ok(readSession({v:1,id:'SESSION-000',number:0}),'0 is a valid stored number');
+ assert.equal(w.entries[0].name,'Game Journal — Session 0');
+});
+
+test('0.24.0 the GM sets what the next New session uses; it is used once; players cannot set it',async()=>{
+ const w=makeWorld({startAt:null});await w.call('gm',s=>s.create({}));
+ assert.deepEqual(await w.call('gm',async s=>s.setNextSessionNumber(7)),{number:7,custom:true});
+ await assert.rejects(w.call('alice',async s=>s.setNextSessionNumber(3)),/GM permission/);
+ await assert.rejects(w.call('alice',async s=>s.nextSessionNumber()),/GM permission/);
+ await assert.rejects(w.call('gm',async s=>s.setNextSessionNumber(-1)),/whole number/);
+ await assert.rejects(w.call('gm',async s=>s.setNextSessionNumber('1.5')),/whole number/);
+ assert.equal(w.nextSetting,7,'a refused value changes nothing');
+ await w.call('gm',s=>s.create({name:'Seven'}));
+ assert.equal(w.entries[1].getFlag(MOD,'session').number,7);assert.equal(w.nextSetting,null,'cleared after use');
+ assert.deepEqual(await w.call('gm',async s=>s.nextSessionNumber()),{number:8,custom:false});
+ assert.deepEqual(await w.call('gm',async s=>s.setNextSessionNumber('')),{number:8,custom:false},'empty goes back to highest + 1');
+ // a player's New session (through the GM) uses the same rule
+ await w.call('gm',async s=>s.setNextSessionNumber(20));w.store('gm');
+ await w.call('alice',s=>s.create({name:'Alice night'}));assert.equal(w.entries.at(-1).getFlag(MOD,'session').number,20);
+});
+
+test('0.24.0 the GM edits a session number: validated, name follows it, header, sidebar and entry agree',async()=>{
+ const w=makeWorld({startAt:null});const id=await w.call('gm',s=>s.create({}));
+ for(const bad of ['-1','1.5','abc','10000','1e2'])await assert.rejects(w.call('gm',s=>s.rename(id,{name:'Session 0',number:bad})),/whole number/,`refuses ${bad}`);
+ assert.equal(w.entries[0].getFlag(MOD,'session').number,0,'nothing saved by a refused edit');
+ await w.call('gm',s=>s.rename(id,{name:'Session 0',subtitle:'Hold fast',number:'5'}));
+ const f=w.entries[0].getFlag(MOD,'session');assert.deepEqual([f.id,f.number,f.name],['SESSION-000',5,'Session 5']);
+ assert.equal(w.entries[0].name,'Game Journal — Session 5');
+ const s=await w.call('gm',x=>x.get(id));assert.equal(sessionHeading(s),'Session 5','no "Session 5 - Session 0"');
+ // a named session keeps its name and gets "Session N - name"
+ await w.call('gm',x=>x.rename(id,{name:'Market day',number:0}));
+ assert.equal(sessionHeading(await w.call('gm',x=>x.get(id))),'Session 0 - Market day');
+ // typing another number as the whole name is coerced to the session's real number
+ await w.call('gm',x=>x.rename(id,{name:'Session 9'}));assert.equal(w.entries[0].getFlag(MOD,'session').name,'Session 0');
+ assert.match(journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),newJournalView(true),w.users.get('gm')))),/<h2 class="agq-detail__title">Session 0<\/h2>/);
+});
+
+test('0.24.0 duplicates are allowed (the GM is told which sessions share the number)',async()=>{
+ const w=makeWorld({startAt:null});const a=await w.call('gm',s=>s.create({name:'One'}));const b=await w.call('gm',s=>s.create({name:'Two'}));
+ assert.deepEqual(await w.call('gm',async s=>s.numberUsedBy(0,b)),[{id:a,name:'One',archived:false}]);
+ assert.deepEqual(await w.call('gm',async s=>s.numberUsedBy(0,a)),[],'the session itself does not count');
+ await w.call('gm',s=>s.rename(b,{name:'Two',number:0}));
+ assert.deepEqual(w.entries.map(e=>e.getFlag(MOD,'session').number),[0,0]);
+ assert.equal(new Set(w.entries.map(e=>e.getFlag(MOD,'session').id)).size,2,'ids stay unique');
+ assert.equal((await w.call('gm',s=>s.list())).length,2);
+ await assert.rejects(w.call('alice',async s=>s.numberUsedBy(0)),/GM permission/);
+ // a new session still gets a free id when a number was reused
+ await w.call('gm',async s=>s.setNextSessionNumber(0));await w.call('gm',s=>s.create({name:'Three'}));
+ assert.deepEqual(w.entries.map(e=>e.getFlag(MOD,'session').id),['SESSION-000','SESSION-001','SESSION-002']);
+});
+
+test('0.24.0 players cannot change a number: refused in the data layer, also through the socket, nothing saved',async()=>{
+ const w=makeWorld({startAt:null});w.store('gm');
+ const id=await w.call('alice',s=>s.create({name:'Alice night'}));
+ await assert.rejects(w.call('alice',s=>s.rename(id,{name:'Alice night',number:4})),/Only the GM can change the session number/);
+ assert.equal(w.entries[0].getFlag(MOD,'session').number,0);
+ // renaming their own session with the number it already has is fine
+ await w.call('alice',s=>s.rename(id,{name:'Night watch',number:0}));assert.equal(w.entries[0].getFlag(MOD,'session').name,'Night watch');
+ // a name that is only a number cannot move the number
+ await w.call('alice',s=>s.rename(id,{name:'Session 12'}));
+ const f=w.entries[0].getFlag(MOD,'session');assert.deepEqual([f.number,f.name],[0,'Session 0']);
+ // a forged socket request carrying a number is refused by the GM client
+ const store=w.store('gm');w.current=w.users.get('gm');
+ await store.onSocket({type:'journal-request',requestId:'n1',userId:'alice',op:'rename',id,name:'x',number:'9'},'alice');
+ assert.match(w.bus.at(-1).message,/Only the GM can change the session number/);assert.equal(w.entries[0].getFlag(MOD,'session').number,0);
+ // the editor has no number field for a player
+ const m=w.as('alice',()=>buildJournalModel(w.store('alice'),{...newJournalView(false),renaming:id},w.users.get('alice')));
+ assert.doesNotMatch(journalPaneHTML(m),/agq-jr-number/);
+ const g=w.as('gm',()=>buildJournalModel(w.store('gm'),{...newJournalView(true),renaming:id},w.users.get('gm')));
+ assert.match(journalPaneHTML(g),/<label class="ag-field">Session number<input type="number" id="agq-jr-number"[^>]*value="0"/);
+});
+
+test('0.24.0 saved data: a counter that disagrees with the name shows the name\'s number, writes nothing, and is fixed once when the GM saves',async()=>{
+ const w=makeWorld({startAt:null});
+ // Robb's journal: stored number 2, named "Session 0", with a subtitle
+ legacy(w,{id:'SESSION-002',number:2,name:'Session 0',subtitle:'Hold Fast To Your Name'});
+ legacy(w,{id:'SESSION-001',number:1,name:'Prologue'});
+ const before=JSON.stringify(w.entries.map(e=>e.flags));
+ const list=await w.call('gm',s=>s.list());
+ const s0=list.find(x=>x.id==='SESSION-002');
+ assert.deepEqual([s0.number,s0.name,s0.numberInferred,s0.storedNumber],[0,'Session 0',true,2]);
+ assert.equal(sessionHeading(s0),'Session 0','one number, never "Session 2 - Session 0"');
+ assert.equal(list.find(x=>x.id==='SESSION-001').number,1);
+ assert.equal(JSON.stringify(w.entries.map(e=>e.flags)),before,'reading changes no campaign data');
+ assert.equal(w.entries.every(e=>e.updates.length===0),true);
+ await w.call('gm',s=>s.ensurePages());// the startup migration adds pages, never renumbers
+ assert.equal(JSON.stringify(w.entries.map(e=>e.getFlag(MOD,'session'))),JSON.stringify(JSON.parse(before).map(f=>f[MOD].session)));
+ // the sidebar and the header show the same number
+ const html=journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),{...newJournalView(true),sessionId:'SESSION-002'},w.users.get('gm'))));
+ assert.match(html,/<h2 class="agq-detail__title">Session 0<\/h2>/);assert.doesNotMatch(html,/Session 2/);
+ assert.match(html,/<span class="ag-row__title">Session 0<\/span>/);
+ // the highest-plus-one rule uses the shown numbers
+ assert.equal((await w.call('gm',async s=>s.nextSessionNumber())).number,2);
+ // the GM opens the editor and saves: the stored number becomes the shown one, once
+ await w.call('gm',s=>s.rename('SESSION-002',{name:'Session 0',subtitle:'Hold Fast To Your Name',number:0}));
+ const e=w.entries[0];assert.equal(e.updates.length,1);
+ assert.deepEqual([e.getFlag(MOD,'session').number,e.getFlag(MOD,'session').name,e.getFlag(MOD,'session').numberInferred],[0,'Session 0',undefined]);
+ await w.call('gm',s=>s.rename('SESSION-002',{name:'Session 0',subtitle:'Hold Fast To Your Name',number:0}));
+ assert.equal(e.updates.length,1,'saving again is a no-op (re-runnable)');
+ // ids are never touched
+ assert.deepEqual(w.entries.map(x=>x.getFlag(MOD,'session').id),['SESSION-002','SESSION-001']);
+});
+
+test('0.24.0 consistent legacy sessions are untouched: "Session 3" numbered 3, and a named session keeps its counter',()=>{
+ const a=readSession({v:1,id:'SESSION-003',number:3,name:'Session 3'}),b=readSession({v:1,id:'SESSION-004',number:4,name:'Market day'});
+ assert.deepEqual([a.number,a.numberInferred,b.number,b.name,b.numberInferred],[3,undefined,4,'Market day',undefined]);
+ assert.equal(sessionHeading(b),'Session 4 - Market day');
+});
+
+test('0.24.0 window: saving a number that is already used asks first; "Keep editing" saves nothing and keeps the form open',async()=>{
+ const {installJournal}=await import('../scripts/journal-ui.mjs');
+ let renders=0,asked=[],answer=false,renamed=[];class App{async render(){renders++;}}
+ const store={get:()=>({id:'SESSION-001',number:1,createdAt:''}),numberUsedBy:(n)=>[{id:'SESSION-000',name:'Session 3',archived:false}],rename:async(id,i)=>{renamed.push([id,i]);}};
+ installJournal(App,{store,danger:async()=>true,confirm:async(m,o)=>{asked.push([m,o]);return answer;},notify:e=>{throw e;},info(){},download(){}});
+ const app=new App();app.jv=newJournalView(true);app.jv.renaming='SESSION-001';globalThis.game.user={isGM:true,id:'gm'};
+ const els={'#agq-jr-name':{value:'Session 1'},'#agq-jr-subtitle':{value:''},'#agq-jr-number':{value:'3'}};
+ const root={querySelector:s=>els[s]??null};
+ await app.journalAction('rename-save',{dataset:{id:'SESSION-001'}},root);
+ assert.equal(asked.length,1);assert.match(asked[0][0],/already uses Session number 3/);assert.equal(asked[0][1].no,'Keep editing');
+ assert.equal(renamed.length,0);assert.equal(app.jv.renaming,'SESSION-001',typedFormStaysOpen());
+ answer=true;await app.journalAction('rename-save',{dataset:{id:'SESSION-001'}},root);
+ assert.deepEqual(renamed,[['SESSION-001',{name:'Session 3',subtitle:'',number:3}]],'a name that is only a number follows the number');assert.equal(app.jv.renaming,null);
+ function typedFormStaysOpen(){return 'the form stays open so typed edits are not lost';}
+ // an invalid number is refused before anything is saved or asked
+ els['#agq-jr-number'].value='-2';asked.length=0;renamed.length=0;app.jv.renaming='SESSION-001';
+ await assert.rejects(app.journalAction('rename-save',{dataset:{id:'SESSION-001'}},root),/whole number/);
+ assert.equal(renamed.length,0);assert.equal(app.jv.renaming,'SESSION-001');
+});
+
+test('0.24.0 window: Next session number… asks for a number and saves it through the store',async()=>{
+ const {installJournal}=await import('../scripts/journal-ui.mjs');
+ const calls=[];class App{async render(){calls.push('render');}}
+ const store={nextSessionNumber:()=>({number:4,custom:false}),setNextSessionNumber:async n=>{calls.push(['set',n]);return {number:n,custom:true};}};
+ installJournal(App,{store,danger:async()=>true,confirm:async()=>true,form:async(t,f)=>{calls.push(['form',t,f[0].label,f[0].value]);return {value:'9'};},notify:e=>{throw e;},info:m=>calls.push(['info',m]),download(){}});
+ const app=new App();app.jv=newJournalView(true);globalThis.game.user={isGM:true,id:'gm'};
+ await app.journalAction('next-number',{dataset:{}},{querySelector:()=>null});
+ assert.deepEqual(calls,[['form','Next session number','Next session number','4'],['set',9],['info','The next session will be Session 9.'],'render']);
 });
