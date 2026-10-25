@@ -25,6 +25,7 @@ import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
 import {tokenLabel, relationLabel} from "./labels.js";
 import {createReferenceLinks, convertLegacyBlock, AGREF_PATTERN} from "./reference-links.mjs";
+import {relatedFor, withRelated} from "./related-lists.mjs";
 import {offerFor, supersedeMap, collectSpecialistSupersedes, SUPERSEDE_ROW_ID} from "./supersedes.js";
 import {previewPartners, applyPartners, renameManagerRefs} from "./supersede-run.js";
 import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from "./import-fidelity.js";
@@ -233,7 +234,9 @@ function planWithMetadata(record,matches,unmanaged,includeDrafts,pkg) {
   if (changed.length) return {action:'metadata',patch:{},reason:`Metadata refresh: ${changed.join(', ')}. Foundry rule fields remain untouched.`};
   // 0.54.2: an unedited description that still carries the old References list is cleaned up on the next import of that record.
   const live=matches[0].get?.('system.description.value');
-  if (typeof live==='string' && live!==stripReferenceBlock(live) && live===f?.managedFields?.['system.description.value'])
+  // 0.69.0: not when the source itself ends with a Related list (that list is wanted, see related-lists.mjs).
+  if (typeof live==='string' && live!==stripReferenceBlock(live) && live===f?.managedFields?.['system.description.value']
+    && !String(exportedFields(record)['system.description.value']??'').includes('data-ag-managed-links'))
     return {action:'metadata',patch:{},reason:'Metadata refresh: remove the old References list from the description (not edited since import).'};
   return planned;
 }
@@ -293,6 +296,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order, but starts unticked: tick it only if you want it. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
   '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees, factions and deities and the like go to their own modules in update mode (Renown shows what it will update per record, saves a snapshot of the old definitions first, keeps standings, claims, requests, choices and what the party learned, and keeps a definition you edited in Renown unless you tick <strong>Also overwrite records I edited</strong>; an older Renown only adds new ones and the preview says it needs an update); ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p><strong>Replacing a record</strong> (<code>supersedes</code>): when a new record says it replaces an old permanent id and that old document is in your world, the preview shows <em>Replaces &lt;old name&gt;</em> with <strong>Yes, replace it</strong>, <strong>No, add separately</strong> or <strong>Skip</strong>. Yes keeps the same document (tokens, ownership, folder, links, Codex notes) and gives it the new name and content; items and pages you added, current HP and a token ring that is already on stay. A backup of the old documents downloads first; Sync also never deletes a document whose id is replaced. Renown and Quest Log are asked to move their saved ids to the new ones, keeping progress.</p>',
+  '<p><strong>Related lists</strong>: an Item whose <em>refs</em> point at a person, a handout or a quest, order or contract ends with a short <strong>Related</strong> list (up to 5 links: handouts, then people, then quests). Import and Sync from package write it and keep it up to date; gear, materials, recipes, shops and locations get none, and an Item you edited in Foundry is left alone. Players see names and only the links they may open.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -4336,7 +4340,9 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
       const original=record.foundry.data?.system?.description?.value;
       if(typeof original==='string') {
         const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-        const final=refCells(linked.text);
+        // 0.69.0: the Related list (people, handouts, quests this Item points to) is Manager's own section at the end; a record
+        // that no longer qualifies loses it here. Nothing else in the description changes.
+        const final=withRelated(refCells(linked.text),relatedFor(record));
         for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
         // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
         // References section is cleaned up, and a cell re-resolved, only on documents nobody has changed since the import).
@@ -4454,11 +4460,26 @@ const openCodexPlayerView=(focusNpc=null)=>{codexPlayerApp??=new AshenGateCodexP
  * type icon, linking to a handout's Item twin before its journal; hidden or missing targets are plain text.
  */
 let refLinksApi=null;
+/** 0.69.0: the Quest Log (feature-detected) names a quest, order or contract for the person looking: the GM any, a player only a visible one. */
+const questLogApi=()=>{const mod=game.modules.get('ashen-gate-quest-manager');return mod?.active?mod.api??null:null;};
+function questLogName(id){
+  try{
+    const api=questLogApi();if(!api)return null;
+    if(game.user?.isGM)return api.listQuests?.().find(q=>q.id===id)?.name??null;
+    return api.getVisibleObjective?.(id)?.name??null;
+  }catch{return null;}
+}
+async function openQuestLog(id){
+  const api=questLogApi();if(!api)return;
+  try{const result=await api.openObjective?.(id);if(result?.status==='opened')return;}catch{/* fall back to the Quest Log itself */}
+  await api.open?.();
+}
 const refLinks=()=>refLinksApi??=createReferenceLinks({game,moduleId:MODULE_ID,
   getDocs:()=>[...(game.items?.contents??[]),...(game.journal?.contents??[]),...(game.actors?.contents??[]),...(game.tables?.contents??[])],
   codexNames:async()=>{if(!game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))return null;
     return new Map((await codexService().forPlayer()).map(e=>[e.id,e.name]));},
   openCodex:id=>openCodexPlayerView(id),
+  questName:questLogName,openQuest:openQuestLog,
   fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid),
   notify:text=>ui.notifications?.warn?.(text)});
 /** Text fields that may hold an older import's References section, per document type. */
@@ -4610,6 +4631,8 @@ Hooks.once("ready",()=>{
   try{installPauseMirror({game,hooks:Hooks,doc:document});}catch(error){console.warn(`[${MODULE_ID}] Pause indicator not installed`,error);}
   // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
   if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
+  // 0.69.0: Related lists hide, for players, the lines they cannot open (see styles/manager.css).
+  try{document.body?.classList?.toggle('agm-viewer-gm',Boolean(game.user?.isGM));}catch{/* lists show every line */}
   // 0.68.0: one delegated listener for our own reference links only (a.agm-ref-link), in the capture phase so it works
   // inside any sheet, tooltip or Monk's Enhanced Journal page. Foundry's own content links are never touched.
   globalThis.document?.addEventListener?.('click',event=>{if(event.target?.closest?.('a.agm-ref-link[data-ag-ref-open]'))void refLinks().onClick(event);},true);
@@ -4691,7 +4714,7 @@ Hooks.once("ready",()=>{
     },
     // NPC Codex (0.33.0). GM functions check the GM themselves; forPlayer/mount/openPlayerView are player-safe
     // (a player gets only revealed NPCs and fields for their own characters, through the active GM).
-    // 0.68.0 reference links, any client: what this viewer gets for a reference ({mode:'sheet'|'codex'|'text', name, ...};
+    // 0.68.0 reference links, any client: what this viewer gets for a reference ({mode:'sheet'|'codex'|'quest'|'text', name, ...};
     // text mode carries no id or uuid). convertLegacy is GM only.
     references:Object.freeze({
       resolve:(id,label)=>refLinks().resolve(id,label),

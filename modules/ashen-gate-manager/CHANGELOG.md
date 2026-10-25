@@ -1,3 +1,14 @@
+## 0.69.0 — 2026-10-25
+
+Related lists come back, only where they help players: an Item that points to a person, a handout or a quest ends with a short "Related" list.
+
+- **The rule:** an Item's description ends with a Related list of up to **5** reference links when its `refs` point at a **person** (`NPC-`), a **handout** (`HANDOUT-` or its Item twin `ITEM-HANDOUT-`) or a **quest, order or contract** (`QUEST-`, `ORDER-`, `CONTRACT-`). Order: handouts, then people, then quests (file order inside each). Plain gear, materials, recipes, shops, locations, factions, creatures and perks never get a list, and neither do GM-only records. Structural relations (`requires_material`, `produces`, `starting_recipe`, `crafted_by`, `located_at`, `perk_of`, ...) are ignored whatever they point at. An Item never lists itself, its own journal or the journal it is the player copy of (`also_available_as_journal`); a journal and its Item twin are one line.
+- **How it is written:** on Import and Sync from package, as Manager's own section at the very end of the description (after the table, Effect & Rules and Outcomes and limits). It is the same marked section older imports used, so the next import or sync updates or removes it instead of duplicating it. Importing the same package twice gives identical text, and Sync reports no change for an Item that already has its list.
+- **Kept as before:** an Item whose description you edited in Foundry is not touched (the preview says "Kept: edited" or shows the conflict, as for any other field). A list that 0.68.0 converted from an older "References" section is replaced by the current rule on the next import or sync of an unedited Item, or removed when the Item no longer qualifies.
+- **Players:** each line shows the record's name (or a neutral word such as Person, Handout, Quest) and only when they may open it; a line they cannot open is not drawn, and a list with none is not drawn at all. The GM sees every line. No ids appear in visible text.
+- **Quests, orders and contracts** in a reference link now open in the Quest Log (name shown to the viewer when the Quest Log reports it: the GM any, a player a quest they can see). Without the Quest Log they are plain text. The click is checked again when pressed.
+- No change to saved data; no migration. Items already in your world get their list the next time you import or sync their package.
+
 ## 0.68.0 — 2026-10-25
 
 Reference links show names, prefer a handout's Item, and open NPCs reliably (also inside Monk's Enhanced Journal).
