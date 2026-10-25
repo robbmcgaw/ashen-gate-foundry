@@ -24,13 +24,23 @@ Drop an item on a reward level (from the Items sidebar, a compendium, or any cha
 - An item dragged off a sheet is copied into a GM-only **holding copy** (Items sidebar → folder *Ashen Gate Rewards (Renown)*). The sheet keeps its item. Removing the reward deletes its holding copy.
 - When the GM approves a claim, the item is found by its permanent id first, then by its link, and copied to the character with everything inside it (containers). A claim is never granted twice. If the item is missing, the GM is told and the request stays waiting.
 
+## Import update mode (0.18.0)
+
+`options = {mode: 'skip' | 'update', overwriteEdited: false}`, GM only; `api.importOptions` (`ag-renown-import/1`) reports that it is available.
+
+- **Rewritten from the file:** name, public text, ranks and milestones (thresholds, benefits, choose-one), rewards, information entries, relations and resonance, tags, refs, visibility, status, version, provenance. The faction's folder is kept.
+- **Kept:** standings and history, claims, requests, used charges, claimed rewards, choose-one choices, discovery, what the party learned per entry, field reveals, personal records. An id the file drops keeps its saved data and is reported as *no longer defined*; a new id starts empty. `starting_state` is for new records only.
+- **Preview rows:** `new`, `update` (with `changes`: field names and counts), `unchanged`, `kept` (edited here since the last import; replaced only with `overwriteEdited: true`). Records without an import fingerprint (imported by an older Renown) cannot be checked for edits.
+- **Snapshot:** the old definitions are saved as a GM-only *Renown Snapshot* Journal before any write; if that fails nothing changes. Running the same file twice changes nothing. Closed source schema and provenance rules are unchanged.
+- Import… in the Factions tab offers the same choice when the file has records already in the world.
+
 ## Superseded entries (0.17.0)
 
 A faction or deity file may carry `supersedes: ["<old id>"]` on a faction/deity and on its information entries. General Manager passes the pairs to `api.supersedeIds({OLD: 'NEW'}, {dryRun, definitions})` (GM only, safe to run again), which renames the entry in the stored definition and moves what the party learned for it. Standings, claims, rewards and tracks are untouched. See `docs/supersedes-schema.md`.
 
 ## Relation to other modules
 
-Independent. General Manager hands faction files to `api.previewFactionsImport` / `api.importFactions` (GM only): new factions are added, existing ones are never changed. A faction can hold typed Objective references; with Quest Manager active the GM-only `getObjectiveRefs` and `auditObjectiveRefs` report on them, and Renown never resolves or reveals Quest state itself.
+Independent. General Manager hands faction files to `api.previewFactionsImport(data, options)` / `api.importFactions(data, options)` (GM only). Default `mode: 'skip'`: new factions are added, existing ones are never changed. `mode: 'update'` (0.18.0) rewrites the definitions of records already here and keeps all campaign state (see Import update mode). A faction can hold typed Objective references; with Quest Manager active the GM-only `getObjectiveRefs` and `auditObjectiveRefs` report on them, and Renown never resolves or reveals Quest state itself.
 
 ## Public API
 

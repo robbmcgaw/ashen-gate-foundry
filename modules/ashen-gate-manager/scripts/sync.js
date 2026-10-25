@@ -23,7 +23,7 @@ import {contentHash} from './world-export.js';
 import {dependencyOrder} from './workflows.js';
 import {isLocationRecord, planLocation, isRouteRecord, planRoute} from './location-handoff.js';
 import {isShopRecord, planShop} from './shop-handoff.js';
-import {SPECIALISTS, planSpecialist} from './specialist-handoff.js';
+import {SPECIALISTS, planSpecialist, updatesExisting} from './specialist-handoff.js';
 import {bundleRecordIds} from './zip-import.js';
 import {offerFor, supersedeMap, adjustRebindOps, collectSpecialistSupersedes} from './supersedes.js';
 
@@ -665,13 +665,18 @@ function planModuleRows(set, ctx, rows, errors) {
   }
   for (const file of set.specialistFiles) {
     const spec = SPECIALISTS[file.kind], api = ctx.specialistApi?.(file.kind) ?? null;
-    const res = planSpecialist(file.kind, file.payload, api, {updateExisting: spec.canUpdate});
+    const canUpdate = Boolean(api) && updatesExisting(file.kind, api) || (!api && spec.canUpdate);
+    const res = planSpecialist(file.kind, file.payload, api, {updateExisting: canUpdate, overwriteEdited: Boolean(ctx.overwriteEdited)});
     for (const e of res.errors ?? []) errors.push(`${file.filename}: ${e}`);
+    for (const n of res.notes ?? []) notes.push(`${file.filename}: ${n}`);
     for (const r of res.rows) {
       const group = r.action === 'create' ? 'create' : r.action === 'update' ? 'overwrite' : 'untouched';
-      const reason = group === 'untouched' && !spec.canUpdate && /exist|kept/i.test(r.reason ?? '') ? `${spec.label} does not update records that already exist; kept as they are. ${r.reason}` : r.reason;
+      const reason = group === 'untouched' && !canUpdate && !spec.canUpdate && /exist|kept/i.test(r.reason ?? '') ? `${spec.label} does not update records that already exist; kept as they are. ${r.reason}` : r.reason;
+      // Renown reports what an update changes (field names, counts of milestones, rewards, entries), so its rows say that instead of "no preview".
+      const detailed = file.kind === 'factions' && group === 'overwrite' && canUpdate;
       rows.push({group, key: rowKey(group, r.kind, r.id), id: r.id, name: r.name, kind: r.kind, external: true, module: spec.label, specialist: file.kind, filename: file.filename,
-        reason: group === 'overwrite' ? `${reason} Passed to ${spec.label}, which keeps its own state; no per-field preview is available.` : reason, changes: [], lost: 0, refused: r.action === 'blocked'});
+        reason: group === 'overwrite' ? `${reason} ${detailed ? `Passed to ${spec.label}, which saves a snapshot of the old definition first and keeps standings, claims, requests, choices and what the party learned.` : `Passed to ${spec.label}, which keeps its own state; no per-field preview is available.`}` : reason,
+        changes: [], lost: 0, refused: r.action === 'blocked', ...(r.keptEdited ? {keptEdited: true} : {})});
     }
   }
   // Records an earlier import passed on that these files no longer carry: Manager never reaches into the other module to remove them.

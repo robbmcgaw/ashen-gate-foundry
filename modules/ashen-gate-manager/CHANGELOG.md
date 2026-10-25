@@ -1,3 +1,13 @@
+## 0.66.0 — 2026-10-25
+
+Factions and deities now refresh in update mode: Import and Sync from package hand Renown 0.18.0 the file in `update` mode.
+
+- **Renown's factions and deities are no longer skip-only.** Renown (the *Renown* specialist) now has `canUpdate`, so Import's *Update existing factions* switch and Sync from package pass `mode: 'update'` to Renown. Renown rewrites the definition of a faction or deity already in the world and keeps standings, claims, requests, choices and what the party learned (details in Renown's CHANGELOG 0.18.0). Manager never touches that state.
+- **Older Renown:** Manager feature-detects `api.importOptions` (Renown 0.18.0+). Without it nothing changes: existing records are kept, new ones are added, and the preview says *Renown needs an update to refresh existing factions and deities*.
+- **Previews show Renown's own summary** per record: *Update* with what changes (field names, counts of milestones, rewards and entries added, removed or changed), *Unchanged*, or *Kept: edited* for a definition edited in Renown since its last import. In Sync those count under *Kept: edited in your world*, and **Also overwrite records I edited** is handed to Renown as `overwriteEdited`. (The single-file Import tab never overwrites edited definitions; use Sync, or Renown's own Import…)
+- The Import confirmation and Help say that Renown saves a snapshot of the old definitions first and that import stops if it cannot.
+- Saved data: no change, no migration. The hand-off ledger records updated Renown ids as before. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.65.1 — 2026-10-25
 
 Assets: the lists in Files waiting to upload (and Files with no match) now scroll.

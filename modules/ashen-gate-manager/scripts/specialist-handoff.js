@@ -10,7 +10,7 @@ export const SPECIALISTS = Object.freeze({
   quests: {kind: 'Quest', label: 'Quest Log', moduleId: 'ashen-gate-quest-manager', preview: 'previewQuestImport', run: 'importQuests', canUpdate: true},
   'skill-trees': {kind: 'Skill Tree', label: 'Skill Trees', moduleId: 'ashen-gate-skill-trees', preview: 'previewTreeImport', run: 'importTrees', canUpdate: true},
   headquarters: {kind: 'Facility', label: 'Headquarters', moduleId: 'ashen-gate-headquarters', preview: 'previewFacilityImport', run: 'importFacilities', canUpdate: false},
-  factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false},
+  factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: true},
   // 0.39.0: the Strain config (band names, Backfire schedule) goes to Ashen Gate | Cinders' api.strain. It never changes a character's Strain.
   strain: {kind: 'Strain config', label: 'Strain (Cinders)', moduleId: 'ashen-gate-cinders', apiPath: 'strain', preview: 'previewConfigImport', run: 'importConfig', canUpdate: false}
 });
@@ -51,6 +51,24 @@ export function specialistApi(game, kind) {
   return api && typeof api[spec.preview] === 'function' && typeof api[spec.run] === 'function' ? api : null;
 }
 
+/**
+ * Whether the module behind `api` can update records that already exist. Renown 0.18.0 and later say so in api.importOptions;
+ * an older Renown only adds, so it is handed the file in skip mode and the preview says it needs an update.
+ */
+export function updatesExisting(kind, api) {
+  const spec = SPECIALISTS[kind];
+  if (!spec.canUpdate) return false;
+  if (kind !== 'factions') return true;
+  return Boolean(api?.importOptions?.modes?.includes?.('update'));
+}
+export const RENOWN_OLD_NOTE = 'Renown needs an update to refresh existing factions and deities';
+/** The options handed to a specialist's preview/import: only modules that can update get a mode; Renown also gets overwriteEdited. */
+export function importOptions(kind, api, {updateExisting = false, overwriteEdited = false} = {}) {
+  if (!updatesExisting(kind, api)) return undefined;
+  return kind === 'factions' ? {mode: updateExisting ? 'update' : 'skip', overwriteEdited: Boolean(updateExisting && overwriteEdited)}
+    : {mode: updateExisting ? 'update' : 'skip'};
+}
+
 /** Plain description of what a rejected file looks like and where it should go. */
 export function describeUnrecognized(input) {
   const fix = 'Manager imports its own package (a manifest plus records), or a Quest, Skill Tree, Strain config, Headquarters facility or Factions file.';
@@ -78,17 +96,22 @@ const newReason = (kind, spec, row) => kind === 'skill-trees' && typeof row.summ
   ? row.summary.trim() : `New; imported through ${spec.label}.`;
 
 /** Preview rows (Manager import-table shape) for a specialist file. */
-export function planSpecialist(kind, input, api, {updateExisting = false} = {}) {
+export function planSpecialist(kind, input, api, {updateExisting = false, overwriteEdited = false} = {}) {
   const spec = SPECIALISTS[kind];
   if (!api) return {errors: [], rows: [{id: spec.moduleId, name: spec.label, kind: spec.kind, lifecycle: '', action: 'skipped',
     reason: `${spec.label} is not active (or too old to import): enable or update it to import this file.`, patch: {}}]};
-  const result = api[spec.preview](input, spec.canUpdate ? {mode: updateExisting ? 'update' : 'skip'} : undefined);
+  const old = kind === 'factions' && !updatesExisting(kind, api);
+  const result = api[spec.preview](input, importOptions(kind, api, {updateExisting, overwriteEdited}));
   const rows = result.rows.map(r => {
     const action = r.action === 'new' ? 'create' : r.action === 'update' ? 'update' : 'skipped';
-    return {id: r.id, name: r.name, kind: rowKind(spec, r.kind), lifecycle: '', action, patch: {},
-      reason: action === 'create' ? newReason(kind, spec, r) : r.reason};
+    const reason = action === 'create' ? newReason(kind, spec, r)
+      : old && action === 'skipped' && /already/i.test(r.reason ?? '') ? `${RENOWN_OLD_NOTE}. ${r.reason}` : r.reason;
+    // Renown (0.18.0+) reports 'kept' for a definition edited in the world since its last import: Sync counts it as kept: edited.
+    return {id: r.id, name: r.name, kind: rowKind(spec, r.kind), lifecycle: '', action, patch: {}, reason,
+      ...(r.action === 'kept' ? {keptEdited: true} : {}), ...(r.action === 'unchanged' ? {unchanged: true} : {}),
+      ...(r.no_longer_defined?.length ? {noLongerDefined: r.no_longer_defined} : {})};
   });
-  return {errors: result.errors ?? [], rows};
+  return {errors: result.errors ?? [], rows, notes: old && rows.some(r => r.action === 'skipped') ? [`${RENOWN_OLD_NOTE}; until then the file only adds new records.`] : []};
 }
 
 /** The part of the file that covers only the chosen record ids. */
@@ -104,14 +127,14 @@ export function filterSpecialist(kind, input, ids) {
 }
 
 /** Sends the chosen records to the owning module in one call and turns its report into import-log results. */
-export async function applySpecialist(kind, input, api, {ids, updateExisting = false} = {}) {
+export async function applySpecialist(kind, input, api, {ids, updateExisting = false, overwriteEdited = false} = {}) {
   const spec = SPECIALISTS[kind];
   const chosen = ids ? [...ids] : [];
   const fail = (list, message) => list.map(id => ({id, kind: spec.kind, action: 'create', status: 'error', message}));
   if (!api) return chosen.map(id => ({id, kind: spec.kind, status: 'skipped', message: `${spec.label} is not active: enable it.`}));
   if (!chosen.length) return [];
   let report;
-  try { report = await api[spec.run](filterSpecialist(kind, input, chosen), spec.canUpdate ? {mode: updateExisting ? 'update' : 'skip'} : undefined); }
+  try { report = await api[spec.run](filterSpecialist(kind, input, chosen), importOptions(kind, api, {updateExisting, overwriteEdited})); }
   catch (error) { return fail(chosen, String(error?.message ?? error)); }
   const idOf = x => typeof x === 'string' ? x : x.id;
   const created = report.created ?? report.added ?? [];

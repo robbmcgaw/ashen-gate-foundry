@@ -1,3 +1,16 @@
+## 0.18.0 — 2026-10-25
+
+Import update mode: refresh the factions and deities already in your world from a newer file.
+
+- **`api.previewFactionsImport(data, {mode, overwriteEdited})` and `api.importFactions(data, {mode, overwriteEdited})`** (GM only). `mode` is `'skip'` (the default, exactly as before: records already here are kept as they are) or `'update'`. Anything else is refused. `api.importOptions` (`ag-renown-import/1`, modes `skip`/`update`) lets General Manager feature-detect it.
+- **What update rewrites:** the definition of a record already in the world: name, public text, ranks and milestones (thresholds, benefits, choose-one), rewards, information entries, relations and resonance, tags, refs, visibility, status, version and provenance. The folder a faction sits in is yours and is kept unless the file names a folder that exists here.
+- **What update keeps:** standings and their history, claims, requests, used charges, rewards already claimed, choices made at choose-one milestones, discovery, what the party learned for each entry, field reveals and every character's personal record. Ids are permanent, so all of it stays attached. An id the new file drops (a reward, milestone or entry) keeps its saved data and is listed as *no longer defined*; nothing is deleted. A new id starts empty (a new entry whose Renown threshold the party already meets is learned, as for any new entry).
+- **Preview per record:** New, Update (with what changes: field names and counts of milestones, rewards and entries added, removed or changed), Unchanged, or Kept: edited. Renown now remembers a fingerprint of each definition at import; a definition you changed in Renown's editor since is *Kept: edited* unless you turn on **Also overwrite faction edits**. Records imported by an older Renown have no fingerprint, so edits cannot be told apart: they update, and the preview says so.
+- **Snapshot first:** before any write, the old definitions about to be replaced are saved as a GM-only Journal (*Renown Snapshot • date*, in the Ashen Gate — Factions Data folder) holding the JSON, and the Import button also downloads it. If the snapshot cannot be saved, nothing is changed.
+- **Safe to repeat:** running the same file again changes nothing (every record shows Unchanged). A rename done by `supersedes` is not counted as an edit. A definition that still holds old campaign data from before the migration is kept until the world has been opened by the GM once.
+- **Import… in the Factions tab:** when the file has records already here it asks whether to update them and whether to overwrite faction edits (both off).
+- Saved data: no migration. New optional world data: `importSource` (fingerprint) on definition Journals and `importSnapshot` Journals. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.17.0 — 2026-10-25
 
 `supersedes` for information entries and a GM-only `api.supersedeIds`.
