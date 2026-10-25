@@ -1,3 +1,12 @@
+## 0.50.0 — 2026-10-25
+
+The "Link quick bar to Foundry's hotbar?" question is gone: the two bars simply stay in sync.
+
+- **No dialog.** Opening a character's Hub never asks which bar to keep. The first time a character's quick bar and your Foundry hotbar page 1 differ, they are merged silently and nothing is lost: every quick bar slot stays as it is, the quick bar's **empty** slots (1-10) are filled from the Foundry macros the Hub can hold (the character's own item macros and world macros), and Foundry's page 1 then shows the quick bar. If anything was filled, one quiet notice says so.
+- **From then on** slots 1-10 stay the same in both directions, exactly as before: bringing a character's Hub to the front puts that character's quick bar on page 1, and changes on either side follow. Other hotbar pages are never touched.
+- **Saved data.** Nothing to migrate. An answer stored on your User by the old question (`flags.ashen-gate-character-hub.hotbarLink`) is kept and simply counts as "already linked"; the first-link merge is remembered in the same flag as `merged`. There was no on/off option to keep: it was removed in 0.46.0 and stays removed.
+- Tests use mocked Foundry and prove the logic, not the live UI. Please check in Forge as described in the pull request.
+
 ## 0.49.0 — 2026-10-25
 
 Pets and mounts a player owns now appear in the dropdowns by themselves.
