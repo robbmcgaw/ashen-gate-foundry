@@ -246,7 +246,7 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
     for (const file of plan.set.specialistFiles) {
       const rows = external.filter(x => x.specialist === file.kind && x.filename === file.filename);
       if (!rows.length) continue;
-      const res = await applySpecialist(file.kind, file.payload, apis.specialist?.(file.kind) ?? null, {ids: rows.map(x => x.id), updateExisting: true});
+      const res = await applySpecialist(file.kind, file.payload, apis.specialist?.(file.kind) ?? null, {ids: rows.map(x => x.id), updateExisting: true, overwriteEdited: Boolean(plan.overwriteEdited)});
       for (const x of res) { log.push(x); finished++; }
       say('modules', file.filename, finished, total);
     }

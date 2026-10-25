@@ -5,6 +5,7 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind,objectiveRecords,objectiveName} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
 import {runSupersede} from './supersede.mjs';
+import {definitionHash,replaceDelta} from './update.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent} from './standing-view.mjs';
@@ -40,10 +41,12 @@ const getGroup=d=>d?.getFlag(MODULE_ID,'groupClaims');
 const getPersonal=d=>d?.getFlag(MODULE_ID,'individual');
 const getView=d=>d?.getFlag(MODULE_ID,'playerView');
 const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
+const getSnapshot=d=>d?.getFlag(MODULE_ID,'importSnapshot');
+const getImportSource=d=>d?.getFlag(MODULE_ID,'importSource');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
+const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d)||getSnapshot(d));
 async function ensureStorageFolder(){
   assertGM();
   let folder=game.folders.find(d=>d.type==='JournalEntry'&&d.getFlag(MODULE_ID,'storageFolder')===true);
@@ -139,7 +142,12 @@ async function supersedeIds(map,options={}){
       for(const id of remove)update[`flags.${MODULE_ID}.groupClaims.knowledge.-=${id}`]=null;
       await game.journal.get(docId).update(update);
     },
-    writeEntries:(docId,entries)=>game.journal.get(docId).update({[`flags.${MODULE_ID}.faction.entries`]:entries}),
+    writeEntries:async(docId,entries)=>{
+      // A rename the import itself asked for is not a GM edit: if the definition matched its last import, the record follows.
+      const doc=game.journal.get(docId),stamp=getImportSource(doc),clean=stamp?.hash&&(()=>{try{return definitionHash(getFaction(doc))===stamp.hash;}catch{return false;}})();
+      await doc.update({[`flags.${MODULE_ID}.faction.entries`]:entries});
+      if(clean)await doc.setFlag(MODULE_ID,'importSource',{...stamp,hash:definitionHash(getFaction(doc))});
+    },
     after:reproject
   });
 }
@@ -255,20 +263,61 @@ async function saveChange(doc,f){
   }
   await saveDef(doc,next);await reproject();
 }
-// GM-only import (additive). Every write goes through runImport's io, whose first call is assertGM.
+// GM-only import. Default mode 'skip' only adds; mode 'update' rewrites existing definitions and keeps campaign state (update.mjs).
+// Every write goes through runImport's io, whose first call is assertGM.
+const stampFor=hash=>({hash,module_version:moduleVersion(),at:new Date().toISOString()});
 const importIO=()=>({
   assertGM,
-  createFaction:async clean=>{clean=withLiveFolder(clean);const d=await JournalEntry.create({name:clean.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:clean}}});await ensureGroup(d);},
+  createFaction:async clean=>{clean=withLiveFolder(clean);const d=await JournalEntry.create({name:clean.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:clean,importSource:stampFor(definitionHash(clean))}}});await ensureGroup(d);},
   updateGroup:async(id,fn)=>{const g=groupDoc(id);await g.setFlag(MODULE_ID,'groupClaims',fn(structuredClone(getGroup(g))));},
   updatePersonal:async(id,actor,fn)=>{const d=await ensurePersonal(definition(id),game.actors.get(actor.id));await d.setFlag(MODULE_ID,'individual',fn(structuredClone(getPersonal(d))));},
   findActor:name=>{const a=game.actors.find(a=>a.type==='character'&&a.name===name);return a?{id:a.id,name:a.name}:null;},
   finish:async id=>{const d=definition(id);await saveChange(d,loadDef(d));},
   eventId:()=>`RENOWN-EVT-${rid()}`,
-  now:()=>new Date().toISOString()
+  now:()=>new Date().toISOString(),
+  // Update mode. The snapshot is a GM-only Journal in the Renown data folder, read back before anything is overwritten.
+  saveSnapshot:async(records,meta)=>{
+    const data={schema:'ag-renown-snapshot/1',created_at:new Date().toISOString(),module_version:moduleVersion(),reason:meta?.reason??'',
+      note:'Definitions as they were before an import replaced them. Campaign state is not rewritten by an import and is not included.',definitions:records.map(r=>structuredClone(r.definition))};
+    const doc=await JournalEntry.create({name:`Renown Snapshot • ${data.created_at.slice(0,19).replace('T',' ')} • ${records.length} definition${records.length===1?'':'s'}`,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},
+      flags:{[MODULE_ID]:{importSnapshot:data}},pages:[{name:'Snapshot (JSON)',type:'text',text:{format:1,content:`<pre>${esc(JSON.stringify(data,null,2))}</pre>`}}]});
+    const back=getSnapshot(doc);
+    if(!doc?.id||back?.definitions?.length!==records.length)throw Error('the snapshot did not read back');
+    return {id:doc.id,name:doc.name};
+  },
+  updateFaction:async(id,clean,hash)=>{
+    const d=definition(id),old=getFaction(d);let next=withLiveFolder(clean);
+    // The folder is the GM's own organization: keep it unless the file names a folder that exists here.
+    if(!isDeity(next)&&!next.folder_key&&old?.folder_key)next={...next,folder_key:old.folder_key};
+    await d.update({name:next.name,[`flags.${MODULE_ID}.faction`]:replaceDelta(old,next),[`flags.${MODULE_ID}.importSource`]:stampFor(hash)});
+  },
+  stampImport:async(id,hash)=>{await definition(id).setFlag(MODULE_ID,'importSource',stampFor(hash));},
+  finishUpdate:async id=>{
+    // Only ever ADDS knowledge (entries whose threshold the party already meets); knowledge of ids the file dropped stays.
+    const d=definition(id),gdoc=groupDoc(id)??await ensureGroup(d);let next=loadDef(d);const group=getGroup(gdoc);
+    next=grantAutoKnowledge(next,'group',null,group?.standing?.score??0).faction;
+    for(const j of game.journal.filter(j=>getPersonal(j)?.faction_id===id)){const s=getPersonal(j);next=grantAutoKnowledge(next,'individual',s.actor_id,s.standing?.score??0).faction;}
+    const state=structuredClone(group);state.knowledge={...(state.knowledge??{}),...extractCampaignDiscovery(next).knowledge};
+    if(JSON.stringify(state.knowledge)!==JSON.stringify(group.knowledge??{}))await gdoc.setFlag(MODULE_ID,'groupClaims',state);
+  },
+  after:reproject
 });
-const planFactionsImport=data=>{assertGM();return planImport(data,new Set(defs().map(d=>getFaction(d).id)));};
-async function importFactions(data){assertGM();return runImport(planFactionsImport(data),importIO());}
-const previewFactionsImport=data=>{const {errors,rows}=planFactionsImport(data);return {errors,rows:rows.map(({id,name,kind,action,reason})=>({id,name,kind,action,reason}))};};
+function importOptions(options){
+  const o=options==null?{}:options;
+  if(typeof o!=='object'||Array.isArray(o))throw new TypeError('Import options must be an object.');
+  const mode=o.mode??'skip';
+  if(!['skip','update'].includes(mode))throw new TypeError('mode must be skip or update.');
+  return {mode,overwriteEdited:o.overwriteEdited===true};
+}
+const legacyInside=raw=>Boolean(raw?.state?.party||raw?.field_reveals||raw?.discovery?.party||raw?.discovery?.actors?.length||(raw?.entries??[]).some(e=>e.discovered_party||e.discovered_actors?.length));
+const existingForImport=()=>new Map(defs().map(d=>{
+  const raw=getFaction(d),id=raw.id;
+  return [id,{definition:structuredClone(raw),hash:getImportSource(d)?.hash??null,legacy:legacyInside(raw),
+    states:{group:getGroup(groupDoc(id))??null,personal:game.journal.map(getPersonal).filter(s=>s?.faction_id===id)}}];
+}));
+const planFactionsImport=(data,options)=>{assertGM();const o=importOptions(options);return planImport(data,new Set(defs().map(d=>getFaction(d).id)),o.mode==='update'?{...o,existing:existingForImport()}:{});};
+async function importFactions(data,options){assertGM();return runImport(planFactionsImport(data,options),importIO());}
+const previewFactionsImport=(data,options)=>{const {errors,rows}=planFactionsImport(data,options);return {errors,rows:rows.map(({id,name,kind,action,reason,changes,edited,dropped})=>({id,name,kind,action,reason,...(changes?{changes}:{}),...(edited?{edited:true}:{}),...(dropped?.length?{no_longer_defined:dropped.map(x=>`${x.kind} ${x.id}`)}:{})}))};};
 const findKnownUser=(id,user)=>buildPlayerPayload(user).factions.find(x=>x.id===id);
 function requestAuthorized(msg){if(!playerAccessEnabled())throw Error('Renown player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
 function sendClientAction(message){
@@ -684,7 +733,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async removeRelation(e,t){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===t.dataset.target);if(!r)throw Error('Relation not found.');const other=getFaction(definition(r.deity_id))?.name??'the missing deity';if(!await confirmDanger(`Gains with ${f.name} stop moving ${other}. Standing is not changed.`,{title:`Remove the relation to ${other}?`,yes:'Remove relation'}))return;d.relations=d.relations.filter(x=>x!==r);f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   static async create(){try{assertGM();const typed=await promptText('New faction','Faction name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;this.#foldersOpen=false;this.#subTab.faction='profile';await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the factions your party has met and the Renown the group and each character have earned with them.</p><h3>Group and Character</h3><ul><li><strong>Group</strong> shows the party's standing with the faction picked on the left, its milestones and what has been discovered.</li><li><strong>Character</strong> shows one character's personal Renown, information and rewards.${gm?'':' Use <em>Share with party</em> to share what you have discovered.'}</li></ul><h3>Pantheon</h3><p>The deities your character knows, each with its holy symbol, its card and that character's favour. Favour is per character, never shared by the group. Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you adjust favour and undo changes here; <em>Edit deity</em> opens it in the Factions tab.':''}</p>${gm?'<h3>Factions (GM)</h3><p>Every faction, or every deity (pick with <em>Show</em>), in the list on the left. Search filters as you type. Pick one to edit it on the right: <em>Profile</em> (name, folder and ranks), <em>Visibility</em> (reveal to the party or one character, placeholder, sharing, fields), <em>Information</em> or <em>Lore</em>, <em>Rewards</em>, <em>Requests</em>, and <em>Links</em> (factions) or <em>Relations</em> (deities). Profile and Visibility save with <em>Save Changes</em> at the bottom right; the other sections apply at once. If you leave with unsaved edits, Renown asks first. <em>Manage folders</em> (add, rename or delete folders; deleting one moves its factions to Other factions, nothing is deleted), Import, Export and <em>New faction</em> or <em>New deity</em> are on the right of the toolbar.</p><p>Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.</p><h3>Requests (GM)</h3><p>Every open claim and service request from every faction and deity, with the number waiting on the tab.</p><h3>GM Setup</h3><p>The settings: Player access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom fill in permanent item ids and load [TEST] demo factions.</p><p>Removing an entry, reward, relation or objective reference, denying a request, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
+  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the factions your party has met and the Renown the group and each character have earned with them.</p><h3>Group and Character</h3><ul><li><strong>Group</strong> shows the party's standing with the faction picked on the left, its milestones and what has been discovered.</li><li><strong>Character</strong> shows one character's personal Renown, information and rewards.${gm?'':' Use <em>Share with party</em> to share what you have discovered.'}</li></ul><h3>Pantheon</h3><p>The deities your character knows, each with its holy symbol, its card and that character's favour. Favour is per character, never shared by the group. Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you adjust favour and undo changes here; <em>Edit deity</em> opens it in the Factions tab.':''}</p>${gm?'<h3>Factions (GM)</h3><p>Every faction, or every deity (pick with <em>Show</em>), in the list on the left. Search filters as you type. Pick one to edit it on the right: <em>Profile</em> (name, folder and ranks), <em>Visibility</em> (reveal to the party or one character, placeholder, sharing, fields), <em>Information</em> or <em>Lore</em>, <em>Rewards</em>, <em>Requests</em>, and <em>Links</em> (factions) or <em>Relations</em> (deities). Profile and Visibility save with <em>Save Changes</em> at the bottom right; the other sections apply at once. If you leave with unsaved edits, Renown asks first. <em>Manage folders</em> (add, rename or delete folders; deleting one moves its factions to Other factions, nothing is deleted), <em>Import…</em> (when the file has records already here you can also <em>update</em> them: definitions are rewritten from the file; Renown, claims, requests, choices, discovery and what the party learned are kept; a snapshot of the old definitions is saved first), Export and <em>New faction</em> or <em>New deity</em> are on the right of the toolbar.</p><p>Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.</p><h3>Requests (GM)</h3><p>Every open claim and service request from every faction and deity, with the number waiting on the tab.</p><h3>GM Setup</h3><p>The settings: Player access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom fill in permanent item ids and load [TEST] demo factions.</p><p>Removing an entry, reward, relation or objective reference, denying a request, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
   static async seed(){try{assertGM();if(!await confirmDialog('Adds four synthetic [TEST] factions for trying Renown out. Existing names are skipped.',{title:'Add four [TEST] factions?',yes:'Add factions'}))return;let count=0;for(const g of TEST_FACTIONS_DEMO){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Synthetic [TEST] demo data'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${plural(count,'[TEST] faction')} added.`);await this.render({force:true});}catch(e){notifyError(e)}}
   /** Profile sub-tab: name, leader, description, folder, tags and both rank tracks. Discovery is on Visibility. */
   static async save(){try{assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Select a faction first.');const f=loadDef(doc),root=this.element;f.name=nameValue(root,'faction-name');f.leader=nameValue(root,'faction-leader');f.public_role=nameValue(root,'faction-role');f.folder_key=liveFolderKey(folderList(),selectedValue(root,'faction-folder'));f.tags=nameValue(root,'faction-tags').split(',').map(s=>s.trim()).filter(Boolean);
@@ -820,16 +869,30 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       assertGM();
       if(file.size>2_000_000)throw Error('File too large (over 2 MB).');
       let data;try{data=JSON.parse(await file.text());}catch{throw Error('That file is not valid JSON.');}
-      const {errors,rows}=previewFactionsImport(data);
+      const first=previewFactionsImport(data);
+      if(first.errors.length)throw Error(first.errors.slice(0,5).join(' | '));
+      let options={mode:'skip',overwriteEdited:false};
+      if(first.rows.some(r=>r.action==='skip')){
+        if(!(await this.okToLeave()))return;
+        const v=await formDialog('Import options',[
+          {name:'update',type:'checkbox',label:'Update the factions and deities already here',checked:false,hint:'Rewrites their definitions from the file (text, ranks, rewards, entries, relations). Renown, claims, requests, choices, discovery and what the party learned are kept. A snapshot of each definition is saved first.'},
+          {name:'overwrite',type:'checkbox',label:'Also overwrite faction edits',checked:false,hint:'Only matters when you changed a definition here after its last import. Off: those are kept as they are.'}],{ok:'Preview…'});
+        if(!v)return;
+        if(v.update)options={mode:'update',overwriteEdited:Boolean(v.overwrite)};
+      }
+      const {errors,rows}=previewFactionsImport(data,options);
       if(errors.length)throw Error(errors.slice(0,5).join(' | '));
-      const fresh=rows.filter(r=>r.action==='new').length;
-      const list=rows.map(r=>`${r.action==='new'?'New':'Already here'} · ${r.kind==='deity'?'Deity':'Faction'} · ${r.name}`).join('\n');
-      if(!fresh){ui.notifications.info('Nothing to import: every faction and deity in that file is already in this world.');return;}
+      const todo=rows.filter(r=>r.action==='new'||r.action==='update').length;
+      const label={new:'New',update:'Update',unchanged:'Unchanged',kept:'Kept: edited',skip:'Already here'};
+      const list=rows.map(r=>`${label[r.action]??r.action} · ${r.kind==='deity'?'Deity':'Faction'} · ${r.name}${r.action==='update'||r.action==='kept'?` — ${r.changes?.summary||r.reason}`:''}`).join('\n');
+      if(!todo){ui.notifications.info(options.mode==='update'?'Nothing to import: everything in that file matches this world or is kept as edited.':'Nothing to import: every faction and deity in that file is already in this world.');return;}
       if(!(await this.okToLeave()))return;
-      const ok=await confirmDialog(`Add ${fresh} of ${rows.length} entries from ${file.name}?\n${list}\nExisting factions and deities, their Renown and discovery are never changed.`,{title:'Import these definitions?',yes:'Import'});
+      const updating=rows.filter(r=>r.action==='update').length;
+      const ok=await confirmDialog(`${updating?`Add ${todo-updating} and update ${updating}`:`Add ${todo}`} of ${rows.length} entries from ${file.name}?\n${list}\n${updating?'Updating rewrites the definition only. Renown, claims, requests, choices, discovery and what the party learned are kept. A snapshot of the old definitions is saved first, and import stops if it cannot be saved.':'Existing factions and deities, their Renown and discovery are never changed.'}`,{title:'Import these definitions?',yes:'Import'});
       if(!ok)return;
-      const result=await importFactions(data);
-      ui.notifications.info(`Renown imported: ${result.added.length} added, ${result.skipped.length} kept as they were.${result.missingActors.length?` No character named: ${result.missingActors.join(', ')} (import the Manager pack first); their personal Renown was skipped.`:''}`);
+      const result=await importFactions(data,options);
+      if(result.snapshot?.id){try{jsonDownload(getSnapshot(game.journal.get(result.snapshot.id)),'AG_Renown_Snapshot.json');}catch{/* the world copy is the guaranteed one */}}
+      ui.notifications.info(`Renown imported: ${result.added.length} added, ${result.updated.length} updated, ${result.skipped.length} kept as they were${result.failed.length?`, ${result.failed.length} failed`:''}.${result.notes.length?` ${result.notes.length} note(s): ${result.notes.slice(0,2).join(' ')}`:''}${result.missingActors.length?` No character named: ${result.missingActors.join(', ')} (import the Manager pack first); their personal Renown was skipped.`:''}`);
       await this.render({force:true});
     }catch(e){notifyError(e)}
   }
@@ -979,8 +1042,11 @@ Hooks.once('ready',()=>{
     getDeities:()=>{requirePlayerAccess();return game.user.isGM?deityDefs().map(d=>sourceDefinition(getFaction(d))):structuredClone(getView(userViewDoc(game.user))?.payload?.deities??[]);},
     getPantheon:actor=>pantheonFor(actor),
     // GM-only, additive: adds factions that are not in the world yet (see scripts/import.mjs). Existing factions are never changed.
-    previewFactionsImport:data=>previewFactionsImport(data),
-    importFactions:data=>importFactions(data),
+    // 0.18.0: options {mode:'skip'|'update', overwriteEdited:false}. Default 'skip' is unchanged. 'update' rewrites the definitions
+    // of records already here (after saving a snapshot) and keeps all campaign state. See scripts/update.mjs.
+    previewFactionsImport:(data,options)=>previewFactionsImport(data,options),
+    importFactions:(data,options)=>importFactions(data,options),
+    importOptions:Object.freeze({contract:'ag-renown-import/1',modes:Object.freeze(['skip','update']),overwriteEdited:true}),
     // 0.16.0, GM only: delete a folder by key; its factions move to Other factions and are never deleted.
     deleteFolder:key=>deleteFolder(key),
     // 0.17.0, GM only: move saved entry ids to the ids that supersede them (see scripts/supersede.mjs).
