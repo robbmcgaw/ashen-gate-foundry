@@ -3,8 +3,14 @@
  *
  * Foundry's built-in dynamic token ring is the Actor's prototype token `ring` (V14 field names, checked against the 14.367
  * source): `prototypeToken.ring.enabled`, `.colors.ring`, `.colors.background`, `.subject.texture` and `.subject.scale`.
- * Manager sets only enabled and the two colours. It leaves `subject` alone on purpose: with an empty subject texture Foundry
- * uses the token image (the file just linked) and follows it when the art changes; scale 1 is Foundry's own default.
+ * Manager sets enabled, the two colours and `subject.scale` (0.6, see RING_SUBJECT_SCALE). It leaves `subject.texture` alone:
+ * with an empty subject texture Foundry uses the token image (the file just linked) and follows it when the art changes.
+ *
+ * Why the scale (0.63.0 shipped without it and the ring never showed, checked in a real V14 14.367 render): with Foundry's
+ * default fit mode ("Subject") and subject scale 1 the ring is drawn INSIDE the token's square, under the art. A full-bleed
+ * square portrait covers it completely. A scale below 1 makes Foundry pad the token so the ring is drawn around the art
+ * (0.8 and above stayed hidden, 0.7 touches the corners of square art, 0.6 frames it). Tokens already on a scene keep
+ * their own copy of the ring settings, so changing the Actor does not change them (see tokenRingUpdateFor).
  * This is Foundry's ring, not Tokenizer's baked ring: the two do not conflict, but a token image that already has a ring
  * painted into it (a Tokenizer export) will show two rings.
  *
@@ -41,6 +47,10 @@ export function ringKindFor(doc) {
   return rule ? RING_KINDS[rule.kind] : null;
 }
 
+/** Subject scale written with the ring so the ring frames square, full-bleed portraits. Change it here. */
+export const RING_SUBJECT_SCALE = 0.6;
+const isDefaultScale = v => v === undefined || v === null || Number(v) === 1;
+
 const blank = v => v === null || v === undefined || String(v).trim() === '';
 
 /**
@@ -48,7 +58,8 @@ const blank = v => v === null || v === undefined || String(v).trim() === '';
  * `prototypeToken.ring`). Returns {update, status}:
  *   status 'none'     no rule for this Actor: nothing written;
  *   status 'kept'     the Actor already has its ring on: it is left exactly as the GM set it (colours included);
- *   status 'enable'   the ring was off: turned on, and each colour written only where it was blank.
+ *   status 'enable'   the ring was off: turned on, and each colour written only where it was blank; the subject scale is
+ *                     set only while it is still Foundry's default 1 (a scale the GM chose is kept).
  */
 export function ringUpdateFor(actor) {
   const look = ringKindFor(actor);
@@ -58,5 +69,21 @@ export function ringUpdateFor(actor) {
   const update = {'prototypeToken.ring.enabled': true};
   if (blank(ring.colors?.ring)) update['prototypeToken.ring.colors.ring'] = look.ring;
   if (blank(ring.colors?.background)) update['prototypeToken.ring.colors.background'] = look.background;
+  if (isDefaultScale(ring.subject?.scale)) update['prototypeToken.ring.subject.scale'] = RING_SUBJECT_SCALE;
   return {update, status: 'enable', look};
+}
+
+/**
+ * The same ring for a token already placed on a scene (TokenDocument field paths). `token` is {ring} (the token's own
+ * source). A token whose ring is already on is never touched; otherwise same fill-only-blanks rule as the Actor.
+ * Returns {} when there is nothing to write.
+ */
+export function tokenRingUpdateFor(look, token) {
+  if (!look || token?.ring?.enabled) return {};
+  const ring = token?.ring ?? {};
+  const update = {'ring.enabled': true};
+  if (blank(ring.colors?.ring)) update['ring.colors.ring'] = look.ring;
+  if (blank(ring.colors?.background)) update['ring.colors.background'] = look.background;
+  if (isDefaultScale(ring.subject?.scale)) update['ring.subject.scale'] = RING_SUBJECT_SCALE;
+  return update;
 }

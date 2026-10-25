@@ -333,7 +333,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
     this.assets = {cinderPickerKey:null, pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
-      scan:null, linkFiles:[], links:null, tokenRing:true, staged:null, deleteList:new Set(), lastUpload:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
+      scan:null, linkFiles:[], links:null, tokenRing:true, sceneTokens:true, staged:null, deleteList:new Set(), lastUpload:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -1940,12 +1940,20 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       hasUndo:Boolean(undo?.applied?.length),undoCount:undo?.applied?.length??0};
   }
   // ---------- Items → Assets (0.57.0): browse, upload and link art files. GM only; assets.js checks the GM too. ----------
+  /** Tokens already on scenes whose own ring is off, counted per Actor id (what "Also update tokens already on scenes" would change). */
+  #ringTokenCounts() {
+    const counts=new Map();
+    for(const scene of game.scenes??[])for(const t of scene.tokens??[])if(t.actorId&&!t._source?.ring?.enabled)counts.set(t.actorId,(counts.get(t.actorId)??0)+1);
+    return counts;
+  }
   #assetDocs() {
+    const ringTokens=this.#ringTokenCounts();
     return allBoundDocuments().filter(doc=>!doc.getFlag(MODULE_ID,'lifecycle')?.archived).map(doc=>{
       const source=sourceFlag(doc);
       return {uuid:doc.uuid,documentName:doc.documentName,type:doc.type,name:doc.name,sourceId:source.sourceId,img:doc.img,
         tokenImg:doc.documentName==='Actor'?(doc.prototypeToken?.texture?.src??''):undefined,
         ringEnabled:doc.documentName==='Actor'?Boolean(doc.prototypeToken?.ring?.enabled):undefined,
+        ringTokens:doc.documentName==='Actor'?(ringTokens.get(doc.id)??0):undefined,
         flags:doc.flags?.[MODULE_ID]??{},baselineImg:source?.managedFields?.img,
         baselineTokenImg:doc.documentName==='Actor'?source?.managedFields?.['prototypeToken.texture.src']:undefined};
     });
@@ -1997,7 +2005,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         hasFromToken:Boolean(r.fromToken)&&r.documentName==='Actor',fromTokenUrl:r.fromToken?this.#assetUrl(r.fromToken):'',isActor:r.documentName==='Actor',
         options:(r.candidates??[]).map(c=>({value:c.value,label:c.label,selected:c.value===r.chosen})),
         canYes:ready,isYes:yes,isNo:!waiting&&!r.checked,isWaiting:waiting,conflict,yesTab:!(!waiting&&!r.checked),noTab:!yes,
-        ringWill:Boolean(a.tokenRing&&yes&&r.ringLabel&&!r.ringKept&&!conflicts.has(r.key)),ringKeptNote:Boolean(a.tokenRing&&yes&&r.ringKept),
+        ringWill:Boolean(a.tokenRing&&yes&&r.ringLabel&&!r.ringKept&&!conflicts.has(r.key)),ringOnScenes:Boolean(a.tokenRing&&a.sceneTokens&&yes&&r.ringLabel&&!r.ringKept&&!conflicts.has(r.key))?r.ringTokens:0,ringKeptNote:Boolean(a.tokenRing&&yes&&r.ringKept),
         canDifferent:Boolean(r.to||r.filePath),pickerOpen:Boolean(pickerRow&&pickerRow.key===r.key),
         summary:waiting?'Pick one first':conflict?'Needs a choice':yes?'Will be linked':'Skipped',
         willChange:yes&&!conflict,picker:pickerRow&&pickerRow.key===r.key?{records:pickerRecords,count:pickerRecords.length}:null};
@@ -2044,6 +2052,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       noMatchBelow:un.below,noMatchStale:Boolean(links)&&stale,deleteCount:listed.allowed.length,hasDeleteList:listed.allowed.length>0,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
       tokenRing:a.tokenRing,ringOffer:allRows.some(r=>r.ringLabel),ringCount:linkRows.filter(r=>r.ringWill).length,ringKept:linkRows.filter(r=>r.ringKeptNote).length,
+      sceneTokens:a.sceneTokens,sceneTokenTotal:linkRows.reduce((n,r)=>n+r.ringOnScenes,0),sceneTokenOffer:allRows.some(r=>r.ringTokens>0),
       scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,cinderRows,hasCinderRows:cinderRows.length>0,hasAnyRows:linkRows.length>0||cinderRows.length>0,
       linkTicked:counts.willLink+cinderWill,linkSkipped:counts.skipped+cinderAll.length-cinderWill,linkConflicts:counts.conflicts+cinderBlocked.size,linkUndecided:counts.undecided+cinderAll.filter(r=>r.needsPick&&!r.chosen).length,
       linkCountLine:`${counts.willLink+cinderWill} will be linked, ${counts.skipped+cinderAll.length-cinderWill} skipped.`,linkCanApply:counts.willLink+cinderWill>0&&!counts.conflicts&&!cinderBlocked.size,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
@@ -2135,15 +2144,18 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
         const cinderReplacing=cinderRows.filter(r=>r.from.length||r.fromArt).length;
         const ringRows=a.tokenRing?rows.filter(r=>r.ringLabel&&!r.ringKept).length:0;
-        const yes=await confirmDialog(`${rows.length?`Set the image of ${rows.length} record(s) to the file shown on each row?`:''}${cinderRows.length?`${rows.length?'\n':''}Set the art of ${cinderRows.length} Cinder(s) to the stage images shown on each row?${cinderReplacing?` ${cinderReplacing} of them already have art; it will be replaced.`:''}`:''}${replacing?`\n${replacing} of the records already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor${ringRows?`, except Foundry's token ring, which is turned on for ${ringRows} of them`:''}.`:''}\nOnly images are changed. A record whose image changed since the preview is skipped.`,
+        const sceneRows=a.tokenRing&&a.sceneTokens?rows.filter(r=>r.ringLabel&&!r.ringKept).reduce((n,r)=>n+r.ringTokens,0):0;
+        const yes=await confirmDialog(`${rows.length?`Set the image of ${rows.length} record(s) to the file shown on each row?`:''}${cinderRows.length?`${rows.length?'\n':''}Set the art of ${cinderRows.length} Cinder(s) to the stage images shown on each row?${cinderReplacing?` ${cinderReplacing} of them already have art; it will be replaced.`:''}`:''}${replacing?`\n${replacing} of the records already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor${ringRows?`, except Foundry's token ring, which is turned on for ${ringRows} of them${sceneRows?`, and on the ${sceneRows} token(s) of them already placed on scenes`:''}`:''}.`:''}\nOnly images are changed. A record whose image changed since the preview is skipped.`,
           {title:'Link images?',yes:`Link ${rows.length+cinderRows.length} image set(s)`});
         if(!yes)return;
         const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
         const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry,Actor:globalThis.Actor})[documentName].updateDocuments(updates);
+        const getTokens=actor=>(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId===actor.id).map(t=>({sceneId:scene.id,id:t.id,ring:t._source?.ring})));
+        const updateTokens=(sceneId,updates)=>game.scenes.get(sceneId).updateEmbeddedDocuments('Token',updates);
         this.busy=true;
         try{
           const outs=[];
-          if(rows.length)outs.push(await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany,tokenRing:a.tokenRing}));
+          if(rows.length)outs.push(await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany,tokenRing:a.tokenRing,sceneTokens:a.tokenRing&&a.sceneTokens,getTokens,updateTokens}));
           if(cinderRows.length)outs.push(await applyCinderArt(cinderRows,{user:game.user,api:cindersApi()}));
           const out={ok:outs.every(o=>o.ok),message:outs.map(o=>o.message).filter(Boolean).join(' ')};
           const linked=outs.reduce((n,o)=>n+(o.applied?.length??0),0);
@@ -2374,6 +2386,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     pane.querySelector('[data-ag-assets-token-ring]')?.addEventListener('change',event=>{
       a.tokenRing=event.currentTarget.checked;this.focusAfterRender='[data-ag-assets-token-ring]';void this.render();
+    });
+    pane.querySelector('[data-ag-assets-scene-tokens]')?.addEventListener('change',event=>{
+      a.sceneTokens=event.currentTarget.checked;this.focusAfterRender='[data-ag-assets-scene-tokens]';void this.render();
     });
     pane.querySelectorAll('[data-ag-assets-bulk]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();const kind=el.dataset.agAssetsBulk;a.pickerKey=null;

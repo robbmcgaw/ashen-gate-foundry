@@ -14,7 +14,7 @@
  * only for an Actor with a ring rule whose ring is still off.
  */
 import {isPlaceholderIcon, managerAssignedIcon, iconFlagUpdate, ICON_FLAGS} from './smart-icons.js';
-import {ringKindFor, ringUpdateFor} from './token-ring.js';
+import {ringKindFor, ringUpdateFor, tokenRingUpdateFor} from './token-ring.js';
 import {fileWords, nameWords, matchLevel, MATCH_REASONS, MATCH_RANK} from './asset-names.js';
 
 export const FORGE_SOURCE = 'forgevtt';
@@ -289,9 +289,9 @@ function rowFields(doc, file) {
 /** For an Actor with a ring rule: the colour word, and whether its ring is already on (then it is left alone). */
 function ringFields(doc) {
   const look = ringKindFor(doc);
-  return {ringLabel: look?.label ?? '', ringKept: Boolean(look && doc.ringEnabled)};
+  return {ringLabel: look?.label ?? '', ringKept: Boolean(look && doc.ringEnabled), ringTokens: look && !doc.ringEnabled ? Number(doc.ringTokens) || 0 : 0};
 }
-const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileName: '', from: '', fromToken: '', to: '', state: 'default', stateLabel: '', checked: false, noteText: '', sourceId: '', ringLabel: '', ringKept: false});
+const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileName: '', from: '', fromToken: '', to: '', state: 'default', stateLabel: '', checked: false, noteText: '', sourceId: '', ringLabel: '', ringKept: false, ringTokens: 0});
 
 /**
  * The preview table. `docs` are plain {uuid, documentName, type, name, sourceId, img, tokenImg, flags, baselineImg} for the
@@ -468,15 +468,18 @@ export function assignRecord(row, doc) {
  * still off also gets Foundry's ring turned on with the rule's colours; an Actor whose ring is already on, or that has no
  * rule, is left exactly as it is. GM only, checked here. `applied` entries carry `ring`: 'enabled', 'kept' or ''.
  */
-export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany, tokenRing = false, onProgress = () => {}, signal = null, chunk = LINK_CHUNK} = {}) {
+export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany, tokenRing = false, sceneTokens = false, getTokens = () => [], updateTokens = async () => {}, onProgress = () => {}, signal = null, chunk = LINK_CHUNK} = {}) {
   if (!isGM(user)) return {ok: false, message: GM_ONLY, applied: [], skipped: [], errors: []};
   const applied = [], skipped = [], errors = [], seen = new Set();
   const ringOf = new Map(); // uuid → 'enabled' | 'kept' | ''
+  const tokenPlans = []; // {name, scenes: Map(sceneId → updates[])} for Actors whose ring this call turned on
+  let tokensDone = 0;
   const todo = (rows ?? []).filter(r => r?.checked && r.to && r.uuid && !(r.needsPick && !r.chosen));
   let cancelled = false;
   for (let start = 0; start < todo.length; start += chunk) {
     if (signal?.aborted) { cancelled = true; break; }
     const batch = {};
+    tokenPlans.length = 0;
     for (const row of todo.slice(start, start + chunk)) {
       const doc = getDoc(row.uuid);
       if (!doc) { skipped.push({name: row.name, why: 'no longer in the world'}); continue; }
@@ -496,9 +499,24 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
           if (documentName !== 'Actor') return {_id: doc.id, img: row.to, ...iconFlagUpdate(moduleId, {img: row.to, source: 'authored'})};
           const ring = tokenRing ? ringUpdateFor({documentName, type: doc.type, sourceId: row.sourceId, prototypeToken: doc.prototypeToken}) : {update: {}, status: 'none'};
           ringOf.set(row.uuid, ring.status === 'enable' ? 'enabled' : ring.status === 'kept' ? 'kept' : '');
+          if (sceneTokens && ring.status === 'enable') {
+            const scenes = new Map();
+            for (const t of getTokens(doc) ?? []) {
+              const upd = tokenRingUpdateFor(ring.look, t);
+              if (Object.keys(upd).length) (scenes.get(t.sceneId) ?? scenes.set(t.sceneId, []).get(t.sceneId)).push({_id: t.id, ...upd});
+            }
+            if (scenes.size) tokenPlans.push({name: row.name, scenes, uuid: row.uuid});
+          }
           return {_id: doc.id, img: row.to, [TOKEN_IMAGE_FIELD]: row.to, ...ring.update};
         }));
         for (const {row} of list) applied.push({name: row.name, from: row.from, to: row.to, ring: ringOf.get(row.uuid) ?? ''});
+        for (const plan of tokenPlans.splice(0)) {
+          if (!applied.some(a => a.name === plan.name)) continue;
+          for (const [sceneId, updates] of plan.scenes) {
+            try { await updateTokens(sceneId, updates); tokensDone += updates.length; }
+            catch (error) { errors.push({documentName: 'Token', message: String(error?.message ?? error)}); }
+          }
+        }
       } catch (error) {
         errors.push({documentName, message: String(error?.message ?? error)});
         for (const {row} of list) skipped.push({name: row.name, why: 'the write failed'});
@@ -507,7 +525,7 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
     onProgress({done: Math.min(start + chunk, todo.length), total: todo.length});
   }
   const rings = applied.filter(a => a.ring === 'enabled').length, ringsKept = applied.filter(a => a.ring === 'kept').length;
-  const message = `${applied.length} image(s) linked${rings ? `, ${rings} token ring(s) turned on` : ''}${ringsKept ? `, ${ringsKept} already had a ring (left as it is)` : ''}${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
+  const message = `${applied.length} image(s) linked${rings ? `, ${rings} token ring(s) turned on` : ''}${ringsKept ? `, ${ringsKept} already had a ring (left as it is)` : ''}${tokensDone ? `, ${tokensDone} token(s) already on scenes updated` : ''}${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
   return {ok: !errors.length || applied.length > 0, message, applied, skipped, errors, cancelled};
 }
 
