@@ -4,6 +4,7 @@ import {validateLogicalProjection} from './source-projection.mjs';
 import {validateImportPresentation} from './import-fidelity.js';
 import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-effects.js';
 import {modifierRecordProblems} from './modifier-definitions.js';
+import {validateSupersedes, supersedeMap} from './supersedes.js';
 /** Ashen Gate Manager — pure, side-effect-free import planning tools. v0.1.0 */
 export const MODULE_ID = "ashen-gate-manager";
 export const MANAGED_TYPES = ["Item", "JournalEntry", "Actor", "RollTable", "Macro"];
@@ -167,13 +168,17 @@ export function validatePackage(input, existingIds = new Set()) {
     }
   });
   if (errors.length) return errors;
+  // 0.64.0: optional `supersedes` (an old permanent id a new record replaces); additive, checked for both schema versions.
+  errors.push(...validateSupersedes(input.records, strict ? CONTRACT_ID : SOURCE_ID_PATTERN));
+  if (errors.length) return errors;
+  const aliases=supersedeMap(input.records);
   if (strict) {
-    const graph=checkContractGraph(input.records, existingIds);
+    const graph=checkContractGraph(input.records, existingIds, null, aliases);
     return [...graph.errors,...checkLegacyCrosswalk(input.legacy_crosswalk)];
   }
   for (const record of input.records) {
     for (const ref of refsFor(record)) {
-      if (!ref.optional && !ids.has(ref.id) && !existingIds.has(ref.id)) {const owner=ownerModuleFor(ref.id);errors.push(`${record.id}: unresolved required reference ${ref.id}.${owner?` It is a ${owner.label} record (imported separately): import it in ${owner.label} first, or make the link optional.`:''}`);}
+      if (!ref.optional && !ids.has(ref.id) && !existingIds.has(ref.id) && !(aliases.has(ref.id) && ids.has(aliases.get(ref.id)))) {const owner=ownerModuleFor(ref.id);errors.push(`${record.id}: unresolved required reference ${ref.id}.${owner?` It is a ${owner.label} record (imported separately): import it in ${owner.label} first, or make the link optional.`:''}`);}
     }
   }
   return errors;

@@ -64,6 +64,22 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}}) {
 }
 
 /**
+ * Replaces one document in place with the record that supersedes it (0.64.0): the SAME world document (so tokens on scenes,
+ * ownership, folder, linked actors and links stay) is rewritten with the new record's content and re-bound to the new id.
+ * Embedded changes first and the source flag last, so an interrupted run leaves the document bound to the old id and the
+ * same preview finishes it. The old id is kept in the Manager flag `supersededFrom` for the record.
+ */
+export async function writeRebind(doc, row, {user, flag, extra = {}}) {
+  const oldId = row?.supersedes?.oldId;
+  if (!oldId) throw new Error('This row does not replace anything.');
+  assertSyncTarget(doc, user, oldId);
+  if (flag?.sourceId !== row.id) throw new Error(`The new source flag names ${flag?.sourceId}, not ${row.id}.`);
+  const prior = doc.getFlag?.(MODULE_ID, 'supersededFrom');
+  const from = [...new Set([...(Array.isArray(prior) ? prior : []), oldId])];
+  await writeOverwrite(doc, {...row, id: oldId}, {user, flag, extra: {...extra, [`flags.${MODULE_ID}.supersededFrom`]: from}});
+}
+
+/**
  * After a write (and after links are bound): remember, per path, where Foundry stores something other than the package
  * text (rich-text links, normalised numbers), so the next preview calls that field unchanged. JSON text, one write.
  */
@@ -117,7 +133,7 @@ export async function removeDoc(doc, row, {user}) {
  * public exports hold. The package files themselves are what a rebuild needs for created records.
  */
 export function buildSyncBackup(plan, {world = null, now = new Date(), modules = null} = {}) {
-  const rows = plan.rows.filter(r => ['overwrite', 'delete'].includes(r.group) && r.snap);
+  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind'].includes(r.group) && r.snap);
   return {
     schema_version: 'ag-foundry-snapshot/0.3', created_at: now.toISOString(), reason: 'before-sync-from-package', world_id: world?.id ?? null,
     sync: {phrase: SYNC_PHRASE, counts: plan.counts, lines: plan.scope.lines, files: plan.scope.files},
@@ -154,9 +170,11 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   const fail = (row, action, error) => log.push({id: row.id, kind: row.kind, action, status: 'error', message: String(error?.message ?? error)});
   const creates = plan.rows.filter(r => r.group === 'create' && !r.external);
   const overwrites = plan.rows.filter(r => r.group === 'overwrite' && !r.external);
+  const rebinds = plan.rows.filter(r => r.group === 'rebind');
+  const specialistSupersedes = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0);
   const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group));
   const deletes = plan.rows.filter(r => r.group === 'delete');
-  const total = creates.length + overwrites.length + external.length + deletes.length;
+  const total = rebinds.length + creates.length + overwrites.length + external.length + deletes.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
 
@@ -166,11 +184,32 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   say('check', 'Checking the world has not changed since the preview…', 0, total);
   const fresh = await adapter.replan();
   if (fresh.fingerprint !== plan.fingerprint) throw new Error('The world or the files changed since the preview. Preview again; nothing was changed.');
-  if (adapter.uploadArt) await adapter.uploadArt([...creates, ...overwrites]);
+  if (adapter.uploadArt) await adapter.uploadArt([...rebinds, ...creates, ...overwrites]);
 
   const touched = [];
   const mark = (phase, label) => tick(phase, label);
-  let r = await chunked(creates, chunk, signal, async row => {
+  // 0.64.0: replace-in-place first, so the new ids exist before anything links to them; then the owning modules re-key their own state.
+  let r = await chunked(rebinds, chunk, signal, async row => {
+    try {
+      const doc = row.snap?.doc ?? adapter.docFor({...row, id: row.supersedes.oldId});
+      await writeRebind(doc, row, {user, flag: adapter.buildFlag(row), extra: adapter.extraUpdate?.(doc, row) ?? {}});
+      touched.push(row); ok(row, 'rebind', {oldId: row.supersedes.oldId, uuid: doc.uuid});
+    } catch (e) { fail(row, 'rebind', e); }
+    mark('rebind', row.name)();
+  }, adapter.pause);
+  if (r.cancelled) return result(plan, log, true);
+  const reboundOk = rebinds.filter(row => log.some(l => l.id === row.id && l.action === 'rebind' && l.status === 'ok'));
+  if (reboundOk.length && adapter.afterRebind) {
+    try { for (const entry of await adapter.afterRebind(Object.fromEntries(reboundOk.map(row => [row.supersedes.oldId, row.id])), reboundOk)) log.push(entry); }
+    catch (e) { log.push({action: 'supersede-ids', status: 'error', id: '—', message: String(e?.message ?? e)}); }
+  }
+  if (specialistSupersedes.length && adapter.supersedeSpecialist && !signal?.aborted) {
+    for (const sp of specialistSupersedes) {
+      try { for (const entry of await adapter.supersedeSpecialist(sp)) log.push(entry); }
+      catch (e) { log.push({action: 'supersede-ids', status: 'error', id: sp.filename, message: String(e?.message ?? e)}); }
+    }
+  }
+  r = await chunked(creates, chunk, signal, async row => {
     try { const doc = await adapter.create(row); if (!doc) throw new Error('Foundry did not return a saved document.'); touched.push(row); ok(row, 'create', {uuid: doc.uuid}); } catch (e) { fail(row, 'create', e); }
     mark('create', row.name)();
   }, adapter.pause);
@@ -226,7 +265,11 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   } else if (deletes.length) {
     await adapter.retire(deletes.map(d => d.id)); // written before any delete, so a re-run still treats the id as retired
     r = await chunked(deletes, chunk, signal, async row => {
-      try { await removeDoc(row.snap?.doc ?? adapter.docFor(row), row, {user}); ok(row, 'delete'); } catch (e) { fail(row, 'delete', e); }
+      try {
+        // Data-layer guard: an id a package record supersedes is never deleted by Sync, whatever the plan said.
+        if (plan.set?.supersedes?.has(row.id)) throw new Error(`${row.id} is superseded by ${plan.set.supersedes.get(row.id)}; Sync does not delete it.`);
+        await removeDoc(row.snap?.doc ?? adapter.docFor(row), row, {user}); ok(row, 'delete');
+      } catch (e) { fail(row, 'delete', e); }
       mark('delete', row.name)();
     }, adapter.pause);
     if (r.cancelled) return result(plan, log, true);
@@ -236,7 +279,7 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
-  const counts = {created: n('create'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
+  const counts = {rebound: n('rebind'), created: n('create'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
     deleted: n('delete'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
   return {cancelled, log, counts, completed: !cancelled && !counts.failed && !counts.skipped};
 }

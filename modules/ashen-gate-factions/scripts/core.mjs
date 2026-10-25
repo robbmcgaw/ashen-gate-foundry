@@ -85,7 +85,10 @@ export function sourceDefinition(input){
   if(isDeity(f)){delete f.leader;delete f.public_role;delete f.folder_key;delete f.renown_track;}
   // Fail closed on every unclassified key (including nested reward claims).
   // Known legacy disclosure is stripped above; arbitrary extras are never silently dropped.
-  return assertReusableFactionSource(f);
+  assertReusableFactionSource(f);
+  // 0.17.0: `supersedes` is an instruction to the importer, not part of the stored definition.
+  delete f.supersedes;for(const e of f.entries)delete e.supersedes;
+  return f;
 }
 /** Overlay campaign-scoped discoveries without changing reusable definition identities. */
 export function overlayCampaign(input,state){

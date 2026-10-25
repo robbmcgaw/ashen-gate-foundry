@@ -73,6 +73,10 @@ A quest record can list item rewards in `outcomes.item_rewards` (at most 50):
 - Reimporting with *update* keeps the GM's changes (quantity, visibility, recipient, removed rows) and every grant. A reward taken out of the file that was already given stays in the GM list as "No longer in the quest".
 - Examples and common mistakes: `docs/fixtures/item-rewards/` (`quest-recipe-rewards.json` shows REC/MAT rewards) (check with `node scripts/validate-content.mjs`).
 
+## Superseded ids (0.25.0)
+
+`api.supersedeIds({OLD: 'NEW'}, {dryRun})` (GM only, safe to run again) renames an id a quest names (giver, faction, typed link) and the remembered link name; progress is untouched. General Manager calls it when you apply a package with `supersedes`. See `docs/supersedes-schema.md`.
+
 ## Relation to other modules
 
 Independent. General Manager can hand Quest files to `api.previewQuestImport` / `api.importQuests` (GM only); Quest's own Import keeps working. Locations links appear on quests when Locations is active. Factions can reference Objective ids and only reads Quest data through feature-detected, GM-only diagnostics.

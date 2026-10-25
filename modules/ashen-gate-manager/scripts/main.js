@@ -23,6 +23,8 @@ import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
 import {tokenLabel} from "./labels.js";
+import {offerFor, supersedeMap, collectSpecialistSupersedes, SUPERSEDE_ROW_ID} from "./supersedes.js";
+import {previewPartners, applyPartners, renameManagerRefs} from "./supersede-run.js";
 import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES, NO_CONFIDENT_MATCH} from './smart-icons.js';
@@ -39,8 +41,8 @@ import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
-import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, phraseOk, ledgerKey} from './sync.js';
-import {executeSync, buildSyncBackup} from './sync-apply.js';
+import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, ledgerKey} from './sync.js';
+import {executeSync, buildSyncBackup, writeRebind} from './sync-apply.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
 import {syncView} from './sync-view.js';
 import * as github from './github-pull.js';
@@ -76,7 +78,7 @@ const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
   Actor: "Ashen Gate — Imported Actors", RollTable: "Ashen Gate — Imported Roll Tables", Macro: "Ashen Gate — Imported Macros"};
 // 0.47.0: "icon" is a re-import that only fills a placeholder icon (smart icons); nothing else on the document changes.
-const actionAllowed = new Set(["create", "update", "metadata", "icon"]);
+const actionAllowed = new Set(["create", "update", "metadata", "icon", "rebind"]);
 const captureOf = doc => normalizeCaptureFlag(doc.getFlag(MODULE_ID, "capture"));
 function allCaptureRows() {
   return [...game.items.contents].sort((a,b)=>a.name.localeCompare(b.name)).map(doc => ({
@@ -262,7 +264,7 @@ function withItemEffects(record,plan,matches) {
 const TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
 const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\w/,c=>c.toUpperCase());
 /** Kit badge tones for import preview actions and record status (0.43.0). */
-const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',icon:'ok',blocked:'danger',conflict:'danger'};
+const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',icon:'ok',rebind:'ok',blocked:'danger',conflict:'danger'};
 /** Preview thumbnails (0.47.0): the first ones only, and lazy, so a big file stays quick. */
 const ICON_THUMBS=200;
 const ASSET_PAGE=96;
@@ -286,6 +288,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
   '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order, but starts unticked: tick it only if you want it. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
   '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included, and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees and the like go to their own modules in update mode; ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
+  '<p><strong>Replacing a record</strong> (<code>supersedes</code>): when a new record says it replaces an old permanent id and that old document is in your world, the preview shows <em>Replaces &lt;old name&gt;</em> with <strong>Yes, replace it</strong>, <strong>No, add separately</strong> or <strong>Skip</strong>. Yes keeps the same document (tokens, ownership, folder, links, Codex notes) and gives it the new name and content; items and pages you added, current HP and a token ring that is already on stay. A backup of the old documents downloads first; Sync also never deletes a document whose id is replaced. Renown and Quest Log are asked to move their saved ids to the new ones, keeping progress.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
@@ -309,6 +312,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.includeDrafts = false;
     this.updateExisting = false;
     this.updateActors = false;
+    this.supersedeChoices = {};
     this.specialist = null;
     this.selected = new Set();
     this.tab = "import";
@@ -774,7 +778,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext(options) {
     if(!game.user?.isGM)throw new Error('Only GMs can open the General Manager.');
     const ctx = await super._prepareContext(options);
-    const summary = {create:0, update:0, metadata:0, icon:0, unchanged:0, blocked:0, conflict:0, skipped:0, local:0};
+    const summary = {create:0, update:0, rebind:0, metadata:0, icon:0, unchanged:0, blocked:0, conflict:0, skipped:0, local:0};
     this.preview.forEach(row => {summary[row.action] = (summary[row.action] ?? 0) + 1;});
     const history = game.settings.get(MODULE_ID,"importHistory") ?? [];
     const allItems = allCaptureRows();
@@ -1187,6 +1191,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     this.#bindSync(root);
     this.#bindGithub(root);
+    root.querySelectorAll("[data-ag-supersede]").forEach(el => el.addEventListener("change", async event => {
+      if (this.busy || !event.target.checked) return;
+      this.supersedeChoices = {...this.supersedeChoices, [event.target.dataset.agSupersede]: event.target.value};
+      await this.#preview();
+    }));
     root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
       if (this.busy) return;
       this.updateExisting = event.target.checked;
@@ -1625,6 +1634,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     try {
       const plan=planSpecialist(kind,payload,specialistApi(game,kind),{updateExisting:this.updateExisting});
       this.errors=plan.errors; this.preview=plan.errors.length?[]:plan.rows;
+      // 0.64.0: a file that carries `supersedes` (Renown entries) gets one extra row: the owning module re-keys its saved ids first.
+      const sup=collectSpecialistSupersedes(kind,payload);
+      if(!plan.errors.length&&sup.items.length) {
+        const parts=await previewPartners(game,sup.map), pending=parts.reduce((n,x)=>n+x.changes,0);
+        this.preview.unshift({id:SUPERSEDE_ROW_ID,name:`${SPECIALISTS[kind].label}: move ${sup.items.length} saved id(s) to their new ids`,kind:'Superseded ids',lifecycle:'',action:pending||!parts.length?'rebind':'unchanged',patch:{},
+          reason:pending||!parts.length?`${sup.items.slice(0,4).map(i=>`${i.old} → ${i.new}`).join(', ')}${sup.items.length>4?', …':''}. ${parts.map(x=>`${x.label} would change ${x.changes}`).join('; ')||'No module that can move saved ids is active, so nothing changes.'} Progress is kept.`:'Already moved; nothing to change.'});
+      }
     } catch(error) { this.errors=[String(error?.message??error)]; }
     const label=SPECIALISTS[kind].label;
     this.message=this.errors.length ? `Validation failed: ${this.errors.length} issue(s). No changes made.`
@@ -1633,9 +1649,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async #applySpecialist({auto=false}={}) {
     const {kind,payload}=this.specialist, spec=SPECIALISTS[kind];
-    const rows=this.preview.filter(row=>actionAllowed.has(row.action)&&this.selected.has(row.id));
+    const allRows=this.preview.filter(row=>actionAllowed.has(row.action)&&this.selected.has(row.id));
+    const wantsSuperseded=allRows.some(r=>r.id===SUPERSEDE_ROW_ID);
+    const rows=allRows.filter(r=>r.id!==SUPERSEDE_ROW_ID);
     const fileLabel=this.packageSource??`${spec.label} file`;
-    if(!rows.length){
+    if(!allRows.length){
       this.importReports=pushReport(this.importReports,buildBlockedReport({file:fileLabel,module:spec.label,message:'No records were selected, so nothing was imported.',fix:'Press Select eligible (or tick records) in the preview, then Apply.'}));
       this.message='Nothing selected: nothing was imported. See the result below.';await this.render();return;}
     const api=specialistApi(game,kind);
@@ -1652,7 +1670,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.render();
     const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
     try {
-      log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
+      if(wantsSuperseded) { const sup=collectSpecialistSupersedes(kind,payload); log.results.push(...await applyPartners(game,sup.map,{user:game.user,definitions:sup.definitions})); }
+      if(rows.length) log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
       await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action))
         .map(r=>({key:ledgerKey(null,kind),id:r.id,info:{kind:r.kind,module:spec.label,name:rows.find(x=>x.id===r.id)?.name??r.id}})));
     } catch(error) { log.results.push({action:'import-aborted',status:'error',message:String(error?.message??error)}); }
@@ -1687,7 +1706,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.warnings.push('Legacy import package: accepted for compatibility; future exports should use Archie typed references and v0.2 metadata.');
     } else if (isContractImport(this.pkg) && !this.errors.length) {
       // 0.44.2: absent optional links to another module's records (LOC-, FACTION-, QUEST-, FAC-, ...) are informational.
-      const graphNotes=checkContractGraph(this.pkg.records,externalIds,id=>Boolean(game.modules?.get?.(id)?.active));
+      const graphNotes=checkContractGraph(this.pkg.records,externalIds,id=>Boolean(game.modules?.get?.(id)?.active),supersedeMap(this.pkg.records));
       this.warnings.push(...graphNotes.warnings);
       this.moduleLinks.push(...graphNotes.moduleLinks);
       if (this.pkg.legacy_crosswalk?.length) this.warnings.push(`${this.pkg.legacy_crosswalk.length} legacy crosswalk entry/entries supplied for review only; the Manager will not rebind IDs automatically.`);
@@ -1720,6 +1739,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Endpoints a route may use: locations already in Locations, and those this run passes to it.
     const endpointIds=new Set(locationIds ?? []);
     for (const record of records) if (isLocationRecord(record) && ['create','update'].includes(planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting}).action)) endpointIds.add(record.id);
+    // 0.64.0 `supersedes`: Manager-bound world documents by permanent id, so a record can offer to replace an old one in place.
+    const boundIndex=new Map();
+    for(const doc of allBoundDocuments()){const sid=sourceFlag(doc).sourceId;(boundIndex.get(sid)??boundIndex.set(sid,[]).get(sid)).push(makeSnapshot(doc));}
     for (const id of graph.order) {
       const record=records.find(r=>r.id===id);
       if (isLocationRecord(record)) {
@@ -1737,11 +1759,28 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.preview.push({id:record.id, name:record.name || 'Unnamed record', kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
+      let sup=null;
+      const offer=record.status==='approved'||this.includeDrafts?offerFor(record,boundIndex):null;
+      if(offer) {
+        const choice=['yes','no','skip'].includes(this.supersedeChoices[record.id])?this.supersedeChoices[record.id]:'yes';
+        const newName=record.foundry?.data?.name ?? record.name ?? 'Unnamed record', oldName=offer.snap?.name??offer.oldId;
+        sup={oldId:offer.oldId,oldName,choice,state:offer.state,reason:offer.reason??null};
+        const base={id:record.id,name:newName,kind:record.foundry?.document_type,lifecycle:record.status,supersede:sup,patch:{}};
+        if(offer.state!=='offer') {this.preview.push({...base,action:'blocked',reason:offer.reason});continue;}
+        if(choice==='skip') {this.preview.push({...base,action:'skipped',reason:`Skipped: ${oldName} and this replacement are both left as they are.`});continue;}
+        if(choice==='yes') {
+          let p; try{p=planRebind(this.uploadZipArtwork?record:withoutBundledArt(record,this.zipMedia),offer.snap);}catch(error){p={refuse:String(error?.message??error)};}
+          if(p.refuse) {this.preview.push({...base,action:'blocked',reason:p.refuse});continue;}
+          this.preview.push({...base,action:'rebind',reason:`Replaces ${oldName} in place: the same document keeps its tokens, ownership, folder and links; ${p.changes.length} difference(s) are written. HP, notes you added as items, and anything the GM added stay.`,
+            changes:p.changes.map(c=>`${c.label}: ${c.from} → ${c.to}${c.gmEdited?' (replaces a GM edit)':''}`),effects:null});
+          continue;
+        }
+      }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
       // 0.52.2: a folder_path deeper than Foundry allows shows the folder it will actually file into.
       let dest=null; try{dest=folderDestination(record.foundry?.folder_path);}catch{dest=null;}
       this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? 'Unnamed record', kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', folderNote:dest?.collapsed?dest.path:'', lifecycle:record.status, action, reason, patch, changes, effects,
-        effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
+        effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]})),supersede:sup});
       this.warnings.push(...flagWarnings(record));
     }
     const collapsed=new Set(this.preview.map(r=>r.folderNote).filter(Boolean));
@@ -1812,7 +1851,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         label:i.pending?'Indexing icons…':this.iconOverrides.has(row.id)?'your choice':i.source==='smart'?(ICON_CONFIDENCE[i.confidence]??'match'):i.reason===NO_CONFIDENT_MATCH?NO_CONFIDENT_MATCH:'generic icon',
         note:i.pending?'A generic icon for now; the pick appears when indexing finishes.':this.iconOverrides.has(row.id)?'Chosen with Change…':i.source==='smart'?`${i.existing?'Replaces a placeholder icon; ':''}${i.reason}.`
           :i.reason===NO_CONFIDENT_MATCH?'Nothing in Foundry\u2019s icon library fits this name well enough, so the generic icon is used. Change… picks one.':'No fitting icon found in the library.'}:null;
-      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), kind:tokenLabel(row.kind),lifecycle:tokenLabel(row.lifecycle),badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
+      const sup=row.supersede?{...row.supersede,id:row.id,canChoose:row.supersede.state==='offer',yes:row.supersede.choice==='yes',no:row.supersede.choice==='no',skip:row.supersede.choice==='skip'}:null;
+      return {...row, supersede:sup, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), kind:tokenLabel(row.kind),lifecycle:tokenLabel(row.lifecycle),badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
     });
   }
   #iconIndexText() {
@@ -2447,6 +2487,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         {title:'Update existing Actors?',yes:`Update ${actorUpdates.length} existing Actor(s)`});
       if (!sure) return;
     }
+    const rebindRows=docRows.filter(r=>r.action==='rebind');
+    if (rebindRows.length && !auto) {
+      const list=rebindRows.map(r=>`• ${r.supersede.oldName} → ${r.name}: ${r.changes.slice(0,6).join('; ')}${r.changes.length>6?'; …':''}`).join('\n');
+      const sure=await confirmDanger(`This replaces ${rebindRows.length} document(s) already in your world with new records. Each stays the same document, so tokens on scenes, ownership, folders and links are kept, but its name and content become the new record's. The old ids are retired and never reused.\n${list}\nOther modules that saved the old ids (Renown, Quest Log) are asked to move them to the new ids, keeping progress. A JSON backup of these documents downloads automatically before anything is written.`,
+        {title:'Replace existing documents?',yes:`Replace ${rebindRows.length} document(s)`});
+      if (!sure) return;
+    }
     this.applyRan=true;
     this.busy=true;
     await this.render();
@@ -2474,7 +2521,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const before=ordered.filter(r=>r.action==='update').map(row=>foundDocuments(row.id)[0]).filter(Boolean);
       if(before.length) this.#downloadSnapshots(before,`before-import-${Date.now()}`);
       const plans=new Map();
-      for (const row of ordered) {
+      // 0.64.0 `supersedes`: replace-in-place first, so the new ids exist before anything links to them.
+      await this.#applyRebinds(ordered.filter(r=>r.action==='rebind'),{log,plans,originalMediaPaths});
+      for (const row of ordered.filter(r=>r.action!=='rebind')) {
         const record = this.pkg.records.find(r=>r.id===row.id);
         const {plan:current,docs}=planDocument(record,this.pkg,this);
         plans.set(row.id,current);
@@ -2518,7 +2567,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
       await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
       const created=log.results.filter(r=>r.status==="ok"&&r.action==="create").length;
-      const updated=log.results.filter(r=>r.status==="ok"&&r.action==="update").length;
+      const updated=log.results.filter(r=>r.status==="ok"&&["update","rebind"].includes(r.action)).length;
       const refreshed=log.results.filter(r=>r.status==="ok"&&r.action==="metadata").length;
       const errors=log.results.filter(r=>r.status==="error").length;
       const skipped=log.results.filter(r=>r.status==="skipped").length;
@@ -2571,6 +2620,48 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render();
       }
     }
+  }
+  /**
+   * Replaces each old document in place with its superseding record (GM only; the data-layer check is in writeRebind).
+   * Returns the set of new ids that were rebound. A failure is logged for that row and the others carry on.
+   */
+  async #applyRebinds(rows,{log,plans,originalMediaPaths}) {
+    const done=new Set();
+    if(!rows.length) return done;
+    const docs=rows.map(r=>foundDocuments(r.supersede.oldId)[0]).filter(Boolean);
+    if(docs.length) this.#downloadSnapshots(docs,`before-replace-${Date.now()}`);
+    const map={};
+    for(const row of rows) {
+      const record=this.pkg.records.find(r=>r.id===row.id), oldId=row.supersede.oldId;
+      try {
+        const bound=foundDocuments(oldId);
+        if(bound.length!==1||foundDocuments(row.id).length) throw new Error('The world changed since the preview (the old document is gone, duplicated, or the new id now exists). Preview again.');
+        const doc=bound[0];
+        const adapted=adaptRecordArtwork(this.uploadZipArtwork?record:withoutBundledArt(record,this.zipMedia),originalMediaPaths);
+        const ops=planRebind(adapted,makeSnapshot(doc));
+        if(ops.refuse) throw new Error(ops.refuse);
+        const present=new Set(existingSourceIndex().keys()); present.add(row.id);
+        const flag=sourceMetadata(adapted,this.pkg,present);
+        const levels=CONST.DOCUMENT_OWNERSHIP_LEVELS;
+        const extra=releasable(doc,flag,levels)?{'ownership.default':levels.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:levels.OBSERVER}:{};
+        await writeRebind(doc,{id:row.id,supersedes:{oldId},ops},{user:game.user,flag,extra});
+        plans.set(row.id,{patch:{touched:(ops.items?.create?.length||ops.items?.update?.length)?itemKeys(adapted.foundry.data.items??[]):[]}});
+        log.results.push({id:row.id,action:'rebind',status:'ok',uuid:doc.uuid,message:`Replaced ${row.supersede.oldName} in place.`});
+        map[oldId]=row.id; done.add(row.id);
+      } catch(error) {
+        console.error(`[${MODULE_ID}] Replacing ${oldId} with ${row.id} failed`,error);
+        log.results.push({id:row.id,action:'rebind',status:'error',message:String(error?.message??error)});
+      }
+    }
+    if(done.size) {
+      try {
+        await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...new Set([...(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),...Object.keys(map)])].sort());
+        const mine=await renameManagerRefs(allBoundDocuments(),map,{user:game.user});
+        if(mine.changed) log.results.push({id:MODULE_ID,action:'supersede-ids',status:'ok',message:`Manager: ${mine.changed} document(s) had references or Codex links moved to the new id(s).`});
+        log.results.push(...await applyPartners(game,map,{user:game.user}));
+      } catch(error) { log.results.push({id:MODULE_ID,action:'supersede-ids',status:'error',message:String(error?.message??error)}); }
+    }
+    return done;
   }
   #downloadSnapshots(docs,label='snapshot') {
     const pack={schema_version:'ag-foundry-snapshot/0.3',created_at:new Date().toISOString(),
@@ -3614,6 +3705,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
       this.focusAfterRender='[data-ag-sync-unscoped]';void this.render();
     });
+    root.querySelectorAll('[data-ag-sync-supersede]').forEach(el=>el.addEventListener('change',async event=>{
+      if(this.busy||!event.target.checked)return;
+      this.sync.supersede={...(this.sync.supersede??{}),[event.target.dataset.agSyncSupersede]:event.target.value};
+      this.focusAfterRender=`[data-ag-sync-supersede="${event.target.dataset.agSyncSupersede}"][value="${event.target.value}"]`;
+      await this.#syncPreview();
+    }));
     // The red button only wakes up when the phrase is typed; typing never re-renders, so focus stays in the box.
     root.querySelector('[data-ag-sync-phrase]')?.addEventListener('input',event=>{
       this.sync.phrase=event.target.value;
@@ -3675,7 +3772,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
     }
     const handed=moduleRecordIndex(locApi,shpApi);
-    return {includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,
+    return {supersedeChoices:this.sync.supersede??{},supersedePreview:(kind,sup)=>this.sync.supersedePending?.get(JSON.stringify(sup.map)),
+      includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,
       retiredIds:new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),ledger:game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{},
       buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
       externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
@@ -3710,6 +3808,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     let step='reading the files';
     try {
       this.sync.set=buildSyncSet(this.#syncSources(joined));
+      step='asking other modules what a superseded id would change';
+      this.sync.supersedePending=new Map();
+      for(const f of this.sync.set.specialistFiles) if(f.supersedes?.items?.length) {
+        const parts=await previewPartners(game,f.supersedes.map);
+        this.sync.supersedePending.set(JSON.stringify(f.supersedes.map),parts.length?parts.reduce((n,x)=>n+x.changes,0):null);
+      }
       step='reading your world';
       const ctx=this.#syncPlanContext();
       const world=this.#syncWorld(ctx);
@@ -3814,9 +3918,22 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       buildFlag: row=>sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),
       // The importer's own ownership rule (release.js): an update raises a plain None default to Observer for approved, player-visible records.
       extraUpdate: (doc,row)=>{const levels=CONST.DOCUMENT_OWNERSHIP_LEVELS;return releasable(doc,sourceMetadata(row.record,{manifest:row.manifest},present(row.id)),levels)?{'ownership.default':levels.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:levels.OBSERVER}:{};},
+      // 0.64.0 `supersedes`: the old ids are retired for good, Manager's own references follow, then the partner modules re-key their saved ids.
+      afterRebind: async (map,rows)=>{
+        const out=[];
+        await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...new Set([...(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),...Object.keys(map)])].sort());
+        const mine=await renameManagerRefs(allBoundDocuments(),map,{user:game.user});
+        if(mine.changed)out.push({id:'ashen-gate-manager',kind:'Manager',action:'supersede-ids',status:'ok',message:`Manager: ${mine.changed} document(s) had references or Codex links moved to the new id(s).`});
+        out.push(...await applyPartners(game,map,{user:game.user}));
+        return out;
+      },
+      supersedeSpecialist: async sp=>{
+        const file=set.specialistFiles.find(f=>f.filename===sp.filename);
+        return applyPartners(game,sp.map,{user:game.user,definitions:file?.supersedes?.definitions});
+      },
       bindLinks: async (rows,log)=>{
-        const plans=new Map(rows.filter(r=>r.kind==='Actor'&&r.group==='overwrite').map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
-        await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':'update',kind:r.kind})),log:{results:log},plans});
+        const plans=new Map(rows.filter(r=>r.kind==='Actor'&&['overwrite','rebind'].includes(r.group)).map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
+        await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':r.group==='rebind'?'rebind':'update',kind:r.kind})),log:{results:log},plans});
       },
       apis: {locations:locationsApi(game),routes:routesApi(game),shops:shopsApi(game),specialist:kind=>specialistApi(game,kind)},
       retire: async ids=>{ const prior=new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]);for(const id of ids)prior.add(id);await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...prior].sort()); },
@@ -3926,7 +4043,8 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
   // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
   const moduleRecord=moduleRecordLookup(game);
   for(const row of rows) {
-    if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
+    if(!log.results.some(r=>r.id===row.id && ['create','update','metadata','rebind'].includes(r.action) && r.status==='ok')) continue;
+    const fresh=row.action==='create'||row.action==='rebind';
     const record=pkg.records.find(r=>r.id===row.id);
     const doc=foundDocuments(row.id)[0];
     if(!doc) continue;
@@ -3957,7 +4075,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
         // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
         // References section is cleaned up, and a cell re-resolved, only on documents nobody has changed since the import).
         const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
-        if(row.action==='create'||live===final||live===baseline) {
+        if(fresh||live===final||live===baseline) {
           if(live!==final) updates['system.description.value']=final;
           newFields['system.description.value']=final;
         }
@@ -3965,7 +4083,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
       }
     } else if(doc.documentName==='Actor') {
       // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
-      const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
+      const created=fresh, touched=new Set(plans.get(row.id)?.patch?.touched??[]);
       const keys=itemKeys(record.foundry.data?.items??[]);
       const bio=record.foundry.data?.system?.details?.biography?.value;
       if(created && typeof bio==='string') {
@@ -4000,7 +4118,7 @@ async function resolvePackageLinks({pkg,rows,log,plans}) {
         for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
         try{
           // Rewrite only a page nobody edited: created this run, or equal to the new text once a legacy References section is removed.
-          if(page.text?.content!==final&&(row.action==='create'||stripReferenceBlock(page.text?.content)===final||page.text?.content===undefined)) await page.update({'text.content':final});
+          if(page.text?.content!==final&&(fresh||stripReferenceBlock(page.text?.content)===final||page.text?.content===undefined)) await page.update({'text.content':final});
           log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
         }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
       }

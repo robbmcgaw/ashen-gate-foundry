@@ -3,6 +3,7 @@ import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHin
 import {filterActive,openStates,readStored,setAll,storeKey,domKey,toolbarState} from './group-folds.mjs';
 import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED} from './quests-tab.mjs';
 import {planBulk,runBulk,confirmText} from './bulk.mjs';
+import {runSupersede} from './supersede.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
@@ -19,7 +20,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.24.0';
+const VERSION='0.25.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -871,6 +872,9 @@ Hooks.once('ready',()=>{
   // GM-only hand-off used by General Manager's single importer; Quest Log's own Import JSON keeps working.
   previewQuestImport:(payload,options)=>previewQuestImport(payload,options),
   importQuests:(payload,options)=>importQuests(payload,options),
+  // 0.25.0, GM only, idempotent: quests that name an id a new record supersedes (a giver, a faction, a typed ref) name the new id; progress is kept.
+  supersedeIds:(map,options)=>runSupersede(map,options,{assertGM:()=>assertGM(game.user),records:()=>allPrivate().map(x=>({id:x.source.id,source:x.source,state:x.state})),
+   save:(id,source,state)=>saveRecord(source,{state,replace:true})}),
   // Every Quest, Order and Contract regardless of reveal status (Hidden ones included). `status` is the play state; `definitionStatus` is the source's own (draft, approved...).
   listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status,kind:x.source.objective_kind,definitionStatus:x.source.status}));},
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},

@@ -1,3 +1,16 @@
+## 0.64.0 — 2026-10-25
+
+`supersedes`: a new record can take over from an old permanent id and replace the old document in place.
+
+- **The field:** a record may carry `"supersedes": ["<old permanent id>"]` (optional, additive; `ag-foundry-import/0.1` and `/0.2`). It is an array of well-formed ids, never the record's own id, never listed twice, never an id that is still a record in the same package, and no two records may claim the same old id. Anything else stops the import with a message that names the record. See `docs/supersedes-schema.md`.
+- **Import and Sync from package:** a record whose old id is bound to a document in your world gets a **Replaces** choice per record: **Yes, replace it**, **No, add separately** or **Skip**. Nothing is written before Apply (Import) or the confirmation phrase (Sync), and both download a backup of the old documents first. With no old document in the world, or when the new id already exists, the record is handled as before.
+- **Yes keeps the same document:** tokens on scenes, ownership, folder, links and the NPC Codex notes stay. The name, image, token name and image, description, biography and Manager's stored record text come from the new record; a token ring that is already on is kept; items and pages you added stay; current HP and other play state are kept. Actors, Journals and Items can be replaced; player characters never.
+- **Sync never deletes** a document whose id a record supersedes (it is replaced, or kept and listed as Not removed), and a replaced document is never "missing from the package". Running the same files again changes nothing. The old ids are retired for good (never reused).
+- **Other modules:** after a replacement Manager moves its own references (record refs and GM-added Codex links) to the new id and asks Renown and Quest Log, when they support it, to move theirs (`api.supersedeIds`, GM only, dry run first). An absent or older module is simply not asked.
+- **Renown files:** a Factions file that carries `supersedes` on entries gets one row, "move saved ids to their new ids", which runs before the Renown import.
+- A reference that still names a superseded id resolves to its replacement in the same package, with a note.
+- Saved data: no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.63.0 — 2026-10-25
 
 Assets: Foundry's token ring turns on when you link art to an NPC or creature.

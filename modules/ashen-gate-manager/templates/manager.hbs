@@ -119,6 +119,7 @@
       <div class="ag-cluster agmanager-summary">
         <span class="ag-badge ag-badge--ok"><strong>{{summary.create}}</strong> new</span>
         <span class="ag-badge ag-badge--ok"><strong>{{summary.update}}</strong> update</span>
+        {{#if summary.rebind}}<span class="ag-badge ag-badge--ok"><strong>{{summary.rebind}}</strong> replace in place</span>{{/if}}
         <span class="ag-badge ag-badge--ok"><strong>{{summary.metadata}}</strong> metadata refresh</span>
         {{#if summary.icon}}<span class="ag-badge ag-badge--ok"><strong>{{summary.icon}}</strong> icon only</span>{{/if}}
         <span class="ag-badge"><strong>{{summary.unchanged}}</strong> unchanged</span>
@@ -137,7 +138,10 @@
           <td><strong>{{name}}</strong><details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></td>
           <td>{{kind}}{{#if detail}}<div class="agmanager-tiny">{{detail}}</div>{{/if}}{{#if folderNote}}<div class="agmanager-tiny">Folder: {{folderNote}}</div>{{/if}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
           <td><span class="ag-badge{{#if badgeTone}} ag-badge--{{badgeTone}}{{/if}}">{{badge}}</span></td>
-          <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
+          <td>{{reason}}{{#if supersede}}<fieldset class="agm-supersede"><legend>Replaces {{supersede.oldName}}?</legend><div class="ag-cluster">
+            <label class="ag-field--inline"><input type="radio" name="supersede-{{id}}" value="yes" data-ag-supersede="{{id}}" {{#if supersede.yes}}checked{{/if}} {{#unless supersede.canChoose}}disabled{{/unless}} {{#if @root.busy}}disabled{{/if}}> Yes, replace it</label>
+            <label class="ag-field--inline"><input type="radio" name="supersede-{{id}}" value="no" data-ag-supersede="{{id}}" {{#if supersede.no}}checked{{/if}} {{#unless supersede.canChoose}}disabled{{/unless}} {{#if @root.busy}}disabled{{/if}}> No, add separately</label>
+            <label class="ag-field--inline"><input type="radio" name="supersede-{{id}}" value="skip" data-ag-supersede="{{id}}" {{#if supersede.skip}}checked{{/if}} {{#unless supersede.canChoose}}disabled{{/unless}} {{#if @root.busy}}disabled{{/if}}> Skip</label></div></fieldset>{{/if}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
           {{#if @root.hasIconRows}}<td class="agm-icon-cell">{{#if icon}}<div class="agm-icon">
             {{#if icon.thumb}}<img class="agm-icon__thumb" src="{{icon.img}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}
             <div class="agm-icon__text"><span class="ag-badge{{#if icon.pending}} ag-badge--warn{{/if}}">{{icon.label}}</span> <code class="agm-icon__path">{{icon.img}}</code><div class="agmanager-tiny">{{icon.note}}</div></div>

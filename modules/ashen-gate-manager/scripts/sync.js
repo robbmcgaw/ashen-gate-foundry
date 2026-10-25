@@ -25,6 +25,7 @@ import {isLocationRecord, planLocation, isRouteRecord, planRoute} from './locati
 import {isShopRecord, planShop} from './shop-handoff.js';
 import {SPECIALISTS, planSpecialist} from './specialist-handoff.js';
 import {bundleRecordIds} from './zip-import.js';
+import {offerFor, supersedeMap, adjustRebindOps, collectSpecialistSupersedes} from './supersedes.js';
 
 export const SYNC_NAME = 'Sync from package';
 export const SYNC_PHRASE = 'Replace content from package';
@@ -69,7 +70,7 @@ export function compareVersions(a, b) {
  * its existing document is neither overwritten nor deleted).
  */
 export function buildSyncSet(sources) {
-  const set = {files: [], managerFiles: [], specialistFiles: [], records: new Map(), lines: new Map(), allIds: new Set(), refusedIds: new Map(), duplicates: [], errors: []};
+  const set = {files: [], managerFiles: [], specialistFiles: [], supersedes: new Map(), records: new Map(), lines: new Map(), allIds: new Set(), refusedIds: new Map(), duplicates: [], errors: []};
   if (sources.length > SYNC_MAX_FILES) set.errors.push(`This sync holds ${sources.length} files; the limit is ${SYNC_MAX_FILES}. Put the files in a ZIP with an import-order manifest, or sync in parts.`);
   for (const src of sources) {
     const entry = {filename: src.filename, origin: src.origin ?? src.filename, kind: src.kind, records: 0, packageId: null, version: null};
@@ -80,6 +81,7 @@ export function buildSyncSet(sources) {
       set.managerFiles.push({...entry, payload: src.payload});
       const line = set.lines.get(manifest.package_id) ?? {packageId: manifest.package_id, versions: new Set(), files: [], ids: new Set()};
       line.versions.add(manifest.version); line.files.push(src.filename); set.lines.set(manifest.package_id, line);
+      for (const [old, next] of supersedeMap(records)) set.supersedes.set(old, next);
       for (const record of records) {
         if (typeof record?.id !== 'string') continue;
         set.allIds.add(record.id); line.ids.add(record.id);
@@ -92,7 +94,7 @@ export function buildSyncSet(sources) {
     } else {
       const ids = bundleRecordIds(src.kind, src.payload);
       entry.records = ids.length;
-      set.specialistFiles.push({...entry, payload: src.payload, ids});
+      set.specialistFiles.push({...entry, payload: src.payload, ids, supersedes: collectSpecialistSupersedes(src.kind, src.payload)});
       for (const id of ids) set.allIds.add(id);
     }
   }
@@ -409,6 +411,20 @@ export function editedFields(record, snap, plannedChanges = []) {
   return out;
 }
 const PLANNERS = {Item: planItem, JournalEntry: planJournal, RollTable: planTable, Macro: planMacro, Actor: planActor};
+/**
+ * Replace-in-place plan (0.64.0): the old document's snapshot is read as if it were already bound to the new record, and the
+ * ordinary planner says what differs. Package wins (the GM chose Yes); the biography follows the new record, a token ring that
+ * is already on is kept, GM-added embedded items and pages stay. Returns the planner's ops or {refuse}.
+ */
+export function planRebind(record, snap) {
+  const type = record.foundry?.document_type, planner = PLANNERS[type];
+  if (!planner || !['Actor', 'JournalEntry', 'Item'].includes(type)) return refuse(`A ${type ?? 'record'} cannot be replaced in place.`);
+  const virtual = {...snap, raw: snap.raw, flag: {...(snap.flag ?? {}), sourceId: record.id}};
+  const p = planner(record, virtual);
+  if (p.refuse) return p;
+  adjustRebindOps(p, record, snap.raw);
+  return p;
+}
 const META_KEYS = ['entityType', 'status', 'visibility', 'version', 'sourceVersion', 'provenance', 'scope', 'schemaVersion', 'ownerSystemId', 'objectiveKind', 'definition', 'packageId', 'packageVersion', 'ownedResourceIds'];
 const metaDiff = (flag, expected) => META_KEYS.filter(k => canonical(flag?.[k] ?? null) !== canonical(expected?.[k] ?? null));
 
@@ -479,7 +495,8 @@ export function planSync(set, world, ctx = {}) {
   const order = dependencyOrder(recordList).order;
   const have = new Set(), planned = new Set();
   const available = new Set([...bySource.keys(), ...set.allIds]);
-  const kinds = {create: 0, overwrite: 0};
+  const kinds = {create: 0, overwrite: 0, rebind: 0};
+  const offers = [], rebindOld = new Set();
   for (const [id, reason] of set.refusedIds) rows.push(untouched(id, id, 'Record', reason, {refused: true}));
   for (const id of order) {
     const {record, manifest, filename} = set.records.get(id);
@@ -497,6 +514,30 @@ export function planSync(set, world, ctx = {}) {
     if (record.foundry.document_type === 'Actor' && record.foundry.data?.type === 'character') { rows.push(untouched(id, name, kind, 'Player characters are never created or changed by Sync.', {...base, refused: true})); continue; }
     if (snaps.length > 1) { rows.push(untouched(id, name, kind, `${snaps.length} world documents share this id; resolve that in Foundry first.`, {...base, refused: true})); continue; }
     if (!snaps.length) {
+      // 0.64.0: `supersedes`. An old id bound in this world offers to be replaced in place; the GM picks per row.
+      const offer = offerFor(record, bySource);
+      if (offer) {
+        const choice = ['yes', 'no', 'skip'].includes(ctx.supersedeChoices?.[id]) ? ctx.supersedeChoices[id] : 'yes';
+        const oldName = offer.snap?.name ?? offer.oldId;
+        offers.push({newId: id, oldId: offer.oldId, oldName, newName: name, kind, choice, state: offer.state, reason: offer.reason ?? null});
+        if (offer.state !== 'offer') { rows.push(untouched(id, name, kind, offer.reason, {...base, refused: true})); continue; }
+        if (choice === 'skip') { rows.push(untouched(id, name, kind, `Skipped: you chose to leave ${oldName} and this replacement for later. Neither is changed.`, base)); continue; }
+        if (choice === 'yes') {
+          try {
+            const p = planRebind(record, offer.snap);
+            if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
+            const lost = lostOf(p.changes);
+            rows.push({group: 'rebind', key: rowKey('rebind', kind, id), id, name, kind, snap: offer.snap, ops: p, changes: p.changes, lost,
+              supersedes: {oldId: offer.oldId, oldName}, reason: `Replaces ${oldName} in place (same document, tokens, ownership and folder kept): ${p.changes.length} difference(s).${p.notes?.length ? ` ${p.notes.join('; ')}.` : ''}`, ...base});
+            kinds.rebind++; planned.add(id); rebindOld.add(offer.oldId);
+          } catch (error) {
+            failures.push({id, name, step: 'compare', message: String(error?.message ?? error), stack: error?.stack ?? null});
+            rows.push(untouched(id, name, kind, `Could not compare this record with ${oldName} (${String(error?.message ?? error)}); nothing is changed.`, {...base, refused: true, failed: true}));
+          }
+          continue;
+        }
+        // 'no': import the new record as its own document below; the old one is kept (never deleted by this sync).
+      }
       if (ctx.retiredIds?.has(id)) { rows.push(untouched(id, name, kind, 'This id was deleted by an earlier sync and stays retired (ids are never reused). Give the record a new id.', {...base, refused: true})); continue; }
       const sameName = (world.unflaggedNames?.[record.foundry.document_type] ?? new Set());
       if (sameName.has?.(record.foundry.data.name)) { rows.push(untouched(id, name, kind, 'An unmanaged document with this name exists; rename or resolve it first.', {...base, refused: true})); continue; }
@@ -543,9 +584,16 @@ export function planSync(set, world, ctx = {}) {
   const unscoped = Boolean(ctx.deleteUnscoped) && set.managerFiles.length > 0;
   if (ctx.deleteUnscoped && !unscoped) notes.push('"Also delete records not in these files" is ignored: this sync has no Manager package, so Sync cannot tell which records are missing.');
   plan.deleteUnscoped = unscoped;
+  // 0.64.0: a document whose id a package record supersedes is never "missing from the package": it is replaced (Yes) or kept.
+  const held = new Set(set.supersedes.keys());
+  for (const snap of docs) {
+    const id = snap.flag?.sourceId;
+    if (!id || !held.has(id) || rebindOld.has(id)) continue;
+    rows.push(untouched(id, snap.name, snap.documentName, `Not removed: ${set.supersedes.get(id)} supersedes it. Replace it from the Replaces list, or delete it yourself.`, {kept: true, snap}));
+  }
   const candidates = docs.filter(s => {
     const f = s.flag;
-    if (!f?.sourceId || set.allIds.has(f.sourceId)) return false;
+    if (!f?.sourceId || set.allIds.has(f.sourceId) || held.has(f.sourceId)) return false;
     const line = f.packageId && f.packageId !== 'unknown' ? f.packageId : null;
     return line ? lineIds.has(line) : unscoped;
   });
@@ -560,7 +608,7 @@ export function planSync(set, world, ctx = {}) {
   let outOfScope = 0, noLine = 0;
   for (const s of docs) {
     const f = s.flag;
-    if (!f?.sourceId || set.allIds.has(f.sourceId) || doomed.has(f.sourceId)) continue;
+    if (!f?.sourceId || set.allIds.has(f.sourceId) || doomed.has(f.sourceId) || held.has(f.sourceId)) continue;
     outOfScope++;
     if (!f.packageId || f.packageId === 'unknown') noLine++;
   }
@@ -588,6 +636,11 @@ export function planSync(set, world, ctx = {}) {
   if (noLine && !unscoped) notes.push(`${noLine} Manager-imported record(s) have no package line (imported by an older version). They are kept; tick "Also delete records not in these files" to let Sync remove those that no file mentions.`);
   if (unscoped && noLine) notes.push(`"Also delete records not in these files" is on: Manager-imported records without a package line that no chosen file mentions are deleted (${candidates.filter(c => !c.flag.packageId || c.flag.packageId === 'unknown').length} of them are in the Delete list or marked Not removed).`);
   plan.kinds = kinds;
+  plan.offers = offers;
+  // Specialist files that carry `supersedes` (Renown entries): the owning module re-keys its own state before its import.
+  plan.specialistSupersedes = set.specialistFiles.filter(f => f.supersedes?.items?.length).map(f => ({filename: f.filename, kind: f.kind, items: f.supersedes.items, map: f.supersedes.map,
+    pending: ctx.supersedePreview ? ctx.supersedePreview(f.kind, f.supersedes) : null}));
+  for (const sp of plan.specialistSupersedes) notes.push(`${sp.filename}: ${sp.items.length} id(s) are superseded (${sp.items.slice(0, 4).map(i => `${i.old} → ${i.new}`).join(', ')}${sp.items.length > 4 ? ', …' : ''}). ${SPECIALISTS[sp.kind]?.label ?? 'The owning module'} re-keys its own saved state first, keeping progress.`);
   plan.failures = failures;
   if (failures.length) notes.unshift(`${failures.length} record(s) could not be compared and were left exactly as they are (${failures.slice(0, 3).map(x => `${x.id}: ${x.message}`).join('; ')}${failures.length > 3 ? '; …' : ''}). Nothing was written for them.`);
   return finish(plan);
@@ -634,7 +687,7 @@ function planModuleRows(set, ctx, rows, errors) {
 }
 
 function finish(plan) {
-  const c = {create: 0, overwrite: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
+  const c = {create: 0, overwrite: 0, rebind: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
     c[r.group]++;
@@ -647,8 +700,9 @@ function finish(plan) {
   c.metadataRefreshes ??= 0;
   plan.counts = c;
   plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects} : r.reason)]));
-  plan.records = c.create + c.overwrite;
-  plan.buttonLabel = `Replace ${plan.records} record${plan.records === 1 ? '' : 's'} and delete ${c.delete}`;
+  c.supersedeFiles = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0).length;
+  plan.records = c.create + c.overwrite + c.rebind;
+  plan.buttonLabel = `Replace ${plan.records} record${plan.records === 1 ? '' : 's'}${c.rebind ? ` (${c.rebind} in place)` : ''} and delete ${c.delete}`;
   return plan;
 }
 
