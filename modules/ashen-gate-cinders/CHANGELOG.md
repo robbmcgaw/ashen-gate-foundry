@@ -1,3 +1,14 @@
+## 0.14.0 — 2026-10-25
+
+The GM can delete a Cinder, for example one made with New Cinder that was never bound. Additive; no migration, no saved-data change.
+
+- **Delete Cinder…** on every row of Manage → Cinders (GM only). It first works out what would go and shows it with counts; **Delete <Cinder>** is never the default button (Cancel is).
+- **What it removes, only what belongs to that one Cinder:** its record (points, unlocked powers, socket list, own art and stages) and any leftovers that name it: bearer links on characters, the signature-ability / passive copies it gave, and the "attached to a Cinder" mark on items (the items stay).
+- **What it never touches:** the Cinder definition imported by General Manager, the stage art set for the kind of Cinder (other Cinders of that kind use it), Skill Trees, Strain, and any other item on a character. A General Manager re-import only brings back definitions, never a Cinder, so a deleted Cinder does not reappear.
+- **A Cinder with a bearer is refused**, naming the character: Unbind… it first. (A Cinder whose bearer is no longer in this world can be deleted.)
+- **Safe to run again:** characters are cleaned first and the record is removed last, so a failure leaves the Cinder in Manage and Delete can be run again.
+- **API (GM only, checked in the data layer):** `api.cinder.planDeleteCinder(idOrName)` (writes nothing; returns the lines, counts and `blocked`) and `api.cinder.deleteCinder(idOrName, {confirm: true})`. A name works when only one Cinder has it. Hook kind `delete`.
+
 ## 0.13.0 — 2026-10-25
 
 Stage art belongs to the Cinder itself, not only to a character's copy. Additive: a Cinder with no stage art looks exactly as before; no migration.
