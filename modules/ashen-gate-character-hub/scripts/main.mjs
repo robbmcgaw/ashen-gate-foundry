@@ -8,7 +8,7 @@ import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
 import {registerQuickKeys, pressQuickSlot} from './quick-keys.mjs';
 import {hotbarLink} from './hotbar-link.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
-import {registerCompanionSettings, petCapFor, petSlotsFor, companionsData, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
+import {registerCompanionSettings, petCapFor, petSlotsFor, companionsData, eligibleCompanions, companionKindOf, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
 import {registerLookSettings} from './look.mjs';
@@ -78,12 +78,19 @@ export function createApi() {
     openNativeSheet,
     nativeSheetAvailable: () => !!nativeSheetClass(),
     /**
-     * Companions (read only here): {mount, pets, petCap}. Since 0.47.0 companions are linked Actors; since 0.48.0 one mount and up to three pets are active:
+     * Companions (read only here; 0.49.0 adds eligibleCompanions and companionKind below): {mount, pets, petCap}. Since 0.47.0 companions are linked Actors; since 0.48.0 one mount and up to three pets are active:
      * mount is the active mount, pets lists every linked pet ({actorUuid, name, active, perkItemIds, gearItemIds}), name is the player's own name (falls back to the Actor's), actorName the Actor's, description the player's text, petCap is
      * the character's pet slot count (0 to 3; petSlotsFor(actor) gives the same number). Writes go through the Hub's Companions tab.
      */
     companions: actor => { const d = companionsData(actor), row = p => ({itemId: p.itemId, actorUuid: p.actorUuid, name: p.name, actorName: p.actorName, description: p.description, active: p.active, perkItemIds: p.perkItemIds, gearItemIds: p.gearItemIds});
       return {mount: d.mount ? row(d.mount) : null, pets: d.pets.map(row), petCap: d.petCap}; },
+    /**
+     * Read only (0.49.0): the NPC Actors this character's player owners own that fit a 'pet' or 'mount' box, as
+     * [{actorUuid, name, kind ('pet'|'mount'|'either'), reason, linked}]. Uses the viewing user's permissions.
+     * companionKind(actor) → {kind: 'pet'|'mount'|'either'|'none', source, label}: the effective kind and why.
+     */
+    eligibleCompanions: (actor, kind) => eligibleCompanions(actor, kind).map(e => ({actorUuid: e.uuid, name: e.name, kind: e.info.kind, reason: e.info.label, linked: e.linked})),
+    companionKind: actor => ({...companionKindOf(actor)}),
     petSlotsFor,
     petCapFor,
     /**

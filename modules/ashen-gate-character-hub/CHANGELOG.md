@@ -1,3 +1,16 @@
+## 0.49.0 — 2026-10-25
+
+Pets and mounts a player owns now appear in the dropdowns by themselves.
+
+- **Auto-listing.** Each pet box and the mount box list the NPC Actors the character's player **owns** (Owner permission only; Observer and Limited are not enough), under **Yours to use**, next to the companions already linked. Choosing one links it to the character and makes it active in that box. Award a companion by giving the player Owner on its Actor. Never listed: the character itself, player characters or other non-NPC Actors, level backups, compendium Actors, Actors the player cannot see, or a pet already active in another box. A pet or mount is listed once.
+- **Whose ownership counts.** An Actor is listed when at least one non-GM user who owns the character also owns it. A character with no player owner (GM-run) uses the viewing user's own permission; a GM viewing such a character gets no automatic list (a GM owns everything) and links by drop or find as before. A GM viewing a player's character sees what that player could use.
+- **What kind an Actor is** (strongest first): the GM's **Companion type**; the import id (`CRE-MOUNT-` is a mount, `CRE-PET-` a pet; people, `NPC-`, are never listed); any other creature, and any Actor with no import id, by size: Tiny, Small and Medium are pets, Large, Huge and Gargantuan are mounts. **Either** lists in both, **None** in neither.
+- **GM Setup → Companion types.** New card: a searchable list of NPC Actors with a select per row (Automatic, Pet, Mount, Either, None) and the effective kind in plain words, such as "Mount (set by GM)", "Mount (Large)" or "Pet (imported as a pet)". The setting is stored on the Actor as `flags.ashen-gate-character-hub.companionType` (optional, no migration) and only the GM can change it; the data layer refuses anyone else.
+- **Data layer.** A player can link from the list only an Actor they own whose kind fits the box; anything else is refused with a plain message. Dropping or finding an Actor works as before (Observer is enough) and the GM can link anything. The Companions part visibility, level-backup and pet-slot rules still apply.
+- **Nothing is removed automatically.** If the GM takes ownership away, a linked companion stays linked and shows "No longer owned" until its player clears it; it just stops being listed.
+- **API.** New read-only `eligibleCompanions(actor, kind)` and `companionKind(actor)`. `companions(actor)` is unchanged.
+- Tests use mocked Foundry and prove the logic, not the live UI. Please check in Forge: give a player Owner on an Ember Stag Actor and look under Mount; give Owner on a Small creature and look under Pets; mark an Actor Either in GM Setup → Companion types.
+
 ## 0.48.0 — 2026-10-25
 
 Up to three pets, slot-aware gear, and your own names for companions.

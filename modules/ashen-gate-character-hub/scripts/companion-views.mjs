@@ -1,7 +1,7 @@
 /** Companions tab (0.48.0: a Mount box and up to three Pet boxes) and the GM Setup tab (player visibility, look). */
-import {esc} from './constants.mjs';
+import {esc, MODULE_ID} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX, companionBoxes, gearChoices, perkChoices, tierOf, linkableActors, actorStats, legacyItemCompanions, defaultPetSlots, petSlotOverrides, MAX_PET_SLOTS} from './companions.mjs';
+import {LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX, KIND_TITLE, TYPE_FLAG, companionKindOf, companionBoxes, gearChoices, perkChoices, tierOf, linkableActors, actorStats, legacyItemCompanions, defaultPetSlots, petSlotOverrides, MAX_PET_SLOTS, COMPANION_TYPES} from './companions.mjs';
 import {isBackup} from './level-backup.mjs';
 import {companionRole, COMPANION_ROLES, companionStats, itemGives} from './companion-items.mjs';
 import {itemRow} from './items.mjs';
@@ -75,6 +75,7 @@ function activeHead(box, off, edit = null) {
       ${stats.length ? `<p class="agch-cbox__stats">${stats.map(x => `<span><span class="agch-muted">${esc(x.label)}</span> ${esc(x.value)}</span>`).join('')}</p>` : ''}</div></div>
     ${edit ? labelForm(e, edit) : e.description ? `<p class="agch-cbox__desc">${esc(e.description)}</p>` : ''}
     ${e.denied ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This companion is not shared with you any more, so its sheet and stats are hidden. Remove it, or ask the GM to share it again.</p>' : ''}
+    ${e.notOwned ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> No longer owned. It stays linked until you clear it, but it is not listed for you automatically.</p>' : ''}
     ${e.missing ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> The linked Actor is gone. Remove this companion, or ask the GM.</p>' : ''}
     <div class="agch-cbox__buttons">${open}${off || edit ? '' : btn('companion-label-edit', 'Edit name…', {kind: 'sm', icon: 'fa-solid fa-pen', data: {uuid: e.uuid}, title: `Give ${e.actorName} your own name and description`})}${btn('companion-remove', 'Remove…', {kind: 'danger', extra: 'ag-btn--sm', icon: 'fa-solid fa-trash', data: {kind: box.kind, uuid: e.uuid}, title: `Stop using ${e.name} as your ${n.lower} (the Actor is kept)`, disabled: off})}</div>`;
 }
@@ -91,16 +92,18 @@ function linkHtml(actor, kind, listId, off) {
 function boxHtml(box, {actor, off, listId, numbered = false, withLink = true, edit = null}) {
   const kind = box.kind, n = NAMES[kind], perks = perkChoices(actor, kind), sa = slotAttr(box);
   const title = kind === 'pet' && numbered ? `${n.title} ${box.slot + 1}` : n.title;
-  const others = box.others.map(e => `<option value="${esc(e.uuid)}">${esc(e.name)}</option>`).join('');
-  const active = box.active ? `<option value="${esc(box.active.uuid)}" selected>${esc(box.active.name)}</option>` : '';
-  const select = `<label class="agch-cbox__pick"><span>Active ${n.lower}</span><select data-edit="companion-active" data-kind="${kind}"${sa} aria-label="Choose ${kind === 'pet' && numbered ? `the active pet for ${esc(title)}` : `your active ${n.lower}`}"${off ? ' disabled' : ''}><option value=""${box.active ? '' : ' selected'}>${box.active ? `No ${n.lower}` : `Choose a ${n.lower}…`}</option>${active}${others}</select></label>`;
+  const tagged = (name, tag) => tag ? `${name} (${tag})` : name;
+  const others = box.others.map(e => `<option value="${esc(e.uuid)}">${esc(tagged(e.name, KIND_TITLE[kind]))}</option>`).join('');
+  const active = box.active ? `<option value="${esc(box.active.uuid)}" selected>${esc(tagged(box.active.name, KIND_TITLE[kind]))}</option>` : '';
+  const owned = box.available.length ? `<optgroup label="Yours to use">${box.available.map(e => `<option value="${esc(e.uuid)}">${esc(tagged(e.name, e.tag))}</option>`).join('')}</optgroup>` : '';
+  const select = `<label class="agch-cbox__pick"><span>Active ${n.lower}</span><select data-edit="companion-active" data-kind="${kind}"${sa} aria-label="Choose ${kind === 'pet' && numbered ? `the active pet for ${esc(title)}` : `your active ${n.lower}`}"${off ? ' disabled' : ''}><option value=""${box.active ? '' : ' selected'}>${box.active ? `No ${n.lower}` : `Choose a ${n.lower}…`}</option>${active}${others}${owned}</select></label>`;
   const link = withLink ? linkHtml(actor, kind, listId, off) : '';
   const body = box.active ? `${activeHead(box, off, edit && box.active && edit.uuid === box.active.uuid ? edit : null)}${select}${link}
     <h4 class="agch-subheading">Sockets</h4><ul class="agch-sockets" role="group" aria-label="${esc(title)} sockets">${box.sockets.map(x => socketHtml(box, x, gearChoices(actor, kind, x), off)).join('')}</ul>
     ${perkList(box, off)}
     ${off || !perks.length ? '' : `<label class="agch-cbox__pick"><span>${esc(n.title)} perk</span><select data-edit="companion-perk" data-kind="${kind}"${sa} aria-label="Give ${esc(box.active.name)} a perk">${options(perks, 'Add a perk…')}</select></label>`}
     ${statsBox(box, actor)}`
-    : `<div class="ag-empty"><p class="ag-empty__title">No ${n.lower} yet.</p><p class="ag-empty__text">Drop a ${n.lower} Actor here or choose one.</p></div>${box.others.length ? select : ''}${link}`;
+    : `<div class="ag-empty"><p class="ag-empty__title">No ${n.lower} yet.</p><p class="ag-empty__text">Drop a ${n.lower} Actor here or choose one.</p></div>${box.others.length || box.available.length ? select : ''}${link}`;
   return `<section class="ag-card agch-cbox agch-cbox--${kind}" aria-label="${esc(title)}"${off ? '' : ` data-drop-companion="box" data-kind="${kind}"${sa}`}>
     <h3 class="agch-sec__head"><i class="fa-solid ${n.icon}" aria-hidden="true"></i> ${esc(title)}</h3>${body}
     ${off ? '' : `<p class="agch-muted agch-hint"><i class="fa-solid fa-hand" aria-hidden="true"></i> Drop a ${n.lower} Actor on the box${box.active ? `, or ${n.gear} on a socket` : ''}.</p>`}</section>`;
@@ -162,7 +165,24 @@ function petSlotsCard() {
     ${rows ? `<h4 class="agch-subheading">Per character</h4><ul class="agch-vis agch-petslots">${rows}</ul>` : '<p class="agch-muted">No characters yet.</p>'}</div></section>`;
 }
 
-/** GM Setup: settings only (player visibility, pet slots, look). */
+/** GM Setup → Companion types: one select per NPC Actor; Automatic clears the GM's choice and lets the id or size decide. */
+function companionTypesCard() {
+  const npcs = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'npc' && !isBackup(a)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const choices = [['pet', 'Pet'], ['mount', 'Mount'], ['either', 'Either'], ['none', 'None']];
+  const rows = npcs.map(a => {
+    const set = a.flags?.[MODULE_ID]?.[TYPE_FLAG], automatic = companionKindOf(a, {automatic: true});
+    return `<li data-ctype-row data-name="${esc(String(a.name).toLowerCase())}"><label><span class="agch-ctype__name">${esc(a.name)}</span>
+      <select data-edit="companion-type" data-actor="${esc(a.id)}" aria-label="Companion type for ${esc(a.name)}"><option value=""${COMPANION_TYPES.includes(set) ? '' : ' selected'}>Automatic: ${esc(automatic.label)}</option>${choices.map(([v, l]) => `<option value="${v}"${set === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <span class="agch-muted agch-ctype__eff">${esc(companionKindOf(a).label)}</span></li>`;
+  }).join('');
+  const key = sectionKey('gm', 'companiontypes');
+  return `<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companion types')}</h3><div${bodyAttrs(key)}>
+    <p class="agch-muted">Each pet and mount box lists the NPC Actors a character's player owns, so you award a companion by giving the player Owner on the Actor. What kind an Actor is comes from, in order: the type you set here; its import id (a CRE-MOUNT or CRE-PET creature); then its size (Tiny, Small and Medium are pets; Large, Huge and Gargantuan are mounts). People (NPC- imports) are never listed. <strong>Either</strong> lists it in both, <strong>None</strong> in neither, <strong>Automatic</strong> clears your choice. A companion already linked stays linked if you remove ownership.</p>
+    ${npcs.length ? `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ctype-filter placeholder="Search NPC Actors" aria-label="Search NPC Actors" data-ag-always></label>
+    <ul class="agch-vis agch-ctypes">${rows}</ul>` : '<p class="agch-muted">No NPC Actors yet.</p>'}</div></section>`;
+}
+
+/** GM Setup: settings only (player visibility, pet slots, companion types, look). */
 export function gmSetupTab() {
-  return `${visibilityCard()}${petSlotsCard()}${lookSetupCard()}`;
+  return `${visibilityCard()}${petSlotsCard()}${companionTypesCard()}${lookSetupCard()}`;
 }

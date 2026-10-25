@@ -11,6 +11,7 @@ Character Hub 0.12.0 and later. Since 0.47.0 the **Companions** tab has a Mount 
 | Which companion wears it, and in which socket | `flags.ashen-gate-character-hub.companionSlots` on the **character** Actor (the Hub's own state; see Saved data) | The player or GM in the Hub | **Never touched** by import |
 | Pet slots (how many pets can be active, 0 to 3) | World settings `petSlots` (default 3) and `petSlotOverrides` (`{actorId: 0..3}`), set in the Hub's GM Setup | The GM | Never touched by import |
 | The old pet limit | `petCap` and `petCapOverrides` (retired in 0.47.0) stay saved and untouched; nothing reads them | n/a | n/a |
+| Which Actors are pets or mounts (optional GM override) | `flags.ashen-gate-character-hub.companionType` on the **companion Actor** (0.49.0): `pet`, `mount`, `either` or `none`; absent means automatic (see Companion kind) | The GM in the Hub's GM Setup | **Never touched** by import (optional, no migration) |
 | The player's own name and description for a companion | `companionSlots.labels` on the **character** Actor | The player or GM in the Hub | **Never touched** by import |
 
 A mount or pet is a **world Actor**, dropped from the Actors sidebar (or found by name) and linked by UUID. The Hub never copies or changes it. Before 0.47.0 an Item on the character could also be a mount or pet; those older entries are kept, read only, in the Hub's "Older companions" fold.
@@ -33,6 +34,24 @@ The Hub reads the prefix from `flags.ashen-gate-manager.source.sourceId`, which 
 - anything else counts as mount gear or pet clothing.
 
 An Item marked for the other kind of companion is refused, e.g. pet clothing on a mount. So is an Item dropped on the wrong spot, e.g. a perk into a socket.
+
+## Companion kind (which Actors are listed automatically)
+
+Hub 0.49.0. Each pet box and the mount box list the world **NPC Actors** (`actor.type === 'npc'`) that the character's player owns, so a player can pick one without dropping or searching. An Actor is eligible when at least one non-GM user with Owner on the character also has Owner on it (Observer and Limited do not count; a character with no player owner uses the viewing user's own permission). Never eligible: the character itself, player characters, other non-NPC types, level backups, compendium Actors, Actors the viewer cannot see.
+
+The Actor's kind, strongest rule first:
+
+| Order | Source | Result |
+|---|---|---|
+| 1 | `flags.ashen-gate-character-hub.companionType` = `pet`, `mount`, `either` or `none` (set by the GM) | as set |
+| 2 | Manager's id on the Actor (`flags.ashen-gate-manager.source.sourceId`) starting `CRE-MOUNT-` / `CRE-PET-` | mount / pet |
+| 3 | any other `CRE-` id (bestiary and frontier creatures) | by size |
+| 4 | `NPC-` id (a person) | none |
+| 5 | no Manager id (or another prefix) | by size |
+
+Size (`system.traits.size`): `tiny`, `sm`, `med` are pets; `lg`, `huge`, `grg` are mounts; a missing or unknown size is none. `either` is listed in both kinds, `none` in neither. The flag is optional; the GM sets it in GM Setup → Companion types (Automatic removes it). Choosing an Actor from the list links it to the character and makes it active; the data layer refuses a player an Actor they do not own or whose kind does not fit that box. Dropping or finding an Actor keeps the Observer rule, and the GM can link anything. Nothing is auto-removed when ownership is revoked.
+
+For ChatGPT / content packages: give a creature a `CRE-MOUNT-` or `CRE-PET-` id to fix its kind in the import, or set its size correctly; the GM can always override with the Companion type.
 
 ## Slot (which socket an item fits)
 

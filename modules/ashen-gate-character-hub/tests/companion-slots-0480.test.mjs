@@ -298,7 +298,7 @@ test('Companions tab: mount box and three pet boxes (mount first, larger), art, 
   assert.match(html, /agch-companion__art agch-companion__art--small"><img src="horse.webp"/);
   assert.match(html, /agch-cbox__name">\[TEST\] horse</);
   assert.match(html, /agch-cbox__stats">[\s\S]*AC<\/span> 12[\s\S]*HP<\/span> 19 \/ 19[\s\S]*Speed<\/span> 60 ft/);
-  assert.match(html, /data-edit="companion-active" data-kind="mount"[^>]*>[\s\S]*<option value="Actor.horse" selected>\[TEST\] horse<\/option><option value="Actor.pony">\[TEST\] pony<\/option>/, 'swap list holds the other mount');
+  assert.match(html, /data-edit="companion-active" data-kind="mount"[^>]*>[\s\S]*<option value="Actor.horse" selected>\[TEST\] horse \(Mount\)<\/option><option value="Actor.pony">\[TEST\] pony \(Mount\)<\/option>/, 'swap list holds the other mount');
   assert.equal((html.match(/class="agch-socketbox /g) ?? []).length, 7, '5 + 2 sockets');
   assert.match(html, /Saddle<\/span>[\s\S]*\[TEST\] Leather Barding \(Fine\)[\s\S]*AC \+1|Armor AC 11/, 'tier shown with the name; each bonus listed on the row');
   assert.match(html, /aria-label="Add gear to the Tack 1 socket"/, 'keyboard route for empty sockets');
@@ -616,7 +616,7 @@ test('Companions tab: three pet boxes with their own sockets, dropdown choices, 
   assert.match(html, /agch-cbox__name">Biscuit</); assert.match(html, /agch-cbox__real">\[TEST\] cat</); assert.match(html, /agch-cbox__desc">Sleeps on the saddle\./);
   const pet3 = html.slice(html.indexOf('aria-label="Pet 3"'));
   assert.match(pet3, /Choose a pet…/, 'the empty box offers a choice');
-  assert.match(pet3, /<option value="Actor.fox">\[TEST\] fox<\/option>/);
+  assert.match(pet3, /<option value="Actor.fox">\[TEST\] fox \(Pet\)<\/option>/);
   assert.doesNotMatch(pet3.slice(0, pet3.indexOf('</section>')), /Actor\.cat|Actor\.owl/, 'pets active in other boxes are not offered');
   const sockets = html.match(/<span class="agch-socketbox__label">(Saddle|Tack|Head|Body)<\/span>/g).map(x => x.replace(/<[^>]+>/g, ''));
   assert.deepEqual(sockets, ['Saddle', 'Tack', 'Tack', 'Tack', 'Tack', 'Head', 'Body', 'Head', 'Body']);
