@@ -47,24 +47,23 @@ function world({hotbar = {}, can = true, hub = [], settings = {}, flags = {}} = 
   const link = createHotbarLink({create, notify: m => told.push(m)});
   return {user, actor, link, macro, notes, told, made: () => made, writes: () => actor.calls.filter(c => c[0] === 'update').length};
 }
-const askNever = () => { throw new Error('should not ask'); };
 
 test('Hub → Foundry: the first link of a bar onto an empty Foundry page puts each slot there without asking, with dnd5e\'s item macro', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Macro', uuid: 'Macro.light'}]});
   w.macro('light', '[TEST] Light', 'console.log(1)');
-  assert.equal(await w.link.activate(w.actor, {ask: askNever}), 'hub');
+  assert.equal(await w.link.activate(w.actor), 'hub');
   const m1 = game.macros.get(w.user.hotbar[1]);
   assert.equal(m1.name, '[TEST] Shortsword'); assert.equal(m1.command, 'dnd5e.documents.macro.rollItem("[TEST] Shortsword", { event })');
   assert.equal(w.user.hotbar[2], 'light');
   assert.equal(w.made(), 1);
   assert.equal(w.link.linked, w.actor);
-  assert.equal(await w.link.activate(w.actor, {ask: askNever}), null, 'already linked: nothing again');
+  assert.equal(await w.link.activate(w.actor), null, 'already linked: nothing again');
 });
 
 test('Hub → Foundry: an item that already has your dnd5e macro reuses it (no duplicate); assign and clear follow live', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}]});
   const old = w.macro('mine', '[TEST] Shortsword', 'dnd5e.documents.macro.rollItem("[TEST] Shortsword", { event })');
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   assert.equal(w.user.hotbar[1], old.id); assert.equal(w.made(), 0);
   await hb.setHotbarSlot(w.actor, 3, w.actor.items.get('hp'));
   await w.link.hubChanged(w.actor);
@@ -77,7 +76,7 @@ test('Hub → Foundry: an item that already has your dnd5e macro reuses it (no d
 
 test('Foundry → Hub: an item macro of this character or a world macro goes into the Hub slot; clearing it clears the Hub slot', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}]});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   const potion = w.macro('pot', '[TEST] Potion', itemMacroCommand(w.actor.items.get('hp')));
   const world1 = w.macro('w1', '[TEST] Torch', 'game.togglePause()');
   await w.user.assignHotbarMacro(potion, 3); await w.link.foundryChanged();
@@ -90,7 +89,7 @@ test('Foundry → Hub: an item macro of this character or a world macro goes int
 
 test('things the Hub cannot hold stay in Foundry and the Hub slot is left as it is', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'hp'}]});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   const other = w.macro('o', '[TEST] Greataxe', 'dnd5e.documents.macro.rollItem("[TEST] Greataxe", { event })');
   const activity = w.macro('a', '[TEST] Shortsword: Attack', 'dnd5e.documents.macro.rollItem("[TEST] Shortsword", { activityName: "Attack", event });');
   assert.equal(macroToEntry(other, w.actor).kind, 'foreign');
@@ -107,7 +106,7 @@ test('things the Hub cannot hold stay in Foundry and the Hub slot is left as it 
 test('only page 1 (slots 1-10) is read or written', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}], hotbar: {11: 'p2', 23: 'p3'}});
   w.macro('p2', '[TEST] Page two', 'x'); w.macro('p3', '[TEST] Page three', 'y');
-  await w.link.activate(w.actor, {ask: askNever});   // Foundry's page 1 is empty: no question
+  await w.link.activate(w.actor);   // Foundry's page 1 is empty: no question
   assert.ok(w.user.calls.filter(c => c[0] === 'assign').every(c => c[2] >= 1 && c[2] <= 10));
   assert.equal(w.user.hotbar[11], 'p2'); assert.equal(w.user.hotbar[23], 'p3');
   const before = w.writes();
@@ -118,57 +117,61 @@ test('only page 1 (slots 1-10) is read or written', async () => {
   assert.equal(w.user.hotbar[11], 'p2'); assert.equal(w.user.hotbar[15], 'p3');
 });
 
-test('first link with different bars asks once; each answer does what it says and is remembered for this character', async () => {
-  const setup = () => { const w = world({hub: [{type: 'Item', id: 'ss'}, null, {type: 'Item', id: 'hp'}], hotbar: {2: 'w1', 3: 'w2'}}); w.macro('w1', '[TEST] One', 'a'); w.macro('w2', '[TEST] Two', 'b'); return w; };
-  let w = setup(), asked = 0;
-  assert.equal(await w.link.activate(w.actor, {ask: async () => { asked++; return null; }}), null, 'Cancel');
-  assert.equal(asked, 1); assert.equal(w.link.linked, null); assert.equal(w.user.flags[MODULE_ID], undefined, 'Cancel is not remembered');
-  assert.deepEqual(w.user.hotbar, {2: 'w1', 3: 'w2'}); assert.equal(w.writes(), 0, 'Cancel changes nothing');
-  assert.equal(await w.link.activate(w.actor, {ask: askNever}), null, 'not asked again this session');
-  const twice = setup(); let n = 0;
-  const slow = async () => { n++; return null; };
-  await Promise.all([twice.link.activate(twice.actor, {ask: slow}), twice.link.activate(twice.actor, {ask: slow})]);
-  assert.equal(n, 1, 'two activations while the question is open ask once');
+test('0.50.0: the first link of different bars merges silently: Hub slots kept, empty Hub slots filled from Foundry, no dialog', async () => {
+  const setup = () => { const w = world({hub: [{type: 'Item', id: 'ss'}, null, {type: 'Item', id: 'hp'}], hotbar: {2: 'w1', 3: 'w2', 11: 'p2'}}); w.macro('w1', '[TEST] One', 'a'); w.macro('w2', '[TEST] Two', 'b'); w.macro('p2', '[TEST] Page2', 'c'); return w; };
+  const w = setup();
+  assert.equal(await w.link.activate(w.actor), 'merged');
+  assert.deepEqual(hb.hotbarSlots(w.actor).slice(0, 3), [{type: 'Item', id: 'ss'}, {type: 'Macro', uuid: 'Macro.w1'}, {type: 'Item', id: 'hp'}], 'empty Hub slot 2 filled; the others kept');
+  assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword', 'Foundry slot 1 takes the Hub item');
+  assert.equal(w.user.hotbar[2], 'w1'); assert.equal(game.macros.get(w.user.hotbar[3]).name, '[TEST] Potion', 'Foundry slot 3 takes the Hub item (nothing is lost: the Hub keeps its own)');
+  assert.equal(w.user.hotbar[11], 'p2', 'other pages untouched');
+  assert.equal(w.user.flags[MODULE_ID][LINK_FLAG].actor1, 'merged');
+  assert.equal(w.told.length, 1, 'one quiet notice'); assert.match(w.told[0], /a macro from your Foundry hotbar/);
+  assert.equal(await w.link.activate(w.actor), null, 'already linked: nothing again');
+  // after the merge both directions sync as before
+  await w.user.assignHotbarMacro(w.macro('w3', '[TEST] Three', 'd'), 4); await w.link.foundryChanged();
+  assert.deepEqual(hb.hotbarSlots(w.actor)[3], {type: 'Macro', uuid: 'Macro.w3'});
+});
 
-  w = setup();
-  await w.link.activate(w.actor, {ask: async () => 'hub'});
-  assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword'); assert.equal(w.user.hotbar[2], undefined); assert.equal(game.macros.get(w.user.hotbar[3]).name, '[TEST] Potion');
-  assert.equal(w.user.flags[MODULE_ID][LINK_FLAG].actor1, 'hub');
+test('0.50.0: a merge that fills nothing is silent; Foundry empty or equal bars link with no merge and no notice', async () => {
+  const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'hp'}], hotbar: {1: 'w1'}}); w.macro('w1', '[TEST] One', 'a');
+  assert.equal(await w.link.activate(w.actor), 'merged');
+  assert.deepEqual(w.told, []); assert.deepEqual(hb.hotbarSlots(w.actor).slice(0, 2), [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'hp'}]);
+  assert.notEqual(w.user.hotbar[1], 'w1', 'Hub slot 1 wins on Foundry');
+  const empty = world({hub: [{type: 'Item', id: 'ss'}]});
+  assert.equal(await empty.link.activate(empty.actor), 'hub'); assert.equal(empty.user.flags[MODULE_ID], undefined, 'nothing to remember');
+});
 
-  w = setup();
-  await w.link.activate(w.actor, {ask: async () => 'foundry'});
-  assert.deepEqual(hb.hotbarSlots(w.actor).slice(0, 3), [null, {type: 'Macro', uuid: 'Macro.w1'}, {type: 'Macro', uuid: 'Macro.w2'}]);
-  assert.deepEqual(w.user.hotbar, {2: 'w1', 3: 'w2'});
+test('0.50.0: an answer stored by the old question is kept harmlessly: no merge, the Hub bar goes onto page 1', async () => {
+  for (const old of ['hub', 'foundry', 'both']) {
+    const again = world({hub: [{type: 'Item', id: 'ss'}], hotbar: {2: 'w1'}, flags: {[MODULE_ID]: {[LINK_FLAG]: {actor1: old}}}});
+    again.macro('w1', '[TEST] One', 'a');
+    assert.equal(await again.link.activate(again.actor), 'hub');
+    assert.equal(again.user.hotbar[2], undefined); assert.deepEqual(hb.hotbarSlots(again.actor).slice(0, 2), [{type: 'Item', id: 'ss'}, null], 'Hub unchanged');
+    assert.deepEqual(again.user.calls.filter(c => c[0] === 'setFlag'), []);
+  }
+});
 
-  w = setup();
-  await w.link.activate(w.actor, {ask: async () => 'both'});
-  assert.deepEqual(hb.hotbarSlots(w.actor).slice(0, 3), [{type: 'Item', id: 'ss'}, {type: 'Macro', uuid: 'Macro.w1'}, {type: 'Item', id: 'hp'}], 'empty Hub slot 2 filled; slot 3 keeps its item');
-  assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword', 'empty Foundry slot 1 filled');
-  assert.equal(w.user.hotbar[3], 'w2', 'both full: kept');
-
-  // Remembered: a later session (a new link) does not ask; the Hub's bar goes onto Foundry's page.
-  const again = world({hub: [{type: 'Item', id: 'ss'}], hotbar: {2: 'w1'}, flags: {[MODULE_ID]: {[LINK_FLAG]: {actor1: 'foundry'}}}});
-  again.macro('w1', '[TEST] One', 'a');
-  assert.equal(await again.link.activate(again.actor, {ask: askNever}), 'hub');
-  assert.equal(again.user.hotbar[2], undefined);
+test('0.50.0: the question is gone from the source', () => {
+  const src = fs.readFileSync(new URL('../scripts/hotbar-link.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /askFirstLink|choiceDialog|Keep both and fill/);
+  assert.equal(hotbarLinkModule.askFirstLink, undefined);
 });
 
 test('switching to another character\'s Hub puts that character\'s bar on Foundry\'s page 1', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}]});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   const b = makeActor({items: [{id: 'bow', name: '[TEST] Bow', type: 'weapon'}]});
   b.id = 'actor2'; b.items[0].uuid = 'Actor.actor2.Item.bow'; b.items[0]._source = {name: '[TEST] Bow'};
   b.flags = {[MODULE_ID]: {hotbar: [null, {type: 'Item', id: 'bow'}]}};
   const link = createHotbarLink({create: async (data, slot) => { const m = {id: 'bowm', uuid: 'Macro.bowm', name: '[TEST] Bow', command: itemMacroCommand(b.items[0]), isAuthor: true}; game.macros.push(m); await w.user.assignHotbarMacro(m, slot); }});
-  let asked = 0;
-  await link.activate(b, {ask: async () => { asked++; return 'hub'; }});
-  assert.equal(asked, 1, 'first link of this character with different bars: asks');
+  await link.activate(b);
   assert.equal(w.user.hotbar[1], undefined); assert.equal(w.user.hotbar[2], 'bowm');
 });
 
 test('loop guard: a copy that already matches writes nothing, so each change is written once', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}]});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   const assigns = () => w.user.calls.filter(c => c[0] === 'assign').length;
   const a0 = assigns(), u0 = w.writes();
   await hb.setHotbarSlot(w.actor, 1, w.actor.items.get('hp'));   // the Hub write (1 actor update)
@@ -185,7 +188,7 @@ test('loop guard: a copy that already matches writes nothing, so each change is 
 
 test('0.46.0: always linked, no option: an old stored "unlinked" value is ignored, and no setting, menu item or action exists', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}], settings: {linkFoundryHotbar: false}});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   assert.equal(w.user.hotbar[1] !== undefined, true, 'the stored false does not leave the user unlinked');
   assert.equal(w.link.linked, w.actor);
   for (const gone of ['LINK_SETTING', 'registerLinkSetting', 'linkOn', 'setLinkOn']) assert.equal(hotbarLinkModule[gone], undefined, gone);
@@ -198,7 +201,7 @@ test('0.46.0: always linked, no option: an old stored "unlinked" value is ignore
 
 test('no permission to create script macros: the Hub slot still works, one quiet notice, never a throw', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}], can: false});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   assert.equal(w.user.hotbar[1], undefined);
   await hb.setHotbarSlot(w.actor, 1, w.actor.items.get('hp')); await w.link.hubChanged(w.actor);
   assert.equal(w.told.length, 1); assert.match(w.told[0], /could not be made/);
@@ -323,7 +326,7 @@ test('0.42.1: a hostile item name is never copied to the hotbar (nothing created
     const it = {id, name, type: 'weapon', uuid: `Actor.actor1.Item.${id}`, _source: {name}, system: {activities: [{activation: {type: 'action'}}]}};
     w.actor.items.push(it);
   }
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword');
   assert.equal(w.user.hotbar[2], undefined); assert.equal(w.user.hotbar[3], undefined);
   assert.equal(game.macros.get(w.user.hotbar[4]).name, '[TEST] Potion');
@@ -344,7 +347,7 @@ test('0.42.1: an existing hotbar macro with a hostile name is not read back into
 test('0.42.1: two items with the same name: the first links, the duplicate is skipped with a notice (it would roll the first)', async () => {
   const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'dup'}]});
   w.actor.items.push({id: 'dup', name: '[TEST] Shortsword', type: 'weapon', uuid: 'Actor.actor1.Item.dup', _source: {name: '[TEST] Shortsword'}, system: {activities: [{activation: {type: 'action'}}]}});
-  await w.link.activate(w.actor, {ask: askNever});
+  await w.link.activate(w.actor);
   assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword');
   assert.equal(w.user.hotbar[2], undefined);
   assert.equal(w.made(), 1);

@@ -11,20 +11,22 @@
  *   - Only slots 1-10 (page 1) are read or written. Each side is compared with what it held at the last sync, so only
  *     the slots that really changed are copied, and a copy that already matches writes nothing: the sync never
  *     re-triggers itself (last write wins).
- *   - The first link of a character whose two bars differ asks once per character and user (remembered on the User:
- *     flags['ashen-gate-character-hub'].hotbarLink[actorId]). After that, bringing the character's Hub to the front puts
- *     its quick bar on Foundry's page 1.
+ *   - The first link of a character whose two bars differ (0.50.0: no question) is merged silently, once per character
+ *     and user: every Hub slot is kept, the Hub's EMPTY slots are filled from Foundry's page 1, and Foundry's page 1 then
+ *     takes the Hub bar. "Merged" is remembered on the User (flags['ashen-gate-character-hub'].hotbarLink[actorId]); an
+ *     answer stored there by 0.42.0-0.49.x counts the same (the Hub's bar goes onto page 1). After that, bringing the
+ *     character's Hub to the front puts its quick bar on Foundry's page 1.
  *   - Always on (0.46.0): there is no option. A `linkFoundryHotbar` value stored by 0.42.0-0.45.x is no longer read or
  *     registered, so it is ignored and left where it is; hotbar slot data is never touched by that.
  */
-import {MODULE_ID, esc} from './constants.mjs';
+import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {canSee} from './visibility.mjs';
 import {hotbarSlots, writeHotbarSlots, HOTBAR_SLOTS} from './hotbar.mjs';
-import {choiceDialog} from './ag-dialogs.mjs';
 
 export const LINK_FLAG = 'hotbarLink';
-export const LINK_CHOICES = ['hub', 'foundry', 'both'];
+/** Stored values: 'merged' (0.50.0); 'hub' | 'foundry' | 'both' were the answers to the removed question and now mean "already linked". */
+export const LINK_CHOICES = ['merged', 'hub', 'foundry', 'both'];
 
 /** The command dnd5e 6 writes for an item macro (documents/macro.mjs create5eMacro, type "Item"). */
 export const UNSAFE_NAME = /["\\`\r\n\u2028\u2029]|\$\{/;
@@ -75,18 +77,6 @@ const fromUuid = uuid => { try { return globalThis.fromUuidSync?.(uuid) ?? null;
 /** May this user create a script Macro (Foundry's MACRO_SCRIPT permission; a GM always may)? */
 export const canCreateScriptMacro = (user = globalThis.game?.user) => user?.isGM === true || user?.can?.('MACRO_SCRIPT') === true;
 
-/** The first-link question. Cancel (first, the default) links nothing; the answer is remembered for this character. */
-export async function askFirstLink(actor) {
-  const name = esc(actor?.name ?? 'this character');
-  const html = `<p>${name}'s quick bar and your Foundry hotbar (page 1, the page the number keys use) hold different things. Linking keeps slot 1-10 of both the same from now on.</p>
-    <p>Whenever you bring a character's Hub to the front, that character's quick bar is put on page 1 of your Foundry hotbar, replacing the macros there. Other hotbar pages are never touched.</p>`;
-  return choiceDialog(`Link ${actor?.name ?? 'the'} quick bar to Foundry's hotbar?`, html, [
-    {action: 'hub', label: 'Use the Hub quick bar'},
-    {action: 'foundry', label: "Use Foundry's hotbar"},
-    {action: 'both', label: 'Keep both and fill empty slots'}
-  ]);
-}
-
 /**
  * One link per client. `env` lets tests pass stand-ins: {user, macros, notify, create (dnd5e create5eMacro)}.
  * Every change runs one at a time (a queue), so two events never interleave their reads and writes.
@@ -97,7 +87,6 @@ export function createHotbarLink(env = {}) {
   const create = () => env.create ?? globalThis.dnd5e?.documents?.macro?.create5eMacro;
   const macros = () => env.macros?.() ?? [...(globalThis.game?.macros ?? [])];
   let linked = null, lastFoundry = null, lastHub = null, queue = Promise.resolve(), noticed = false;
-  const declined = new Set();
   const run = fn => (queue = queue.then(fn).catch(err => { console.warn(`${MODULE_ID} | hotbar link`, err); return null; }));
   const eligible = actor => !!actor && typeof user()?.assignHotbarMacro === 'function' && canEdit(actor) && canSee('hotbars');
   let warned = false;
@@ -132,15 +121,16 @@ export function createHotbarLink(env = {}) {
       const next = m.kind === 'entry' ? m.entry : null;
       if (!sameEntry(next, hub[i])) patch[i] = next;
     });
-    if (Object.keys(patch).length) await writeHotbarSlots(actor, patch);
+    const n = Object.keys(patch).length;
+    if (n) await writeHotbarSlots(actor, patch);
+    return n;
   }
-  async function apply(actor, choice) {
-    const hub = hotbarSlots(actor), ids = pageIds(user());
-    if (choice === 'foundry') await pull(actor, () => true);
-    else if (choice === 'both') {
-      await pull(actor, (i, m, h) => !h && m.kind === 'entry');
-      for (let i = 0; i < HOTBAR_SLOTS; i++) if (hub[i] && !ids[i]) await push(actor, i, hub[i]);
-    } else for (let i = 0; i < HOTBAR_SLOTS; i++) await push(actor, i, hub[i]);
+  /** The silent first-link merge: keep every Hub slot, fill the Hub's empty slots from Foundry, then Foundry takes the Hub bar. Returns how many Hub slots were filled. */
+  async function merge(actor) {
+    const filled = await pull(actor, (i, m, h) => !h && m.kind === 'entry');
+    const hub = hotbarSlots(actor);
+    for (let i = 0; i < HOTBAR_SLOTS; i++) await push(actor, i, hub[i]);
+    return filled;
   }
 
   return {
@@ -151,24 +141,26 @@ export function createHotbarLink(env = {}) {
       return {differ: ids.some((id, i) => !matches(hub[i], macroById(id), actor, u)), foundryEmpty: ids.every(id => !id)};
     },
     /**
-     * The Hub of `actor` came to the front (opened or focused). Links it unless it already is: the first time, and
-     * when the bars differ, it asks (`ask(actor)` → 'hub' | 'foundry' | 'both' | null) and remembers the answer.
+     * The Hub of `actor` came to the front (opened or focused). Links it unless it already is. The first time a
+     * character's bars differ (and Foundry's page 1 holds something) they are merged without asking (see the header).
      */
-    activate(actor, {ask = askFirstLink} = {}) {
-      if (!eligible(actor) || linked === actor || declined.has(actor.id)) return Promise.resolve(null);
+    activate(actor) {
+      if (!eligible(actor) || linked === actor) return Promise.resolve(null);
       return run(async () => {
-        if (linked === actor || declined.has(actor.id)) return null;   // a click while the question was open
-        const u = user(), remembered = u?.flags?.[MODULE_ID]?.[LINK_FLAG]?.[actor.id];
-        let choice = 'hub';
+        if (linked === actor) return null;
+        const u = user(), flags = u?.flags?.[MODULE_ID]?.[LINK_FLAG], remembered = flags?.[actor.id];
+        let filled = 0, merged = false;
         const {differ, foundryEmpty} = this.compare(actor);
         if (!LINK_CHOICES.includes(remembered) && differ && !foundryEmpty) {
-          choice = await ask(actor);
-          if (!LINK_CHOICES.includes(choice)) { declined.add(actor.id); return null; }
-          await u.setFlag?.(MODULE_ID, LINK_FLAG, {...(u.flags?.[MODULE_ID]?.[LINK_FLAG] ?? {}), [actor.id]: choice});
+          filled = await merge(actor); merged = true;
+          try { await u.setFlag?.(MODULE_ID, LINK_FLAG, {...(flags ?? {}), [actor.id]: 'merged'}); } catch (err) { console.warn(`${MODULE_ID} | hotbar link flag`, err); }
+        } else {
+          const hub = hotbarSlots(actor);
+          for (let i = 0; i < HOTBAR_SLOTS; i++) await push(actor, i, hub[i]);
         }
-        await apply(actor, choice);
         linked = actor; snapshot(actor);
-        return choice;
+        if (filled) notify(`${actor.name}'s quick bar now also holds ${filled === 1 ? 'a macro' : `${filled} macros`} from your Foundry hotbar.`);
+        return merged ? 'merged' : 'hub';
       });
     },
     /** The linked character's quick bar changed (any client): copy the slots that changed to Foundry. */
@@ -196,7 +188,7 @@ export function createHotbarLink(env = {}) {
       });
     },
     /** The GM hid the quick bar: forget the link. The bars stay as they are. */
-    unlink() { linked = null; lastFoundry = null; lastHub = null; declined.clear(); },
+    unlink() { linked = null; lastFoundry = null; lastHub = null; },
     /** Waits for the queued work (tests). */
     idle: () => queue
   };
