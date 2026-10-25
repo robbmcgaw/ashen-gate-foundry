@@ -151,8 +151,24 @@ export const ACTIONS = {
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
   'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.kind, t.dataset.uuid),
-  'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.kind, t.dataset.id),
-  'companion-unsocket': (s, t) => comp.clearSocket(s.document, t.dataset.kind, t.dataset.socket),
+  'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.kind, t.dataset.id, slotOf(t)),
+  'companion-unsocket': (s, t) => comp.clearSocket(s.document, t.dataset.kind, t.dataset.socket, slotOf(t)),
+  'companion-label-edit': (s, t) => {
+    const e = comp.companionBoxes(s.document); const found = [e.mount, ...e.pets].map(b => b.active).find(a => a?.uuid === t.dataset.uuid);
+    s.labelEdit = {uuid: t.dataset.uuid, name: found?.customName ?? '', description: found?.description ?? ''}; return s.render();
+  },
+  'companion-label-cancel': async s => {
+    const ed = s.labelEdit; if (!ed) return null;
+    const saved = comp.readSlots(s.document).labels[comp.ckey(ed.uuid)] ?? {name: '', description: ''};
+    if ((ed.name !== saved.name || ed.description !== saved.description) && !(await confirmDanger('Your name and description changes have not been saved.', {title: 'Discard unsaved changes?', yes: 'Discard changes', danger: true}))) return null;
+    s.labelEdit = null; return s.render();
+  },
+  'companion-label-save': async s => {
+    const ed = s.labelEdit; if (!ed) return null;
+    const r = await comp.setCompanionLabel(s.document, ed.uuid, ed);
+    if (r.ok) { s.labelEdit = null; s.render(); }
+    return r;
+  },
   'companion-open': (s, t) => openLinkedActor(t.dataset.uuid),
   'visibility-preset': (s, t) => presetAsk(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); },
@@ -411,6 +427,9 @@ export async function submitLinkFind(sheet, ev) {
   }
   try { return report(await EDITS['companion-find'](sheet, input)); } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
 }
+/** The pet box number on a control (data-slot), or undefined for the mount. */
+const slotOf = el => el?.dataset?.slot === undefined ? undefined : Number(el.dataset.slot);
+
 /** Removing a companion asks first; Cancel changes nothing. The linked Actor itself is kept. */
 export async function removeCompanionAsk(sheet, kind, uuid, ask = confirmDanger) {
   const actor = sheet.document, linked = comp.linkedActor(uuid), name = comp.canSeeActor(linked) ? linked.name : 'this companion';
@@ -455,11 +474,15 @@ export const EDITS = {
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
-  'companion-active': (s, i) => comp.activateCompanion(s.document, i.dataset.kind, i.value || null),
+  // Typed text is kept on the window (no redraw) so a re-render or tab switch never loses it.
+  'companion-label-field': (s, i) => { if (s.labelEdit && ['name', 'description'].includes(i.dataset.field)) s.labelEdit[i.dataset.field] = String(i.value ?? ''); return null; },
+  'companion-active': (s, i) => comp.activateCompanion(s.document, i.dataset.kind, i.value || null, slotOf(i)),
   'companion-link': (s, i) => i.value ? comp.addActorCompanion(s.document, comp.linkedActor(i.value), i.dataset.kind) : null,
   'companion-find': (s, i) => { if (!String(i.value ?? '').trim()) return null; const f = comp.findLinkableActor(s.document, i.value); return f.ok ? comp.addActorCompanion(s.document, f.actor, i.dataset.kind) : f; },
-  'companion-gear': (s, i) => i.value ? comp.socketGear(s.document, i.dataset.kind, i.dataset.socket, i.value) : null,
-  'companion-perk': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.kind, i.value) : null,
+  'companion-gear': (s, i) => i.value ? comp.socketGear(s.document, i.dataset.kind, i.dataset.socket, i.value, slotOf(i)) : null,
+  'companion-perk': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.kind, i.value, slotOf(i)) : null,
+  'pet-slots-default': async (s, i) => { const r = await comp.setDefaultPetSlots(i.value); if (!r?.ok) s.render(); return r; },
+  'pet-slot-override': async (s, i) => { const r = await comp.setPetSlotOverride(i.dataset.actor, i.value); if (!r?.ok) s.render(); return r; },
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
@@ -943,7 +966,8 @@ export function createHubSheetClass(Base) {
       try {
         const kind = zone.dataset.kind, drop = await droppedCompanionDoc(event);
         if (!drop.ok) return report(drop);
-        return report(zone.dataset.dropCompanion === 'socket' ? await comp.socketDroppedGear(this.document, kind, zone.dataset.socket, drop.doc) : await comp.dropOnBox(this.document, kind, drop.doc));
+        const slot = slotOf(zone) ?? null;
+        return report(zone.dataset.dropCompanion === 'socket' ? await comp.socketDroppedGear(this.document, kind, zone.dataset.socket, drop.doc, slot) : await comp.dropOnBox(this.document, kind, drop.doc, slot));
       } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 

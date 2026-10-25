@@ -15,11 +15,12 @@ function world() {
   return {hero, backup};
 }
 
-test('GM Setup no longer has a pet-limit table; the old petCap settings are untouched', () => {
+test('GM Setup has the pet slots card (not the old pet-limit table); the old petCap settings are untouched', () => {
   const {hero} = world();
   game.settings.store.petCap = 3; game.settings.store.petCapOverrides = {actor1: 'none'};
   const html = gmSetupTab();
-  assert.doesNotMatch(html, /pet-cap|data-actor=/);
+  assert.doesNotMatch(html, /pet-cap/);
+  assert.match(html, /data-edit="pet-slots-default"/);
   assert.doesNotMatch(companionsTab({actor: hero, editable: true}), /pet-cap-override/);
   assert.equal(c.petCapFor(hero), Infinity);
   assert.deepEqual([game.settings.store.petCap, game.settings.store.petCapOverrides], [3, {actor1: 'none'}], 'saved values kept');

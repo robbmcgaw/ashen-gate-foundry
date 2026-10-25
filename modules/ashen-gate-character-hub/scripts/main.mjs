@@ -8,7 +8,7 @@ import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
 import {registerQuickKeys, pressQuickSlot} from './quick-keys.mjs';
 import {hotbarLink} from './hotbar-link.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
-import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
+import {registerCompanionSettings, petCapFor, petSlotsFor, companionsData, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
 import {registerLookSettings} from './look.mjs';
@@ -78,12 +78,13 @@ export function createApi() {
     openNativeSheet,
     nativeSheetAvailable: () => !!nativeSheetClass(),
     /**
-     * Companions (read only here): {mount, pets, petCap}. Since 0.47.0 companions are linked Actors with one active of each:
-     * mount is the active mount, pets lists every linked pet ({actorUuid, name, active, perkItemIds, gearItemIds}), petCap is
-     * null (unlimited). Writes go through the Hub's Companions tab.
+     * Companions (read only here): {mount, pets, petCap}. Since 0.47.0 companions are linked Actors; since 0.48.0 one mount and up to three pets are active:
+     * mount is the active mount, pets lists every linked pet ({actorUuid, name, active, perkItemIds, gearItemIds}), name is the player's own name (falls back to the Actor's), actorName the Actor's, description the player's text, petCap is
+     * the character's pet slot count (0 to 3; petSlotsFor(actor) gives the same number). Writes go through the Hub's Companions tab.
      */
-    companions: actor => { const d = companionsData(actor), row = p => ({itemId: p.itemId, actorUuid: p.actorUuid, name: p.name, active: p.active, perkItemIds: p.perkItemIds, gearItemIds: p.gearItemIds});
-      return {mount: d.mount ? row(d.mount) : null, pets: d.pets.map(row), petCap: null}; },
+    companions: actor => { const d = companionsData(actor), row = p => ({itemId: p.itemId, actorUuid: p.actorUuid, name: p.name, actorName: p.actorName, description: p.description, active: p.active, perkItemIds: p.perkItemIds, gearItemIds: p.gearItemIds});
+      return {mount: d.mount ? row(d.mount) : null, pets: d.pets.map(row), petCap: d.petCap}; },
+    petSlotsFor,
     petCapFor,
     /**
      * Which Hub parts players see. parts() lists {key, label, partner}; get() is the stored {key: boolean}; isShown(key)

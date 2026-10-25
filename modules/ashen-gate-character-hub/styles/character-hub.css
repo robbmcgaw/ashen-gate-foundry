@@ -779,11 +779,19 @@
 .agch-app .agch-bio__chars.ag-kv { padding: var(--ag-space-2) var(--ag-space-3); border: thin solid var(--ag-border); border-radius: var(--ag-radius); }
 .agch-app .agch-bio__footer { position: sticky; bottom: 0; z-index: 2; margin: var(--ag-space-2) 0 0; background: var(--ag-surface); border-top: thin solid var(--ag-border); }
 
-/* Companions (0.47.0): a larger Mount box and a smaller Pet box; they wrap (mount first) in a narrow window. */
+/* Companions (0.48.0): a larger Mount box and a Pet area of up to three boxes; they wrap (mount first) in a narrow window. */
 .agch-app .agch-cboxes { display: flex; flex-wrap: wrap; gap: var(--ag-space-3); align-items: flex-start; margin-bottom: var(--ag-space-3); }
 .agch-app .agch-cbox { display: grid; gap: var(--ag-space-2); min-width: 0; margin: 0; }
 .agch-app .agch-cbox--mount { flex: 3 1 24rem; }
-.agch-app .agch-cbox--pet { flex: 2 1 16rem; }
+.agch-app .agch-pets { flex: 4 1 20rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: var(--ag-space-3); align-items: start; min-width: 0; }
+.agch-app .agch-pets__link { grid-column: 1 / -1; }
+.agch-app .agch-cbox--petnone { flex: 2 1 16rem; }
+.agch-app .agch-cbox__real { margin: 0; font-size: var(--ag-text-sm); }
+.agch-app .agch-cbox__desc { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--ag-text-sm); }
+.agch-app .agch-labelform { display: grid; gap: var(--ag-space-2); }
+.agch-app .agch-labelform input, .agch-app .agch-labelform textarea { width: 100%; }
+.agch-app .agch-cbox__unsaved { margin: 0; min-height: 1em; font-size: var(--ag-text-sm); }
+.agch-app .agch-petslots label { display: inline-flex; align-items: center; gap: var(--ag-space-2); }
 .agch-app .agch-cbox__who { display: grid; grid-template-columns: var(--ag-portrait) minmax(0, 1fr); gap: var(--ag-space-3); align-items: center; }
 .agch-app .agch-companion__art--small { width: var(--ag-portrait); }
 .agch-app .agch-companion__fallback { display: grid; place-items: center; width: 100%; height: 100%; color: var(--ag-muted); font-size: var(--ag-text-lg); }
@@ -806,4 +814,4 @@
 .agch-app .agch-socketbox.is-empty:has(select) .agch-socketbox__empty { display: none; }
 .agch-app .agch-older { margin: 0; padding-left: var(--ag-space-4); }
 .agch-app .agch-root--compact .agch-socketbox { grid-template-columns: 4rem minmax(0, 1fr) auto; }
-.agch-app .agch-root--compact .agch-cbox--mount, .agch-app .agch-root--compact .agch-cbox--pet { flex: 1 1 100%; }
+.agch-app .agch-root--compact .agch-cbox--mount, .agch-app .agch-root--compact .agch-pets, .agch-app .agch-root--compact .agch-cbox--petnone { flex: 1 1 100%; }
