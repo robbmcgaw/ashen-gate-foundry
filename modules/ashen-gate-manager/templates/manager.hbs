@@ -434,7 +434,7 @@
         <h5>Unmatched files ({{unmatched}})</h5>
         <p class="agmanager-tiny">These file names fit no record, so they are not uploaded unless you tick them. Rename a file after the record (for example Oren_Vale.webp) and drop it again, or tick it to upload it anyway.</p>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-assets-stage-unmatched data-some="{{unmatchedSome}}" {{#if unmatchedAll}}checked{{/if}}> <strong>Upload unmatched files too</strong></label>
-        <ul class="ag-rows agm-scrollcap" aria-label="Unmatched files">
+        <ul class="ag-rows agm-scrollcap" role="list" tabindex="0" aria-label="Unmatched files">
           {{#each unmatchedRows}}<li class="ag-row agstage-row">
             <label class="ag-field--inline"><input type="checkbox" data-ag-assets-stage-file="{{key}}" {{#if upload}}checked{{/if}} aria-label="Upload {{name}}"> Upload</label>
             {{#if thumb}}<img class="agstage-thumb" src="{{thumb}}" alt="" loading="lazy" decoding="async">{{/if}}
@@ -445,7 +445,7 @@
         {{/if}}
         {{#if hasMatched}}
         <h5>Matched files ({{matchedRows.length}})</h5>
-        <ul class="ag-rows agm-scrollcap" aria-label="Matched files">
+        <ul class="ag-rows agm-scrollcap" role="list" tabindex="0" aria-label="Matched files">
           {{#each matchedRows}}<li class="ag-row agstage-row">
             <label class="ag-field--inline"><input type="checkbox" data-ag-assets-stage-file="{{key}}" {{#if upload}}checked{{/if}} aria-label="Upload {{name}}"> Upload</label>
             {{#if thumb}}<img class="agstage-thumb" src="{{thumb}}" alt="" loading="lazy" decoding="async">{{/if}}
@@ -468,7 +468,7 @@
         <button type="button" class="ag-btn ag-btn--danger" data-ag-assets-stop><i class="fa-solid fa-stop" aria-hidden="true"></i> Stop</button>
       </div>{{/if}}
       <p class="agmanager-tiny" role="status" data-ag-assets-upload-status>{{assets.uploadMessage}}</p>
-      {{#if assets.hasUploads}}<ul class="ag-rows agm-scrollcap" aria-label="Upload results">
+      {{#if assets.hasUploads}}<ul class="ag-rows agm-scrollcap" role="list" tabindex="0" aria-label="Upload results">
         {{#each assets.uploads}}<li class="ag-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{label}}</span><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{message}}</span></span></li>{{/each}}
       </ul>{{/if}}
 
@@ -582,7 +582,7 @@
             <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-nomatch-bulk="add">Add all to the delete list</button>
             <button type="button" class="ag-btn ag-btn--sm" data-ag-assets-nomatch-bulk="clear">Keep all in the library</button>
           </div>
-          <ul class="ag-rows agm-scrollcap" aria-label="Files with no match">
+          <ul class="ag-rows agm-scrollcap" role="list" tabindex="0" aria-label="Files with no match">
             {{#each assets.noMatchRows}}<li class="ag-row agstage-row">
               <label class="ag-field--inline"><input type="checkbox" data-ag-assets-nomatch-toggle="{{path}}" {{#if onList}}checked{{/if}} aria-label="Put {{name}} on the delete list"> {{#if onList}}On the delete list{{else}}Keep in library{{/if}}</label>
               <img class="agstage-thumb" src="{{url}}" alt="" loading="lazy" decoding="async">

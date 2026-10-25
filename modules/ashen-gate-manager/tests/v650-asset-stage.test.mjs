@@ -196,3 +196,19 @@ test('wiring: the drop and Choose files… stage instead of uploading; one prima
   const stageSrc = fs.readFileSync(new URL('../scripts/asset-stage.js', import.meta.url), 'utf8');
   assert.doesNotMatch(stageSrc, /\bfetch\(|\.upload\(|\.browse\(/);
 });
+
+test('0.65.1: capped row lists scroll (overflow-y auto, min-height 0, rows do not shrink) and can be focused for the keyboard', () => {
+  const css = fs.readFileSync(new URL('../styles/manager.css', import.meta.url), 'utf8');
+  const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
+  assert.match(css, /\.agm-scrollcap\{max-height:[^}]*overflow:auto/);
+  const rule = css.match(/\.ag-rows\.agm-scrollcap\{([^}]*)\}/)?.[1] ?? '';
+  assert.match(rule, /overflow-y:auto/);
+  assert.match(rule, /min-height:0/);
+  assert.match(css, /\.ag-rows\.agm-scrollcap > \.ag-row\{flex:none\}/);
+  for (const label of ['Unmatched files', 'Matched files', 'Files with no match', 'Upload results']) {
+    assert.match(tpl, new RegExp(`<ul class="ag-rows agm-scrollcap" role="list" tabindex="0" aria-label="${label}">`), label);
+  }
+  // the footer with Cancel and Upload sits after the lists, outside them
+  const panel = tpl.slice(tpl.indexOf('aria-label="Files waiting to upload"'));
+  assert.ok(panel.indexOf('</ul>') < panel.indexOf('<footer class="ag-footer">'));
+});
