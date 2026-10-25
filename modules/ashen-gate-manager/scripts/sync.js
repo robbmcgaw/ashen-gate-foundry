@@ -164,7 +164,8 @@ export function equivalentValue(path, live, incoming) {
  */
 let uuidSourceIds = new Map();
 const MARKER_RE = /\[\[AGREF:([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:\|([^\]\r\n]{1,160}))?\]\]/g;
-const LINK_RE = /@UUID\[([^\]]+)\]\{([^}]*)\}/y;
+// 0.68.0: an import may also write @AGRef[<id>]{label} (Actors, handout journals); its id is the marker's id directly.
+const LINK_RE = /@UUID\[([^\]]+)\]\{([^}]*)\}|@AGRef\[([^\]]+)\]\{([^}]*)\}/y;
 const linkLabel = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/[{}\[\]]/g, '');
 export function markerTextMatches(live, incoming, idOfUuid = uuidSourceIds) {
   if (typeof live !== 'string' || typeof incoming !== 'string' || !hasMarker(incoming)) return false;
@@ -177,8 +178,9 @@ export function markerTextMatches(live, incoming, idOfUuid = uuidSourceIds) {
     LINK_RE.lastIndex = pos;
     const link = LINK_RE.exec(live);
     if (!link) return false;
-    if (idOfUuid.get(link[1]) !== m[1]) return false;
-    if (m[2] && m[2] !== m[1] && link[2] !== linkLabel(m[2])) return false;
+    const linkedId = link[3] ?? idOfUuid.get(link[1]), shown = link[3] ? link[4] : link[2];
+    if (linkedId !== m[1]) return false;
+    if (m[2] && m[2] !== m[1] && shown !== linkLabel(m[2])) return false;
     pos = LINK_RE.lastIndex;
   }
   const tail = incoming.slice(last);

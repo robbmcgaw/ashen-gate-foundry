@@ -23,7 +23,8 @@ import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
-import {tokenLabel} from "./labels.js";
+import {tokenLabel, relationLabel} from "./labels.js";
+import {createReferenceLinks, convertLegacyBlock, AGREF_PATTERN} from "./reference-links.mjs";
 import {offerFor, supersedeMap, collectSpecialistSupersedes, SUPERSEDE_ROW_ID} from "./supersedes.js";
 import {previewPartners, applyPartners, renameManagerRefs} from "./supersede-run.js";
 import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,stripReferenceBlock,resolveRefCells} from "./import-fidelity.js";
@@ -4276,6 +4277,7 @@ class AshenGateCodexPlayer extends ApplicationV2 {
   constructor(options={}){super({...options,position:{...windowSize(AshenGateCodexPlayer.DEFAULT_OPTIONS.position),...options.position}});codexPlayerApp=this;}
   async _renderHTML(){
     let entries=[],message='';
+    refLinks().invalidateCodex();
     try{entries=await codexService().forPlayer();}catch(error){message=error.message;}
     const version=game.modules.get(MODULE_ID)?.version??'';
     return `<section class="agm-codex-body"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | NPC Codex</h1></div>`
@@ -4288,6 +4290,10 @@ class AshenGateCodexPlayer extends ApplicationV2 {
     content.querySelector('[data-ag-codex-help]')?.addEventListener('click',e=>{e.preventDefault();
       void infoDialog('NPC Codex help','<p>The people your GM has told you about, and only what you have learned about each of them. Some details show <strong>only you</strong>: your character learned them on their own.</p><p>A deity name you can open takes you to Renown\u2019s Pantheon. Press <strong>Refresh</strong> after your GM reveals something new. The GM must be connected for the codex to load.</p>');});
     bindDeityLinks(content);
+    // 0.68.0: a reference link opened the Codex at one NPC: bring that card into view and give it focus.
+    const focus=this.focusNpc;this.focusNpc=null;
+    if(focus){const card=[...content.querySelectorAll('[data-npc]')].find(el=>el.dataset.npc===focus);
+      if(card){card.classList.add('is-focused');card.setAttribute('tabindex','-1');card.scrollIntoView?.({block:'nearest'});card.focus?.({preventScroll:true});}}
   }
 }
 /** 0.40.0: Codex deity links open Renown's Pantheon (api.open, feature-detected). A failure is a notice, never a crash. */
@@ -4442,7 +4448,52 @@ function revealFromSheet(){
   const opener=globalThis.document?.activeElement;
   openRevealDialog(def.id).catch(err=>toast(err.message,true)).finally(()=>{revealSheetBusy=false;if(opener?.isConnected)opener.focus?.();});
 }
-const openCodexPlayerView=()=>{codexPlayerApp??=new AshenGateCodexPlayer();return codexPlayerApp.render({force:true});};
+const openCodexPlayerView=(focusNpc=null)=>{codexPlayerApp??=new AshenGateCodexPlayer();codexPlayerApp.focusNpc=typeof focusNpc==='string'?focusNpc:null;return codexPlayerApp.render({force:true});};
+/**
+ * Reference links (0.68.0, reference-links.mjs): @AGRef[<id>]{label} is shown, per viewer, as the record's name with its
+ * type icon, linking to a handout's Item twin before its journal; hidden or missing targets are plain text.
+ */
+let refLinksApi=null;
+const refLinks=()=>refLinksApi??=createReferenceLinks({game,moduleId:MODULE_ID,
+  getDocs:()=>[...(game.items?.contents??[]),...(game.journal?.contents??[]),...(game.actors?.contents??[]),...(game.tables?.contents??[])],
+  codexNames:async()=>{if(!game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))return null;
+    return new Map((await codexService().forPlayer()).map(e=>[e.id,e.name]));},
+  openCodex:id=>openCodexPlayerView(id),
+  fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid),
+  notify:text=>ui.notifications?.warn?.(text)});
+/** Text fields that may hold an older import's References section, per document type. */
+function legacyRefTargets(doc){
+  if(doc.documentName==='Item')return [{path:'system.description.value'}];
+  if(doc.documentName==='Actor')return [{path:'system.details.biography.value'}];
+  if(doc.documentName==='RollTable')return [{path:'description'}];
+  if(doc.documentName==='JournalEntry')return (doc.pages?.contents??[]).map(page=>({page,path:'text.content'}));
+  return [];
+}
+/**
+ * 0.68.0, active GM only, re-runnable: turns an older import's "References" section (raw ids, @UUID links) into a "Related"
+ * list of reference links. Touches only the section Manager marked; a description that was unedited since import stays
+ * unedited (its baseline moves with it), so a later import still cleans it up as before.
+ */
+async function convertLegacyReferenceBlocks(){
+  if(!game.user?.isGM)throw new Error('Only a GM can update references.');
+  let changed=0;
+  for(const doc of allBoundDocuments()){
+    for(const {page,path} of legacyRefTargets(doc)){
+      const target=page??doc, old=getPath(target,path);
+      if(typeof old!=='string'||!old.includes('data-ag-managed-links'))continue;
+      const next=convertLegacyBlock(old,relationLabel);
+      if(next===old)continue;
+      try{
+        const updates={[path]:next};
+        if(!page){const fields={...(sourceFlag(doc)?.managedFields??{})};
+          if(fields[path]===old){fields[path]=next;updates[`flags.${MODULE_ID}.source.managedFields`]=fields;}}
+        await target.update(updates);changed++;
+      }catch(error){console.warn(`[${MODULE_ID}] References section not updated on ${doc.name}`,error);}
+    }
+  }
+  if(changed)console.info(`[${MODULE_ID}] Updated ${changed} older References section(s) to name-based links.`);
+  return {changed};
+}
 let appearanceController=null;
 let definitionsReader=null;
 let myAppearanceApp=null;
@@ -4512,6 +4563,10 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,ICON_UNDO_SETTING,{name:"Icon change undo",scope:"world",config:false,type:Object,default:{}});
   // Point-to-point query: a player's client asks the active GM, who answers with that player's projection only.
   if(globalThis.CONFIG){CONFIG.queries??={};CONFIG.queries[CODEX_QUERY]=(data,options)=>codexService().handleQuery(data,options);}
+  // 0.68.0: reference links are resolved on each client, for that viewer (feature-detected; without it the label shows).
+  const enrichers=globalThis.CONFIG?.TextEditor?.enrichers;
+  if(Array.isArray(enrichers)&&!enrichers.some(e=>e?.id==='ag-reference-link'))
+    enrichers.push({id:'ag-reference-link',pattern:AGREF_PATTERN,enricher:match=>refLinks().enrich(match)});
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"General Manager", label:"Open General Manager", icon:"fa-solid fa-boxes-stacked",
     hint:"GM-only package validation, preview, import and audit.", type:AshenGateManager, restricted:true
@@ -4555,6 +4610,13 @@ Hooks.once("ready",()=>{
   try{installPauseMirror({game,hooks:Hooks,doc:document});}catch(error){console.warn(`[${MODULE_ID}] Pause indicator not installed`,error);}
   // Chat reskin: dnd5e's own description toggle still opens it; only the initial state is closed.
   if(typeof Hooks.on==='function')Hooks.on('renderChatMessageHTML',(message,html)=>{try{collapseItemDescriptions(html);}catch{/* chat renders as dnd5e made it */}});
+  // 0.68.0: one delegated listener for our own reference links only (a.agm-ref-link), in the capture phase so it works
+  // inside any sheet, tooltip or Monk's Enhanced Journal page. Foundry's own content links are never touched.
+  globalThis.document?.addEventListener?.('click',event=>{if(event.target?.closest?.('a.agm-ref-link[data-ag-ref-open]'))void refLinks().onClick(event);},true);
+  if(typeof Hooks.on==='function')for(const type of ['Item','JournalEntry','JournalEntryPage','Actor','RollTable'])
+    for(const verb of ['create','update','delete'])Hooks.on(`${verb}${type}`,()=>refLinks().invalidate());
+  if(game.user?.isGM&&(!game.users?.activeGM||game.users.activeGM.id===game.user.id))
+    void convertLegacyReferenceBlocks().catch(error=>console.warn(`[${MODULE_ID}] References sections not updated`,error));
   game.modules.get(MODULE_ID).api = {
     // GM-only, read-only: names what draws a screen effect while paused (see README, Pause glow).
     pauseGlowReport:()=>pauseGlowReport({doc:document,win:window,game}),
@@ -4629,6 +4691,12 @@ Hooks.once("ready",()=>{
     },
     // NPC Codex (0.33.0). GM functions check the GM themselves; forPlayer/mount/openPlayerView are player-safe
     // (a player gets only revealed NPCs and fields for their own characters, through the active GM).
+    // 0.68.0 reference links, any client: what this viewer gets for a reference ({mode:'sheet'|'codex'|'text', name, ...};
+    // text mode carries no id or uuid). convertLegacy is GM only.
+    references:Object.freeze({
+      resolve:(id,label)=>refLinks().resolve(id,label),
+      convertLegacy:()=>convertLegacyReferenceBlocks()
+    }),
     codex:Object.freeze({
       list:()=>codexService().list(), get:id=>codexService().get(id), characters:()=>codexService().characters(),
       setReveal:(id,key,opts)=>codexService().setReveal(id,key,opts), setDetails:(id,patch)=>codexService().setDetails(id,patch),
@@ -4640,7 +4708,8 @@ Hooks.once("ready",()=>{
       previewAs:actorIds=>codexService().previewAs(actorIds), exportAll:()=>codexService().exportAll(),
       forPlayer:()=>codexService().forPlayer(),
       playerAccessEnabled:()=>codexService().playerAccessEnabled(),
-      openPlayerView:()=>openCodexPlayerView(),
+      // 0.68.0: optional NPC id: open at that NPC (only shown if the Codex reveals it to this player).
+      openPlayerView:id=>openCodexPlayerView(id),
       /** Render the read-only player codex into an element (e.g. a Character Hub tab). Returns a refresh function. */
       mount:async element=>{
         const draw=async()=>{let entries=[],message='';try{entries=await codexService().forPlayer();}catch(e){message=e.message;}

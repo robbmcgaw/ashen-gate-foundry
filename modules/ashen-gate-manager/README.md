@@ -103,3 +103,15 @@ A description can show a linked record (for example a crafted item's recipe, or 
 - The marker stays in the stored HTML, so each import resolves it again from the source text; it is idempotent.
 - Refs without a marker add nothing to the description. Manager no longer appends a "References" list; an old one is removed on the next import or sync of the record.
 - A description that was edited in Foundry since the last import (it no longer equals what that import wrote) is left as it is.
+- 0.68.0: a cell (or an `[[AGREF:ID|Label]]` marker) that points at an **NPC/Actor** or a **handout journal** is written as a reference link, `@AGRef[<id>]{Label}`, instead (see below).
+
+## Reference links (0.68.0)
+
+`@AGRef[<id>]{Label}` in any rich text (item descriptions and their hover cards, journal pages including Monk's Enhanced Journal pages, biographies, chat) is resolved when it is shown, for the person looking at it:
+
+- **Where it goes:** a handout journal's player Item twin first (`ITEM-<journal id>`, or an Item whose refs say `also_available_as_journal` → that journal), when it is in the world and the viewer may see it; otherwise the journal; otherwise nothing.
+- **What it says:** the record's name with its type icon (item, journal, person, NPC Codex). Never the id. A target the viewer may not see, or one that is not in the world, is plain text: the author's label when it is a real name, otherwise a neutral word (Person, Handout, Location, ...).
+- **Who sees what:** the GM sees everything. A player gets a link only to a document they have Observer permission on whose record is not GM-only. An NPC is a link for a player only when the NPC Codex reveals it to them (the connected GM answers); it opens the NPC Codex at that NPC. Otherwise it is plain text.
+- **Clicking:** Manager handles its own links with one listener, so they work inside Monk's Enhanced Journal and in locked hover cards. The GM's NPC links open the Actor sheet directly. Foundry's normal content links are unchanged.
+- **Older imports:** imports before 0.54.2 appended a "References" section of raw ids. When the GM loads the world, Manager turns that section into a "Related" list of these links (only the section Manager wrote; nothing else in the text). As before, the next import or sync of an unedited record removes the section.
+- **API:** `api.references.resolve(id, label)` returns what this viewer gets (`{mode: 'sheet' | 'codex' | 'text', name, ...}`); `api.references.convertLegacy()` (GM) re-runs the conversion. `api.codex.openPlayerView(id)` opens the player Codex at one NPC.
