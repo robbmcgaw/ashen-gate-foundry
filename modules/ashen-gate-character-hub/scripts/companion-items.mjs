@@ -18,6 +18,13 @@ export const COMPANION_ROLES = {
 };
 export const ID_PREFIXES = [['ITEM-MOUNT-', 'mount-gear'], ['PERK-MOUNT-', 'mount-perk'], ['ITEM-PET-', 'pet-clothing'], ['PERK-PET-', 'pet-perk']];
 
+/**
+ * Slot classification (0.48.0): flags['ashen-gate-character-hub'].companion.slot. 'saddle' | 'tack' for mount-gear,
+ * 'head' | 'body' for pet-clothing. It only decides which sockets an item can go into; it carries no other mechanics.
+ */
+export const SLOT_VALUES = {'mount-gear': ['saddle', 'tack'], 'pet-clothing': ['head', 'body']};
+export const SLOT_LABELS = {saddle: 'Saddle', tack: 'Tack', head: 'Head', body: 'Body'};
+
 /** The item's permanent id, when it has one (Manager import). */
 export const sourceIdOf = item => item?.flags?.['ashen-gate-manager']?.source?.sourceId ?? null;
 
@@ -27,6 +34,22 @@ export function companionRole(item) {
   if (COMPANION_ROLES[flagged]) return flagged;
   const id = String(sourceIdOf(item) ?? '');
   return ID_PREFIXES.find(([prefix]) => id.startsWith(prefix))?.[1] ?? null;
+}
+
+/**
+ * The item's valid slot ('saddle' | 'tack' | 'head' | 'body') or null (unclassified). A slot only counts with its matching
+ * role; a mismatched or unknown value is ignored, so the item stays unclassified.
+ */
+export function companionSlot(item) {
+  const role = companionRole(item), v = item?.flags?.[MODULE_ID]?.companion?.slot;
+  return role && typeof v === 'string' && SLOT_VALUES[role]?.includes(v) ? v : null;
+}
+
+/** Whether a gear item may go into a socket of this type ('saddle' | 'tack' | 'head' | 'body'). Unclassified items fit any. */
+export function slotFit(item, socket) {
+  const slot = companionSlot(item);
+  if (!slot || slot === socket.type) return {ok: true};
+  return {ok: false, error: `${item.name} is a ${SLOT_LABELS[slot]} item, so it can't go in a ${socket.label} socket. Try a ${SLOT_LABELS[slot]} socket.`};
 }
 
 /**

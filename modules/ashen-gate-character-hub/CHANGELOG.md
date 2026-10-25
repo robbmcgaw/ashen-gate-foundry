@@ -1,3 +1,16 @@
+## 0.48.0 — 2026-10-25
+
+Up to three pets, slot-aware gear, and your own names for companions.
+
+- **Three pet boxes.** A character can have up to three active pets and one active mount. Each pet box has a small portrait, the name, a one-line stats strip, an **Active pet** dropdown, **Open sheet** and its own Head and Body sockets. The Mount box stays larger; on a narrow window the boxes stack, mount first. A character can link many pets; each dropdown lists the linked pets that are not active in another box (and an empty choice to clear the box). A pet is active in one box only.
+- **Pet slots (GM Setup).** New **Pet slots** card: a default (0 to 3, starts at 3) and a per-character override. The limits are enforced in the data layer. Lowering the number never removes anything: empty extra boxes are hidden, and a pet already in an extra box stays shown until the player clears it. New world settings `petSlots` and `petSlotOverrides`; the old `petCap` and `petCapOverrides` stay saved and are ignored. `registerPetSlotSource` now adds extra slots (the total is never more than 3).
+- **Slot-aware gear.** Items can say where they go with `flags.ashen-gate-character-hub.companion.slot`: `saddle` or `tack` for `mount-gear`, `head` or `body` for `pet-clothing` (a slot with the wrong role is ignored). A classified item only fits its own socket type and a wrong drop is refused with a plain message. Gear with no slot behaves as before and fits any socket of its kind. Dropping an item on a box uses the first free socket of its type.
+- **Socket labels.** The mount's sockets are Saddle and four Tack (were Other 1 to 4); pets keep Head and Body.
+- **Names and descriptions are back.** **Edit name…** on any companion box lets the owner or GM give it their own name (up to 60 characters) and a description (up to 500), stored on the character so the Actor is never changed. An empty name falls back to the Actor's own, which shows as small text when the names differ. The editor keeps your typing if the window redraws and asks before Cancel throws changes away.
+- **Saved data.** `companionSlots` is now version 2: `activePets` (three entries) replaces `activePet`, and `labels` holds the names and descriptions. Version 1 is read as version 2 (activePet becomes `activePets[0]`, Other sockets become Tack) and written as version 2 by the GM client's startup migration or the next change. Names and descriptions typed before 0.47.0 in the old `companions` list are carried into `labels`. Safe to re-run; nothing is deleted and the old list is never changed.
+- **API.** `companions(actor)` keeps its shape: `pets` lists every linked pet with `active`, `petCap` is now the number of pet slots, and each row also has `actorName` and `description` (`name` is the player's name, falling back to the Actor's). New `petSlotsFor(actor)`.
+- Tests use mocked Foundry and prove the logic, not the live UI. Please check in Forge: GM Setup → Pet slots, three pet boxes, dropping classified and unclassified gear, **Edit name…**, and a narrow window.
+
 ## 0.47.0 — 2026-10-24
 
 Companions are now two boxes: a larger **Mount** box and a smaller **Pet** box, each with sockets.

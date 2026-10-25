@@ -105,7 +105,7 @@ test('companion drop: an Actor on the pet box links and activates it; an Item on
   dropWorld(actor, {'Item.wolf': wolf, 'Actor.steed': steed});
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor});
   assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'box', kind: 'pet'}}, {type: 'Actor', uuid: 'Actor.steed'}))).ok, true);
-  assert.equal(actor.flags[MODULE_ID].companionSlots.activePet, 'Actor.steed');
+  assert.equal(actor.flags[MODULE_ID].companionSlots.activePets[0], 'Actor.steed');
   assert.equal((await sheet._onCompanionDrop(dropEvent({dataset: {dropCompanion: 'socket', kind: 'pet', socket: 'body'}}, {type: 'Item', uuid: 'Item.wolf'}))).ok, true);
   const create = actor.calls.find(x => x[0] === 'createEmbedded');
   assert.equal(create[2].length, 1); assert.notEqual(create[2][0]._id, 'wolf', 'a fresh id');
