@@ -10,8 +10,11 @@
  *
  * Linking an existing Actor (0.61.0) changes its portrait (`img`) and its prototype token image
  * (`prototypeToken.texture.src`) and nothing else; every other change to an Actor stays with Import → Update existing actors.
+ * The one addition (0.63.0) is Foundry's own token ring, when the batch has "Turn on token ring" ticked (see token-ring.js):
+ * only for an Actor with a ring rule whose ring is still off.
  */
 import {isPlaceholderIcon, managerAssignedIcon, iconFlagUpdate, ICON_FLAGS} from './smart-icons.js';
+import {ringKindFor, ringUpdateFor} from './token-ring.js';
 import {fileWords, nameWords, matchLevel, MATCH_REASONS, MATCH_RANK} from './asset-names.js';
 
 export const FORGE_SOURCE = 'forgevtt';
@@ -280,9 +283,14 @@ function rowFields(doc, file) {
   const state = stateFor(doc);
   return {uuid: doc.uuid, documentName: doc.documentName, type: doc.type ?? '', name: doc.name, fileName: file.name, from: doc.img ?? '',
     fromToken: doc.documentName === 'Actor' ? (doc.tokenImg ?? '') : '', to: file.path, state, stateLabel: STATE_LABEL[state],
-    checked: AUTO_TICK.has(state), noteText: noteFor(doc, state)};
+    checked: AUTO_TICK.has(state), noteText: noteFor(doc, state), sourceId: doc.sourceId ?? '', ...ringFields(doc)};
 }
-const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileName: '', from: '', fromToken: '', to: '', state: 'default', stateLabel: '', checked: false, noteText: ''});
+/** For an Actor with a ring rule: the colour word, and whether its ring is already on (then it is left alone). */
+function ringFields(doc) {
+  const look = ringKindFor(doc);
+  return {ringLabel: look?.label ?? '', ringKept: Boolean(look && doc.ringEnabled)};
+}
+const BLANK_FIELDS = Object.freeze({uuid: '', documentName: '', type: '', fileName: '', from: '', fromToken: '', to: '', state: 'default', stateLabel: '', checked: false, noteText: '', sourceId: '', ringLabel: '', ringKept: false});
 
 /**
  * The preview table. `docs` are plain {uuid, documentName, type, name, sourceId, img, tokenImg, flags, baselineImg} for the
@@ -444,12 +452,15 @@ export function assignRecord(row, doc) {
  * A document whose image changed since the preview, that is gone, or that is not a linkable kind is skipped; so is a record
  * that an earlier ticked row already set. A row still waiting for a pick is not written.
  * Item, table, macro and journal rows write `img` and Manager's own icon flags. An Actor row writes ONLY its portrait
- * (`img`) and its prototype token image (`prototypeToken.texture.src`): no flags, no token ring, nothing else. GM only,
- * checked here.
+ * (`img`) and its prototype token image (`prototypeToken.texture.src`): no flags, nothing else. With `tokenRing` true (the
+ * "Turn on token ring" box, on by default in the window) an Actor that has a ring rule (token-ring.js) and whose ring is
+ * still off also gets Foundry's ring turned on with the rule's colours; an Actor whose ring is already on, or that has no
+ * rule, is left exactly as it is. GM only, checked here. `applied` entries carry `ring`: 'enabled', 'kept' or ''.
  */
-export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany, onProgress = () => {}, signal = null, chunk = LINK_CHUNK} = {}) {
+export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany, tokenRing = false, onProgress = () => {}, signal = null, chunk = LINK_CHUNK} = {}) {
   if (!isGM(user)) return {ok: false, message: GM_ONLY, applied: [], skipped: [], errors: []};
   const applied = [], skipped = [], errors = [], seen = new Set();
+  const ringOf = new Map(); // uuid → 'enabled' | 'kept' | ''
   const todo = (rows ?? []).filter(r => r?.checked && r.to && r.uuid && !(r.needsPick && !r.chosen));
   let cancelled = false;
   for (let start = 0; start < todo.length; start += chunk) {
@@ -470,10 +481,13 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
     }
     for (const [documentName, list] of Object.entries(batch)) {
       try {
-        await updateMany(documentName, list.map(({row, doc}) => documentName === 'Actor'
-          ? {_id: doc.id, img: row.to, [TOKEN_IMAGE_FIELD]: row.to}
-          : {_id: doc.id, img: row.to, ...iconFlagUpdate(moduleId, {img: row.to, source: 'authored'})}));
-        for (const {row} of list) applied.push({name: row.name, from: row.from, to: row.to});
+        await updateMany(documentName, list.map(({row, doc}) => {
+          if (documentName !== 'Actor') return {_id: doc.id, img: row.to, ...iconFlagUpdate(moduleId, {img: row.to, source: 'authored'})};
+          const ring = tokenRing ? ringUpdateFor({documentName, type: doc.type, sourceId: row.sourceId, prototypeToken: doc.prototypeToken}) : {update: {}, status: 'none'};
+          ringOf.set(row.uuid, ring.status === 'enable' ? 'enabled' : ring.status === 'kept' ? 'kept' : '');
+          return {_id: doc.id, img: row.to, [TOKEN_IMAGE_FIELD]: row.to, ...ring.update};
+        }));
+        for (const {row} of list) applied.push({name: row.name, from: row.from, to: row.to, ring: ringOf.get(row.uuid) ?? ''});
       } catch (error) {
         errors.push({documentName, message: String(error?.message ?? error)});
         for (const {row} of list) skipped.push({name: row.name, why: 'the write failed'});
@@ -481,7 +495,8 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
     }
     onProgress({done: Math.min(start + chunk, todo.length), total: todo.length});
   }
-  const message = `${applied.length} image(s) linked${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
+  const rings = applied.filter(a => a.ring === 'enabled').length, ringsKept = applied.filter(a => a.ring === 'kept').length;
+  const message = `${applied.length} image(s) linked${rings ? `, ${rings} token ring(s) turned on` : ''}${ringsKept ? `, ${ringsKept} already had a ring (left as it is)` : ''}${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
   return {ok: !errors.length || applied.length > 0, message, applied, skipped, errors, cancelled};
 }
 
