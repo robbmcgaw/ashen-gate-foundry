@@ -500,7 +500,7 @@
         {{/if}}
         {{#if assets.hasCinderRows}}
         <h4>Cinder art stages</h4>
-        <p class="agmanager-tiny">Files named like Echo_Cinder_Stage_1.webp are grouped by Cinder and set as that Cinder's art stages (stage 1 first). They are not offered to any other record.</p>
+        <p class="agmanager-tiny">Files named like Echo_Cinder_Stage_1.webp are grouped by Cinder and set as the art stages of the Cinder itself (stage 1 first), so every character who has it uses them, and it works before anyone has it. They are not offered to any other record.</p>
         <div class="ag-table-wrap agm-scrollcap"><table class="ag-table aglink"><thead><tr><th scope="col">Use this match?</th><th scope="col">Cinder</th><th scope="col">Stages</th><th scope="col">Why it fits</th></tr></thead><tbody>
         {{#each assets.cinderRows}}<tr class="aglink-row{{#if willChange}} is-yes{{/if}}">
           <td data-label="Use this match?">
@@ -515,7 +515,7 @@
             {{#if conflict}}<div class="aglink-warn"><span class="ag-badge ag-badge--warn">Same Cinder</span> Another row is also set for {{cinderLabel}}. Set one to No or choose a different Cinder.</div>{{/if}}
             {{#if pickerOpen}}<label class="ag-field--inline">Cinder <select data-ag-assets-cinder-pick="{{key}}" aria-label="Which Cinder is {{word}} for?"><option value="">Pick a Cinder…</option>{{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>{{/if}}
           </td>
-          <td data-label="Cinder"><strong>{{cinderLabel}}</strong>{{#if bound}}<div class="agmanager-tiny">{{#if instanceIds.length}}Bound Cinders: {{bound}}{{/if}}</div>{{/if}}</td>
+          <td data-label="Cinder"><strong>{{cinderLabel}}</strong>{{#if where}}<div class="agmanager-tiny">{{where}}{{#if bearers}} · {{bearers}} {{#if bearersOne}}character has{{else}}characters have{{/if}} it now{{/if}}</div>{{/if}}</td>
           <td data-label="Stages">
             {{#if problem}}<div class="aglink-warn"><span class="ag-badge ag-badge--warn">Not set</span> {{problem}}</div>{{/if}}
             {{#if hasStages}}<ol class="agmanager-tiny">{{#each stages}}<li class="agm-icon">{{#if hasOld}}<img class="agm-icon__thumb" src="{{oldUrl}}" alt="Stage {{number}} now" loading="lazy" decoding="async" width="32" height="32"><span aria-hidden="true">→</span>{{/if}}<img class="agm-icon__thumb" src="{{toUrl}}" alt="Stage {{number}} new" loading="lazy" decoding="async" width="32" height="32"><span class="agm-icon__text">Stage {{number}}: <span class="agm-icon__path">{{fileName}}</span> (unlocks needed: {{at}}){{#if hasOld}} replaces the current image{{/if}}</span></li>{{/each}}</ol>{{/if}}

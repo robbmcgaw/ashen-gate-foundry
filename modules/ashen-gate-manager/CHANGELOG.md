@@ -1,3 +1,13 @@
+## 0.62.0 — 2026-10-25
+
+Assets: Cinder stage art now belongs to the Cinder itself. Needs Ashen Gate | Cinders 0.13.0 for this; older Cinders keep the 0.61.0 behaviour.
+
+- **Echo_Cinder_Stage_1.webp to 5 are matched to the Cinder, not to a character's copy.** Each of the nine Cinders (Ember, Frost, Gale, Echo, Lumen, Root, Stone, Tide, Veil) is found by name among the Cinders imported into the world, so it works with nobody having it yet and applies to every bearer. The old message "No Cinder named Echo is bound to a character yet" is gone.
+- **Link writes through `api.cinder.setDefinitionArtStages`** (feature-detected). It is kept by Cinders in a world setting, so re-importing the Cinders through Manager never wipes it. Unlocks needed are 0, 3, 6, 10, 14 (the first as many as there are stages), or the Cinder's own numbers when it already has the same number of stages. A lone stage 1 now says a Cinder needs 2 to 5 stages (nothing is written).
+- **Preview:** each row shows the Cinder's current image beside the new one for every stage, how many characters have it now, and Yes / No / Different… as before. Nothing is written until Link; a gap in the numbers still blocks that Cinder. A character whose own Cinder has stages set by hand keeps showing those; the row and the result name how many.
+- **Older Cinders** (no `setDefinitionArtStages`) fall back to the 0.61.0 path (the Cinders characters already have) and say so when nobody has it. GM only, as before.
+- Saved data: no change; no migration. Tested with mocked data only (logic, not the live Forge UI).
+
 ## 0.61.0 — 2026-10-25
 
 Assets: Cinder stage art.

@@ -1,7 +1,9 @@
 /**
- * Items → Assets: Cinder stage art (0.61.0). Files such as `Echo_Cinder_Stage_3.webp` are grouped per Cinder, previewed as one row
- * per Cinder and, on Link, written through the public API of Ashen Gate | Cinders (`api.cinder.setArtStages`, or `setArt` for a single
- * image). Pure apart from the API object it is handed, so the Node suite covers it with a mocked API. GM only: every function that
+ * Items → Assets: Cinder stage art (0.61.0, on the Cinder itself from 0.62.0). Files such as `Echo_Cinder_Stage_3.webp` are grouped per Cinder,
+ * previewed as one row per Cinder and, on Link, written to the Cinder DEFINITION through the public API of Ashen Gate | Cinders
+ * (`api.cinder.setDefinitionArtStages`), so it works with nobody bearing the Cinder and applies to every bearer. Only when that function is
+ * missing (an older Cinders) does it fall back to the old path: `setArtStages` / `setArt` on the Cinders characters already have.
+ * Pure apart from the API object it is handed, so the Node suite covers it with a mocked API. GM only: every function that
  * reads or writes checks the user itself (the window hiding the tab is not the guard, and Cinders checks again).
  *
  * Nothing here reaches into Cinders' internals; every call is feature-detected. Nothing is written by planning.
@@ -17,6 +19,7 @@ export const MODULE_CINDERS = 'ashen-gate-cinders';
 export const REASON = 'Matched Cinder name and stage number';
 const GM_ONLY = 'Only a GM can manage assets.';
 const NO_CINDERS = 'Ashen Gate | Cinders is not active, or is too old to set art stages. Turn it on (or update it) and drop the files again. Nothing was changed.';
+const OLD_CINDERS = name => `This version of Ashen Gate | Cinders can only set art on a Cinder a character already has, and nobody has ${name} yet. Update Cinders to set it on the Cinder itself, then drop the files again.`;
 const isGM = user => Boolean(user?.isGM);
 const EXT_ORDER = ['webp', 'png', 'avif', 'jpg', 'jpeg', 'gif', 'svg'];
 const lc = text => String(text ?? '').toLowerCase();
@@ -87,33 +90,44 @@ export function stageCoverage(numbers) {
 const listWords = nums => nums.length < 2 ? String(nums[0] ?? '') : `${nums.slice(0, -1).join(', ')} and ${nums.at(-1)}`;
 
 // ---------- Cinders in the world ----------
-/** The Cinders public API, feature-detected: {cinder, canStages, canArt, canList} or null when Ashen Gate | Cinders is absent. */
+/** The Cinders public API, feature-detected: {cinder, canDefinition, canStages, canArt, canRead} or null when Ashen Gate | Cinders is absent. */
 export function cindersApi(g = globalThis) {
   const mod = g.game?.modules?.get?.(MODULE_CINDERS);
   const cinder = mod?.active ? mod.api?.cinder : null;
   if (!cinder || typeof cinder !== 'object') return null;
   const fn = k => typeof cinder[k] === 'function';
-  return {cinder, canStages: fn('setArtStages') && fn('instances'), canArt: fn('setArt') && fn('instances'), canRead: fn('stages')};
+  return {cinder, canDefinition: fn('setDefinitionArtStages') && fn('getDefinitionArtStages'),
+    canStages: fn('setArtStages') && fn('instances'), canArt: fn('setArt') && fn('instances'), canRead: fn('stages')};
 }
+/** What the plan needs to know about the API: null when Cinders is absent. */
+export const cinderCaps = api => api ? {canDefinition: Boolean(api.canDefinition), canStages: Boolean(api.canStages), canArt: Boolean(api.canArt)} : null;
 
 const words = text => lc(text).split(/[^a-z0-9]+/).filter(Boolean);
+const plainStages = list => Array.isArray(list) ? list.map(s => ({art: s.art, at: s.at})) : null;
 /**
- * The Cinders a file can be linked to: one entry per Cinder definition that is bound to somebody (art is set on the bound Cinder).
- * `docs` are Manager's plain records (for the Cinder's name); `instances` are api.cinder.instances(); `stagesOf(instanceId)` answers
- * api.cinder.stages(instanceId) or null. Returns [{definitionId, name, words, instances:[{instanceId, stages, own}], …}] by name.
+ * The Cinders a file can be linked to: one entry per Cinder DEFINITION in the world (a MUT-* record), whether or not anyone has it.
+ * `docs` are Manager's plain records (sourceId, name); `definitionOf(definitionId)` answers api.cinder.getDefinitionArtStages(id)
+ * ({stages, world, record, bearers}) or null; `instances` / `stagesOf(instanceId)` (api.cinder.instances() / stages()) are only used by the
+ * fallback for an older Cinders and to count how many characters have their own stages, which win over the Cinder's.
+ * Returns [{definitionId, name, words, current, world, bearers, overriddenBy, instances:[{instanceId, stages, own, art}]}] by name.
  */
-export function cinderChoices({docs = [], instances = [], stagesOf = () => null} = {}) {
-  const nameOf = id => (docs ?? []).find(d => d.sourceId === id)?.name ?? '';
+export function cinderChoices({docs = [], definitionOf = () => null, instances = [], stagesOf = () => null} = {}) {
   const byDef = new Map();
+  for (const d of docs ?? []) {
+    if (!d?.sourceId || !String(d.sourceId).startsWith('MUT-') || !d.name || byDef.has(d.sourceId)) continue;
+    let info = null;
+    try { info = definitionOf(d.sourceId); } catch { info = null; }
+    byDef.set(d.sourceId, {definitionId: d.sourceId, name: d.name, words: words(d.name), current: plainStages(info?.stages), world: plainStages(info?.world),
+      bearers: Number.isSafeInteger(info?.bearers) ? info.bearers : 0, overriddenBy: 0, instances: []});
+  }
   for (const inst of instances ?? []) {
-    if (!inst?.instanceId || !inst.definitionId) continue;
-    const name = nameOf(inst.definitionId);
-    if (!name) continue;
+    const entry = byDef.get(inst?.definitionId);
+    if (!entry || !inst.instanceId) continue;
     let info = null;
     try { info = stagesOf(inst.instanceId); } catch { info = null; }
-    const entry = byDef.get(inst.definitionId) ?? byDef.set(inst.definitionId, {definitionId: inst.definitionId, name, words: words(name), instances: []}).get(inst.definitionId);
-    entry.instances.push({instanceId: inst.instanceId, stages: Array.isArray(info?.stages) ? info.stages.map(s => ({art: s.art, at: s.at})) : null,
-      own: Array.isArray(info?.own) ? info.own.map(s => ({art: s.art, at: s.at})) : null, art: typeof inst.art === 'string' ? inst.art : null});
+    const own = plainStages(info?.own);
+    if (own) entry.overriddenBy++;
+    entry.instances.push({instanceId: inst.instanceId, stages: plainStages(info?.stages), own, art: typeof inst.art === 'string' ? inst.art : null});
   }
   return [...byDef.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
 }
@@ -121,21 +135,34 @@ export function cinderChoices({docs = [], instances = [], stagesOf = () => null}
 // ---------- Planning ----------
 /**
  * Applies a Cinder (or none) to a row: fills the new images, the old ones and whether it can be written. Nothing is written.
- * `caps` is {canStages, canArt} from cindersApi (null when Cinders is absent).
+ * `caps` is cinderCaps(api) (null when Cinders is absent). With canDefinition the art is set on the Cinder itself (mode 'definition');
+ * an older Cinders falls back to the Cinders characters have (mode 'stages' / 'art').
  */
 export function bindCinder(row, cinder, caps) {
   const nums = [...row.stageFiles.keys()];
   const cover = stageCoverage(nums);
   const files = [...row.stageFiles.entries()].sort((a, b) => a[0] - b[0]);
-  Object.assign(row, {cinderName: cinder?.name ?? '', definitionId: cinder?.definitionId ?? '', instanceIds: (cinder?.instances ?? []).map(i => i.instanceId),
-    mode: '', to: [], from: [], problem: '', checked: false, unchanged: false});
+  const onCinder = Boolean(caps?.canDefinition);
+  Object.assign(row, {cinderName: cinder?.name ?? '', definitionId: cinder?.definitionId ?? '', instanceIds: onCinder ? [] : (cinder?.instances ?? []).map(i => i.instanceId),
+    mode: '', to: [], from: [], fromArt: '', problem: '', checked: false, unchanged: false, where: '', bearers: cinder?.bearers ?? 0, overriddenBy: onCinder ? (cinder?.overriddenBy ?? 0) : 0});
   const first = cinder?.instances?.[0];
-  row.from = (first?.stages ?? []).map((s, i) => ({stage: i + 1, art: s.art, at: s.at}));
-  row.fromArt = first?.art ?? '';
-  row.bound = cinder?.instances?.length ?? 0;
-  if (!caps) row.problem = NO_CINDERS;
-  else if (!cinder) row.problem = `No Cinder named ${row.word} is bound to a character yet, so there is nothing to set art on. Use Different… to pick another Cinder.`;
+  if (onCinder) row.from = (cinder?.current ?? []).map((s, i) => ({stage: i + 1, art: s.art, at: s.at}));
+  else {
+    row.from = (first?.stages ?? []).map((s, i) => ({stage: i + 1, art: s.art, at: s.at}));
+    row.fromArt = first?.art ?? '';
+  }
+  if (!caps || (!caps.canDefinition && !caps.canStages && !caps.canArt)) row.problem = NO_CINDERS;
+  else if (!cinder) row.problem = `No Cinder named ${row.word} is in this world yet. Import it through General Manager first, or use Different… to pick another Cinder.`;
   else if (!cover.ok) row.problem = `Stage ${listWords(cover.missing)} ${cover.missing.length > 1 ? 'are' : 'is'} missing (found ${listWords(nums.sort((a, b) => a - b))}). Add ${cover.missing.length > 1 ? 'them' : 'it'} and drop the files again.`;
+  else if (onCinder) {
+    if (files.length === 1) row.problem = 'Only one image was found. A Cinder needs 2 to 5 stages. Add the others and drop the files again.';
+    else {
+      row.mode = 'definition';
+      const at = stageThresholds(files.length, cinder.world ?? cinder.current);
+      row.to = files.map(([n, f], i) => ({stage: n, art: f.path, at: at[i], fileName: f.name}));
+      row.where = 'Set on the Cinder itself, for every bearer';
+    }
+  } else if (!cinder.instances.length) row.problem = OLD_CINDERS(row.word);
   else if (files.length === 1) {
     row.mode = 'art';
     if (!caps.canArt) row.problem = 'Only one image was found, and this version of Cinders cannot set a single image. Add at least two stages (2 to 5).';
@@ -154,14 +181,15 @@ export function bindCinder(row, cinder, caps) {
   row.ready = ready;
   row.unchanged = Boolean(same);
   row.checked = ready && !same;
-  row.note = same ? 'This Cinder already uses these images.' : '';
+  row.note = [same ? 'This Cinder already uses these images.' : '',
+    row.overriddenBy ? `${row.overriddenBy} character${row.overriddenBy === 1 ? ' has' : 's have'} stages set on their own Cinder, which still show instead. In Cinders choose Stages…, then Use the definition's stages, on each.` : ''].filter(Boolean).join(' ');
   return row;
 }
 
 /**
  * Plans the Cinder stage art in a set of files. Returns {rows, rest}: `rows` one per Cinder named in the files, `rest` the files that are
  * not Cinder stage art (those go to the normal record matching). GM only: for anyone else every file is left in `rest` and no row is made.
- * Row: {key, word, cinderName, definitionId, instanceIds, bound, mode: 'stages'|'art'|'', stageFiles, to:[{stage, art, at, fileName}],
+ * Row: {key, word, cinderName, definitionId, instanceIds, bearers, overriddenBy, where, mode: 'definition'|'stages'|'art'|'', stageFiles, to:[{stage, art, at, fileName}],
  *       from:[{stage, art, at}], fromArt, extras, ready, checked, unchanged, problem, note, reason, candidates, needsPick, chosen}.
  */
 export function planCinderArt(files, {user, cinders = [], caps = null} = {}) {
@@ -219,8 +247,9 @@ export const cinderWillLink = rows => (rows ?? []).filter(r => r.checked && r.re
 // ---------- Writing ----------
 /**
  * Writes the ticked rows through Cinders' public API. Nothing is written unless the user is a GM and the API has what the row needs;
- * otherwise a clear message comes back and no call is made. A Cinder is set on every bound Cinder of that kind (each keeps its own
- * "unlocks needed" numbers when it already has stages of the same count). deps: {user, api: cindersApi()}.
+ * otherwise a clear message comes back and no call is made. A 'definition' row is one call that sets the art on the Cinder itself (it keeps
+ * the Cinder's own "unlocks needed" numbers when it already has stages of the same count). Only an older Cinders without that call uses the
+ * 'stages' / 'art' rows, which set every Cinder characters already have. deps: {user, api: cindersApi()}.
  * Returns {ok, message, applied:[{name, count}], skipped:[{name, why}], errors:[{name, message}]}.
  */
 export async function applyCinderArt(rows, {user, api = cindersApi()} = {}) {
@@ -231,13 +260,24 @@ export async function applyCinderArt(rows, {user, api = cindersApi()} = {}) {
   const applied = [], skipped = [], errors = [];
   const blocked = cinderConflicts(todo);
   const live = new Set();
-  try { for (const i of api.cinder.instances() ?? []) live.add(i.instanceId); } catch { /* handled per row */ }
+  if (todo.some(r => r.mode !== 'definition')) try { for (const i of api.cinder.instances() ?? []) live.add(i.instanceId); } catch { /* handled per row */ }
   for (const row of todo) {
     if (blocked.has(row.key)) { skipped.push({name: row.cinderName, why: 'two rows are set for this Cinder'}); continue; }
+    if (row.mode === 'definition') {
+      if (!api.canDefinition) { skipped.push({name: row.cinderName, why: 'this version of Cinders cannot set art on the Cinder itself'}); continue; }
+      try {
+        let current = null;
+        try { const info = api.cinder.getDefinitionArtStages(row.definitionId); current = info?.world ?? info?.stages ?? null; } catch { current = null; }
+        const at = stageThresholds(row.to.length, current);
+        await api.cinder.setDefinitionArtStages(row.definitionId, row.to.map((s, i) => ({art: s.art, at: at[i]})));
+        applied.push({name: row.cinderName, count: 1});
+      } catch (error) { errors.push({name: row.cinderName, message: String(error?.message ?? error)}); }
+      continue;
+    }
     if (row.mode === 'stages' && !api.canStages) { skipped.push({name: row.cinderName, why: 'this version of Cinders cannot set art stages'}); continue; }
     if (row.mode === 'art' && !api.canArt) { skipped.push({name: row.cinderName, why: 'this version of Cinders cannot set a single image'}); continue; }
     const ids = row.instanceIds.filter(id => live.has(id));
-    if (!ids.length) { skipped.push({name: row.cinderName, why: 'no longer bound to a character'}); continue; }
+    if (!ids.length) { skipped.push({name: row.cinderName, why: 'no character has this Cinder any more'}); continue; }
     let done = 0;
     for (const id of ids) {
       try {
@@ -253,6 +293,8 @@ export async function applyCinderArt(rows, {user, api = cindersApi()} = {}) {
     }
     if (done) applied.push({name: row.cinderName, count: done});
   }
-  const message = `${applied.length} Cinder(s) given new art${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}`;
+  const own = todo.filter(r => r.mode === 'definition' && applied.some(a => a.name === r.cinderName)).reduce((n, r) => n + (r.overriddenBy || 0), 0);
+  const message = `${applied.length} Cinder(s) given new art${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}`
+    + (own ? `. ${own} character(s) have stages of their own on a Cinder, which still show until you choose Use the definition's stages in Cinders → Stages…` : '');
   return {ok: !errors.length || applied.length > 0, message, applied, skipped, errors};
 }

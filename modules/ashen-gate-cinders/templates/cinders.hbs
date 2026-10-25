@@ -160,6 +160,12 @@
           </tbody></table></div>{{/each}}
         {{else}}<div class="ag-empty"><i class="fa-solid fa-fire" aria-hidden="true"></i><p class="ag-empty__title">No Cinders yet.</p><p class="ag-empty__text">Create one with New Cinder, then bind it.</p></div>{{/if}}
       </section>
+      {{#if manage.hasKinds}}<section class="ag-card" aria-label="Cinder stage art">
+        <h2 class="ag-card__title">Stage art</h2>
+        <p class="ag-field__hint">Stage art belongs to the Cinder itself, so it works before anyone bears it and applies to every bearer. A bearer's own Stages… (in the Binding card) still wins for that character.</p>
+        <ul class="ag-rows">{{#each manage.kinds}}<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{text}}</span></div>
+          <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-act="kind-stages" data-definition="{{definitionId}}" aria-label="Edit stage art for {{name}}…"><i class="fa-solid fa-images" aria-hidden="true"></i> Stage art…</button></span></li>{{/each}}</ul>
+      </section>{{/if}}
     </section>
     <section class="agc-subpanel" {{{manage.panels.sockets}}}>
       <p class="ag-field__hint">Default: {{manage.socketDefault}} per Cinder (GM Setup → General). Drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it; Help says what happens on a transfer.</p>

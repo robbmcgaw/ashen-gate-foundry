@@ -63,7 +63,7 @@ export function draftErrors(draft) {
 export const draftChanged = (draft, start) => JSON.stringify(draft.rows.map(r => [String(r.art).trim(), String(r.at).trim()])) !== JSON.stringify(start.rows.map(r => [String(r.art).trim(), String(r.at).trim()]));
 
 /** The editor's markup. `focus` = a data-agc-sfocus value to give focus to after a re-render. */
-export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0, definitionHas = false} = {}) {
+export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0, definitionHas = false, scope = 'cinder'} = {}) {
   const n = draft.rows.length;
   const err = key => (errors[key] ?? []).join(' ');
   const rows = draft.rows.map((r, i) => {
@@ -87,22 +87,24 @@ export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0,
   }).join('');
   const rowError = err('rows');
   return `<form class="agc-stages" data-agc-stages novalidate onsubmit="return false">
-    <p class="ag-field__hint">${source === 'definition' ? 'These stages come from the Cinder\'s definition. Saving gives this Cinder its own copy.' : 'This Cinder has its own stages.'} Stage 1 applies from the bind; each later stage applies once the bearer has unlocked that many nodes (${unlocked} now). The image order moves the pictures, not the numbers.</p>
+    <p class="ag-field__hint">${scope === 'kind'
+      ? (source === 'definition' ? 'These stages come with the imported Cinder. Saving sets your own for every bearer; a re-import keeps them.' : source === 'cinder' ? 'These stages apply to every bearer of this Cinder, unless a bearer\'s Cinder has its own. A re-import keeps them.' : 'No stages are set yet. They apply to every bearer of this Cinder, unless a bearer\'s Cinder has its own.')
+      : (source === 'definition' ? 'These stages come from the Cinder\'s definition. Saving gives this Cinder its own copy.' : 'This Cinder has its own stages.')} Stage 1 applies from the bind; each later stage applies once the bearer has unlocked that many nodes (${unlocked} now). The image order moves the pictures, not the numbers.</p>
     <ol class="agc-stage-list">${rows}</ol>
     <p class="ag-field__hint is-error" data-agc-serr="rows"${rowError ? '' : ' hidden'}>${esc(rowError)}</p>
     <div class="agc-stage-actions"><button type="button" class="ag-btn ag-btn--sm" data-agc-sadd data-agc-sfocus="add"${n >= STAGES_MAX ? ' disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i> Add stage</button>
       <span class="ag-field__hint">${n} of ${STAGES_MAX} stages</span>
-      ${source === 'cinder' ? `<button type="button" class="ag-btn ag-btn--sm" data-agc-sdefault data-agc-sfocus="default"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> ${definitionHas ? 'Use the definition\'s stages' : 'Remove this Cinder\'s stages'}</button>` : ''}</div>
+      ${source === 'cinder' ? `<button type="button" class="ag-btn ag-btn--sm" data-agc-sdefault data-agc-sfocus="default"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> ${scope === 'kind' ? (definitionHas ? 'Use the imported stages' : 'Remove these stages') : definitionHas ? 'Use the definition\'s stages' : 'Remove this Cinder\'s stages'}</button>` : ''}</div>
     <p class="agc-stage-status ag-field__hint" data-agc-sstatus role="status" aria-live="polite"></p>
   </form>`;
 }
 
 /**
  * Open the editor. Resolves when the window closes.
- *   info: api.stages(instanceId); pickImage(current, setPath): opens the file picker and calls setPath(path);
+ *   info: api.stages(instanceId), or for scope 'kind' {own: the GM's stages for the kind, definition: the imported record's, stages: in force, unlocked: 0}; pickImage(current, setPath): opens the file picker and calls setPath(path);
  *   save(stages | null): persists (null = back to the definition's stages), throws to keep the window open.
  */
-export async function openStageEditor({info, art = null, name = 'Cinder', pickImage, save, dialog = globalThis.foundry?.applications?.api?.DialogV2}) {
+export async function openStageEditor({info, art = null, name = 'Cinder', scope = 'cinder', pickImage, save, dialog = globalThis.foundry?.applications?.api?.DialogV2}) {
   if (!dialog?.wait) throw Error('Dialogs are not available');
   const start = draftFromStages(info.stages, art);
   let draft = clone(start), shown = {};
@@ -111,7 +113,7 @@ export async function openStageEditor({info, art = null, name = 'Cinder', pickIm
   const status = () => root?.querySelector('[data-agc-sstatus]') ?? null;
   const guard = guardDirty({status});
   const paint = () => {
-    root.innerHTML = editorHtml(draft, {errors: shown, source: source === 'new' ? 'cinder' : source, unlocked: info.unlocked ?? 0, definitionHas: Boolean(info.definition)});
+    root.innerHTML = editorHtml(draft, {errors: shown, source: source === 'new' ? 'cinder' : source, unlocked: info.unlocked ?? 0, definitionHas: Boolean(info.definition), scope});
     bind();
     if (pendingFocus) { root.querySelector(`[data-agc-sfocus="${pendingFocus}"]:not([disabled])`)?.focus?.(); pendingFocus = null; }
     if (draftChanged(draft, start)) guard.markDirty(); else guard.markClean();
@@ -158,7 +160,7 @@ export async function openStageEditor({info, art = null, name = 'Cinder', pickIm
   }
   const content = `<div data-agc-stage-root></div>`;
   await dialog.wait({
-    classes: ['ag-app', 'ag-dialog', 'agc-stage-dialog'], window: {title: `Stages: ${name}`, resizable: true}, position: {width: 640}, content, modal: true, rejectClose: false,
+    classes: ['ag-app', 'ag-dialog', 'agc-stage-dialog'], window: {title: `${scope === 'kind' ? 'Stage art' : 'Stages'}: ${name}`, resizable: true}, position: {width: 640}, content, modal: true, rejectClose: false,
     render: (event, d) => {
       dlg = d;
       const el = d.element ?? event?.target?.element;
