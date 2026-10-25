@@ -292,6 +292,10 @@ export async function presetAsk(id, ask = confirmDialog) {
  * Hides list rows whose name does not contain the search text (no re-render, so typing keeps focus). A section left
  * with no matching rows is hidden too; a container stays visible while something inside it matches.
  */
+export function filterCompanionTypes(root, text) {
+  const q = String(text ?? '').trim().toLowerCase();
+  for (const row of root?.querySelectorAll?.('[data-ctype-row]') ?? []) row.hidden = !!q && !String(row.dataset?.name ?? '').includes(q);
+}
 export function applyFilter(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
   const rows = [...(root?.querySelectorAll?.('.agch-body .agch-card, .agch-body .agch-plist > li') ?? [])];
@@ -483,6 +487,9 @@ export const EDITS = {
   'companion-perk': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.kind, i.value, slotOf(i)) : null,
   'pet-slots-default': async (s, i) => { const r = await comp.setDefaultPetSlots(i.value); if (!r?.ok) s.render(); return r; },
   'pet-slot-override': async (s, i) => { const r = await comp.setPetSlotOverride(i.dataset.actor, i.value); if (!r?.ok) s.render(); return r; },
+  'companion-type': async (s, i) => { const r = await comp.setCompanionType(globalThis.game?.actors?.get?.(i.dataset.actor), i.value);
+    if (!r?.ok) s.render(); else { const eff = i.closest?.('li')?.querySelector?.('.agch-ctype__eff'); if (eff) eff.textContent = r.result.label; }   // no redraw, so the search text and place are kept
+    return r; },
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
@@ -715,6 +722,7 @@ export function createHubSheetClass(Base) {
       content.addEventListener?.('change', ev => this._onHubChange(ev));
       content.addEventListener?.('input', ev => {
         if (ev.target?.matches?.('[data-link-find]')) submitLinkFind(this, ev);
+        if (ev.target?.matches?.('[data-ctype-filter]')) filterCompanionTypes(content, ev.target.value);
         if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
         if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
         if (ev.target?.closest?.('[data-bio]')) onBioInput(this, ev.target);

@@ -1,5 +1,5 @@
 /**
- * Companions (0.48.0): a Mount box and up to three Pet boxes. A companion is a world Actor (an NPC with stats, linked by
+ * Companions (0.48.0; 0.49.0 adds auto-listing of owned NPC Actors, see "Auto-listing" below): a Mount box and up to three Pet boxes. A companion is a world Actor (an NPC with stats, linked by
  * UUID, Observer permission needed for players). A character may link many pet Actors and many mount Actors; up to three
  * pets (the character's pet slot count, 0 to 3) and one mount are active at once. A pet has Head and Body sockets; the
  * mount has Saddle and four Tack. Gear (pet clothing, mount gear) is an ordinary Item on the character dropped into a
@@ -214,6 +214,89 @@ export function linkedActor(uuid) {
 /** The GM, or a user with at least Observer on the Actor: the level the Hub needs to show anything from its sheet. */
 export const canSeeActor = a => !!a && (globalThis.game?.user?.isGM === true || a.testUserPermission?.(globalThis.game?.user, 'OBSERVER') === true);
 
+// ---------- Auto-listing (0.49.0) ----------
+// Each pet dropdown and the mount dropdown also list the NPC Actors the character's player OWNS (Owner permission only),
+// so a player needs no drop or search. Choosing one links it and makes it active. Nothing is ever auto-removed.
+export const TYPE_FLAG = 'companionType';
+export const COMPANION_TYPES = ['pet', 'mount', 'either', 'none'];
+const SIZE_NAMES = {tiny: 'Tiny', sm: 'Small', med: 'Medium', lg: 'Large', huge: 'Huge', grg: 'Gargantuan'};
+const SIZE_KIND = {tiny: 'pet', sm: 'pet', med: 'pet', lg: 'mount', huge: 'mount', grg: 'mount'};
+export const KIND_TITLE = {pet: 'Pet', mount: 'Mount', either: 'Pet or mount', none: 'Not a companion'};
+/** The permanent id Manager stamps on an imported Actor (flags['ashen-gate-manager'].source.sourceId), or ''. */
+export const managerIdOf = actor => { const id = actor?.flags?.['ashen-gate-manager']?.source?.sourceId; return typeof id === 'string' ? id : ''; };
+/**
+ * What kind of companion an Actor is, strongest rule first: (a) the GM's flag companionType (pet | mount | either | none);
+ * (b) Manager's id prefix CRE-MOUNT- (mount) or CRE-PET- (pet); (c) any other CRE- id by size; (d) NPC- ids (people) are
+ * none; (e) no Manager id: by size. `automatic: true` ignores the GM's flag (what Automatic would give). Size: tiny, sm, med are pets; lg, huge, grg are mounts. Returns
+ * {kind: 'pet'|'mount'|'either'|'none', source: 'gm'|'import'|'size'|'person'|'unknown', label}, label in plain words.
+ */
+export function companionKindOf(actor, {automatic = false} = {}) {
+  const flag = automatic ? undefined : actor?.flags?.[MODULE_ID]?.[TYPE_FLAG];
+  if (COMPANION_TYPES.includes(flag)) return {kind: flag, source: 'gm', label: `${KIND_TITLE[flag]} (set by GM)`};
+  const id = managerIdOf(actor);
+  if (id.startsWith('CRE-MOUNT-')) return {kind: 'mount', source: 'import', label: 'Mount (imported as a mount)'};
+  if (id.startsWith('CRE-PET-')) return {kind: 'pet', source: 'import', label: 'Pet (imported as a pet)'};
+  if (id.startsWith('NPC-')) return {kind: 'none', source: 'person', label: 'Not a companion (a person)'};
+  const size = actor?.system?.traits?.size, kind = SIZE_KIND[size];
+  if (!kind) return {kind: 'none', source: 'unknown', label: 'Not a companion (size unknown)'};
+  return {kind, source: 'size', label: `${KIND_TITLE[kind]} (${SIZE_NAMES[size]})`};
+}
+/** Whether an effective kind fits a box of `kind`. */
+export const kindFits = (info, kind) => info.kind === kind || info.kind === 'either';
+
+/** Non-GM users with Owner on the character: the people whose companions are auto-listed. */
+function playerOwners(actor) {
+  return [...(globalThis.game?.users ?? [])].filter(u => u && !u.isGM && actor.testUserPermission?.(u, 'OWNER') === true);
+}
+/**
+ * Whether `other` counts as owned for this character: at least one non-GM user who owns the character also owns `other`.
+ * A character with no non-GM owners (GM-run) uses the viewing user's own permission; a GM viewer has no meaningful
+ * "owned" there (a GM owns everything), so nothing is listed automatically and the GM links by drop or find.
+ */
+export function ownedForCharacter(actor, other, user = globalThis.game?.user) {
+  if (!actor || !other) return false;
+  const owners = playerOwners(actor);
+  if (owners.length) return owners.some(u => other.testUserPermission?.(u, 'OWNER') === true);
+  if (!user || user.isGM) return false;
+  return other.testUserPermission?.(user, 'OWNER') === true;
+}
+/** What can never be auto-listed for this character, before ownership and kind: itself, non-NPCs, backups, compendium Actors, Actors the viewer cannot see. */
+function listable(actor, a) {
+  return !!a && a !== actor && a.uuid !== actor.uuid && a.type === 'npc' && !a.pack && !isBackup(a) && /^Actor\.[A-Za-z0-9]+$/.test(String(a.uuid ?? '')) && canSeeActor(a);
+}
+/**
+ * Read only: the NPC Actors this character's owners own whose effective kind fits `kind` ('pet' or 'mount'), sorted by
+ * name: [{actor, uuid, name, info, linked}]. `linked` is true when already linked to the character as `kind`; Actors linked as the other kind are left out.
+ */
+export function eligibleCompanions(actor, kind, user = globalThis.game?.user) {
+  if (!KINDS.includes(kind) || !actor) return [];
+  const s = readSlots(actor), mine = new Set(s[listKey(kind)]), other = new Set(s[listKey(kind === 'pet' ? 'mount' : 'pet')]);
+  return [...(globalThis.game?.actors ?? [])].filter(a => listable(actor, a) && !other.has(a.uuid) && ownedForCharacter(actor, a, user))
+    .map(a => ({actor: a, uuid: a.uuid, name: a.name, info: companionKindOf(a), linked: mine.has(a.uuid)})).filter(e => kindFits(e.info, kind))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+/** Why a non-GM may not auto-link `other` as `kind`, or null. The GM may link anything. */
+function autoLinkRefusal(actor, other, kind, user) {
+  if (user?.isGM) return null;
+  if (!listable(actor, other)) return refuse(`${other?.name ?? 'That Actor'} can't be a ${kindName(kind)} for ${actor.name}.`);
+  if (!ownedForCharacter(actor, other, user)) return refuse(`You don't own ${other.name}, so it can't be linked from the list. Ask the GM to give you ownership, or drop it on the box.`);
+  if (!kindFits(companionKindOf(other), kind)) return refuse(`${other.name} is ${companionKindOf(other).label.replace(/^./, c => c.toLowerCase())}, so it doesn't fit a ${kindName(kind)} box.`);
+  return null;
+}
+/** GM only: sets (pet | mount | either | none) or clears ('' / null / 'auto') the GM's companion type on an NPC Actor. */
+export async function setCompanionType(actor, type, user = globalThis.game?.user) {
+  if (user?.isGM !== true) return refuse('Only the GM can set a companion type.');
+  if (!actor || actor.documentName !== 'Actor') return refuse('Choose an Actor.');
+  if (actor.type !== 'npc') return refuse(`${actor.name} is not an NPC, so it can't be a companion.`);
+  if (type === '' || type === null || type === undefined || type === 'auto') {
+    if (actor.flags?.[MODULE_ID]?.[TYPE_FLAG] !== undefined) await actor.update({[`flags.${MODULE_ID}.-=${TYPE_FLAG}`]: null});
+    return {ok: true, result: companionKindOf(actor)};
+  }
+  if (!COMPANION_TYPES.includes(type)) return refuse('Choose Pet, Mount, Either, None or Automatic.');
+  if (actor.flags?.[MODULE_ID]?.[TYPE_FLAG] !== type) await actor.update({[`flags.${MODULE_ID}.${TYPE_FLAG}`]: type});
+  return {ok: true, result: companionKindOf(actor)};
+}
+
 const itemOn = (actor, id) => id ? actor.items?.get?.(id) ?? null : null;
 /** The tier shown with a gear item's name, when its data carries one (display only). */
 export const tierOf = item => { const t = item?.flags?.[MODULE_ID]?.companion?.tier ?? item?.flags?.['ashen-gate-manager']?.source?.tier; return typeof t === 'string' ? t.trim() : ''; };
@@ -264,13 +347,18 @@ export function actorStats(actor) {
  */
 export function companionBoxes(actor) {
   const s = readSlots(actor), petSlots = petSlotsFor(actor), act = activeSet(s);
+  const eligible = {pet: eligibleCompanions(actor, 'pet'), mount: eligibleCompanions(actor, 'mount')};
   const make = (kind, slot, activeUuid) => {
     const owned = s[listKey(kind)].map(u => entryOf(u, s.labels)), active = owned.find(e => e.uuid === activeUuid) ?? null;
+    // 0.49.0: owned NPC Actors not linked yet (choosing one links it); never one already active in a pet box.
+    const available = eligible[kind].filter(e => !e.linked && !act.has(e.uuid)).map(e => ({uuid: e.uuid, name: e.name, tag: KIND_TITLE[e.info.kind], why: e.info.label}));
+    // A linked NPC the character's owners no longer own stays linked; the box says so and the owner can clear it.
+    if (active) active.notOwned = !!active.actor && active.actor.type === 'npc' && (!globalThis.game?.user?.isGM || playerOwners(actor).length > 0) && !ownedForCharacter(actor, active.actor);
     const placed = (active && s.gear[active.key]) || {};
     const sockets = SOCKETS[kind].map(({key, type, label, name}) => ({key, type, label, name, item: itemOn(actor, placed[key])}));
     const perks = active ? (s.perks[active.key] ?? []).map(id => itemOn(actor, id)).filter(Boolean) : [];
     const others = kind === 'pet' ? owned.filter(e => !act.has(e.uuid)) : owned.filter(e => e !== active);
-    return {kind, slot, active, owned, others, sockets, perks, gearItems: sockets.map(x => x.item).filter(Boolean)};
+    return {kind, slot, active, owned, others, available, sockets, perks, gearItems: sockets.map(x => x.item).filter(Boolean)};
   };
   const pets = [];
   for (let i = 0; i < MAX_PET_SLOTS; i++) if (i < petSlots || s.activePets[i]) pets.push(make('pet', i, s.activePets[i]));
@@ -361,14 +449,22 @@ function petBoxRefusal(actor, s, slot, uuid) {
   return null;
 }
 
-/** Makes a linked companion Actor active: the mount, or the pet in box `slot` (0 to 2). '' or null clears it. */
+/**
+ * Makes a companion Actor active: the mount, or the pet in box `slot` (0 to 2). '' or null clears it. An Actor that is not
+ * linked yet is linked first when it is eligible (the player owns it and its kind fits the box; the GM may link any).
+ */
 export async function activateCompanion(actor, kind, uuid, slot = 0) {
   const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!KINDS.includes(kind)) return KIND_REFUSAL(kind);
   const at = slotArg(kind, slot); if (!at.ok) return at;
   const s = readSlots(actor);
   if (!uuid) { setActive(s, kind, at.slot, null); await save(actor, s); return {ok: true, result: null}; }
-  if (!s[listKey(kind)].includes(uuid)) return refuse(`That ${kindName(kind)} is not linked to ${actor.name}.`);
+  if (!s[listKey(kind)].includes(uuid)) {
+    // 0.49.0: an owned Actor chosen from the dropdown is linked and made active in this box.
+    const other = linkedActor(uuid);
+    if (!other) return refuse(`That ${kindName(kind)} is not linked to ${actor.name}.`);
+    return linkActor(actor, other, kind, at.slot, 'auto');
+  }
   if (kind === 'pet') {
     if (s.activePets[at.slot] === uuid) return {ok: true, result: uuid};
     const no = petBoxRefusal(actor, s, at.slot, uuid); if (no) return no;
@@ -383,7 +479,12 @@ export async function activateCompanion(actor, kind, uuid, slot = 0) {
  * Players need at least Observer permission on it; compendium Actors must be imported into the world first. The Actor
  * itself is never changed.
  */
-export async function addActorCompanion(actor, other, kind, slot = null) {
+export const addActorCompanion = (actor, other, kind, slot = null) => linkActor(actor, other, kind, slot, 'manual');
+/**
+ * The shared link path. 'manual' (drop, find, link list) needs Observer for players; 'auto' (chosen from a dropdown) needs
+ * the player to own it and its kind to fit (autoLinkRefusal). The GM may link anything either way.
+ */
+async function linkActor(actor, other, kind, slot, mode) {
   const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!KINDS.includes(kind)) return KIND_REFUSAL(kind);
   if (!other || other.documentName !== 'Actor') return refuse('Drop an Actor here.');
@@ -391,7 +492,8 @@ export async function addActorCompanion(actor, other, kind, slot = null) {
   if (other === actor || other.uuid === actor.uuid) return refuse(`${actor.name} can't be its own companion.`);
   if (other.pack || !worldUuid(other.uuid)) return refuse(`Import ${other.name} into the world first, then drop it from the Actors sidebar.`);
   const user = globalThis.game?.user;
-  if (!user?.isGM && other.testUserPermission?.(user, 'OBSERVER') !== true) return refuse(`You can't see ${other.name}. Ask the GM to share it with you.`);
+  if (mode === 'auto') { const no = autoLinkRefusal(actor, other, kind, user); if (no) return no; }
+  else if (!user?.isGM && other.testUserPermission?.(user, 'OBSERVER') !== true) return refuse(`You can't see ${other.name}. Ask the GM to share it with you.`);
   const s = readSlots(actor), known = s.pets.includes(other.uuid) || s.mounts.includes(other.uuid);
   if (known && !s[listKey(kind)].includes(other.uuid)) return refuse(`${other.name} is already linked as a ${kind === 'pet' ? 'mount' : 'pet'}.`);
   let target = 0, activate = true;
