@@ -153,12 +153,12 @@ test('the table has Yes / No / Different…, a searchable picker, bulk buttons, 
   assert.match(fold, /role="radiogroup" aria-label=/);
   assert.match(fold, /data-label="Image now"/);
   assert.doesNotMatch(fold, /type="checkbox"|\{\{sourceId\}\}|\{\{uuid\}\}<|\{\{id\}\}/);
-  assert.match(main, /linkCountLine:`\$\{counts\.willLink\} will be linked, \$\{counts\.skipped\} skipped\.`/);
-  assert.match(main, /linkCanApply:counts\.willLink>0&&!counts\.conflicts/);
+  assert.match(main, /linkCountLine:`\$\{counts\.willLink\+cinderWill\} will be linked, /);
+  assert.match(main, /linkCanApply:counts\.willLink\+cinderWill>0&&!counts\.conflicts/);
   assert.match(css, /@container \(max-width:40rem\)\{[^}]*\.aglink thead/);
 });
 test('focus is put back after each re-render, and Link refuses while two rows share a record', () => {
   for (const sel of ['data-ag-assets-choice=', 'data-ag-assets-different=', 'data-ag-assets-picker-q=', 'data-ag-assets-bulk=']) assert.ok(main.includes(`focusAfterRender=\`[${sel}`) || main.includes(`?\`[${sel}`), sel);
-  assert.match(main, /if\(blocked\.size\)return say\(/);
+  assert.match(main, /if\(blocked\.size\|\|cinderConflicts\(cinderAll\)\.size\)return say\(/);
   assert.match(main, /Escape/);
 });

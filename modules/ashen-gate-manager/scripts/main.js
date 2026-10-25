@@ -69,6 +69,7 @@ import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_T
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
+import {cindersApi, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
 import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
@@ -277,7 +278,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and tags. The Icon column shows each pick and why; <strong>Change…</strong> picks another. When nothing fits the name well enough it says <strong>no confident match</strong> and the generic icon is used. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
-  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
+  '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>; files already there are only replaced if you say so. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (nine Cinders, stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
@@ -326,7 +327,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Items → Checks → Improve icons.
     this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Items → Assets (0.57.0). Nothing here is saved: it is a view of the file library and of the last scan.
-    this.assets = {pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
+    this.assets = {cinderPickerKey:null, pickerKey:null, source:null, target:'', listing:null, loading:false, query:'', shown:ASSET_PAGE, uploads:[], uploadMessage:'', uploading:false, abort:null,
       scan:null, linkFiles:[], links:null, linkMessage:'', scanning:false, missing:{kind:'all', state:'all', query:''}, message:''};
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
@@ -1955,6 +1956,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         summary:waiting?'Pick one first':conflict?'Needs a choice':yes?'Will be linked':'Skipped',
         willChange:yes&&!conflict,picker:pickerRow&&pickerRow.key===r.key?{records:pickerRecords,count:pickerRecords.length}:null};
     });
+    const cinderAll=links?.cinderRows??[], cinderBlocked=cinderConflicts(cinderAll), cinderPool=this.#cinderList();
+    const cinderWill=cinderWillLink(cinderAll);
+    const cinderRows=cinderAll.map(r=>{
+      const yes=r.ready&&r.checked, blocked=cinderBlocked.has(r.key);
+      const stages=r.mode==='art'?[]:r.to.map((t,i)=>({number:t.stage,fileName:t.fileName,toUrl:this.#assetUrl(t.art),at:t.at,
+        oldUrl:r.from[i]?this.#assetUrl(r.from[i].art):'',hasOld:Boolean(r.from[i])}));
+      const single=r.mode==='art'?r.to.map(t=>({fileName:t.fileName,toUrl:this.#assetUrl(t.art),oldUrl:r.fromArt?this.#assetUrl(r.fromArt):'',hasOld:Boolean(r.fromArt)})):[];
+      return {...r,stages,single,hasStages:stages.length>0,hasSingle:single.length>0,canYes:r.ready,isYes:yes,isNo:!r.checked,yesTab:r.checked?true:false,noTab:!yes,conflict:blocked,
+        willChange:yes&&!blocked,cinderLabel:r.cinderName||`${r.word} (no Cinder yet)`,pickerOpen:a.cinderPickerKey===r.key,
+        summary:r.needsPick&&!r.chosen?'Pick one first':blocked?'Needs a choice':yes?'Will be linked':'Skipped',
+        options:cinderPool.map(c=>({value:c.definitionId,label:c.name,selected:c.definitionId===r.definitionId})),
+        canDifferent:cinderPool.length>0,hasExtras:r.extras.length>0,hasExisting:Boolean(r.from.length||r.fromArt)};
+    });
     const foundNames=a.scan?new Set(a.scan.files.map(f=>stem(f.name).toLowerCase())):null;
     const missing=missingArtRows(this.#assetDocs(),{...a.missing,foundNames});
     const missingShown=missing.slice(0,300).map(r=>({...r,kindLabel:kindOf(r.documentName),tone:r.state==='none'?'danger':'warn'}));
@@ -1968,9 +1982,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       uploading:a.uploading,uploads:a.uploads.map(r=>({...r,label:UPLOAD_LABEL[r.status]??r.status,tone:UPLOAD_TONE[r.status]??''})),hasUploads:a.uploads.length>0,
       uploadMessage:a.uploadMessage,
       chooseFiles:fileButton({label:'Choose files…',accept:'image/*,.webp,.png,.jpg,.jpeg,.gif,.avif,.svg',multiple:true,icon:'fa-solid fa-upload',disabled:a.uploading||!l?.ok,data:{agFileKind:'assets'}}),
-      scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,
-      linkTicked:counts.willLink,linkSkipped:counts.skipped,linkConflicts:counts.conflicts,linkUndecided:counts.undecided,
-      linkCountLine:`${counts.willLink} will be linked, ${counts.skipped} skipped.`,linkCanApply:counts.willLink>0&&!counts.conflicts,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
+      scanning:a.scanning,linkMessage:a.linkMessage,hasLinks:Boolean(links),linkRows,linkCount:links?.rows.length??0,cinderRows,hasCinderRows:cinderRows.length>0,hasAnyRows:linkRows.length>0||cinderRows.length>0,
+      linkTicked:counts.willLink+cinderWill,linkSkipped:counts.skipped+cinderAll.length-cinderWill,linkConflicts:counts.conflicts+cinderBlocked.size,linkUndecided:counts.undecided+cinderAll.filter(r=>r.needsPick&&!r.chosen).length,
+      linkCountLine:`${counts.willLink+cinderWill} will be linked, ${counts.skipped+cinderAll.length-cinderWill} skipped.`,linkCanApply:counts.willLink+cinderWill>0&&!counts.conflicts&&!cinderBlocked.size,linkOverflow:Math.max(0,(links?.rows.length??0)-linkRows.length),
       scanSummary:!links?'':links.fromUpload?`Checked the ${a.linkFiles.length} file(s) you just added. ${links.unmatchedFiles} of them fit no record.`
         :`Looked through ${links.folders} folder(s) and ${a.linkFiles.length} image file(s)${a.scan?.complete===false?' (the scan stopped early; open a deeper folder to narrow it)':''}. ${links.unmatched} record(s) have no file that fits and ${links.unmatchedFiles} file(s) fit no record.`,
       missingKinds:sel(ART_KINDS,a.missing.kind),missingStates:sel(ART_STATES,a.missing.state),missingQuery:a.missing.query,
@@ -1978,9 +1992,22 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       missingScanned:Boolean(foundNames),message:a.message
     };
   }
-  #linkSummary(rows) {
+  #linkSummary(rows,cinderRows=[]) {
     const asks=rows.filter(r=>r.needsPick).length, ready=rows.length-asks;
-    return `${ready} record(s) can take a file${asks?`, and ${asks} need${asks===1?'s':''} your pick`:''}. Nothing has changed yet.`;
+    const cinders=cinderRows.length?` ${cinderRows.length} Cinder(s) have stage art ready to check.`:'';
+    return `${ready} record(s) can take a file${asks?`, and ${asks} need${asks===1?'s':''} your pick`:''}.${cinders} Nothing has changed yet.`;
+  }
+  /** The Cinders a stage-art file can go to (GM only; empty when Ashen Gate | Cinders or its API is missing). */
+  #cinderList() {
+    const api=cindersApi();
+    if(!game.user?.isGM||(!api?.canStages&&!api?.canArt))return [];
+    try{return cinderChoices({docs:this.#assetDocs(),instances:api.cinder.instances(),stagesOf:api.canRead?id=>api.cinder.stages(id):()=>null});}catch{return [];}
+  }
+  /** Record matches for the files, with Cinder stage art (Echo_Cinder_Stage_1.webp …) taken out first so it is never also offered to a record. */
+  #planLinks(files) {
+    const api=cindersApi(), caps=api?{canStages:api.canStages,canArt:api.canArt}:null;
+    const {rows:cinderRows,rest}=planCinderArt(files,{user:game.user,cinders:this.#cinderList(),caps});
+    return {...planAssetLinks(this.#assetDocs(),rest),cinderRows};
   }
   async #assetsAction(name) {
     if(!game.user?.isGM)throw new Error('Only a GM can manage assets.');
@@ -2001,30 +2028,35 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         try{
           const scan=await scanFolders(picker,{source,target:a.target,user:game.user});
           a.scan=scan;a.linkFiles=scan.files;
-          const plan=planAssetLinks(this.#assetDocs(),scan.files);
+          const plan=this.#planLinks(scan.files);
           a.links={...plan,folders:scan.folders};
-          a.linkMessage=plan.rows.length?this.#linkSummary(plan.rows)
+          a.linkMessage=(plan.rows.length||plan.cinderRows.length)?this.#linkSummary(plan.rows,plan.cinderRows)
             :scan.ok?'No file in this folder (or under it) fits a record by its permanent id or by name. Nothing changed.':`Could not read the folder: ${scan.errors[0]??'unknown error'}`;
         }finally{a.scanning=false;}
         break;
       }
       case 'assets-link-cancel': a.pickerKey=null;a.links=null;a.linkFiles=[];a.linkMessage='Preview cleared. Nothing changed.';this.focusAfterRender='[data-ag-action="assets-scan"]';break;
       case 'assets-link-apply': {
-        const all=a.links?.rows??[], blocked=linkConflicts(all);
-        if(blocked.size)return say('Two files are set to go to the same record. Choose one of them (or pick a different record) first.',true);
+        const all=a.links?.rows??[], cinderAll=a.links?.cinderRows??[], blocked=linkConflicts(all);
+        if(blocked.size||cinderConflicts(cinderAll).size)return say('Two files are set to go to the same record. Choose one of them (or pick a different record) first.',true);
         const rows=all.filter(r=>r.checked&&rowReady(r));
-        if(!rows.length)return say('Choose Yes on at least one match first.',true);
+        const cinderRows=cinderAll.filter(r=>r.checked&&r.ready);
+        if(!rows.length&&!cinderRows.length)return say('Choose Yes on at least one match first.',true);
         const actorRows=rows.filter(r=>r.documentName==='Actor').length;
         const replacing=rows.filter(r=>r.state==='edited'||r.state==='imported').length;
-        const yes=await confirmDialog(`Set the image of ${rows.length} record(s) to the file shown on each row?${replacing?`\n${replacing} of them already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor.`:''}\nOnly the image is changed. A record whose image changed since the preview is skipped. There is no undo: the preview lists each old image.`,
-          {title:'Link images to records?',yes:`Link ${rows.length} image(s)`});
+        const cinderReplacing=cinderRows.filter(r=>r.from.length||r.fromArt).length;
+        const yes=await confirmDialog(`${rows.length?`Set the image of ${rows.length} record(s) to the file shown on each row?`:''}${cinderRows.length?`${rows.length?'\n':''}Set the art of ${cinderRows.length} Cinder(s) to the stage images shown on each row?${cinderReplacing?` ${cinderReplacing} of them already have art; it will be replaced.`:''}`:''}${replacing?`\n${replacing} of the records already have an image that was set in Foundry or came with the import; those will be replaced.`:''}${actorRows?`\n${actorRows} of them are Actors: only the portrait and the token image change, nothing else on the Actor.`:''}\nOnly images are changed. A record whose image changed since the preview is skipped.`,
+          {title:'Link images?',yes:`Link ${rows.length+cinderRows.length} image set(s)`});
         if(!yes)return;
         const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
         const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry,Actor:globalThis.Actor})[documentName].updateDocuments(updates);
         this.busy=true;
         try{
-          const out=await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
-          a.pickerKey=null;a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
+          const outs=[];
+          if(rows.length)outs.push(await applyAssetLinks(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany}));
+          if(cinderRows.length)outs.push(await applyCinderArt(cinderRows,{user:game.user,api:cindersApi()}));
+          const out={ok:outs.every(o=>o.ok),message:outs.map(o=>o.message).filter(Boolean).join(' ')};
+          a.pickerKey=null;a.cinderPickerKey=null;a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
           a.linkMessage=out.message;say(out.message,!out.ok);
         }finally{this.busy=false;}
         break;
@@ -2062,9 +2094,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }finally{a.uploading=false;a.abort=null;a.listing=null;a.scan=null;a.links=null;a.linkFiles=[];a.linkMessage='';}
     if(added.length){
       // Look for records the new files fit (permanent id first, then name). Only a preview: nothing is written until Link.
-      const plan=planAssetLinks(this.#assetDocs(),added);
+      const plan=this.#planLinks(added);
       a.linkFiles=added;a.links={...plan,folders:0,fromUpload:true};
-      a.linkMessage=plan.rows.length?`${this.#linkSummary(plan.rows)} See Link files to records below.`:'None of the files you just added fit a record by its permanent id or by name. Nothing changed.';
+      a.linkMessage=(plan.rows.length||plan.cinderRows.length)?`${this.#linkSummary(plan.rows,plan.cinderRows)} See Link files to records below.`:'None of the files you just added fit a record by its permanent id or by name. Nothing changed.';
     }
     await this.render();
   }
@@ -2151,10 +2183,34 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         a.pickerKey=null;this.focusAfterRender=`[data-ag-assets-different="${CSS.escape(key)}"]`;void this.render();
       }));
     });
+    // Cinder stage art rows: Yes / No, and Different… (another Cinder). Nothing here writes to the world.
+    const cinderRowOf=key=>a.links?.cinderRows?.find(r=>r.key===key);
+    const chooseCinder=(key,value)=>{
+      const row=cinderRowOf(key);if(!row||!setCinderChoice(row,value))return;
+      this.focusAfterRender=`[data-ag-assets-cinder-choice="${CSS.escape(key)}"][data-value="${value}"]`;void this.render();
+    };
+    pane.querySelectorAll('[data-ag-assets-cinder-choice]').forEach(el=>{
+      el.addEventListener('click',event=>{event.preventDefault();chooseCinder(el.dataset.agAssetsCinderChoice,el.dataset.value);});
+      el.addEventListener('keydown',event=>{
+        if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+        event.preventDefault();chooseCinder(el.dataset.agAssetsCinderChoice,el.dataset.value==='yes'?'no':'yes');
+      });
+    });
+    pane.querySelectorAll('[data-ag-assets-cinder-different]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();const key=el.dataset.agAssetsCinderDifferent;
+      a.cinderPickerKey=a.cinderPickerKey===key?null:key;
+      this.focusAfterRender=a.cinderPickerKey?`[data-ag-assets-cinder-pick="${CSS.escape(key)}"]`:`[data-ag-assets-cinder-different="${CSS.escape(key)}"]`;void this.render();
+    }));
+    pane.querySelectorAll('[data-ag-assets-cinder-pick]').forEach(el=>el.addEventListener('change',event=>{
+      const key=el.dataset.agAssetsCinderPick,row=cinderRowOf(key);if(!row||!event.target.value)return;
+      const api=cindersApi();
+      if(!assignCinder(row,event.target.value,this.#cinderList(),api?{canStages:api.canStages,canArt:api.canArt}:null)){toast('That Cinder cannot be used here.',true);return;}
+      a.cinderPickerKey=null;this.focusAfterRender=`[data-ag-assets-cinder-different="${CSS.escape(key)}"]`;void this.render();
+    }));
     pane.querySelectorAll('[data-ag-assets-bulk]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();const kind=el.dataset.agAssetsBulk;a.pickerKey=null;
-      if(kind==='reset')a.links={...planAssetLinks(this.#assetDocs(),a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
-      else setAllChoices(a.links?.rows??[],kind);
+      if(kind==='reset')a.links={...this.#planLinks(a.linkFiles??[]),folders:a.links.folders,fromUpload:a.links.fromUpload};
+      else{setAllChoices(a.links?.rows??[],kind);setAllCinderChoices(a.links?.cinderRows??[],kind);}
       this.focusAfterRender=`[data-ag-assets-bulk="${kind}"]`;void this.render();
     }));
     pane.querySelectorAll('[data-ag-assets-pick]').forEach(el=>el.addEventListener('change',event=>{
