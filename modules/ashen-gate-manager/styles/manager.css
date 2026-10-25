@@ -299,6 +299,9 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 /* ---------- 0.45.0: Import tab folds, capped lists and the bottom message drawer ---------- */
 /* Long lists scroll inside their own box, so no tab needs endless page scrolling. */
 .agm-scrollcap{max-height:min(28rem,45vh);overflow:auto;overscroll-behavior:contain}
+/* 0.65.1: the kit's .ag-rows is a flex column with overflow:hidden, so a capped list squashed its rows instead of scrolling. Rows keep their height and the list scrolls. */
+.ag-rows.agm-scrollcap{min-height:0;overflow-x:hidden;overflow-y:auto}
+.ag-rows.agm-scrollcap > .ag-row{flex:none}
 .agm-import-bar{flex-wrap:wrap;align-items:center}
 .agm-import-loaded{min-width:0;overflow-wrap:anywhere}
 .agm-import>.ag-fold{margin:var(--ag-space-2) 0}

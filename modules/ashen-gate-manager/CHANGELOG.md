@@ -1,3 +1,11 @@
+## 0.65.1 — 2026-10-25
+
+Assets: the lists in Files waiting to upload (and Files with no match) now scroll.
+
+- **Fix:** with many files (29 matched, say) the list showed about a dozen rows and the rest, with their Upload ticks, could not be reached. The kit's row list is a flex column that hides overflow, so a capped list squashed its rows instead of scrolling. Capped row lists (Unmatched files, Matched files, Files with no match, Upload results, Library check results) now keep each row's height and scroll inside their own box; the Cancel and Upload footer stays below them.
+- Each of those lists can be focused with Tab and scrolled with the arrow, Page Up/Down and Home/End keys; ticks and buttons keep their order and labels.
+- Tables (Cinder rows, link preview) were not affected. Saved data: no change. Tested with mocked data only (the stylesheet and markup are checked in the Node suite, not the live Forge UI).
+
 ## 0.65.0 — 2026-10-25
 
 Assets: see which dropped files fit no record before anything is uploaded, and list the ones that fit none.
