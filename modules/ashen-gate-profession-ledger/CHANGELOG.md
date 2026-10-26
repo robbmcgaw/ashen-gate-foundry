@@ -1,3 +1,11 @@
+## 0.33.0 — 2026-10-26
+
+- **Assign: Refresh… for one character.** After a player changes proficiencies (or swaps professions), pick the character in Assign → Professions and press **Refresh…**. The preview lists **Will add**, **Will keep**, **Will remove** and **Can't tell, left alone**. Refresh removes only profession features and signature perks the Ledger recorded giving the character, and starting recipes of the professions it removes, then adds what the character now qualifies for (profession features, starting recipes, signature perks) the same way Assign does. Crafted items, materials, gear and anything added by hand are never touched. A profession feature with no record of who added it (added before this version, or by hand) is listed under *Can't tell* and stays unless you tick *Also remove*.
+- **Progress is protected.** A profession with XP, history, chosen perks, crafted items, learned recipes beyond the starting ones or signature perks is kept, with "This character has progress in <profession>", unless you tick *Also remove <profession> progress* and type the character's name.
+- **Snapshot first.** Before anything is removed, a GM-only Journal ("Profession Refresh: <name>") is saved with the removed Items and the previous flags; if it can't be saved, nothing changes. Re-running changes nothing.
+- API: `refreshProfessions({actorId, preview = true, removeProgress, alsoRemove, confirmName})` (GM only; player characters only, never NPCs, unowned characters or Character Hub level backups).
+- Assign, Starting recipes and Signature perks now record what they grant (Item flag `grant`, Actor flag `grantedRecipes`) so Refresh can tell. Existing data is not rewritten; no migration.
+
 ## 0.32.4 — 2026-10-24
 
 - **Gathering nodes: the id is made for you.** A new node no longer has an *Id (permanent)* box to fill in. Its id is made from the name when you save (`NODE-` plus the name, `-2`, `-3`... if taken) and never changes. A saved node shows it read-only under *Details*. *Advanced: set id (optional)* is still there for a new node and is still checked (NODE- prefix, upper-case letters and digits, not used or deleted before).

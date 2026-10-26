@@ -48,7 +48,7 @@ const npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false,items:[alchemy
 const loner=makeActor('loner','[TEST] Hireling',{owner:false,items:[alchemy()]});
 const backup=makeActor('bak','[TEST] Ana - level 3',{items:[alchemy()],backup:true});
 const all=[ana,bo,cy,npc,loner,backup];
-const ledgerModule={active:true,version:'0.32.4',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.33.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -93,7 +93,7 @@ test('commit grants only starting recipes of each character’s professions, use
   assert.deepEqual(known(bo),['REC-TEST-POULTICE']);
   assert.equal(ana.items.get('r-salve').system.quantity,2,'the recipe item is not used up');
   assert.deepEqual(out.granted.map(g=>[g.actorName,g.recipes.map(r=>r.name)]),[['[TEST] Ana',['[TEST] Salve']],['[TEST] Bo',['[TEST] Poultice']]]);
-  assert.deepEqual(writes.map(w=>w.key),['knownRecipes','knownRecipes'],'one write per character, the normal known-recipes flag');
+  assert.deepEqual(writes.map(w=>w.key),['knownRecipes','grantedRecipes','knownRecipes','grantedRecipes'],'the normal known-recipes flag, then the 0.33.0 record of what the grant added (for Refresh)');
   writes.length=0;
   const again=await api.grantStartingRecipes({preview:false});
   assert.deepEqual(again.granted,[],'second run grants nothing new');
