@@ -7,7 +7,7 @@ import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
-import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
+import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
@@ -1013,6 +1013,7 @@ export class LocationsApp extends Base {
     // 0.19.0: kit keyboard pattern for the tab rows (one Tab stop, Left/Right, Home/End) and the remembered folds.
     bindTablist(root.querySelector('.agl-root') ?? root);
     bindFolds(root, uiMem());
+    bindSplitNav(root, {create: '[data-action="new"]'}); // stacked: scroll to the editor, Back to list
     // Editor sub-tabs: nothing is lost on a switch (the draft stays in memory), so no discard question.
     for (const b of root.querySelectorAll('.ag-tabs--sub[aria-label="Location editor sections"] [data-tab]')) b.addEventListener('click', async () => {
       this.editorTab = uiMem().set('editorTab', b.dataset.tab);

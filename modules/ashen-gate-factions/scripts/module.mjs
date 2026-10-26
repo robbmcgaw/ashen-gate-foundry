@@ -10,7 +10,7 @@ import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,D
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent,paragraphHTML} from './standing-view.mjs';
 import {getVow,canManageVow,swearVow,endVow,breakVow,migrateVows,VOW_BREAK_PENALTY} from './vow.mjs';
-import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindSplitNav,bindFolds,fold,fileButton,bindFileButtons,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
 import {factionsFolder,backupsFolder,holdingFolder,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
@@ -646,6 +646,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     for(const form of root?.querySelectorAll?.('[data-agf-draft]')??[])this.#guard.watch(form);
     for(const list of root?.querySelectorAll?.('.ag-tabs')??[])bindTablist(list);
     bindFolds(root,this.#ui);bindRefPickers(root);
+    bindSplitNav(root,{create:'[data-action="create"], [data-action="createDeity"]'}); // stacked: scroll to the detail, Back to list
     bindFileButtons(root,([file])=>this.importFile(file));
     if(root.dataset.agfBound)return;root.dataset.agfBound='yes';
     // V14 manages [data-tab] controls itself. Use a unique attribute and a DOM click

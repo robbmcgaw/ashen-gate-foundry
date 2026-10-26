@@ -1,5 +1,5 @@
 import {bindSkinPicker} from "./skin-picker.js";
-import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
+import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
 import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
 import {collapseItemDescriptions} from "./chat-style.js";
 import {installPauseMirror} from "./pause-indicator.js";
@@ -974,6 +974,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#bindNavigation(root);
     this.#bindSetup(root);
     bindFolds(root,this.ui);
+    bindSplitNav(root); // stacked Items records / NPC Codex: scroll to the details, Back to list
     bindFileButtons(root,(files,wrap)=>this.#pickFile(wrap.dataset.agFileKind,files[0],files));
     if(this.tab==='items'&&this.itemsView==='records')this.#fillItemPreview(root);
     if(this.tab==='items'&&this.itemsView==='assets'&&!this.assets.listing&&!this.assets.loading)void this.#assetsLoad();

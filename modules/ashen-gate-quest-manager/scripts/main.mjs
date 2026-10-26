@@ -13,7 +13,7 @@ import {selectTrackedViews,validTrackedId,trackingState,overlayState,clampOpacit
 import {captureView,restoreView} from './view-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
-import {windowSize,uiState,bindTablist,bindFolds,bindFileButtons,linkButton,refPicker,refList,readRefList,bindRefPickers,bindRefLists,generateId} from './ag-html.mjs';
+import {windowSize,uiState,bindTablist,bindSplitNav,bindFolds,bindFileButtons,linkButton,refPicker,refList,readRefList,bindRefPickers,bindRefLists,generateId} from './ag-html.mjs';
 import {KIND_PREFIX,newQuestId,readLinks,applyLinks,rememberLinkNames,locationRecords,npcRecords,factionRecords,questRecords,linkOptions} from './quest-links.mjs';
 import {readDrop,worldItemById} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
@@ -406,6 +406,7 @@ class QuestLogApplication extends Base {
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    this.bindToolbar(root);this.bindNav(root);
    this.bindPicks(root);this.bindMore(root);
+   bindSplitNav(root,{create:'[data-action="new"]'}); // stacked: scroll to the editor / reading pane, Back to list
    bindFolds(root,this.ui);this.bindGroupFolds(root);bindRadios(root.querySelector('.agq-subnav'));
    bindRefPickers(root);bindRefLists(root,()=>this.markDirty(root));
    bindFileButtons(root,files=>this.importFile(files[0]).catch(notifyError));

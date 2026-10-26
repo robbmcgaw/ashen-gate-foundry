@@ -748,13 +748,18 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .ag-split { display: grid; grid-template-columns: minmax(14rem, var(--ag-rail-w)) minmax(0, 1fr); gap: 0; min-height: 0; flex: 1; }
 .ag-split__list { min-height: 0; overflow: auto; border-right: 1px solid var(--ag-border); background: var(--ag-surface); }
 .ag-split__detail { min-height: 0; min-width: 0; overflow: auto; padding: var(--ag-space-3) var(--ag-space-4); }
+/* "Back to list" (bindSplitNav) is only useful while the split is stacked. */
+.ag-split .ag-split__back { display: none; }
+.ag-split__detail { scroll-margin-top: var(--ag-space-2); }
 /* Stacked (kit 2.4.0): list, then detail, each at its natural height with no scroller of its own; the split (or the pane around
    it) scrolls once, so there is never a scrolling box inside a scrolling page. Side by side they keep their own scroll. */
 @container (max-width: 40rem) {
   .ag-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content minmax(max-content, 1fr); overflow-y: auto; }
   .ag-split__list, .ag-split__detail { min-height: auto; overflow: visible; }
   .ag-split__list { border-right: 0; border-bottom: 1px solid var(--ag-border); }
+  .ag-split .ag-split__back { display: inline-flex; align-self: flex-start; margin: var(--ag-space-2) var(--ag-space-3) 0; }
 }
+
 /* Side rail: icon tabs down one edge (Character Hub). Each tab needs aria-label + data-tooltip. */
 .ag-siderail { display: flex; flex-direction: column; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-raised); align-self: start; }
 .ag-siderail > button { width: calc(var(--ag-icon-btn) + 8px); height: calc(var(--ag-icon-btn) + 8px); min-height: 0; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--ag-muted); }

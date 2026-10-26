@@ -1,7 +1,7 @@
 /**
  * Ashen Gate shared HTML helpers (ag-html.mjs, UI kit 2).
  * Every module that ships this file ships an identical copy; scripts/check.mjs fails if the copies drift.
- * Kit 2.4.0 adds bindRadioGroups (WAI-ARIA radio group keys for role="radiogroup" switches) and bindScrollTabs (edge cues on a scrolling tab strip).
+ * Kit 2.4.0 adds bindSplitNav (stacked list/detail: scroll to the detail on select, Back to list), bindRadioGroups (WAI-ARIA radio group keys for role="radiogroup" switches) and bindScrollTabs (edge cues on a scrolling tab strip).
  * Kit 2.3.0 adds idSlug/generateId/checkNewId, pickerOptions/filterPickerOptions/missingLabel and refPicker/bindRefPickers
  * (permanent ids made for the GM and searchable record pickers; docs/ui-ux-guidelines.md §17b). Kit 2.2.0 adds uiState, subTabs/tabPanelAttrs/bindTablist, fold/bindFolds, fileButton/bindFileButtons and
  * linkButton. They are additive: nothing calls them until a module adopts them (usage: docs/ui-ux-guidelines.md §17).
@@ -134,6 +134,110 @@ export function bindTablist(root, {state, key} = {}) {
     if (list.matches?.('.ag-tabs--scroll, .ag-siderail')) undo.push(bindScrollTabs(list));
   }
   return () => undo.forEach(fn => fn());
+}
+
+const SPLIT_BOUND = new WeakMap();
+let splitPending = null;
+const SPLIT_SELECTED = '[aria-current="true"], .is-selected, .is-focused';
+const SPLIT_CONTROL = 'button, a[href], [role="button"]';
+const splitKey = el => radioKey(el) || String(el.textContent ?? '').trim().slice(0, 80);
+const splitMotion = () => (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth');
+/** True while the split shows one column (the kit's narrow layout): list above, detail below. */
+export function isSplitStacked(split) {
+  const cols = globalThis.getComputedStyle?.(split)?.gridTemplateColumns;
+  return !!cols && cols !== 'none' && cols.trim().split(/\s+/).length === 1;
+}
+const hasClass = (el, name) => typeof el?.classList?.contains === 'function' ? el.classList.contains(name) : String(el?.className ?? '').split(/\s+/).includes(name);
+const splitDetail = split => [...(split.children ?? [])].find(c => hasClass(c, 'ag-split__detail'));
+const splitList = split => [...(split.children ?? [])].find(c => hasClass(c, 'ag-split__list'));
+
+/** Brings the detail of a stacked split into view and moves focus to its heading (or its first control). */
+export function showSplitDetail(split) {
+  const detail = splitDetail(split);
+  if (!detail) return false;
+  detail.scrollIntoView?.({block: 'start', behavior: splitMotion()});
+  const heading = detail.querySelector?.('h1, h2, h3, h4');
+  let target = heading;
+  if (target) { if (target.getAttribute('tabindex') === null) target.setAttribute('tabindex', '-1'); }
+  else target = [...(detail.querySelectorAll?.('button, input, select, textarea, a[href]') ?? [])].find(x => !x.disabled && !hasClass(x, 'ag-split__back'));
+  if (!target) { if (detail.getAttribute('tabindex') === null) detail.setAttribute('tabindex', '-1'); target = detail; }
+  target.focus?.({preventScroll: true});
+  return true;
+}
+
+/** Back to the list of a stacked split: scrolls the selected row into view and puts focus on it. */
+export function showSplitList(split) {
+  const list = splitList(split);
+  if (!list) return false;
+  const row = list.querySelector?.('[aria-current="true"]') ?? list.querySelector?.('.is-selected, .is-focused');
+  const control = row && (row.matches?.(SPLIT_CONTROL) ? row : row.querySelector?.(SPLIT_CONTROL));
+  const target = control ?? row ?? list;
+  target.scrollIntoView?.({block: row ? 'center' : 'start', behavior: splitMotion()});
+  if (control) control.focus?.({preventScroll: true});
+  return true;
+}
+
+/**
+ * Stacked list + detail (.ag-split in one column, narrow windows): the detail sits below the whole list, so picking a row
+ * would leave the user looking at the list. This scrolls the detail into view and focuses its heading when a row is picked
+ * (a click on a list button or link that ends up selected, with or without a re-render) or when a "create" control is
+ * used, and gives the detail a "Back to list" button, visible only while stacked, that scrolls the selected row back into
+ * view and focuses it. Side by side (wide windows) it does nothing visible. Rows are recognised by what the kit already
+ * marks selected (aria-current="true", .is-selected or .is-focused); {create: selector} names the controls that make a new
+ * record. Call it after every render with the window root: one delegated listener per root, and a click's intent survives a
+ * re-render (it is acted on by the next call). Motion is instant under prefers-reduced-motion. Returns an unbind function.
+ */
+export function bindSplitNav(root, {create} = {}) {
+  if (!root?.querySelectorAll) return () => {};
+  const doc = root.ownerDocument ?? globalThis.document;
+  const splits = () => (root.matches?.('.ag-split') ? [root] : [...root.querySelectorAll('.ag-split')]);
+  for (const split of splits()) {
+    const detail = splitDetail(split);
+    if (detail && !detail.querySelector?.('.ag-split__back') && doc?.createElement) {
+      const back = doc.createElement('button');
+      back.setAttribute('type', 'button');
+      back.setAttribute('class', 'ag-btn ag-btn--ghost ag-btn--sm ag-split__back');
+      back.setAttribute('data-ag-split-back', '');
+      back.innerHTML = '<i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Back to list</span>';
+      detail.insertBefore ? detail.insertBefore(back, detail.children?.[0] ?? null) : detail.prepend?.(back);
+    }
+  }
+  const settle = () => {
+    if (!splitPending) return;
+    if (Date.now() - splitPending.at > 3000) { splitPending = null; return; }
+    for (const split of splits()) {
+      if (!isSplitStacked(split)) continue;
+      let ok = splitPending.create;
+      if (!ok) {
+        const list = splitList(split);
+        const mine = list && [...list.querySelectorAll(SPLIT_CONTROL)].find(c => splitKey(c) === splitPending.key);
+        const chosen = list?.querySelector?.(SPLIT_SELECTED);
+        ok = !!(mine && chosen && (chosen === mine || chosen.contains?.(mine) || mine.contains?.(chosen)));
+      }
+      if (ok) { splitPending = null; (globalThis.requestAnimationFrame ?? (f => f()))(() => showSplitDetail(split)); return; } // after a module restores its scroll offsets
+    }
+  };
+  settle();
+  if (SPLIT_BOUND.has(root)) return SPLIT_BOUND.get(root);
+  if (typeof root.addEventListener !== 'function') return () => {};
+  const onClick = event => {
+    const t = event.target;
+    if (!t?.closest) return;
+    const back = t.closest('.ag-split__back');
+    if (back) { const split = back.closest('.ag-split'); if (split) showSplitList(split); return; }
+    if (create && t.closest(create)) { splitPending = {create: true, at: Date.now()}; setTimeout(settle, 400); return; }
+    if (/^(INPUT|SELECT|TEXTAREA|LABEL)$/.test(t.tagName)) return;
+    const control = t.closest(SPLIT_CONTROL);
+    if (!control || !control.closest('.ag-split__list')) return;
+    const key = splitKey(control);
+    if (!key) return;
+    splitPending = {key, at: Date.now()};
+    setTimeout(settle, 400);
+  };
+  root.addEventListener('click', onClick);
+  const unbind = () => { root.removeEventListener('click', onClick); SPLIT_BOUND.delete(root); };
+  SPLIT_BOUND.set(root, unbind);
+  return unbind;
 }
 
 const SCROLL_BOUND = new WeakMap();
