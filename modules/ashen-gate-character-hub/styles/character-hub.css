@@ -1052,10 +1052,16 @@
 .agch-app .agch-sockets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
 .agch-app .agch-socketbox { display: grid; grid-template-columns: 5rem minmax(0, 1fr) auto; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-1) var(--ag-space-2); border: thin dashed var(--ag-border-strong); border-radius: var(--ag-radius); }
 .agch-app .agch-socketbox.is-filled { border-style: solid; }
+/* 0.58.2: a filled socket wraps instead of squeezing its text into a 1ch column: label, then the gear (at least 9rem), Remove drops below when short of room; a note takes the full row. */
+.agch-app .agch-socketbox.is-filled { display: flex; flex-wrap: wrap; }
+.agch-app .agch-socketbox.is-filled .agch-socketbox__label { flex: 0 0 5rem; }
+.agch-app .agch-socketbox.is-filled .agch-socketbox__item { flex: 1 1 9rem; min-width: min(9rem, 100%); }
+.agch-app .agch-socketbox.is-filled > .ag-btn { flex: none; margin-left: auto; }
+.agch-app .agch-socketbox__note { flex: 1 1 100%; margin: 0; }
 .agch-app .agch-socketbox__label { font-size: var(--ag-text-sm); font-weight: 600; }
 .agch-app .agch-socketbox__item { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
 .agch-app .agch-socketbox__item img { flex: none; width: 2rem; height: 2rem; border: 0; object-fit: cover; border-radius: var(--ag-radius); }
-.agch-app .agch-socketbox__text { display: grid; min-width: 0; overflow-wrap: anywhere; font-size: var(--ag-text-sm); }
+.agch-app .agch-socketbox__text { display: grid; min-width: 0; overflow-wrap: break-word; font-size: var(--ag-text-sm); }
 .agch-app .agch-socketbox__empty { color: var(--ag-muted); font-size: var(--ag-text-sm); }
 .agch-app .agch-socketbox.is-empty select { grid-column: 2 / -1; width: 100%; }
 .agch-app .agch-socketbox.is-empty .agch-socketbox__empty { grid-column: 2; }

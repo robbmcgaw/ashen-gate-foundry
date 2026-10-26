@@ -96,11 +96,11 @@ function dropWorld(actor, docs) {
   return notes;
 }
 const cleanup = () => { delete globalThis.Item; delete globalThis.Actor; delete globalThis.fromUuid; };
-const worldItem = (id, extra = {}) => ({...makeItem({id, name: `[TEST] ${id}`, type: 'loot', ...extra}, null), uuid: `Item.${id}`, toObject() { return {_id: id, name: `[TEST] ${id}`, type: 'loot', system: {...(extra.system ?? {})}, flags: {}}; }});
+const worldItem = (id, extra = {}) => ({...makeItem({id, name: `[TEST] ${id}`, type: 'loot', ...extra}, null), uuid: `Item.${id}`, toObject() { return {_id: id, name: `[TEST] ${id}`, type: 'loot', system: {...(extra.system ?? {})}, flags: {...(extra.flags ?? {})}}; }});
 
 test('companion drop: an Actor on the pet box links and activates it; an Item on a socket is copied and socketed', async () => {
   const actor = makeActor();
-  const wolf = worldItem('wolf', {system: {quantity: 1}});
+  const wolf = worldItem('wolf', {system: {quantity: 1}, flags: {[MODULE_ID]: {companion: {role: 'pet-clothing'}}}});
   const steed = {documentName: 'Actor', id: 'steed', uuid: 'Actor.steed', name: '[TEST] Steed', testUserPermission: () => true};
   dropWorld(actor, {'Item.wolf': wolf, 'Actor.steed': steed});
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor});
@@ -126,23 +126,16 @@ test('companion drop: a folder, a non-Item and a missing item each show the shar
   cleanup();
 });
 
-test('companion drop: a container brings its contents in one create with keepId; the root arrives loose', async () => {
+test('companion drop: a container is refused as companion gear and nothing is copied (0.58.2)', async () => {
   const actor = makeActor();
   const bag = worldItem('bag', {type: 'container', system: {quantity: 1, container: 'other'}});
   bag.type = 'container';
-  const rope = worldItem('rope', {system: {container: 'bag', quantity: 3}});
   dropWorld(actor, {'Item.bag': bag});
-  game.items = {contents: [bag, rope]};
-  const opts = [], create = actor.createEmbeddedDocuments; actor.createEmbeddedDocuments = (t, rows, o) => { opts.push(o); return create(t, rows, o); };
   const steed = {documentName: 'Actor', id: 'steed', uuid: 'Actor.steed', name: '[TEST] Steed', testUserPermission: () => true};
   assert.equal((await c.addActorCompanion(actor, steed, 'pet')).ok, true);
   actor.calls.length = 0;
   const r = await c.socketDroppedGear(actor, 'pet', 'head', bag);
-  assert.equal(r.ok, true);
-  const creates = actor.calls.filter(x => x[0] === 'createEmbedded');
-  assert.equal(creates.length, 1); assert.deepEqual(opts, [{keepId: true}]);
-  const [root, inside] = creates[0][2];
-  assert.equal(root.system.container, null); assert.equal(inside.system.container, root._id); assert.equal(inside.system.quantity, 3);
-  assert.equal(actor.flags[MODULE_ID].companionSlots.gear.steed.head, root._id);
+  assert.equal(r.ok, false); assert.match(r.error, /not companion gear/);
+  assert.equal(actor.calls.filter(x => x[0] === 'createEmbedded').length, 0);
   cleanup();
 });
