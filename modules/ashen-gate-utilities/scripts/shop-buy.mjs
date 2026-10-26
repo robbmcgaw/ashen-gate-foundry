@@ -8,6 +8,7 @@ import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,stra
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
  nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory,normalizeMerchantList,audiencePresented} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
+import {shopsFolderId} from './folder-nesting.mjs';
 import {focusKey,restoreFocus,refocusSoon,guardKeys} from './ui-parts.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
@@ -69,7 +70,7 @@ let creatingView=null;
 async function ensureViewJournal(){
  const found=viewJournal();if(found)return found;
  // The entry is Observer so players can open the pages they are given; each page sets its own ownership.
- creatingView??=Promise.resolve(JournalEntry.create({name:VIEW_JOURNAL_NAME,ownership:{default:levels().OBSERVER},flags:{[ID]:{store:VIEW_STORE}}})).finally(()=>{creatingView=null;});
+ creatingView??=shopsFolderId().then(folder=>JournalEntry.create({name:VIEW_JOURNAL_NAME,folder,ownership:{default:levels().OBSERVER},flags:{[ID]:{store:VIEW_STORE}}})).finally(()=>{creatingView=null;});
  const made=await creatingView;return viewJournal()??made;
 }
 const sameOwnership=(have,want)=>Object.entries(want).every(([k,v])=>have?.[k]===v);

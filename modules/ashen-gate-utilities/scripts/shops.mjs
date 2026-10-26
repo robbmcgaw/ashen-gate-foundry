@@ -8,6 +8,7 @@ import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedE
  duplicateShop,restockLines,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX,coinStripHTML,coinChipsHTML,isSettlementLocation,groupByCategory,
  merchantActorRef,SETTLEMENT_WORDS} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
+import {shopsFolderId} from './folder-nesting.mjs';
 import {confirmDialog,confirmDanger,formDialog} from './ag-dialogs.mjs';
 import {subTabs,tabPanelAttrs,fileButton,bindFileButtons} from './ag-html.mjs';
 import {tip,icon,button,emptyState} from './ui-parts.mjs';
@@ -33,7 +34,7 @@ let creating=null;
 /** Finds the GM Data journal, or creates it (no player permission). Safe to run again: found by flag, never by name. */
 async function ensureJournal(){
  const found=shopsJournal();if(found)return found;
- creating??=Promise.resolve(JournalEntry.create({name:JOURNAL_NAME,ownership:{default:CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},flags:{[ID]:{store:STORE}}})).finally(()=>{creating=null;});
+ creating??=shopsFolderId().then(folder=>JournalEntry.create({name:JOURNAL_NAME,folder,ownership:{default:CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},flags:{[ID]:{store:STORE}}})).finally(()=>{creating=null;});
  const made=await creating;
  const j=shopsJournal()??made;if(!j)throw Error('Could not create the Utilities Shops journal.');
  return j;

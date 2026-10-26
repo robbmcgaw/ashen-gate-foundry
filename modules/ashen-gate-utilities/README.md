@@ -2,6 +2,8 @@
 
 Module ID `ashen-gate-utilities` · Foundry V14 · dnd5e. Table utilities for the party: group checks and roll requests (one Rolls tab), RollTable sharing, a shared conditions view and a shared party stash. It works on its own; General Manager and the other Ashen Gate modules are not needed.
 
+**Sidebar folders.** Shop journals file under **Ashen Gate / Shops** and the Party Stash under **Ashen Gate / Party**; see docs/folder-convention.md.
+
 Open it from **Actors sidebar → Utilities**. The GM always sees it; players see it once **GM Setup → Player Access** is on.
 
 ## Tabs
