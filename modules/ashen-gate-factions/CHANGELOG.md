@@ -1,3 +1,12 @@
+## 0.19.1 — 2026-10-26
+
+Two messages that still said Renown for a deity now say Piety (follow-up to 0.19.0).
+
+- Recording a change on a deity shows "<Character> Piety: 3 → 5" (factions keep "Renown: …").
+- Approving a deity reward the character no longer qualifies for says "Piety no longer qualifies."
+- **Break Vow…** now asks with the danger confirmation, where Enter and the first focus are on Cancel (it used the standard one, whose action button was the default).
+- No change to saved data. Mocked tests only; check in Forge by recording a Piety change on a deity.
+
 ## 0.19.0 — 2026-10-26
 
 Pantheon: Piety, paragraphs and a Vows note.

@@ -745,7 +745,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async breakVow(e,t){try{
     assertGM();const actor=game.actors.get(this.#actor),cur=getVow(actor,MODULE_ID);if(!actor||!cur)throw Error('No Vow is sworn.');
     const name=getVowGodName(cur.deity_id),score=getPersonal(personalDoc(cur.deity_id,actor.id))?.standing?.score??0;
-    if(!await confirmDialog(`Break ${actor.name}'s Vow to ${name}? This ends the Vow and takes ${Math.min(VOW_BREAK_PENALTY,score)} piety with ${name}. The history records it.`,{title:'Break Vow?',yes:'Break Vow',danger:true}))return;
+    if(!await confirmDanger(`Break ${actor.name}'s Vow to ${name}? This ends the Vow and takes ${Math.min(VOW_BREAK_PENALTY,score)} piety with ${name}. The history records it.`,{title:'Break Vow?',yes:'Break Vow'}))return;
     await breakVow({moduleId:MODULE_ID,actor,user:game.user,score,writePiety:(id,delta,reason)=>writeFavour(id,actor,delta,reason)});
     refreshEmbeds();await this.render({force:true});
   }catch(err){notifyError(err)}}
@@ -821,7 +821,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     state.standing=result.standing;await stateDoc.setFlag(MODULE_ID,key,state);
     for(const k of chosen)await writeFavour(k.deity_id,actor,k.delta,`${k.label} with ${f.name}: ${reason}`,{caused_by:args.eventId,source_deity:f.id});
     const learned=grantAutoKnowledge(f,scope,actor?.id,result.standing.score);if(learned.changed.length)await saveDef(doc,learned.faction);
-    await reproject();await this.render({force:true});ui.notifications.info(`${scope==='group'?'Group':actor.name} Renown: ${result.before} → ${result.after}${chosen.length?` (+${plural(chosen.length,'related deity','related deities')})`:''}`);
+    await reproject();await this.render({force:true});ui.notifications.info(`${scope==='group'?'Group':actor.name} ${isDeity(f)?'Piety':'Renown'}: ${result.before} → ${result.after}${chosen.length?` (+${plural(chosen.length,'related deity','related deities')})`:''}`);
   }catch(e){notifyError(e)}}
   static async createFolder(){try{assertGM();const name=nameValue(this.element,'new-folder-name');if(!name||name.length>100)throw Error('Folder name required (max 100 characters).');const doc=await folderRecord(),entry=structuredClone(getFolders(doc));entry.folders.push({key:newFolderKey(entry,()=>`folder_${keyFor(rid())}`),name});await doc.setFlag(MODULE_ID,'folderIndex',entry);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async saveFolder(e,t){try{assertGM();const d=await folderRecord(),rec=structuredClone(getFolders(d)),folder=rec.folders.find(x=>x.key===t.dataset.key);if(!folder)throw Error('Folder not found.');const name=await promptText(`Rename ${folder.name}`,'Folder name',folder.name,{ok:'Rename folder'});if(name===null)return;if(!name.trim()||name.trim().length>100)throw Error('Invalid name.');folder.name=name.trim();await d.setFlag(MODULE_ID,'folderIndex',rec);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
@@ -868,7 +868,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       if(!await confirmDanger(`Deny the request for "${reward.name}" from ${who}? The player is not told why, and this is not undone.`,{title:`Deny ${reward.name}?`,yes:'Deny request'}))return;
       record.status='denied';record.usage_charged=false;}
     else if(action==='approve'){
-      if(!['pending','requested'].includes(record.status))throw Error('Request already reviewed.');if(!rewardUnlocked(reward,f,state.standing.score))throw Error('Renown no longer qualifies.');if(!chooseOneEligible({faction:f,reward,claims:state.claims,choices:state.choices}))throw Error('Another Choose One reward already confirmed.');
+      if(!['pending','requested'].includes(record.status))throw Error('Request already reviewed.');if(!rewardUnlocked(reward,f,state.standing.score))throw Error(`${isDeity(f)?'Piety':'Renown'} no longer qualifies.`);if(!chooseOneEligible({faction:f,reward,claims:state.claims,choices:state.choices}))throw Error('Another Choose One reward already confirmed.');
       record.status='approved';record.gm_confirmed_by=game.user.id;state.choices??={};const milestone=(reward.audience==='group'?f.renown_track:f.individual_track).milestones.find(m=>m.id===reward.milestone_id);if(milestone?.selection_mode==='choose_one')state.choices[milestone.id]=reward.id;
       if(one&&reward.kind==='uuid'){
         const recipient=group?game.actors.get(this.element.querySelector(`[name="recipient-${id}"]`)?.value):game.actors.get(state.actor_id);
