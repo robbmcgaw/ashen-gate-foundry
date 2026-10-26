@@ -7,11 +7,11 @@
  */
 import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {journeyFor, canRead, partyActors, TYPES, TEXT_MAX} from './journey.mjs';
+import {journeyFor, canRead, partyActors, TYPES, TEXT_MAX, displayType} from './journey.mjs';
 import {subTabs, tabPanelAttrs} from './ag-html.mjs';
 import {biographyFor, isBioDirty} from './biography.mjs';
 
-const ICONS = {level: 'fa-solid fa-arrow-up-right-dots', renown: 'fa-solid fa-flag', quest: 'fa-solid fa-scroll', reward: 'fa-solid fa-coins', cinder: 'fa-solid fa-fire', manual: 'fa-solid fa-feather-pointed'};
+const ICONS = {level: 'fa-solid fa-arrow-up-right-dots', renown: 'fa-solid fa-flag', piety: 'fa-solid fa-hands-praying', quest: 'fa-solid fa-scroll', reward: 'fa-solid fa-coins', cinder: 'fa-solid fa-fire', manual: 'fa-solid fa-feather-pointed'};
 const when = e => e.date ?? (e.at ? new Date(e.at).toISOString().slice(0, 10) : '');
 
 /** The character whose journey is shown: this sheet's, or (GM) the one picked. */
@@ -45,14 +45,14 @@ function row(e, gm, editing) {
   if (editing) return `<li class="agch-journey__entry is-editing" data-entry="${esc(e.id)}"><div class="agch-journey__form" data-journey-form="edit" role="group" aria-label="Edit entry">
     ${textField(e.text)}${dateField(e.date ?? '')}
     <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></div></li>`;
-  return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(e.type)}">
-    <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
+  return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(displayType(e))}">
+    <i class="${ICONS[displayType(e)] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[displayType(e)] ?? e.type)}" aria-hidden="true"></i>
     <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${rewardItems(e)}${e.hidden ? ' <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span>' : ''}</span>${controls}</li>`;
 }
 
 export function journeyPanel(ctx) {
   const gm = globalThis.game?.user?.isGM === true, actor = journeyActor(ctx);
-  const head = `<p class="agch-journey__intro">Accomplishments are recorded from now on: level-ups, Renown tier changes, completed quests${gm ? ', and your own notes' : ''}.</p>`;
+  const head = `<p class="agch-journey__intro">Accomplishments are recorded from now on: level-ups, Renown and Piety rank changes, completed quests${gm ? ', and your own notes' : ''}.</p>`;
   if (!canRead(actor)) return `${head}<div class="ag-empty"><p class="ag-empty__title">This Journey is private.</p><p class="ag-empty__text">Only this character's owner and the GM can see it.</p></div>`;
   const picker = gm ? `<label class="agch-orgsel"><span>Character</span><select data-edit="journey-actor" aria-label="Show the Journey of">${[...new Map([ctx.actor, ...partyActors()].filter(Boolean).map(a => [a.id, a])).values()]
     .map(a => `<option value="${esc(a.id)}"${a.id === actor.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : '';
@@ -61,7 +61,7 @@ export function journeyPanel(ctx) {
       ${btn('journey-add', 'Add entry', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>` : '';
   const entries = journeyFor(actor), editing = ctx.sheet?.journeyEdit ?? null;
   const list = entries.length ? `<ol class="agch-journey" aria-label="${esc(actor.name)}'s Journey, newest first">${entries.map(e => row(e, gm, gm && editing === e.id)).join('')}</ol>`
-    : '<div class="ag-empty"><i class="fa-solid fa-book-open" aria-hidden="true"></i><p class="ag-empty__title">No accomplishments yet.</p><p class="ag-empty__text">Level-ups, Renown ranks and completed quests show here as they happen.</p></div>';
+    : '<div class="ag-empty"><i class="fa-solid fa-book-open" aria-hidden="true"></i><p class="ag-empty__title">No accomplishments yet.</p><p class="ag-empty__text">Level-ups, Renown and Piety ranks and completed quests show here as they happen.</p></div>';
   return `${head}${gm ? `<div class="ag-toolbar agch-toolbar">${picker}</div>${add}` : ''}${list}`;
 }
 
