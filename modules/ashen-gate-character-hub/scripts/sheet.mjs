@@ -37,6 +37,7 @@ import {toggleSpell, setShowDescriptions, syncBandHeight} from './spell-rows.mjs
 import {setEnforcement} from './spell-prep.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
+import {syncHeaderNotice} from './header-notice.mjs';
 import {captureScroll, restoreScroll, captureFocus, restoreFocus, focusFirstIn, fieldKey} from './redraw.mjs';
 import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
 import * as look from './look.mjs';
@@ -692,6 +693,7 @@ export function createHubSheetClass(Base) {
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
       try { this._syncTitle(); } catch {}   // 0.37.1: the title follows a rename
+      try { syncHeaderNotice(this); } catch (err) { console.warn(`${MODULE_ID} | title bar notice`, err); }   // 0.53.0
       // <html> carries General Manager's skin to every window in Foundry's own page, so the Hub no longer copies the skin
       // onto its content on each render (0.33.0, GM-CO-04: the copy went stale on a skin change). A popped-out Hub sits
       // in another browser window's <html>, so there it is still applied.

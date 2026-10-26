@@ -1,5 +1,5 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.52.0';
+export const VERSION = '0.53.0';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 /** The window title (0.37.0): the brand, in place of Foundry's "<Actor type>: <name>"; the name is the in-sheet heading. */
 export const HUB_TITLE = 'Ashen Gate | Character Hub';
@@ -74,6 +74,6 @@ export function placeholderKind(value) {
   return 'text';
 }
 
-/** Inventory banner (display only): shown when the character owns any item with "diamond" in its name, or not. */
+/** Title bar notice (display only, 0.53.0; Inventory banner before): shown when the character owns any item with "diamond" in its name, or not. */
 export const DIAMOND_PRESENT = 'Your soul may be returned';
 export const DIAMOND_ABSENT = 'You do not possess a resurrection diamond';
