@@ -162,6 +162,12 @@ const tick=()=>new Promise(r=>setTimeout(r,15));
 send(gift.id);await tick();
 let status=groupIron.getFlag(ns,'groupClaims');
 test(status.claims[gift.id]?.status==='pending','one-time claim pending');
+// Asking again while the claim is still waiting is not a refusal: accepted receipt, no second claim.
+{const sent=[],plain=game.socket.emit;game.socket.emit=(id,p)=>{sent.push(p);return plain(id,p);};
+ game.socket.emit(`module.${ns}`,{type:'request',factionId:'FACTION-IRON',rewardId:gift.id,actorId:null,audience:'group',userId:'p1',capability:auth.capability,requestId:'dup-claim-1'});
+ await tick();game.socket.emit=plain;
+ test(sent.some(m=>m.type==='receipt'&&m.requestId==='dup-claim-1'&&m.ok===true),'a repeated claim answers accepted');
+ test(Object.keys(groupIron.getFlag(ns,'groupClaims').claims).length===1,'and does not add a second claim');}
 await actions.resolveRequest.call(dashboard,null,{dataset:{doc:groupIron.id,key:gift.id,claim:'1',mode:'approve'}});
 test(groupIron.getFlag(ns,'groupClaims').claims[gift.id].status==='approved','GM approved claim');
 await actions.resolveRequest.call(dashboard,null,{dataset:{doc:groupIron.id,key:gift.id,claim:'1',mode:'fulfill'}});

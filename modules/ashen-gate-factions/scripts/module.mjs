@@ -352,6 +352,8 @@ async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.
   const reward=f.rewards.find(r=>r.id===msg.rewardId&&r.audience===audience);if(!reward)throw Error('Reward not found.');
   const stateDoc=audience==='group'?await ensureGroup(fdoc):await ensurePersonal(fdoc,actor),key=audience==='group'?'groupClaims':'individual',state=structuredClone(stateDoc.getFlag(MODULE_ID,key));
   const score=state.standing.score;
+  // The same claim or request is already waiting (a double click, two players, a retry): the ask is already in, so answer accepted. The GM was notified the first time and is not told again.
+  if(reward.behavior==='repeatable_service'?Object.values(state.requests??{}).some(r=>r.reward_id===reward.id&&['requested','approved'].includes(r.status)):['pending','approved'].includes(state.claims?.[reward.id]?.status)){accepted=true;return;}
   if(!claimEligible({reward,faction:f,score,claims:state.claims,requests:state.requests,uses:state.uses})||!chooseOneEligible({faction:f,reward,claims:state.claims,choices:state.choices}))throw Error('Reward not available for request.');
   state.requests??={};state.uses??={};state.claims??={};state.choices??={};
   if(reward.behavior==='repeatable_service'){
