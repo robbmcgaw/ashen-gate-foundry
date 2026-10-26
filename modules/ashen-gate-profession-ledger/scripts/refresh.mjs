@@ -6,12 +6,25 @@
  *     or one listed in the Actor's `grantedRecipes` flag,
  * and never anything else (crafted items, gathered materials, gear, hand-added Items). A profession feature with no `grant`
  * flag (added by an older version, or dragged on by hand) is "Can't tell, left alone" unless the GM ticks it.
+ * 0.33.3: EVERY "Can't tell" row (profession with no grant flag, known recipe the catalog doesn't have or whose id is not a recipe id at all,
+ * signature perk with no grant record) carries an opt-in token the GM can tick: `optIn` (an Item id) or `optInRecipe` (the id as stored in
+ * the knownRecipes flag, or RECIPE_NON_TEXT for entries that are not text). Ticked rows stay listed (so they can be unticked) and go into willRemove with
+ * the reason 'Ticked by you: ...'. Nothing unticked is ever removed.
  * Progress safety rail: a profession with XP, history, chosen perks, crafted items, signature perks or a non-starting known
  * recipe is NOT removed unless the GM ticks "Also remove <profession> progress" for it.
  */
 import {startingRecipePlan,recipeProfessionKey} from './assign.mjs';
 
 export const REFRESH_SNAPSHOT_SCHEMA='ag-profession-refresh-snapshot/1';
+/** Stand-in token for knownRecipes entries that are not text at all (damaged or legacy data). Ticking it removes all of them. */
+export const RECIPE_NON_TEXT='@non-text';
+
+/** The opt-in tokens of every Can't-tell row of a plan: {items:[Item ids], recipes:[recipe tokens]}. Powers "Select all that I can't identify". */
+export function cantTellTokens(plan){
+  const items=[],recipes=[];
+  for(const c of plan?.cantTell??[]){if(c.optIn)items.push(c.optIn);if(c.optInRecipe!=null)recipes.push(c.optInRecipe);}
+  return {items:[...new Set(items)],recipes:[...new Set(recipes)]};
+}
 
 const hasProgressRow=row=>Boolean(row)&&(Number(row.xp)>0||(row.selectedPerkIds??[]).length>0||(row.history??[]).length>0);
 
@@ -28,10 +41,12 @@ const hasProgressRow=row=>Boolean(row)&&(Number(row.xp)>0||(row.selectedPerkIds?
  *   perkAdds    [{id, name, professionId, tier}]       signature perks the character's current tiers earn but lacks
  *   unreleased  recipe -> '' | reason                  same rule as the starting-recipe grant
  *   removeProgress Set<key>, alsoRemove Set<itemId>
+ *   knownRaw     the knownRecipes flag exactly as stored (entries the catalog-id filter drops are listed as unrecognised), recipeNames Map id -> name
+ *                (from recipe Items on the sheet), alsoRemoveRecipes Set<token> (0.33.3)
  */
 export function planRefresh(input){
   const {qualifying=[],defsByKey=new Map(),held=[],perks=[],known=[],grantedRecipes=[],recipes=[],progress=null,progressUnreadable=false,crafted=[],
-    perkAdds=[],unreleased=()=>'',removeProgress=new Set(),alsoRemove=new Set()}=input;
+    perkAdds=[],unreleased=()=>'',removeProgress=new Set(),alsoRemove=new Set(),knownRaw=null,recipeNames=new Map(),alsoRemoveRecipes=new Set()}=input;
   const byId=new Map(recipes.map(r=>[r.id,r]));
   const qualifies=new Set(qualifying.map(q=>q.key));
   const idOfKey=key=>defsByKey.get(key)?.[0]?.sourceId??null;
@@ -47,10 +62,10 @@ export function planRefresh(input){
     const pid=profId(h);
     if(qualifies.has(h.key)){willKeep.push({kind:'profession',name:h.name,itemId:h.itemId,key:h.key});keptKeys.add(h.key);if(pid)keptIds.add(pid);continue;}
     const optIn=alsoRemove.has(h.itemId);
-    if(!h.granted&&!optIn){
-      cantTell.push({kind:'profession',name:h.name,itemId:h.itemId,key:h.key,optIn:h.itemId,
+    if(!h.granted){
+      cantTell.push({kind:'profession',name:h.name,itemId:h.itemId,key:h.key,optIn:h.itemId,ticked:optIn,
         why:'No record that Assign added it (added by hand or by an older version). Left alone unless you tick it.'});
-      keptKeys.add(h.key);if(pid)keptIds.add(pid);continue;
+      if(!optIn){keptKeys.add(h.key);if(pid)keptIds.add(pid);continue;}
     }
     // Progress rail.
     const reasons=[];
@@ -71,7 +86,7 @@ export function planRefresh(input){
       willKeep.push({kind:'profession',name:h.name,itemId:h.itemId,key:h.key,note:'has progress, kept'});keptKeys.add(h.key);if(pid)keptIds.add(pid);continue;
     }
     willRemove.push({kind:'profession',name:h.name,itemId:h.itemId,key:h.key,professionId:pid,
-      why:h.granted?'Added by Assign, and the character no longer qualifies':'Ticked by you (added before Assign kept a record), and the character no longer qualifies'});
+      why:h.granted?'Added by Assign, and the character no longer qualifies':'Ticked by you: no record that Assign added it, and the character no longer qualifies'});
     removedKeys.add(h.key);
   }
   // A profession key can be held twice; it is only gone when every copy goes.
@@ -95,17 +110,42 @@ export function planRefresh(input){
       willRemove.push({kind:'progress',name:`${r.name} progress`,professionId:pid,why:`${progress.professions[pid].xp} XP and history`});
     for(const p of perks.filter(p=>pid&&p.professionId===pid)){
       if(p.granted&&removeProgress.has(r.key))willRemove.push({kind:'perk',name:p.name,itemId:p.itemId,why:`Signature perk of ${r.name}`});
-      else cantTell.push({kind:'perk',name:p.name,itemId:p.itemId,optIn:null,why:`Signature perk of ${r.name}; no record that the Ledger granted it. Left alone.`});
+      else if(!p.granted){
+        const optIn=alsoRemove.has(p.itemId);
+        cantTell.push({kind:'perk',name:p.name,itemId:p.itemId,optIn:p.itemId,ticked:optIn,why:`Signature perk of ${r.name}; no record that the Ledger granted it. Left alone unless you tick it.`});
+        if(optIn)willRemove.push({kind:'perk',name:p.name,itemId:p.itemId,why:`Ticked by you: signature perk of ${r.name} with no record that the Ledger granted it`});
+      }
+      else cantTell.push({kind:'perk',name:p.name,itemId:p.itemId,optIn:null,ticked:false,why:`Signature perk of ${r.name}. Kept unless you tick Also remove ${r.name} progress.`});
     }
   }
   const removingItems=new Set(willRemove.filter(x=>x.itemId).map(x=>x.itemId));
 
   // 3. What stays.
+  let unknownCount=0;
+  const unknownRecipe=(token,what,n=1)=>{
+    unknownCount++;
+    const name=recipeNames.get(token)||(token===RECIPE_NON_TEXT?`Unrecognised recipe entries (${n})`:`Unrecognised recipe ${unknownCount}`);
+    const optIn=alsoRemoveRecipes.has(token);
+    cantTell.push({kind:'recipe',name,recipeId:token,optIn:null,optInRecipe:token,ticked:optIn,
+      why:`${what[0].toUpperCase()+what.slice(1)}, so it cannot be tied to a profession. Left alone unless you tick it.`});
+    if(optIn){removedRecipes.add(token);willRemove.push({kind:'recipe',name,recipeId:token,why:`Ticked by you: ${what}`});}
+  };
   for(const rid of known){
     if(removedRecipes.has(rid))continue;
     const r=byId.get(rid);
-    if(!r){cantTell.push({kind:'recipe',name:rid,recipeId:rid,optIn:null,why:'Not in the recipe catalog, so it cannot be tied to a profession. Left alone.'});continue;}
+    if(!r){unknownRecipe(rid,'not in the recipe catalog');continue;}
     willKeep.push({kind:'recipe',name:r.name,recipeId:rid});
+  }
+  // Entries of the knownRecipes flag that are not recipe ids at all (legacy ids, damaged data). The module itself never reads them, so they could
+  // not be listed before 0.33.3.
+  if(Array.isArray(knownRaw)){
+    const valid=new Set(known),seen=new Set();let nonText=0;
+    for(const e of knownRaw){
+      if(typeof e!=='string'){nonText++;continue;}
+      if(valid.has(e)||seen.has(e))continue;
+      seen.add(e);unknownRecipe(e,'not a recipe the Ledger recognises');
+    }
+    if(nonText)unknownRecipe(RECIPE_NON_TEXT,'not readable as a recipe',nonText);
   }
   for(const p of perks)if(!removingItems.has(p.itemId)&&!cantTell.some(c=>c.itemId===p.itemId))willKeep.push({kind:'perk',name:p.name,itemId:p.itemId});
 
@@ -130,5 +170,5 @@ export function planRefresh(input){
   }
   const needsTypedConfirmation=willRemove.some(r=>r.kind==='progress'||(r.kind==='recipe'&&/progress/.test(r.why))||r.kind==='perk');
   return {willAdd,willKeep,willRemove,cantTell,blocked,notes,needsTypedConfirmation,
-    counts:{add:willAdd.length,keep:willKeep.length,remove:willRemove.filter(r=>r.kind!=='progress').length,progress:willRemove.filter(r=>r.kind==='progress').length}};
+    counts:{add:willAdd.length,keep:willKeep.length,remove:willRemove.filter(r=>r.kind!=='progress').length,ticked:willRemove.filter(r=>/^Ticked by you/.test(r.why)).length,progress:willRemove.filter(r=>r.kind==='progress').length}};
 }
