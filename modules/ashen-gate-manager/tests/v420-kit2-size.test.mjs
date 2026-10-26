@@ -8,7 +8,7 @@ import {bindSkinPicker} from '../scripts/skin-picker.js';
 import {windowSize,COMFORTABLE_SCALE} from '../scripts/ag-html.mjs';
 
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const VERSION='0.71.0';
+const VERSION='0.71.1';
 
 // One browser: client settings live per device, world/user settings are shared.
 function device(user,{world=new Map([['worldSkin','ag-default']]),client=new Map()}={}){
@@ -122,7 +122,7 @@ test('windowSize scales by 1.2 at Comfortable, is unchanged at Compact, and fits
 
 test('kit 2: both size sets carry the same tokens; skins set the shape tokens; Manager rarity moved to the kit',()=>{
   const kit=read('../styles/ag-ui.css');
-  assert.match(kit,/^\/\* ag-ui kit 2\.3\.0 \*\/\n/);
+  assert.match(kit,/^\/\* ag-ui kit 2\.4\.0 \*\/\n/);
   const names=block=>[...block.matchAll(/(--ag-[a-z0-9-]+):/g)].map(m=>m[1]);
   const comfy=names(kit.match(/html\[data-ag-size="comfortable"\] \{([^}]*)\}/)[1]);
   const root=names(kit.match(/:root \{([^}]*)\}/)[1]);

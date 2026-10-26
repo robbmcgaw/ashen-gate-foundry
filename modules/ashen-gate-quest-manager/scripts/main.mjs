@@ -21,7 +21,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.27.1';
+const VERSION='0.27.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -256,7 +256,7 @@ function questsPanel(app,rewardsHtml=''){
  const {groups,locations,levels,regions,givers,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
  app.shownIds=ids;app.picked=new Set([...app.picked].filter(id=>rows.some(x=>x.source.id===id)));
  const cards=app.groupCards(groups,total);
- return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,folds:app.fold})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
+ return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,folds:app.fold})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split" data-ag-scroll="split:gm"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
@@ -284,7 +284,7 @@ function playerPane(tab,rows,detail,ctx){
  <div class="ag-toolbar__filters"><select id="ag-player-filter" aria-label="Status">${options([['all','All statuses'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],ctx.statusFilter)}</select>${tab==='individual'?actorSelect('Character'):''}</div>
  <span class="ag-toolbar__count" id="ag-quest-count">${rows.length} ${rows.length===1?'quest':'quests'}</span>
  <div class="ag-toolbar__end">${safeButton(overlay,'toggle-overlay',{sm:true,kind:'ghost',icon:'fa-list-check',title:'Your tracked objectives on screen (only for you)'})}</div></div>
- <div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="list:${tab}"><div id="ag-quest-cards">${cards(rows,ctx.selectedId)}</div></aside>
+ <div class="ag-split agq-split" data-ag-scroll="split:${tab}"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="list:${tab}"><div id="ag-quest-cards">${cards(rows,ctx.selectedId)}</div></aside>
  <section class="ag-split__detail agq-reading" data-ag-scroll="read:${tab}:${E(ctx.selectedId??'')}">${readableDetail(detail,ctx.actorId,{picker})}</section></div>`;
 }
 const Base=appBase();

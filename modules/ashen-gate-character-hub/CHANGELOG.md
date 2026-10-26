@@ -1,3 +1,10 @@
+## 0.59.2 — 2026-10-26
+
+Narrow and short window fixes (shared kit 2.4.0).
+
+- **The tab rail no longer runs past the bottom of a short window.** In a wide but short Hub the rail scrolls (no bar) and fades at the cut-off end; Arrow keys bring a hidden tab into view. In a narrow Hub the tab row fades at the cut-off edge, and the open tab is scrolled into view when the Hub opens.
+- No change to saved data. Check in Forge: open a character, make the window about 600 px wide: the tab row fades at its right edge and GM Setup is reachable. Make the window wide but about 300 px tall: the rail scrolls.
+
 ## 0.59.1 — 2026-10-26
 
 Accessibility and wording fixes found in an audit.

@@ -1,3 +1,12 @@
+## 0.71.1 — 2026-10-26
+
+Narrow-window fixes (shared kit 2.4.0).
+
+- **A narrow window no longer scrolls a list inside the page.** When the list and the editor stack, the list takes its natural height and the window scrolls once. Side by side (wider windows) the list and the editor keep their own scroll.
+- Items > Records and NPC Codex: the record rows lose their 20 rem scroll box when the window is narrow.
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: Items > Records, then narrow the window to about 600 px: the record list runs full length and the details follow it.
+
 ## 0.71.0 — 2026-10-26
 
 Item activities can point at their effects.

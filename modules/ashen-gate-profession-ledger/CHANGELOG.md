@@ -1,3 +1,11 @@
+## 0.35.3 — 2026-10-26
+
+Keyboard and narrow-window fixes (shared kit 2.4.0).
+
+- **Arrow keys on the value switches.** In GM: XP (Award / Adjust), Sort recipes and Where, Left/Right (or Up/Down) pick the next choice, Home/End jump to the ends, and each group is one Tab stop. Works in the window, the Tidy5e tab and the Character Hub embed.
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: open a profession card > GM: XP, Tab to Award / Adjust and press the right arrow.
+
 ## 0.35.2 — 2026-10-27
 
 - **Shared-material crafts no longer leave you waiting.** If the GM's client hit an error while coordinating a craft that uses another character's materials, the requester now gets a failure message straight away instead of waiting out the three-minute timeout. If the GM never answers, the message now reads "The GM did not respond. Check whether any items were used before trying again." (it used to say nothing was used, which could be untrue).

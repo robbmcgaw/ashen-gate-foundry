@@ -1,3 +1,11 @@
+## 0.33.2 — 2026-10-26
+
+Keyboard and narrow-window fixes (shared kit 2.4.0).
+
+- **Arrow keys on the value switches.** Left/Right (or Up/Down) move to the next choice and pick it, Home/End jump to the ends, and the group is one Tab stop, in the Party Fund (Change coins action, Whose coins), the shop window (Buy / Sell, Coins go to) and the Bank (Whose coins).
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: Party Inventory > Party Fund > Change coins; Tab to the action switch and press the right arrow: the next action is picked and focus stays on it.
+
 ## 0.33.1 — 2026-10-26
 
 Wording fix. No behaviour or saved data changed.

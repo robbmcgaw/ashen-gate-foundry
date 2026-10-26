@@ -30,11 +30,11 @@ test('header: brand, then version, then Help only (0.17.0, QL-03); tabs are type
  assert.ok(at('ag-version')<at('data-action="help"'),'version, Help');
  assert.doesNotMatch(head,/toggle-overlay|<p>|data-action="(?!help)/,'no subtitle, no other header control');
  // QL-04 The overlay toggle is at the right end of the Party / Individual toolbar.
- assert.match(html,/<div class="ag-toolbar agq-toolbar">[\s\S]*id="ag-player-filter"[\s\S]*id="ag-quest-count"[\s\S]*<div class="ag-toolbar__end"><button type="button" data-action="toggle-overlay" class="ag-btn ag-btn--ghost ag-btn--sm"[^>]*><i class="fa-solid fa-list-check" aria-hidden="true"><\/i> Show objectives overlay<\/button><\/div><\/div>\s*<div class="ag-split agq-split">/);
+ assert.match(html,/<div class="ag-toolbar agq-toolbar">[\s\S]*id="ag-player-filter"[\s\S]*id="ag-quest-count"[\s\S]*<div class="ag-toolbar__end"><button type="button" data-action="toggle-overlay" class="ag-btn ag-btn--ghost ag-btn--sm"[^>]*><i class="fa-solid fa-list-check" aria-hidden="true"><\/i> Show objectives overlay<\/button><\/div><\/div>\s*<div class="ag-split agq-split" data-ag-scroll="split:party">/);
  // On Party the character select sits in the Character notes heading; on Individual it is in the toolbar.
  assert.doesNotMatch(html.slice(0,html.indexOf('agq-split')),/id="ag-actor"/);
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.27\.1<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.27\.2<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" id="agq-tab-(\w+)" data-tab="\1" aria-selected="(true|false)" aria-controls="agq-panel" tabindex="(0|-1)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[4],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','journal','quests','setup']);
@@ -103,7 +103,7 @@ test('editor: Cancel bottom-left, Save bottom-right; Delete quest sits in the ed
  assert.match(html,/<label class="ag-field">Permanent ID<input id="ag-src-id"/);
  assert.match(html,/class="ag-form-grid"/);
  // 0.17.0 QL-05: the bulk row sits full width under the toolbar; the list column keeps only the hint line.
- assert.match(html,/<\/div><\/div><div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions" hidden><\/div><div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list"><div class="agq-bulk agq-bulk--idle" id="ag-gm-bulkhint">[\s\S]*<div id="ag-gm-cards">/);
+ assert.match(html,/<\/div><\/div><div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions" hidden><\/div><div class="ag-split agq-split" data-ag-scroll="split:gm"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list"><div class="agq-bulk agq-bulk--idle" id="ag-gm-bulkhint">[\s\S]*<div id="ag-gm-cards">/);
  // QL-12 The GM notice is in Help now, not on every editor view.
  assert.doesNotMatch(html,/ag-notice--info/);
 });

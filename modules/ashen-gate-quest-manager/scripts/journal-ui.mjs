@@ -207,7 +207,7 @@ export function journalDetailHTML(m){
   <header class="agq-jbar"><div class="agq-jbar__title"><h2 class="agq-detail__title">${E(sessionHeading(s))}</h2>${meta?`<p class="agq-jbar__meta">${meta}</p>`:''}</div>
   <div class="agq-jbar__tools">${whichJournal(m)}${more}</div></header>${tools}${notes}${book}${gmBlock}${footer}</section>`;
 }
-export function journalPaneHTML(m){return `<div class="ag-split agq-split agq-journal">${journalSidebarHTML(m)}${journalDetailHTML(m)}</div>`;}
+export function journalPaneHTML(m){return `<div class="ag-split agq-split agq-journal" data-ag-scroll="split:journal">${journalSidebarHTML(m)}${journalDetailHTML(m)}</div>`;}
 
 /**
  * Adds the journal's methods to the Quest Log window class.

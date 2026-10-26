@@ -130,7 +130,7 @@
 .aglib-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .agmanager-audit{margin-top:var(--ag-space-3)}
 .agmanager-worldexport-summary{white-space:pre-wrap}
-@container (max-width:40rem){.aglib-rows{max-height:20rem}}
+@container (max-width:40rem){.aglib-rows{max-height:none;overflow:visible}} /* stacked split: no scroller inside the page scroll (kit 2.4.0) */
 
 /* ---------- Items → All items (Browse) ---------- */
 .agbrowse-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2) var(--ag-space-3);margin:0 0 var(--ag-space-2)}

@@ -1,3 +1,12 @@
+## 0.20.7 — 2026-10-26
+
+Keyboard and narrow-window fixes (shared kit 2.4.0).
+
+- **What players see** (Hidden / Unidentified / Revealed) is now a group of pressed buttons, not a radio group: each choice saves, asks and publishes, so the arrow keys must not step through it. Tab to a button and press Enter or Space, as before.
+- **A narrow window no longer scrolls a list inside the page.** When the list and the editor stack, the list takes its natural height and the window scrolls once. Side by side (wider windows) the list and the editor keep their own scroll.
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: open Locations > a location. Make the window narrow (about 600 px or less): the place list is full length with no scroll box of its own, and one scroll bar moves the whole page. In GM Setup or Locations, narrow the window until a tab is cut off: its edge fades.
+
 ## 0.20.6 — 2026-10-26
 
 Fix: in Tree view, places nested four or five levels deep had their names squeezed to a few letters per line.

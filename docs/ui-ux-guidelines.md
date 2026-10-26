@@ -73,10 +73,14 @@ Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortabl
 5. **One level of sub-tabs**, at most. Sub-tabs use `.ag-tabs.ag-tabs--sub` *(kit 2.2)*, which look different from the top
    row, and sit at the top of the pane they switch. Never three levels. [Material 3 secondary tabs] [Carbon Disclosures]
 6. **Navigation uses tabs, values use segmented controls.** `.ag-tabs` (`role="tab"`) switches what you're looking at;
-   `.ag-segmented` (`role="radio"`) picks a value (Buy/Sell, Party/Character). Don't use a segmented control as navigation.
-   [Carbon Tabs] [Primer Navigation]
+   `.ag-segmented` picks a value (Buy/Sell, Party/Character). Don't use a segmented control as navigation. A segmented control
+   that only changes what the form shows is a `role="radiogroup"` of `role="radio"` buttons with `aria-checked`, bound with
+   `bindRadioGroups()` *(kit 2.4)*: one Tab stop, arrow keys move focus and pick, Home/End jump to the ends. A choice with
+   consequences (it saves, publishes or asks first) is a `role="group"` of `aria-pressed` buttons instead, so arrowing never
+   fires it. [Carbon Tabs] [Primer Navigation] [W3C APG Radio Group]
 7. Tabs are one Tab stop: Left/Right move between them, Home/End jump to the ends, `aria-controls` points at the panel
-   (`bindTablist()` *(kit 2.2)*). [W3C APG Tabs]
+   (`bindTablist()` *(kit 2.2)*). A `.ag-tabs--scroll` strip that is wider than its window fades the edge where tabs are cut
+   off and scrolls the selected tab into view (`bindScrollTabs()`, called by `bindTablist()`) *(kit 2.4)*. [W3C APG Tabs]
 8. **Don't use tabs** when the user needs to compare content across them, or for a step-by-step flow. [Carbon Tabs]
 9. **Side rails** (`.ag-siderail`) are for a list of many peers (records, rooms). A rail of section icons needs visible
    labels. (Character Hub's icon rail is the recorded exception in rule 1, decision CH-01.) [NNg Vertical nav] [MS NavigationView]
@@ -103,6 +107,9 @@ Rules behind the table:
 3. **The editor never renders below the whole list.** Open it beside the list (`.ag-split`), or in place of the list with a
    "← All <things>" back button. Scrolling past the list to reach the thing you just clicked is the most common crowding
    problem in the suite. **Ours** [Primer Navigation]
+   When the window is narrow and `.ag-split` stacks, the list and the detail take their natural height and the split (or the
+   pane around it) scrolls once: no scroll box inside a scrolling page *(kit 2.4)*. A module that remembers scroll positions
+   marks the split itself (`data-ag-scroll` / `data-agf-scroll`), because the split is then the scroller.
 4. Collapsible sections remember their open/closed state per user. Start optional sections closed on first use; keep the
    main section open. **Ours**
 5. Cards are for display, not for forms: one card per record, its actions in `.ag-card__actions` at the bottom-right.
@@ -366,6 +373,8 @@ rows marked **shipped** (usage in [section 17](#17-kit-22-usage)); the rest are 
 |---|---|---|
 | `.ag-tabs--sub` **shipped** (with `subTabs()`) | Secondary tab row: smaller, underline style, distinct from the top pill row | §2.5 |
 | `bindTablist(root)` in `ag-html.mjs` **shipped** | Roving tabindex, Left/Right/Home/End, `aria-controls`/`aria-labelledby` wiring for any `.ag-tabs` | §2.7, §9.10 |
+| `bindRadioGroups(root)` in `ag-html.mjs` **shipped** (kit 2.4) | WAI-ARIA radio group keys for `role="radiogroup"` switches: roving tabindex, arrows, Home/End, `aria-checked` kept in sync, one listener per root | §2.6 |
+| `bindScrollTabs(list)` in `ag-html.mjs` **shipped** (kit 2.4; `bindTablist` calls it) | Edge fade on a scrolling tab strip while tabs are hidden that way; selected tab scrolled into view | §2.7 |
 | `.ag-fold` **shipped** (with `fold()`, `bindFolds()`) | Styled `<details>`/`<summary>` section with chevron, count and optional end actions (generalises `.ag-devtools`) | §3 |
 | `fileButton({label, accept})` **shipped** (with `bindFileButtons()`) | A real button plus a visually hidden file input | §9.2 |
 | `.ag-link` **shipped** (with `linkButton()`) | A button that looks like an inline link, for in-text navigation | §9.1 |
@@ -406,6 +415,8 @@ the look and the keyboard in Forge). Import from the module's own copy (`./ag-ht
 | `subTabs` | ag-html | `subTabs({group, label, tabs: [{id, label, icon?, count?}], selected}) → html` |
 | `tabPanelAttrs` | ag-html | `tabPanelAttrs(group, tab, {hidden?}) → attribute string` |
 | `bindTablist` | ag-html | `bindTablist(root, {state?, key?}) → unbind()` |
+| `bindRadioGroups` | ag-html | `bindRadioGroups(root) → unbind()`; call after each render, safe to repeat |
+| `bindScrollTabs` | ag-html | `bindScrollTabs(list) → unbind()`; `bindTablist` already calls it for `.ag-tabs--scroll` and `.ag-siderail` |
 | `fold` | ag-html | `fold({key?, title, count?, hint?, open?, body}) → html` |
 | `bindFolds` | ag-html | `bindFolds(root, state) → unbind()` |
 | `fileButton` | ag-html | `fileButton({label?, accept?, multiple?, icon?, disabled?, data?, className?}) → html` |

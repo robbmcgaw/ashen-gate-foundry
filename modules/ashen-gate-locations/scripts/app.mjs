@@ -596,7 +596,7 @@ export class LocationsApp extends Base {
         <select data-bind="loot.${e.key}.status" aria-label="Loot status">${LOOT_STATUSES.map(st => `<option value="${st}" ${e.status === st ? 'selected' : ''}>${LOOT_STATUS_LABELS[st]}</option>`).join('')}</select></span>`);
 
     const unpublished = d.id && hasUnpublishedChanges(d);
-    const stateBar = `<div class="ag-segmented agl-state" role="radiogroup" aria-label="What players see">${STATES.map(st => `<button type="button" role="radio" aria-checked="${d.state === st}" data-action="state" data-state="${st}"${
+    const stateBar = `<div class="ag-segmented agl-state" role="group" aria-label="What players see">${STATES.map(st => `<button type="button" aria-pressed="${d.state === st}" data-action="state" data-state="${st}"${
         tip(d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`)}><i class="${STATE_ICONS[st]}" aria-hidden="true"></i> ${STATE_LABELS[st]}</button>`).join('')}</div>`;
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {

@@ -1,4 +1,4 @@
-/* ag-ui kit 2.3.0 */
+/* ag-ui kit 2.4.0 */
 /*
  * Ashen Gate UI kit (ag-ui.css)
  * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
@@ -545,8 +545,20 @@ html[data-ag-size="comfortable"] {
 .ag-version { font: 500 var(--ag-text-xs)/1 var(--ag-font-mono); color: var(--ag-muted); letter-spacing: .02em; }
 
 /* ---------- Tabs: one line that scrolls sideways when narrow; counts; GM-only marker ---------- */
-.ag-tabs--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.ag-tabs--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: var(--ag-fade-size, 1.75rem); }
 .ag-tabs--scroll::-webkit-scrollbar { display: none; }
+/* Scroll cue (kit 2.4.0): bindScrollTabs()/bindTablist() set data-ag-more-before / data-ag-more-after while tabs lie hidden past
+   that edge, and the edge fades out. Only a visual cue (nothing animates; the focused or selected tab is scrolled clear of it). */
+.ag-tabs--scroll:is([data-ag-more-before], [data-ag-more-after]),
+.ag-siderail:is([data-ag-more-before], [data-ag-more-after]) {
+  --ag-fade-size: 1.75rem; --ag-fade-a: 0px; --ag-fade-b: 0px;
+  -webkit-mask-image: linear-gradient(var(--ag-fade-dir, to right), transparent 0, #000 var(--ag-fade-a), #000 calc(100% - var(--ag-fade-b)), transparent 100%);
+  mask-image: linear-gradient(var(--ag-fade-dir, to right), transparent 0, #000 var(--ag-fade-a), #000 calc(100% - var(--ag-fade-b)), transparent 100%);
+}
+.ag-tabs--scroll:dir(rtl):is([data-ag-more-before], [data-ag-more-after]):not([data-ag-axis="y"]) { --ag-fade-dir: to left; }
+.ag-tabs--scroll[data-ag-axis="y"], .ag-siderail[data-ag-axis="y"] { --ag-fade-dir: to bottom; scroll-padding-block: var(--ag-fade-size, 1.75rem); }
+.ag-tabs--scroll[data-ag-more-before], .ag-siderail[data-ag-more-before] { --ag-fade-a: var(--ag-fade-size); }
+.ag-tabs--scroll[data-ag-more-after], .ag-siderail[data-ag-more-after] { --ag-fade-b: var(--ag-fade-size); }
 .ag-tabs > :where(button, a, .ag-tab) > i { margin-right: var(--ag-space-1); font-size: .95em; }
 .ag-tab__count { margin-left: var(--ag-space-1); padding: 0 var(--ag-space-2); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 600; }
 .ag-tab--gm::after { content: "GM"; margin-left: var(--ag-space-2); padding: 0 var(--ag-space-1); border: 1px solid currentColor; border-radius: var(--ag-radius-sm); opacity: .75; font-size: var(--ag-text-xs); letter-spacing: .06em; }
@@ -579,7 +591,8 @@ html[data-ag-size="comfortable"] {
 .ag-btn--icon.ag-btn--sm { width: var(--ag-control-h-sm); min-width: var(--ag-control-h-sm); min-height: var(--ag-control-h-sm); height: var(--ag-control-h-sm); padding: 0; }
 .ag-btn-group { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
 
-/* ---------- Segmented control: one choice of a few (role="radiogroup", buttons role="radio") ---------- */
+/* ---------- Segmented control: one choice of a few (role="radiogroup" of role="radio" buttons with bindRadioGroups(), or, when picking
+   has consequences, role="group" of aria-pressed buttons) ---------- */
 .ag-segmented { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); }
 .ag-segmented > button {
   min-height: calc(var(--ag-control-h-sm) - 2px); padding: 2px var(--ag-space-4); border: 0; border-radius: var(--ag-radius-control);
@@ -587,7 +600,9 @@ html[data-ag-size="comfortable"] {
 }
 .ag-segmented > button:hover { color: var(--ag-text); background: transparent; }
 .ag-segmented > [aria-checked="true"],
-.ag-segmented > [aria-checked="true"]:hover { background: var(--ag-surface-raised); color: var(--ag-text); box-shadow: var(--ag-shadow-sm); }
+.ag-segmented > [aria-pressed="true"],
+.ag-segmented > [aria-checked="true"]:hover,
+.ag-segmented > [aria-pressed="true"]:hover { background: var(--ag-surface-raised); color: var(--ag-text); box-shadow: var(--ag-shadow-sm); }
 
 /* ---------- Tables: real <table> for data with column headers ---------- */
 .ag-table-wrap { overflow: auto; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
@@ -733,9 +748,12 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .ag-split { display: grid; grid-template-columns: minmax(14rem, var(--ag-rail-w)) minmax(0, 1fr); gap: 0; min-height: 0; flex: 1; }
 .ag-split__list { min-height: 0; overflow: auto; border-right: 1px solid var(--ag-border); background: var(--ag-surface); }
 .ag-split__detail { min-height: 0; min-width: 0; overflow: auto; padding: var(--ag-space-3) var(--ag-space-4); }
+/* Stacked (kit 2.4.0): list, then detail, each at its natural height with no scroller of its own; the split (or the pane around
+   it) scrolls once, so there is never a scrolling box inside a scrolling page. Side by side they keep their own scroll. */
 @container (max-width: 40rem) {
-  .ag-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .ag-split__list { border-right: 0; border-bottom: 1px solid var(--ag-border); max-height: 14rem; }
+  .ag-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content minmax(max-content, 1fr); overflow-y: auto; }
+  .ag-split__list, .ag-split__detail { min-height: auto; overflow: visible; }
+  .ag-split__list { border-right: 0; border-bottom: 1px solid var(--ag-border); }
 }
 /* Side rail: icon tabs down one edge (Character Hub). Each tab needs aria-label + data-tooltip. */
 .ag-siderail { display: flex; flex-direction: column; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-raised); align-self: start; }

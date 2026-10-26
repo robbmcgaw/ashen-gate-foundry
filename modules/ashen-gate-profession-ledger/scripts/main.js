@@ -11,7 +11,7 @@ import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {journalFolderId,backupsFolderId,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {confirmDialog,confirmDanger,formDialog,guardDirty,infoDialog} from './ag-dialogs.mjs';
-import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindRadioGroups,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,looseToolName,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
   TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
@@ -29,7 +29,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.35.2';
+const VERSION='0.35.3';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -3315,7 +3315,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(picker){this._toggleMapPicker(picker,true);picker.querySelector('[data-map-item-input]')?.focus?.();}}
     // 0.26.0: kit file buttons (a real button plus a visually hidden input), tab keyboard, remembered folds.
     const unbind=[bindFileButtons(this.element,([file],wrap)=>this._readFile(wrap?.dataset?.aglFile,file)),
-      bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui)];
+      bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui),bindRadioGroups(this.element)];
     signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
     if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
@@ -3757,6 +3757,7 @@ function renderSheetTab(params){
   if(!canOpenLedger()){target.innerHTML=emptyState('The GM has hidden the Profession Ledger.');return;}
   target.innerHTML=`<div class="agl-sheet ag-app"><div class="agl-sheet-head"><strong>Professions</strong><button type="button" class="ag-btn ag-btn--sm" data-action="open-ledger">Open Profession Ledger</button></div>${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
   bindFolds(target,uiState(ID));
+  bindRadioGroups(target);
   if(target.dataset.aglBound)return;
   target.dataset.aglBound='1';
   target.addEventListener('click',async e=>{
@@ -3799,7 +3800,7 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
     element.innerHTML=refusal?emptyState(esc(refusal))
       :`<div class="agl-sheet agl-embed__body">${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
-    if(!refusal)bindFolds(element,uiState(ID));
+    if(!refusal){bindFolds(element,uiState(ID));bindRadioGroups(element);}
   };
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agl-embed');};
   element.addEventListener('click',async e=>{

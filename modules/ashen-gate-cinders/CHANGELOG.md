@@ -1,3 +1,10 @@
+## 0.16.2 — 2026-10-26
+
+Narrow-window fix (shared kit 2.4.0).
+
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: open Cinders and make the window narrow: the tab row fades at the cut-off edge.
+
 ## 0.16.1 — 2026-10-26
 
 - **Safer Push confirm when Backfire is guaranteed.** The one-mode Push confirm now uses the danger confirm: **Use without Push** is the default button (Enter and first focus choose it), and Push is a red button you have to pick on purpose. Closing the window never Pushes.

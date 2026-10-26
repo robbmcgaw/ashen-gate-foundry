@@ -1,3 +1,12 @@
+## 0.20.3 — 2026-10-26
+
+Narrow-window fixes (shared kit 2.4.0).
+
+- **A narrow window no longer scrolls a list inside the page.** When the list and the editor stack, the list takes its natural height and the window scrolls once. Side by side (wider windows) the list and the editor keep their own scroll.
+- The faction editor (Factions tab) and the Group / Character pages remember their scroll position in that single scroll area.
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: Renown > Factions with the window about 600 px wide or less: the roster is full length, and the editor follows it with all of its fields.
+
 ## 0.20.2 — 2026-10-26
 
 - **Fix:** asking again for a reward that is already waiting (a one-time claim still pending or approved, or a repeatable service already requested or approved) is no longer treated as an error. The player gets "Renown request received by GM." and the GM does not get a red "Reward not available for request" notice. The GM is still told only once, when the first request arrives. A reward that was already delivered, or is out of uses, is still refused as before.
