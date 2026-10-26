@@ -1,3 +1,7 @@
+## 0.34.1 — 2026-10-26
+
+Station-based activities no longer ask for a tool. When a recipe has a **workstation**, the tools in its `access.toolProficienciesAnyOf` list are only the choices for the roll: the card shows the **Station** chip and no **Uses** chip, nothing warns that a tool is missing, nothing blocks Complete activity or Craft, and the dialog shows "Workstation: X (confirm with your GM)" without a tool line. The roll still offers those tools (the profession's own tool first, then the listed ones). Tool-only activities, and access tools on a recipe with no workstation, are unchanged. Applies to Individual, Party, Recipe Catalog and the Craft/Complete dialogs. No change to recipe data or saved data.
+
 ## 0.34.0 — 2026-10-26
 
 Gathering is simpler, and there is no lead gatherer any more.
