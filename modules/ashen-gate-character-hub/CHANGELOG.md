@@ -1,3 +1,7 @@
+## 0.56.1 — 2026-10-26
+
+The Hub ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. Before, each updated Item woke the Journey recorder and the sheets. No change to saved data.
+
 ## 0.56.0 — 2026-10-26
 
 Combat, Inventory and Features rows are exactly one line, at every width, like Magic's.

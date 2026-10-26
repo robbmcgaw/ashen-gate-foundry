@@ -24,7 +24,7 @@ import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {professionFacts} from './profession-records.js';
 import {tokenLabel, relationLabel} from "./labels.js";
-import {createReferenceLinks, convertLegacyBlock, AGREF_PATTERN} from "./reference-links.mjs";
+import {createReferenceLinks, convertLegacyBlock, AGREF_PATTERN, MARKER_PATTERN} from "./reference-links.mjs";
 import {relatedFor, withRelated} from "./related-lists.mjs";
 import {offerFor, supersedeMap, collectSpecialistSupersedes, SUPERSEDE_ROW_ID} from "./supersedes.js";
 import {previewPartners, applyPartners, renameManagerRefs} from "./supersede-run.js";
@@ -47,6 +47,7 @@ import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SN
 import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, ledgerKey} from './sync.js';
 import {executeSync, buildSyncBackup, writeRebind} from './sync-apply.js';
 import {bindPackageLinks} from './link-binding.js';
+import {BULK, bulkWrite, emitBulkFinished, listenBulkFinished, BULK_FINISHED} from './bulk.js';
 import {createConnection, isInterruption} from './sync-connection.js';
 import {createProgress, HEARTBEAT_MS, STALL_MS} from './sync-progress.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
@@ -213,7 +214,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     data.items=(data.items??[]).map((item,i)=>({...item,...(Array.isArray(item.effects)?{effects:upgradeEffectChanges(item.effects)}:{}),flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
     data.flags[MODULE_ID][ACTOR_ITEMS_FLAG]={version:1};
   }
-  return cls.create(data);
+  return cls.create(data, BULK);
 }
 async function updateRecord(record, pkg, doc, patch, availableIds) {
   const update = {...patch};
@@ -221,7 +222,7 @@ async function updateRecord(record, pkg, doc, patch, availableIds) {
   update[`flags.${MODULE_ID}.source`] = source;
   // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
   if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
-  await doc.update(update);
+  await doc.update(update, BULK);
   return doc;
 }
 /** Metadata-only reconciliation never touches Foundry rule fields or actor state. */
@@ -2752,6 +2753,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       await saveLedgerEntries(log.results.filter(r=>r.status==='ok'&&['create','update'].includes(r.action)&&HANDOFF_KINDS[r.kind])
         .map(r=>({key:ledgerKey(this.pkg.manifest.package_id),id:r.id,info:{kind:r.kind,module:HANDOFF_KINDS[r.kind],name:this.pkg.records.find(x=>x.id===r.id)?.name??r.id}})));
       await resolvePackageLinks({pkg:this.pkg,rows:ordered,log,plans});
+      emitBulkFinished('import');
       const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
       await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
       const created=log.results.filter(r=>r.status==="ok"&&r.action==="create").length;
@@ -4186,6 +4188,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         const prior=game.settings.get(MODULE_ID,'importHistory')??[];
         await Promise.race([game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40)),new Promise((_,reject)=>setTimeout(()=>reject(new Error('no answer from the server')),30000))]);
       } catch(error) { console.warn(`[${MODULE_ID}] Sync history not saved`,error); }
+      emitBulkFinished('sync');
       void maybeResumeLegacy();
     }
     const k=outcome?.counts;
@@ -4476,7 +4479,7 @@ function maybeResumeLegacy(){
  * between chunks, a stop at the next chunk when a Sync or Import starts (it resumes when that ends), and a world setting
  * (legacyReferencesDone) recording that the whole world was converted, so later loads skip the scan. Safe to interrupt at any point.
  */
-async function convertLegacyReferenceBlocks({chunk=50}={}){
+async function convertLegacyReferenceBlocks({chunk=25}={}){
   if(!game.user?.isGM)throw new Error('Only a GM can update references.');
   if(legacyRun)return legacyRun;
   if(game.settings.get(MODULE_ID,LEGACY_REFS_SETTING))return {changed:0,done:true};
@@ -4504,17 +4507,18 @@ async function convertLegacyReferenceBlocks({chunk=50}={}){
       const part=work.slice(i,i+chunk), docs=part.filter(w=>!w.page), pages=part.filter(w=>w.page);
       try {
         for(const [name,list] of new Map([...docs].map(w=>[w.doc.documentName,docs.filter(x=>x.doc.documentName===w.doc.documentName)]))) {
-          try{await write(classOf[name].updateDocuments(list.map(w=>({_id:w.doc.id,...w.updates})),{render:false}));changed+=list.length;}
+          try{await write(classOf[name].updateDocuments(list.map(w=>({_id:w.doc.id,...w.updates})),bulkWrite()));changed+=list.length;}
           catch(batchError){
-            for(const w of list)try{await write(w.doc.update(w.updates,{render:false}));changed++;}
+            for(const w of list)try{await write(w.doc.update(w.updates,bulkWrite()));changed++;}
             catch(error){errors++;console.warn(`[${MODULE_ID}] References section not updated on ${w.doc.name}`,error);}
           }
         }
-        for(const w of pages)try{await write(w.page.update(w.updates,{render:false}));changed++;}
+        for(const w of pages)try{await write(w.page.update(w.updates,bulkWrite()));changed++;}
         catch(error){errors++;console.warn(`[${MODULE_ID}] References section not updated on ${w.doc.name}`,error);}
       } catch(error){errors++;console.warn(`[${MODULE_ID}] References update stopped`,error);return {changed,errors};}
       await sleepMs(20);
     }
+    emitBulkFinished('references');
     if(!errors)await game.settings.set(MODULE_ID,LEGACY_REFS_SETTING,true);
     if(changed)console.info(`[${MODULE_ID}] Updated ${changed} older References section(s) to name-based links.`);
     return {changed,errors};
@@ -4595,6 +4599,10 @@ Hooks.once("init",()=>{
   const enrichers=globalThis.CONFIG?.TextEditor?.enrichers;
   if(Array.isArray(enrichers)&&!enrichers.some(e=>e?.id==='ag-reference-link'))
     enrichers.push({id:'ag-reference-link',pattern:AGREF_PATTERN,enricher:match=>refLinks().enrich(match)});
+  // 0.70.3: until a sync or import has bound its links, a description still holds [[AGREF:ID|label]]; it is drawn as the same
+  // viewer-resolved name (never the id, never a broken inline roll). First in the list so Foundry's [[...]] roll enricher never sees it.
+  if(Array.isArray(enrichers)&&!enrichers.some(e=>e?.id==='ag-unbound-marker'))
+    enrichers.unshift({id:'ag-unbound-marker',pattern:MARKER_PATTERN,enricher:match=>refLinks().enrich(match)});
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"General Manager", label:"Open General Manager", icon:"fa-solid fa-boxes-stacked",
     hint:"GM-only package validation, preview, import and audit.", type:AshenGateManager, restricted:true
@@ -4644,7 +4652,9 @@ Hooks.once("ready",()=>{
   // inside any sheet, tooltip or Monk's Enhanced Journal page. Foundry's own content links are never touched.
   globalThis.document?.addEventListener?.('click',event=>{if(event.target?.closest?.('a.agm-ref-link[data-ag-ref-open]'))void refLinks().onClick(event);},true);
   if(typeof Hooks.on==='function')for(const type of ['Item','JournalEntry','JournalEntryPage','Actor','RollTable'])
-    for(const verb of ['create','update','delete'])Hooks.on(`${verb}${type}`,()=>refLinks().invalidate());
+    for(const verb of ['create','update','delete'])Hooks.on(`${verb}${type}`,(doc,...rest)=>{if(rest.find(x=>x&&typeof x==='object'&&'agBulk' in x)?.agBulk)return;refLinks().invalidate();});
+  if(typeof Hooks.on==='function')Hooks.on(BULK_FINISHED,()=>refLinks().invalidate()); // one invalidate after a bulk write
+  try{listenBulkFinished();}catch(error){console.warn(`[${MODULE_ID}] bulk-finished listener`,error);}
   if(game.user?.isGM&&(!game.users?.activeGM||game.users.activeGM.id===game.user.id))
     void convertLegacyReferenceBlocks().catch(error=>console.warn(`[${MODULE_ID}] References sections not updated`,error));
   game.modules.get(MODULE_ID).api = {

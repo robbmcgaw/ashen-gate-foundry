@@ -10,7 +10,7 @@ import {sanitizePerkHtml} from './perk-html.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
 import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
-import {lookupWorldDefinition} from './definition-lookup.mjs';
+import {lookupWorldDefinition,buildDefinitionIndex} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
@@ -23,7 +23,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.23.1';
+const VERSION='0.23.2';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -170,19 +170,20 @@ const plainText=html=>{
   return raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
 };
 /** The world perk for a permanent id (Manager's binding). The node's stored UUID is only a local hint. */
-const perkDoc=id=>{const hit=lookupWorldDefinition(game,id,{});return hit.status==='ok'&&hit.document?.documentName==='Item'?hit.document:null;};
+let defIndex=null; // set while a projection is built, so each node is an O(1) lookup instead of a world scan
+const perkDoc=id=>{const hit=lookupWorldDefinition(game,id,{index:defIndex});return hit.status==='ok'&&hit.document?.documentName==='Item'?hit.document:null;};
 const perkInfo=id=>{const doc=perkDoc(id);if(!doc)return null;
   return {name:doc.name,description:plainText(doc.system?.description?.value),html:sanitizePerkHtml(doc.system?.description?.value),img:doc.img??null,cost:perkCost(sourceFlag(doc)?.definition),uuid:doc.uuid,tier:sourceFlag(doc)?.definition?.tier??null};};
 const resolved=t=>resolveTree(t,id=>perkInfo(id));
 const safePublicSource=n=>{
   if(!n.perkId)return true; // Older custom nodes have no perk.
-  const hit=lookupWorldDefinition(game,n.perkId,{publicForAll:true,approvedOnly:true});
+  const hit=lookupWorldDefinition(game,n.perkId,{publicForAll:true,approvedOnly:true,index:defIndex});
   const doc=hit.document,source=hit.source;
   return Boolean(doc?.documentName==='Item'&&doc?.type==='feat'&&source?.entityType===
     (n.perkId.startsWith('PERK-')?'ProfessionPerk':'Power') && !/placeholder/i.test(doc.name));
 };
 const project=t=>{const r=resolved(t);return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})});};
-const publishedPayload=trees=>({schema:SCHEMA,revision:Date.now(),trees:trees.map(project).filter(Boolean)});
+const publishedPayload=trees=>{defIndex=buildDefinitionIndex(game);try{return {schema:SCHEMA,revision:Date.now(),trees:trees.map(project).filter(Boolean)};}finally{defIndex=null;}};
 async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
   if(gmPrivate())return gmPrivate();
@@ -1944,21 +1945,33 @@ Hooks.once('ready',()=>{
   };
   game.socket?.on?.(SOCKET,onSocket);
   if(ui.actors?.rendered) addDirectoryLauncher(ui.actors,ui.actors.element);
-  Hooks.on('updateActor',actor=>{refreshEmbeds(actor.id);if(instance?.rendered && instance.actorId===actor.id)instance.render();});
+  // 0.23.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows when it announces ashenGate.bulkFinished.
+  const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+  Hooks.on('ashenGate.bulkFinished',()=>{refreshEmbeds();if(instance?.rendered)instance.render();});
+  Hooks.on('updateActor',(actor,...rest)=>{if(isBulk(...rest))return;refreshEmbeds(actor.id);if(instance?.rendered && instance.actorId===actor.id)instance.render();});
   // Profession Ledger (optional partner): its hook only says "look again"; the level is read through its API.
   Hooks.on('ashenGateLedger.progressionChanged',data=>void onProgressionChanged(data));
   Hooks.on('renderChatMessageHTML',wireChatButtons);
   if(game.user.isGM){
     // World perks feed node names/text; an Item on a character sheet does not change the published view.
     // A failed publish leaves players on the old tree, so tell the GM (once until a publish works again).
-    let publishFailed=false;
-    for(const eventName of ['createItem','updateItem','deleteItem'])Hooks.on(eventName,async item=>{
-      if(item?.parent||!gmPrivate())return;
-      try{await publishPublic();publishFailed=false;}catch(e){
-        console.error(`[${MODULE}] Auto-publish error`,e);
-        if(!publishFailed)ui.notifications?.error?.(`Skill Trees could not update the player view after a perk Item changed: ${e?.message??e}. Players still see the previous trees. Open Skill Trees → Tree Library → Publish Player View to retry.`);
-        publishFailed=true;
-      }
+    let publishFailed=false,publishTimer=null,publishing=false,again=false;
+    // Coalesced: any burst of perk Item changes is ONE projection and ONE world-setting write (it used to be one per Item).
+    const publishNow=async()=>{
+      if(publishing){again=true;return;}
+      publishing=true;
+      try{do{again=false;
+        try{await publishPublic();publishFailed=false;}catch(e){
+          console.error(`[${MODULE}] Auto-publish error`,e);
+          if(!publishFailed)ui.notifications?.error?.(`Skill Trees could not update the player view after a perk Item changed: ${e?.message??e}. Players still see the previous trees. Open Skill Trees → Tree Library → Publish Player View to retry.`);
+          publishFailed=true;
+        }}while(again);}finally{publishing=false;}
+    };
+    const publishSoon=()=>{if(!gmPrivate())return;clearTimeout(publishTimer);publishTimer=setTimeout(()=>void publishNow(),1500);};
+    for(const eventName of ['createItem','updateItem','deleteItem'])Hooks.on(eventName,(item,...rest)=>{
+      if(isBulk(...rest)||item?.parent)return;
+      publishSoon();
     });
+    Hooks.on('ashenGate.bulkFinished',()=>publishSoon());
   }
 });

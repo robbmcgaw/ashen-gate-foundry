@@ -1,3 +1,7 @@
+## 0.20.4 — 2026-10-26
+
+Locations ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.
+
 ## 0.20.3 — 2026-10-24
 
 - Shared UI kit 2.3.0 (id helpers and the record picker, used by Quest Log first). No change to how this module looks or works.

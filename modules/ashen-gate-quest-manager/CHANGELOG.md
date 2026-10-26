@@ -1,3 +1,7 @@
+## 0.25.1 — 2026-10-26
+
+The Quest Log ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.
+
 ## 0.25.0 — 2026-10-25
 
 `api.supersedeIds` for General Manager's `supersedes`.

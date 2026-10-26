@@ -1,3 +1,16 @@
+## 0.70.3 — 2026-10-26
+
+Sync from package no longer freezes the browser tab when it starts saving links.
+
+- **Cause:** 0.70.1 wrote links 50 documents at a time. Foundry then fires every module's update hooks for all 50 at once, and Skill Trees' hook re-published its whole player view to a world setting for EACH Item (a projection that scanned every document in the world for every tree node, and a settings write each). Fifty of those at once blocked the main thread. Profession Ledger, Utilities, Quest Log, Locations, Renown and the Hub also redrew or rescanned on each of those updates.
+- **Bulk writes:** every write Sync, Import and the References conversion make now carries `agBulk` in its options. Every Ashen Gate module's document hooks return at once for such a write (this works on every connected client), and Manager announces `ashenGate.bulkFinished` when it is over (and tells the other clients through the socket), so each module refreshes once. Manager's own reference-link cache is invalidated once instead of once per document. Foundry's other hooks and your own modules still see the writes as usual.
+- **Smaller steps:** link writes are 10 documents per request inside chunks of 25 with a yield between, the world is read in slices with progress ("Reading the world n of N"), and a chunk that takes longer than 20 s halves the next ones (never below 5). Each chunk's time is logged to the console.
+- **Progress:** the line shows two labelled clocks, "run" (the whole Sync) and "step" (the step now running), and the count moves every 10 records inside a chunk.
+- **Cannot hold the Sync hostage:** if the link step makes no progress for two minutes, it is abandoned: records and hand-offs still finish, the result says "Links are not bound yet", deletes are skipped, and running the same Sync again binds them.
+- **Until links are bound** a description that still holds an import marker now shows the record's name (the same name-based link as everywhere else), never an id or a broken inline roll.
+- Pattern bound: the related-cell pattern can no longer scan an unclosed tag to the end of a long description.
+- New socket flag in module.json (`"socket": true`) for the one-line "bulk finished" message. No change to saved data.
+
 ## 0.70.2 — 2026-10-26
 
 NPC Codex: the bulk reveal panel and its one-click presets always answer, and changing a reveal no longer scrolls the page to the top.

@@ -1543,8 +1543,11 @@ Hooks.once('ready',()=>{
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
- for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);
- for(const ev of ['createItem','updateItem','deleteItem'])Hooks.on(ev,doc=>rerenderStash(doc));
+ // 0.31.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+ const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+ for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,(doc,...rest)=>{if(isBulk(...rest))return;rerenderConditions();});
+ for(const ev of ['createItem','updateItem','deleteItem'])Hooks.on(ev,(doc,...rest)=>{if(isBulk(...rest))return;rerenderStash(doc);});
+ Hooks.on('ashenGate.bulkFinished',()=>{rerenderConditions();rerenderStash(null);});
  Hooks.on('dropActorSheetData',onSheetDrop);
  shopHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops'&&isGM())windowInstance.render().catch(error);},()=>windowInstance);
  configureTrade({stashActor,stashEnabled,purseVoteRequired,runConsent,requestGM,queuePurse,coordinatorIsMe,error,

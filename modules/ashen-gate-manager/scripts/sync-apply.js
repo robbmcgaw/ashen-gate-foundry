@@ -15,6 +15,7 @@ import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
 import {applyShops} from './shop-handoff.js';
 import {applySpecialist} from './specialist-handoff.js';
+import {bulkWrite, BULK} from './bulk.js';
 import {ConnectionLost, isInterruption} from './sync-connection.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk} from './sync.js';
 
@@ -58,27 +59,27 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
   if (kind === 'Actor') {
     const {adopt = [], update = [], create = [], delete: del = []} = ops.items ?? {};
     const updates = [...adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...update];
-    if (updates.length) await doc.updateEmbeddedDocuments('Item', updates);
-    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create));
-    if (del.length) await doc.deleteEmbeddedDocuments('Item', del);
+    if (updates.length) await doc.updateEmbeddedDocuments('Item', updates, BULK);
+    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create), BULK);
+    if (del.length) await doc.deleteEmbeddedDocuments('Item', del, BULK);
   } else if (kind === 'Item' && ops.effects) {
     const {create = [], update = [], delete: del = []} = ops.effects;
-    if (create.length) await doc.createEmbeddedDocuments('ActiveEffect', structuredClone(create));
-    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, ...u}) => u));
-    if (del.length) await doc.deleteEmbeddedDocuments('ActiveEffect', del);
+    if (create.length) await doc.createEmbeddedDocuments('ActiveEffect', structuredClone(create), BULK);
+    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, ...u}) => u), BULK);
+    if (del.length) await doc.deleteEmbeddedDocuments('ActiveEffect', del, BULK);
   } else if (kind === 'JournalEntry' && ops.pages) {
     const {create = [], update = [], delete: del = []} = ops.pages;
-    if (create.length) await doc.createEmbeddedDocuments('JournalEntryPage', structuredClone(create));
-    if (update.length) await doc.updateEmbeddedDocuments('JournalEntryPage', update.map(({key, ...u}) => u));
-    if (del.length) await doc.deleteEmbeddedDocuments('JournalEntryPage', del);
+    if (create.length) await doc.createEmbeddedDocuments('JournalEntryPage', structuredClone(create), BULK);
+    if (update.length) await doc.updateEmbeddedDocuments('JournalEntryPage', update.map(({key, ...u}) => u), BULK);
+    if (del.length) await doc.deleteEmbeddedDocuments('JournalEntryPage', del, BULK);
   } else if (kind === 'RollTable' && ops.results) {
     // New results first, then the old ones: an interrupted run leaves extras that the next run replaces, never an empty table.
-    if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create));
-    if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds);
+    if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create), BULK);
+    if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds, BULK);
   }
   const update = {...fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
   if (kind === 'Actor') update[`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`] = {version: 1};
-  await doc.update(update);
+  await doc.update(update, BULK);
 }
 
 /**
@@ -101,7 +102,7 @@ export async function writeRebind(doc, row, {user, flag, extra = {}, replaceArt 
  * After a write (and after links are bound): remember, per path, where Foundry stores something other than the package
  * text (rich-text links, normalised numbers), so the next preview calls that field unchanged. JSON text, one write.
  */
-export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record)); }
+export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record), BULK); }
 /** The one update stampDoc writes ({flag path: JSON text}); sync, so a run can batch many documents into one write. */
 export function stampUpdate(doc, record) {
   const raw = doc.toObject();
@@ -144,7 +145,7 @@ function nameKeysOf(names) { const seen = new Map(); return names.map(n => { con
 /** Removes one Manager-imported world document. Copies on character sheets are separate documents and are not touched. */
 export async function removeDoc(doc, row, {user}) {
   assertSyncTarget(doc, user, row.id, {deleting: true});
-  await doc.delete();
+  await doc.delete(BULK);
 }
 
 // ---------- backup ----------
@@ -201,7 +202,8 @@ export async function executeSync(plan, adapter, options = {}) {
   }
 }
 
-async function runSync(plan, adapter, {user, confirmation, signal, onProgress, chunk = 20} = {}, log, state) {
+async function runSync(plan, adapter, options = {}, log, state) {
+  const {user, confirmation, signal, onProgress, chunk = 20} = options;
   if (!user?.isGM) throw new Error('Only a GM can run Sync from package.');
   if (!phraseOk(confirmation)) throw new Error(`Type "${SYNC_PHRASE}" to confirm.`);
   if (!plan?.ok) throw new Error('This sync has errors; fix them and preview again. Nothing was changed.');
@@ -271,24 +273,39 @@ async function runSync(plan, adapter, {user, confirmation, signal, onProgress, c
   const written = touched.filter(t => okIds.has(t.id));
   say('links', LINKS, finished, total, {step: 'Preparing', stepDone: 0, stepTotal: written.length});
   await ensure();
+  // 0.70.3: the link step may never hold the rest of the Sync hostage. If it makes no progress for twice the watchdog time, it is
+  // abandoned: the records and hand-offs still complete, the result says the links are not bound yet, deletes are skipped, and the
+  // same Sync run again binds them (an unbound [[AGREF:..]] marker is drawn as a name by Manager's text enricher, never as an id).
+  const now = options.now ?? Date.now, stallMs = options.stallMs ?? 60000;
+  const inner = new AbortController(), linkSignal = {get aborted() { return Boolean(signal?.aborted || inner.aborted); }};
+  let lastMove = now(), linksStalled = false;
+  const watch = {id: null};
   try {
-    const bound = await adapter.bindLinks(written, log, {signal, guard, chunk: 50, pause: adapter.pause, onStep: s => say('links', LINKS, finished, total, s)});
-    if (bound?.cancelled) return result(plan, log, true);
+    const stalled = new Promise(resolve => { watch.id = (options.setInterval ?? setInterval)(() => { if (now() - lastMove >= 2 * stallMs) resolve(true); }, Math.max(10, Math.floor(stallMs / 4))); });
+    const run = Promise.resolve(adapter.bindLinks(written, log, {signal: linkSignal, guard, pause: adapter.pause, onStep: s => { lastMove = now(); say('links', LINKS, finished, total, s); }}));
+    run.catch(() => {});
+    const winner = await Promise.race([run.then(v => ({v})), stalled.then(() => ({stalled: true}))]);
+    if (winner.stalled) {
+      linksStalled = true; inner.abort();
+      const where = state.stepTotal ? `${state.stepDone} of ${state.stepTotal}${state.name ? ` (${state.name})` : ''}` : 'before the first record';
+      console.warn(`[${MODULE_ID}] Binding links abandoned: no progress for ${Math.round((now() - lastMove) / 1000)} s at ${where}`);
+      log.push({action: 'link-sync', status: 'error', id: '—', message: `Links are not bound yet: Binding links made no progress for ${Math.round((now() - lastMove) / 1000)} s at ${where}. The records and hand-offs were still written; descriptions show names until the links are bound. Run the same Sync again to finish (deletes were skipped).`});
+    } else if (winner.v?.cancelled) return result(plan, log, true);
   } catch (e) {
     if (isInterruption(e)) throw e;
     console.warn(`[${MODULE_ID}] Binding links failed`, e);
     log.push({action: 'link-sync', status: 'error', id: '—', message: `Binding links stopped: ${String(e?.message ?? e)}`});
-  }
+  } finally { (options.clearInterval ?? clearInterval)(watch.id); }
   // Remember how Foundry stores each written field (stampDoc), in chunks; one write per document type per chunk.
   const STAMP = 'Remembering what was written…';
   const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind'].includes(l.action)).map(l => l.id));
-  const stampable = touched.filter(row => wroteIds.has(row.id));
+  const stampable = linksStalled ? [] : touched.filter(row => wroteIds.has(row.id)); // unbound text would be remembered wrongly
   const docsById = adapter.docsById?.() ?? null;
   const docOf = row => docsById ? docsById.get(row.id)?.[0] : adapter.docFor(row);
-  for (let i = 0; i < stampable.length; i += 50) {
+  for (let i = 0; i < stampable.length; i += 25) {
     if (signal?.aborted) return result(plan, log, true);
     await ensure();
-    const part = stampable.slice(i, i + 50);
+    const part = stampable.slice(i, i + 25);
     say('stamp', STAMP, finished, total, {step: 'Recording', stepDone: i, stepTotal: stampable.length, name: part[0]?.name});
     const batch = [];
     for (const row of part) {
@@ -301,10 +318,10 @@ async function runSync(plan, adapter, {user, confirmation, signal, onProgress, c
     }
     const changed = batch.filter(b => { const [key] = Object.keys(b.update); return !same(get(b.doc, key), b.update[key]); });
     for (const [name, list] of groupBy(changed, b => b.doc.documentName)) {
-      try { await guard(adapter.updateDocuments(name, list.map(b => ({_id: b.doc.id, ...b.update})), {render: false})); }
+      try { await guard(adapter.updateDocuments(name, list.map(b => ({_id: b.doc.id, ...b.update})), bulkWrite())); }
       catch (batchError) {
         if (isInterruption(batchError)) throw batchError;
-        for (const b of list) try { await guard(b.doc.update(b.update, {render: false})); }
+        for (const b of list) try { await guard(b.doc.update(b.update, bulkWrite())); }
         catch (e) { if (isInterruption(e)) throw e; log.push({id: b.row.id, kind: b.row.kind, name: b.row.name, action: 'stamp', status: 'error', message: String(e?.message ?? e)}); }
       }
     }

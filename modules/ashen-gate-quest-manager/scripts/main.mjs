@@ -20,7 +20,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.25.0';
+const VERSION='0.25.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -892,12 +892,15 @@ Hooks.once('ready',()=>{
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
  // Drag-out of quest rewards (D8): a GM drop on a sheet is a recorded grant; returning false stops Foundry copying it too.
  Hooks.on('dropActorSheetData',(actor,sheet,data)=>onActorSheetDrop(actor,data));
- Hooks.on('createJournalEntry',(doc,options,userId)=>{noteWrite(doc,userId);openRevealed(doc,userId);updateWindows();});
- Hooks.on('updateJournalEntry',(doc,change,options,userId)=>{noteWrite(doc,userId);updateWindows();});Hooks.on('deleteJournalEntry',updateWindows);
+ // 0.25.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+ const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+ Hooks.on('ashenGate.bulkFinished',()=>updateWindows());
+ Hooks.on('createJournalEntry',(doc,options,userId)=>{if(isBulk(options))return;noteWrite(doc,userId);openRevealed(doc,userId);updateWindows();});
+ Hooks.on('updateJournalEntry',(doc,change,options,userId)=>{if(isBulk(options))return;noteWrite(doc,userId);updateWindows();});Hooks.on('deleteJournalEntry',(doc,options)=>{if(isBulk(options))return;updateWindows();});
  if(!hasGM())try{for(const {view} of visibleViews())seenReveals.add(view.id);}catch{}
- Hooks.on('updateActor',(actor,change)=>{if(hasGM()&&change?.ownership)reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
+ Hooks.on('updateActor',(actor,change,options)=>{if(isBulk(options))return;if(hasGM()&&change?.ownership)reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
  Hooks.on('deleteActor',(actor)=>{if(hasGM())reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
- Hooks.on('updateJournalEntryPage',(page,change,options,userId)=>{noteWrite(page,userId);updateWindows();});
+ Hooks.on('updateJournalEntryPage',(page,change,options,userId)=>{if(isBulk(options))return;noteWrite(page,userId);updateWindows();});
  globalThis.addEventListener?.('resize',()=>placeTracker(document.querySelector?.('#ag-quest-objectives-overlay')));
  Hooks.on('createActor',(actor)=>{if(hasGM())reconcileActorAudience().catch(notifyError);});
  // Overlay and tracking prefs are this module's own User flags: they change no audience, so no reconcile for them.
@@ -906,7 +909,7 @@ Hooks.once('ready',()=>{
   game.socket?.on?.(`module.${MOD}`,(msg,senderId)=>{journalStore.onSocket(msg,senderId).catch(notifyError);});
   const addPages=()=>{if(hasGM()&&(game.users?.activeGM?.isSelf??true))journalStore.ensurePages().catch(notifyError);};
   addPages();Hooks.on('createUser',addPages);
-  for(const hook of ['createJournalEntryPage','deleteJournalEntryPage'])Hooks.on(hook,updateWindows);
+  for(const hook of ['createJournalEntryPage','deleteJournalEntryPage'])Hooks.on(hook,(doc,options)=>{if(isBulk(options))return;updateWindows();});
   Hooks.on('updateSetting',setting=>{if(setting?.key==='ashen-gate-character-hub.playerVisibility')updateWindows();});
   renderTracker();
   console.info(`${MOD} ${VERSION} ready (standalone, GM documents + sanitized Journal projections).`);

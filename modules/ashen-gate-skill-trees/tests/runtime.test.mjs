@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.23.1');
+  assert.equal(api.version,'0.23.2');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -141,7 +141,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.23.1');
+  assert.equal(manifest.version,'0.23.2');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" role="tab" data-act="tab-library" class="ag-tab--gm/);
@@ -234,7 +234,9 @@ test('Manager import creates the GM-only storage Journal itself when it is missi
 test('a failed auto-publish after a world perk changes tells the GM once, until a publish works again',async()=>{
   const errors=[],origError=ui.notifications.error,origSet=game.settings.set,origConsole=console.error;
   ui.notifications.error=msg=>errors.push(msg);console.error=()=>{};
-  const fire=async()=>{for(const fn of events.get('createItem'))await fn({parent:null});};
+  // 0.23.2: publishing is coalesced (one publish after a 1.5 s pause), so the test advances a mocked clock.
+  const {mock}=await import('node:test');mock.timers.enable({apis:['setTimeout']});
+  const fire=async()=>{for(const fn of events.get('createItem'))await fn({parent:null});mock.timers.tick(1600);for(let i=0;i<5;i++)await new Promise(r=>setImmediate(r));};
   try{
     game.settings.set=async()=>{throw Error('[TEST] settings write refused');};
     await fire();await fire();
@@ -243,5 +245,17 @@ test('a failed auto-publish after a world perk changes tells the GM once, until 
     game.settings.set=origSet;await fire();
     game.settings.set=async()=>{throw Error('[TEST] refused again');};await fire();
     assert.equal(errors.length,2,'a new failure after a success is reported');
-  }finally{ui.notifications.error=origError;game.settings.set=origSet;console.error=origConsole;}
+  }finally{mock.timers.reset();ui.notifications.error=origError;game.settings.set=origSet;console.error=origConsole;}
+});
+
+test('0.23.2 a definition index answers every lookup from one pass over the world', async()=>{
+  const {buildDefinitionIndex,lookupWorldDefinition}=await import('../scripts/definition-lookup.mjs');
+  let reads=0;
+  const docs=Array.from({length:600},(_,i)=>({documentName:'Item',flags:{'ashen-gate-manager':{source:{sourceId:`PERK-T${i}`,status:'approved',entityType:'ProfessionPerk',visibility:'player'}}}}));
+  const g={user:{isGM:true},items:{get contents(){reads++;return docs;}},journal:{contents:[]},actors:{contents:[]},tables:{contents:[]},macros:{contents:[]}};
+  const index=buildDefinitionIndex(g);
+  const before=reads;
+  for(let i=0;i<600;i++)assert.equal(lookupWorldDefinition(g,`PERK-T${i}`,{index}).document,docs[i]);
+  assert.equal(reads-before,0,'indexed lookups never touch the world');
+  assert.equal(lookupWorldDefinition(g,'PERK-T7',{}).document,docs[7],'without an index it still works');
 });

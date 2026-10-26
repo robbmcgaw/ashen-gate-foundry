@@ -19,6 +19,8 @@
 const ID = '[A-Z][A-Z0-9]*(?:-[A-Z0-9_]+)+';
 const ID_LIKE = new RegExp(`^${ID}$`);
 /** Enricher pattern (global, as Foundry's enrichers need). */
+/** 0.70.3: the import marker [[AGREF:ID|label]] as it sits in a description until links are bound; shown as a name, never an id. */
+export const MARKER_PATTERN = new RegExp(`\\[\\[AGREF:(${ID})(?:\\|([^\\]\\r\\n]{1,160}))?\\]\\]`, 'g');
 export const AGREF_PATTERN = new RegExp(`@AGRef\\[(${ID})\\](?:\\{([^}\\r\\n]{0,160})\\})?`, 'g');
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const cleanLabel = s => String(s ?? '').replace(/[{}\[\]\r\n]/g, '').trim().slice(0, 160);

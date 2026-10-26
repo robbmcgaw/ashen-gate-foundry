@@ -1066,7 +1066,11 @@ Hooks.once('ready',()=>{
     else if(['request','share'].includes(msg?.type))void incoming(msg);
     else if(msg?.type==='refresh'&&dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });
-  for(const hook of ['updateJournalEntry','createJournalEntry','deleteJournalEntry'])Hooks.on(hook,()=>{
+  // 0.18.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+  const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+  Hooks.on('ashenGate.bulkFinished',()=>{refreshEmbeds();if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();});
+  for(const hook of ['updateJournalEntry','createJournalEntry','deleteJournalEntry'])Hooks.on(hook,(doc,...rest)=>{
+    if(isBulk(...rest))return;
     refreshEmbeds();
     if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });

@@ -1,3 +1,7 @@
+## 0.23.2 — 2026-10-26
+
+Fixes a browser freeze when General Manager syncs many Items. The player view was re-published to a world setting for every perk Item that changed (each time scanning the whole world once per tree node); a burst of 50 Items blocked the tab. Now: Manager bulk writes are ignored while they run, any burst of perk changes is one publish after a short pause, and a publish looks perks up from one pass over the world instead of one scan per node. No change to saved data.
+
 ## 0.23.1 — 2026-10-25
 
 Fixes from the first live Foundry test run.
