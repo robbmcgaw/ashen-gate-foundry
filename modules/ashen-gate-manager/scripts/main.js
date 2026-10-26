@@ -308,7 +308,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
     window: {title:"Ashen Gate | General Manager", icon:"fa-solid fa-boxes-stacked", resizable:true},
-    position: {width:1020, height:820}
+    position: {width:1000, height:760}
   };
   // One scroll region per pane (header and tabs stay put); the Items list column scrolls on its own. Both keep their place on re-render.
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows", ".ag-split__detail", ".agm-drawer__body", ".agm-preview-table"]}};

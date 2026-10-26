@@ -35,7 +35,15 @@ jobs:
               continue
             fi
             echo "Releasing $tag"
-            (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/dist/$id.zip" . -x 'tests/*' 'test/*' 'qa/*' 'package.json')
+            # Test-only files stay out of the zip. Per-module extras: only folders nothing reads at runtime and no
+            # documented console test step imports (so NOT fixtures/, samples/ or locations examples/, which are used).
+            extra=()
+            case "$id" in
+              ashen-gate-profession-ledger) extra=('data/*' 'BETA_CHECKLIST.md') ;;
+              ashen-gate-headquarters) extra=('examples/*') ;;
+              ashen-gate-factions) extra=('TEST_CASES.tsv') ;;
+            esac
+            (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/dist/$id.zip" . -x 'tests/*' 'test/*' 'qa/*' 'package.json' "${extra[@]}")
             cp "$dir/module.json" "dist/module.json"
             # Release notes = the first "## " section of the module's CHANGELOG.md
             notes=$(awk '/^## /{n++} n==1' "$dir/CHANGELOG.md" 2>/dev/null | tail -n +2 | head -40 || true)
