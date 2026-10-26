@@ -1,3 +1,7 @@
+## 0.35.0 — 2026-10-26
+
+The Ledger files its journals under the **Ashen Gate** folder instead of loose at the top: *Profession Ledger (GM Data)* in **Ashen Gate / Professions** and the *Profession Refresh* snapshots in **Ashen Gate / Backups**. On the first GM login after updating, the Ledger moves its own loose journals there; anything you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
+
 ## 0.34.1 — 2026-10-26
 
 Station-based activities no longer ask for a tool. When a recipe has a **workstation**, the tools in its `access.toolProficienciesAnyOf` list are only the choices for the roll: the card shows the **Station** chip and no **Uses** chip, nothing warns that a tool is missing, nothing blocks Complete activity or Craft, and the dialog shows "Workstation: X (confirm with your GM)" without a tool line. The roll still offers those tools (the profession's own tool first, then the listed ones). Tool-only activities, and access tools on a recipe with no workstation, are unchanged. Applies to Individual, Party, Recipe Catalog and the Craft/Complete dialogs. No change to recipe data or saved data.
