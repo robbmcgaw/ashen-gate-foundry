@@ -765,7 +765,11 @@
 .agch-app .agch-spells .agch-card__fact::before { content: none; }
 .agch-app .agch-spells > .agch-card__headrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agch-app .agch-spells > .agch-card__headrow > span:last-child { text-align: end; }
-.agch-app .agch-spells .agch-card__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--ag-space-1); box-sizing: border-box; width: var(--agch-sp-track); padding-inline-start: var(--ag-space-2); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--ag-surface); }
+.agch-app .agch-spells .agch-card__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--ag-space-1); box-sizing: border-box; width: var(--agch-sp-track); padding-inline-start: var(--ag-space-2); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--agch-row-bg); }
+/* 0.57.0: the pinned actions follow the row's state (striped, hovered) through --agch-row-bg, as in the item tabs. */
+.agch-app .agch-spells.agch-cards > li:not(.agch-card__headrow) { --agch-row-bg: var(--ag-surface); background: var(--agch-row-bg); }
+.agch-app .agch-spells.agch-cards > li.is-alt { --agch-row-bg: color-mix(in srgb, var(--ag-text) 5%, var(--ag-surface)); }
+.agch-app .agch-spells.agch-cards > li:not(.agch-card__headrow):hover { --agch-row-bg: var(--ag-surface-hover); }
 .agch-app .agch-spells > .agch-card__headrow > span:last-child { position: sticky; inset-inline-end: 0; background: var(--agch-bg-sunken); }
 .agch-app .agch-spells .agch-prep { box-sizing: border-box; flex: 0 0 var(--agch-sp-prep); width: var(--agch-sp-prep); min-height: var(--ag-control-h-sm); padding-block: 0; padding-inline: var(--ag-space-2); justify-content: center; border-radius: var(--ag-radius-control); font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); white-space: nowrap; }
 .agch-app .agch-spells .agch-prep--always { cursor: default; }
@@ -822,7 +826,7 @@
    + control-h-sm + 3 gaps + gutter with labels. */
 .agch-app .agch-crows { min-width: 24rem; }
 .agch-app .agch-crows--combat, .agch-app .agch-crows--features { --agch-ic-lead: max(var(--ag-icon-chip), var(--ag-control-h-sm)); --agch-ic-track: calc(4.25rem + var(--ag-space-2)); }
-.agch-app .agch-crows--inventory { --agch-ic-lead: calc(2 * var(--ag-control-h-sm) + var(--ag-space-1)); --agch-iq-qty: calc(2 * var(--ag-control-h-sm) + 2 * var(--ag-space-1) + 3.125rem); --agch-ic-track: calc(4rem + 4.75rem + 5rem + var(--ag-control-h-sm) + 3 * var(--ag-space-1) + var(--ag-space-2)); }
+.agch-app .agch-crows--inventory { --agch-ic-lead: calc(2 * var(--ag-control-h-sm) + var(--ag-space-1)); --agch-ic-track: calc(4rem + 5.25rem + 5.25rem + var(--ag-control-h-sm) + 3 * var(--ag-space-1) + var(--ag-space-2)); min-width: 26rem; }
 .agch-app .agch-crows.agch-cards > li:not(.agch-contents) { --agch-row-bg: var(--ag-surface); display: grid; grid-template-columns: subgrid; align-items: center; column-gap: var(--ag-space-1); padding-inline: var(--ag-space-2); background: var(--agch-row-bg); }
 .agch-app .agch-crows.agch-cards > li.is-alt { --agch-row-bg: color-mix(in srgb, var(--ag-text) 5%, var(--ag-surface)); }
 .agch-app .agch-crows.agch-cards > li:not(.agch-contents, .agch-card__headrow):hover { --agch-row-bg: var(--ag-surface-hover); }
@@ -840,15 +844,15 @@
 .agch-app .agch-crows .agch-use { box-sizing: border-box; flex: none; width: 4.25rem; padding-inline: var(--ag-space-2); justify-content: center; white-space: nowrap; }
 .agch-app .agch-crows--inventory .agch-use { width: 4rem; }
 .agch-app .agch-crows .agch-act { flex: none; box-sizing: border-box; }
-.agch-app .agch-crows .agch-act--equip { width: 4.75rem; }
-.agch-app .agch-crows .agch-act--attune { width: 5rem; }
+.agch-app .agch-crows .agch-act--equip, .agch-app .agch-crows .agch-act--attune { width: 5.25rem; }
 .agch-app .agch-crows .agch-act.ag-btn { padding-inline: var(--ag-space-2); justify-content: center; white-space: nowrap; }
 .agch-app .agch-crows .agch-act--stash.ag-btn { width: var(--ag-control-h-sm); padding-inline: 0; }
 .agch-app .agch-crows span.agch-act { display: block; min-height: var(--ag-control-h-sm); visibility: hidden; }
 .agch-app .agch-crows .agch-qty { flex-wrap: nowrap; gap: var(--ag-space-1); }
-.agch-app .agch-crows .agch-qty input { width: 3.125rem; min-width: 0; padding-inline: var(--ag-space-1); }
-.agch-app .agch-crows .agch-qty .ag-btn { flex: none; width: var(--ag-control-h-sm); min-width: 0; padding-inline: 0; justify-content: center; }
-.agch-app .agch-crow__qtyrow { display: none; align-items: center; gap: var(--ag-space-1); }
+.agch-app .agch-crows .agch-qty input { width: 3rem; min-width: 0; padding-inline: var(--ag-space-1); }
+/* The Equip / Equipped and Attune / Attuned toggles: one size in both states (like Magic's Prepare / Prepared), gold fill when on. */
+.agch-app .agch-crows .agch-tog.ag-btn { min-height: var(--ag-control-h-sm); padding-block: 0; font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); }
+.agch-app .agch-crow__qtyrow { display: flex; align-items: center; gap: var(--ag-space-1); }
 .agch-app .agch-crow__qtyrow > span { color: var(--ag-muted); margin-inline-end: var(--ag-space-1); }
 .agch-app .agch-crow__qtyrow > span::after { content: ":"; }
 @container agch-body (max-width: 480px) {
@@ -857,7 +861,7 @@
 .agch-app .agch-crows--combat.agch-set-weapons.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 3rem 4.5rem 6rem var(--agch-ic-track); }
 .agch-app .agch-crows--combat.agch-set-actions.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 4.5rem 5.5rem 3.5rem 5rem var(--agch-ic-track); }
 .agch-app .agch-crows--combat.agch-set-mixed.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 3rem 4.5rem 3.5rem var(--agch-ic-track); }
-.agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-iq-qty) 3.5rem 4rem 3rem var(--agch-ic-track); }
+.agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem 3.5rem 4rem 3rem var(--agch-ic-track); }
 .agch-app .agch-crows--features.agch-set-full.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 6rem 5.5rem 3.5rem 5rem var(--agch-ic-track); }
 .agch-app .agch-crows--features.agch-set-notype.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 3.5rem 5rem var(--agch-ic-track); }
 .agch-app .agch-crows--features.agch-set-noact.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 6rem 3.5rem 5rem var(--agch-ic-track); }
@@ -897,33 +901,27 @@
   .agch-app .agch-crows--combat.agch-set-weapons.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-ic-track); }
   .agch-app .agch-crows--combat.agch-set-mixed.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-ic-track); }
 }
-@container agch-body (max-width: 755px) {
+@container agch-body (max-width: 775px) {
   /* Inventory: Equip / Attune / Use become icons (aria-label and tooltip kept) */
   .agch-app .agch-crows--inventory { --agch-ic-track: calc(4 * var(--ag-control-h-sm) + 3 * var(--ag-space-1) + var(--ag-space-2)); }
   .agch-app .agch-crows--inventory .agch-act { width: var(--ag-control-h-sm); }
   .agch-app .agch-crows--inventory .agch-act.ag-btn > span, .agch-app .agch-crows--inventory .agch-use > span { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* ag-lint-allow: visually hidden label, the same idiom as .ag-sr-only */
   .agch-app .agch-crows--inventory .agch-act.ag-btn { padding-inline: 0; justify-content: center; }
 }
-@container agch-body (max-width: 605px) {
-  /* Inventory: Uses moves into the open row */
-  .agch-app .agch-crows--inventory .agch-ic-uses { display: none; }
-  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-iq-qty) 3.5rem 4rem var(--agch-ic-track); }
-}
-@container agch-body (max-width: 555px) {
+@container agch-body (max-width: 615px) {
   /* Inventory: Weight moves into the open row */
   .agch-app .agch-crows--inventory .agch-ic-weight { display: none; }
-  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-iq-qty) 4rem var(--agch-ic-track); }
+  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem 4rem 3rem var(--agch-ic-track); }
 }
-@container agch-body (max-width: 495px) {
+@container agch-body (max-width: 555px) {
   /* Inventory: Value moves into the open row */
   .agch-app .agch-crows--inventory .agch-ic-value { display: none; }
-  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-iq-qty) var(--agch-ic-track); }
+  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem 3rem var(--agch-ic-track); }
 }
-@container agch-body (max-width: 430px) {
-  /* Inventory: Quantity keeps its number field; minus and plus move into the open row */
-  .agch-app .agch-crows--inventory { --agch-iq-qty: 3.125rem; }
-  .agch-app .agch-crows--inventory .agch-qty .ag-btn { display: none; }
-  .agch-app .agch-crows--inventory .agch-crow__qtyrow { display: flex; }
+@container agch-body (max-width: 490px) {
+  /* Inventory: Uses moves into the open row */
+  .agch-app .agch-crows--inventory .agch-ic-uses { display: none; }
+  .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem var(--agch-ic-track); }
 }
 @container agch-body (max-width: 590px) {
   /* Features: Type moves into the open row */

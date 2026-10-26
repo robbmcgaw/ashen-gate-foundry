@@ -43,7 +43,7 @@ test('the window title is the brand and the name (0.37.1); the header heading is
   assert.doesNotMatch(h, /<b>Bold/);
   assert.doesNotMatch(h, /Character Hub/, 'the brand is not repeated inside the Hub');
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, 'one h1');
-  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="look-menu"[\s\S]*data-action="level-up"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.56\.1<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
+  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="look-menu"[\s\S]*data-action="level-up"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.57\.0<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
 });
 
 test('no second name in the character column; the column starts with the Cinders / star row, then the art', async () => {

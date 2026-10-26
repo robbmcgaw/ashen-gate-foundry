@@ -1,3 +1,15 @@
+## 0.57.0 — 2026-10-26
+
+Inventory rows: the name is never clipped, Equip and Attune are toggle buttons, the quantity is just a number field.
+
+- **The name keeps its room.** Nothing sits beside the item name now except the fold toggle, star, icon and chevron; the Equipped and Attuned badges are gone from Inventory rows. The name track is at least 9rem (planned at 11rem) and a long name still ends in an ellipsis with a tooltip.
+- **Equip and Attune are toggles in the pinned actions**, like Magic's Prepare / Prepared: **Equip** (neutral) becomes **Equipped** (gold fill, same size), **Attune** becomes **Attuned**; each has aria-pressed, the word is the non-colour sign, same actions, the same attunement prompt and limits. Use and Move to party stash stay; a slot that does not apply is an empty placeholder so the buttons line up. At 775px or less the toggles are icon toggles (shield, sun) with aria-pressed, aria-label and tooltip.
+- **Quantity** is a small number field (3rem; typing works as before). The minus and plus buttons are in the open row at every width. The open row also lists Attunement.
+- **Priority:** Weight and Value are low priority and go first, then Uses; the Qty field, name and the toggles stay longest. Steps: labels to icons 775px, Weight 615px, Value 555px, Uses 490px; the list scrolls sideways below 26rem (416px). At the default list width (about 600px) Qty, Value and Uses show.
+- **Magic:** the pinned Prepare / Cast cell now follows the row's striping and hover (`--agch-row-bg`), as in the other tabs. Nothing else in Magic changed; its markup is identical.
+- Combat and Features are unchanged: Combat keeps the Equipped / Attuned badges beside the name, because the toggles would cost it To hit, Dice or Range.
+- Presentation only: no data changes, no migration. Tests use mocked Foundry and prove markup and CSS text, not the live layout.
+
 ## 0.56.1 — 2026-10-26
 
 The Hub ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. Before, each updated Item woke the Journey recorder and the sheets. No change to saved data.

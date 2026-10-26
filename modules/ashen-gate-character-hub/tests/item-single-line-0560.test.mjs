@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
 import {createHubSheetClass} from '../scripts/sheet.mjs';
-import {COMBAT_PRIORITY, COMBAT_STEPS, INVENTORY_PRIORITY, INVENTORY_STEPS, FEATURES_PRIORITY, FEATURES_STEPS, ITEM_PRIORITY, ITEM_STEPS, ITEM_LAYOUT, ITEM_METRICS, ITEM_MIN_LIST, ITEM_BADGE_STEP, COL_ID} from '../scripts/item-rows.mjs';
+import {INVENTORY_MIN_LIST, COMBAT_PRIORITY, COMBAT_STEPS, INVENTORY_PRIORITY, INVENTORY_STEPS, FEATURES_PRIORITY, FEATURES_STEPS, ITEM_PRIORITY, ITEM_STEPS, ITEM_LAYOUT, ITEM_METRICS, ITEM_MIN_LIST, ITEM_BADGE_STEP, COL_ID} from '../scripts/item-rows.mjs';
 import {dropOrder, rowNeed, ceil5} from '../scripts/compact-rows.mjs';
 import {SPELL_PRIORITY, SPELL_STEPS} from '../scripts/spell-rows.mjs';
 import {HELP_HTML} from '../scripts/help.mjs';
@@ -43,6 +43,7 @@ function actorWith() {
 const setup = (settings = {}, user = users.owner) => installGlobals({user, settings});
 const render = async (tab, pre = s => s) => { const s = new Hub({document: actorWith()}); s.tab = tab; pre(s); const h = await s._renderHTML(); return h.slice(h.indexOf('class="agch-body"')); };
 const rowOf = (b, id) => { const at = b.indexOf(`data-item-id="${id}"`); return b.slice(b.lastIndexOf('<li', at), b.indexOf('</li>', at)); };
+const mainOf = row => row.slice(row.indexOf('<span class="agch-card__main">'), row.indexOf('<span class="agch-card__fact'));
 const lineOf = row => row.slice(0, row.indexOf('<div class="agch-card__detail'));
 const detailOf = row => row.slice(row.indexOf('<div class="agch-card__detail'));
 const actionsOf = row => row.slice(row.indexOf('<span class="agch-item__controls agch-card__actions">'), row.indexOf('<div class="agch-card__detail'));
@@ -53,32 +54,31 @@ const css56 = CSS.slice(CSS.indexOf('/* 0.56.0:'), CSS.indexOf('@media (prefers-
 test('each tab has one ordered priority list: always shown, then optional columns from the longest-lasting to the first to go', () => {
   assert.deepEqual(COMBAT_PRIORITY.always, ['star', 'icon', 'chevron', 'name', 'badges', 'use']);
   assert.deepEqual(COMBAT_PRIORITY.optional, ['tohit', 'dice', 'range', 'uses', 'recovery', 'properties']);
-  assert.deepEqual(INVENTORY_PRIORITY.always, ['fold', 'star', 'icon', 'chevron', 'name', 'badges', 'actions']);
-  assert.deepEqual(INVENTORY_PRIORITY.optional, ['qty', 'value', 'weight', 'uses']);
+  assert.deepEqual(INVENTORY_PRIORITY.always, ['fold', 'star', 'icon', 'chevron', 'name', 'actions']);
+  assert.deepEqual(INVENTORY_PRIORITY.optional, ['qty', 'uses', 'value', 'weight']);
   assert.deepEqual(FEATURES_PRIORITY.always, ['star', 'icon', 'chevron', 'name', 'use']);
   assert.deepEqual(FEATURES_PRIORITY.optional, ['uses', 'recovery', 'activation', 'type']);
   assert.deepEqual(dropOrder(COMBAT_PRIORITY), ['properties', 'recovery', 'uses', 'range', 'dice', 'tohit']);
-  assert.deepEqual(dropOrder(INVENTORY_PRIORITY), ['uses', 'weight', 'value', 'qty']);
+  assert.deepEqual(dropOrder(INVENTORY_PRIORITY), ['weight', 'value', 'uses', 'qty']);
   assert.deepEqual(dropOrder(FEATURES_PRIORITY), ['type', 'activation', 'recovery', 'uses']);
   assert.deepEqual(dropOrder(SPELL_PRIORITY), ['components', 'casting', 'range', 'dice'], 'Magic reads the same way');
   assert.ok(Object.isFrozen(COMBAT_PRIORITY) && Object.isFrozen(COMBAT_PRIORITY.optional) && Object.isFrozen(ITEM_STEPS.combat[0]));
 });
 
 test('steps: columns drop in the reverse of the priority list, widest first, each above the sideways-scroll minimum', () => {
-  const dropped = steps => steps.map(s => s.hides.replace(/^qty-compact$/, 'qty')).filter(h => h !== 'action-labels');
+  const dropped = steps => steps.map(s => s.hides).filter(h => h !== 'action-labels');
   assert.deepEqual(dropped(COMBAT_STEPS), dropOrder(COMBAT_PRIORITY));
-  assert.deepEqual(dropped(INVENTORY_STEPS), dropOrder(INVENTORY_PRIORITY));
+  assert.deepEqual(dropped(INVENTORY_STEPS), dropOrder(INVENTORY_PRIORITY).filter(c => c !== 'qty'), 'Quantity is never dropped from the line');
   assert.deepEqual(dropped(FEATURES_STEPS), dropOrder(FEATURES_PRIORITY));
   assert.equal(INVENTORY_STEPS[0].hides, 'action-labels', 'Inventory first folds its action labels into an icon cluster');
-  assert.equal(INVENTORY_STEPS.at(-1).hides, 'qty-compact', 'Quantity shrinks last, it is never removed from the line');
   for (const t of TABS) {
     const w = ITEM_STEPS[t].map(s => s.width);
     assert.deepEqual(w, [...w].sort((a, b) => b - a), `${t}: widest first`);
     assert.equal(new Set(w).size, w.length, `${t}: distinct`);
-    assert.ok(w.every(x => x > ITEM_MIN_LIST && x % 5 === 0), `${t}: above ${ITEM_MIN_LIST}, whole 5px`);
+    assert.ok(w.every(x => x > (t === 'inventory' ? INVENTORY_MIN_LIST : ITEM_MIN_LIST) && x % 5 === 0), `${t}: above ${ITEM_MIN_LIST}, whole 5px`);
   }
   assert.deepEqual(COMBAT_STEPS.map(s => s.width), [575, 565, 535, 475, 400, 390]);
-  assert.deepEqual(INVENTORY_STEPS.map(s => s.width), [755, 605, 555, 495, 430]);
+  assert.deepEqual(INVENTORY_STEPS.map(s => s.width), [775, 615, 555, 490]);
   assert.deepEqual(FEATURES_STEPS.map(s => s.width), [590, 490, 400, 390]);
   assert.equal(ITEM_MIN_LIST, 384); assert.equal(ITEM_BADGE_STEP, 480);
   assert.deepEqual(ITEM_PRIORITY, {combat: COMBAT_PRIORITY, inventory: INVENTORY_PRIORITY, features: FEATURES_PRIORITY});
@@ -91,15 +91,15 @@ test('the step widths are the track arithmetic: each is at least what the row ne
     for (const s of ITEM_STEPS[t]) {
       const id = COL_ID[s.hides] ?? s.hides;
       // the state just above this step: every earlier column already gone (and labelled actions, until the labels fold)
-      const need = Math.max(...Object.values(L.sets).map(cols => rowNeed({metrics: ITEM_METRICS, lead: L.lead, track: labels ? L.trackLabels : L.track, cols, hidden, widths: {...L.widths}})));
+      const need = Math.max(...Object.values(L.sets).map(cols => rowNeed({metrics: {...ITEM_METRICS, main: L.main ?? ITEM_METRICS.main}, lead: L.lead, track: labels ? L.trackLabels : L.track, cols, hidden, widths: {...L.widths}})));
       assert.ok(s.width >= ceil5(need), `${t}/${s.hides}: ${s.width} >= ${ceil5(need)}`);
       assert.ok(s.width - ceil5(need) < 20 || s.width <= 400, `${t}/${s.hides}: close to the need, or one of the last steps lifted to just above the minimum list width (${s.width} vs ${ceil5(need)})`);
-      if (s.hides === 'action-labels') labels = false; else if (s.hides !== 'qty-compact') hidden.push(id);
+      if (s.hides === 'action-labels') labels = false; else hidden.push(id);
     }
   }
   // the default list area (about 600px): Combat, Features and Inventory show everything up to these columns
   const at600 = steps => steps.filter(s => s.width >= 600).map(s => s.hides);
-  assert.deepEqual(at600(COMBAT_STEPS), []); assert.deepEqual(at600(FEATURES_STEPS), []); assert.deepEqual(at600(INVENTORY_STEPS), ['action-labels', 'uses']);
+  assert.deepEqual(at600(COMBAT_STEPS), []); assert.deepEqual(at600(FEATURES_STEPS), []); assert.deepEqual(at600(INVENTORY_STEPS), ['action-labels', 'weight']);
 });
 
 test('the CSS container queries match the step constants, in order, per tab', () => {
@@ -109,7 +109,6 @@ test('the CSS container queries match the step constants, in order, per tab', ()
     ITEM_STEPS[t].forEach((s, i) => {
       const id = COL_ID[s.hides] ?? s.hides;
       if (s.hides === 'action-labels') { assert.match(found[i].body, /--agch-ic-track: calc\(4 \* var\(--ag-control-h-sm\) \+ 3 \* var\(--ag-space-1\) \+ var\(--ag-space-2\)\)/); assert.match(found[i].body, /agch-act\.ag-btn > span/); }
-      else if (s.hides === 'qty-compact') { assert.match(found[i].body, /--agch-iq-qty: 3\.125rem/); assert.match(found[i].body, /\.agch-qty \.ag-btn \{ display: none; \}/); assert.match(found[i].body, /\.agch-crow__qtyrow \{ display: flex; \}/); }
       else assert.match(found[i].body, new RegExp(`\\.agch-crows--${t} \\.agch-ic-${id} \\{ display: none; \\}`), `${t}: ${s.hides} hidden at ${s.width}`);
     });
   }
@@ -119,16 +118,16 @@ test('the CSS container queries match the step constants, in order, per tab', ()
 
 test('fixed grid templates: every set ends in the actions track; hidden columns leave the template; the min width is 24rem', () => {
   for (const t of TABS) for (const [set, cols] of Object.entries(ITEM_LAYOUT[t].sets)) {
-    const re = new RegExp(`\\.agch-crows--${t}\\.agch-set-${set}\\.agch-cards \\{ grid-template-columns: var\\(--agch-ic-lead\\) var\\(--agch-icon-size\\) minmax\\(5rem, 1fr\\)((?: [\\w.()-]+)*) var\\(--agch-ic-track\\); \\}`, 'g');
+    const re = new RegExp(`\\.agch-crows--${t}\\.agch-set-${set}\\.agch-cards \\{ grid-template-columns: var\\(--agch-ic-lead\\) var\\(--agch-icon-size\\) minmax\\((?:5|9)rem, 1fr\\)((?: [\\w.()-]+)*) var\\(--agch-ic-track\\); \\}`, 'g');
     const all = [...css56.matchAll(re)].map(m => m[1].trim().split(' ').filter(Boolean).length);
     assert.equal(all[0], cols.length, `${t}/${set}: base template has every column`);
     assert.ok(all.every((n, i) => i === 0 || n < all[i - 1]), `${t}/${set}: each step removes tracks`);
-    assert.equal(all.at(-1), cols.filter(c => !ITEM_STEPS[t].some(s => (COL_ID[s.hides] ?? s.hides) === c && s.hides !== 'qty-compact')).length, `${t}/${set}: last template`);
+    assert.equal(all.at(-1), cols.filter(c => !ITEM_STEPS[t].some(s => (COL_ID[s.hides] ?? s.hides) === c)).length, `${t}/${set}: last template`);
   }
   assert.equal(ITEM_MIN_LIST * 1, 24 * 16); assert.match(css56, /\.agch-app \.agch-crows \{ min-width: 24rem; \}/);
   assert.match(css56, /grid-template-columns: var\(--agch-ic-lead\) var\(--agch-icon-size\) minmax\(5rem, 1fr\) 5\.5rem 3rem 4\.5rem 6rem var\(--agch-ic-track\)/, 'Combat weapons: Dice, To hit, Range, Properties');
   assert.match(css56, /--agch-ic-track: calc\(4\.25rem \+ var\(--ag-space-2\)\);/);
-  assert.match(css56, /--agch-ic-track: calc\(4rem \+ 4\.75rem \+ 5rem \+ var\(--ag-control-h-sm\) \+ 3 \* var\(--ag-space-1\) \+ var\(--ag-space-2\)\);/);
+  assert.match(css56, /--agch-ic-track: calc\(4rem \+ 5\.25rem \+ 5\.25rem \+ var\(--ag-control-h-sm\) \+ 3 \* var\(--ag-space-1\) \+ var\(--ag-space-2\)\); min-width: 26rem;/);
   assert.match(css56, /\.agch-crows\.agch-cards > li:not\(\.agch-contents\) \{[^}]*display: grid; grid-template-columns: subgrid;[^}]*padding-inline: var\(--ag-space-2\);/, 'rows are subgrids with inner padding at the right edge');
   assert.doesNotMatch(css56, /flex-wrap: wrap|overflow-x/);
 });
@@ -163,12 +162,12 @@ test('name never wraps: ellipsis and a tooltip; chips are gone from the line', a
   assert.match(rowOf(bow, 'bow'), /\[TEST\] Longbow with a very long name that must stay on one line however narrow the Hub gets<\/button>/);
 });
 
-test('badges on the line: Equipped and Attuned only, icon and word, tooltip; mastery, Not equipped, Effect and rarity are in the open row', async () => {
+test('badges on the line (Combat): Equipped and Attuned only, icon and word, tooltip; mastery, Not equipped, Effect and rarity are in the open row', async () => {
   setup();
   const c = await render('combat'), i = await render('inventory');
   assert.match(lineOf(rowOf(c, 'sw')), /agch-item__badges"><span class="ag-badge ag-badge--accent agch-sbadge" data-tooltip="Equipped"><i class="fa-solid fa-shield-halved" aria-hidden="true"><\/i><span class="agch-sbadge__t"> Equipped<\/span><\/span><\/span>/);
   assert.doesNotMatch(lineOf(rowOf(c, 'bow')), /agch-item__badges/, 'an unequipped weapon has no badge on the line');
-  assert.match(lineOf(rowOf(i, 'cloak')), /Equipped<\/span><\/span><span class="ag-badge ag-badge--accent agch-sbadge" data-tooltip="Attuned"><i class="fa-solid fa-sun" aria-hidden="true"><\/i><span class="agch-sbadge__t"> Attuned/);
+  assert.doesNotMatch(lineOf(rowOf(i, 'cloak')), /agch-sbadge|agch-item__badges/, '0.57.0: Inventory has no badges beside the name; Equipped and Attuned are toggles in the actions');
   const d = detailOf(rowOf(c, 'sw'));
   assert.match(d, /<dt>Mastery<\/dt><dd><span class="ag-badge agch-mastery[^"]*"[^>]*aria-label="[^"]*weapon mastery[^"]*"/);
   assert.match(d, /<dt>Equipped<\/dt><dd>Yes<\/dd>/); assert.match(d, /<dt>Rarity<\/dt><dd>/);
@@ -197,38 +196,49 @@ test('Dice heading: no Damage / Healing anywhere in the item tabs, long or compa
   setup(); assert.match(await render('combat'), /agch-ic-dice">Dice<\/span>/);
 });
 
-test('Inventory actions: four fixed slots in every row (Use, Equip, Attune, Move to stash), empty slots are hidden placeholders', async () => {
+test('Inventory actions: four fixed slots (Use, Equip toggle, Attune toggle, Move to stash); empty slots are hidden placeholders', async () => {
   setup();
   const b = await render('inventory');
   const pot = rowOf(b, 'pot');
-  const kinds = row => [...actionsOf(row).matchAll(/agch-act agch-act--(use|equip|attune|stash)/g)].map(m => m[1]);
+  const kinds = row => [...actionsOf(row).matchAll(/agch-act agch-act--(use|equip|attune|stash)|agch-act agch-tog agch-act--(equip|attune)/g)].map(m => m[1] ?? m[2]);
   for (const id of ['pot', 'cloak', 'ring', 'sw']) if (b.includes(`data-item-id="${id}"`)) assert.deepEqual(kinds(rowOf(b, id)), ['use', 'equip', 'attune', 'stash'], `${id}: the same four slots in the same order`);
   assert.match(actionsOf(pot), /agch-use agch-act agch-act--use" data-action="item-use" data-id="pot"[^>]*aria-label="Use \[TEST\] Potion"/);
-  assert.match(actionsOf(pot), /<span class="agch-act agch-act--equip" aria-hidden="true"><\/span><span class="agch-act agch-act--attune" aria-hidden="true"><\/span>/, 'a potion has no Equip or Attune: placeholders keep the stash button in its column');
-  const cloak = actionsOf(rowOf(b, 'cloak'));
-  assert.match(cloak, /<span class="agch-act agch-act--use" aria-hidden="true"><\/span>/);
-  assert.match(cloak, /ag-btn--primary agch-act agch-act--equip" data-action="item-unequip" data-id="cloak" data-tooltip="Unequip \[TEST\] Cloak" aria-label="Unequip \[TEST\] Cloak"><i class="fa-solid fa-hand" aria-hidden="true"><\/i><span>Unequip<\/span>/);
-  assert.match(cloak, /agch-act agch-act--attune" data-action="item-attune" data-id="cloak" data-attuned="0" data-tooltip="Unattune \[TEST\] Cloak \(requires attunement\)" aria-label="Unattune \[TEST\] Cloak"><i class="fa-solid fa-moon" aria-hidden="true"><\/i><span>Unattune<\/span>/);
-  const ring = actionsOf(rowOf(b, 'ring'));
-  assert.match(ring, /fa-shield-halved" aria-hidden="true"><\/i><span>Equip<\/span>/); assert.match(ring, /data-tooltip="Attune \[TEST\] Ring \(attunement optional\)"/);
-  // every button is a labelled control even when the label is visually hidden: it has an aria-label and a tooltip
+  assert.match(actionsOf(pot), /<span class="agch-act agch-act--equip" aria-hidden="true"><\/span><span class="agch-act agch-act--attune" aria-hidden="true"><\/span>/, 'a potion has no Equip or Attune: placeholders keep the stash slot in its column');
+  const cloak = actionsOf(rowOf(b, 'cloak')), ring = actionsOf(rowOf(b, 'ring'));
+  assert.match(cloak, /<button type="button" class="ag-btn ag-btn--primary agch-act agch-tog agch-act--equip is-on" data-action="item-unequip" data-id="cloak" data-tooltip="Unequip \[TEST\] Cloak" aria-label="Equipped \[TEST\] Cloak" aria-pressed="true"><i class="fa-solid fa-shield-halved" aria-hidden="true"><\/i><span>Equipped<\/span><\/button>/);
+  assert.match(cloak, /<button type="button" class="ag-btn ag-btn--primary agch-act agch-tog agch-act--attune is-on" data-action="item-attune" data-id="cloak" data-attuned="0" data-tooltip="End attunement to \[TEST\] Cloak \(requires attunement\)" aria-label="Attuned \[TEST\] Cloak" aria-pressed="true"><i class="fa-solid fa-sun" aria-hidden="true"><\/i><span>Attuned<\/span>/);
+  assert.match(ring, /<button type="button" class="ag-btn ag-btn--sm agch-act agch-tog agch-act--equip" data-action="item-equip" data-id="ring" data-tooltip="Equip \[TEST\] Ring" aria-label="Equip \[TEST\] Ring" aria-pressed="false"><i class="fa-solid fa-shield-halved" aria-hidden="true"><\/i><span>Equip<\/span>/);
+  assert.match(ring, /data-action="item-attune" data-id="ring" data-attuned="1" data-tooltip="Attune to \[TEST\] Ring \(attunement optional\)" aria-label="Attune \[TEST\] Ring" aria-pressed="false"/);
+  // same size in both states: one fixed width, one font, whatever the word or fill
+  assert.match(css56, /\.agch-act--equip, \.agch-app \.agch-crows \.agch-act--attune \{ width: 5\.25rem; \}/);
+  assert.match(css56, /\.agch-crows \.agch-tog\.ag-btn \{ min-height: var\(--ag-control-h-sm\); padding-block: 0; font: 500 var\(--ag-text-sm\)\/1\.25 var\(--ag-font-body\); \}/);
   for (const part of [cloak, ring, actionsOf(pot)]) for (const m of part.matchAll(/<button [^>]*>/g)) { assert.match(m[0], /aria-label="[^"]+"/); assert.match(m[0], /data-tooltip="[^"]+"/); }
-  // icon mode: the label span is visually hidden at the first step; the buttons are at least control-h-sm wide
+  // icon mode: the word is visually hidden at the first step; the toggles keep aria-pressed, the label and the tooltip
   const icons = css56.slice(css56.indexOf(`max-width: ${INVENTORY_STEPS[0].width}px`));
   assert.match(icons, /\.agch-act \{ width: var\(--ag-control-h-sm\); \}/);
-  assert.match(icons, /agch-use > span \{ position: absolute; width: 1px; height: 1px;/);
+  assert.match(icons, /agch-act\.ag-btn > span, [^{]*agch-use > span \{ position: absolute; width: 1px; height: 1px;/);
   assert.match(css56, /\.agch-crows span\.agch-act \{ display: block; min-height: var\(--ag-control-h-sm\); visibility: hidden; \}/);
 });
 
-test('Inventory quantity: minus, field and plus on the line; minus and plus are also in the open row, shown only at the narrowest step', async () => {
+test('Inventory quantity: only the number field on the line; minus and plus are in the open row at every width', async () => {
   setup();
   const b = await render('inventory');
   const line = lineOf(rowOf(b, 'pot'));
-  assert.match(line, /data-label="Qty"><span class="agch-qty"><button[^>]*data-action="item-qty" data-id="pot" data-step="-1"[\s\S]*data-edit="item-qty" data-id="pot" value="3"[\s\S]*data-action="item-qty" data-id="pot" data-step="1"/);
-  const d = detailOf(rowOf(b, 'pot'));
-  assert.match(d, /<div class="agch-crow__qtyrow"><span>Quantity<\/span><button[^>]*data-action="item-qty" data-id="pot" data-step="-1"[^>]*aria-label="One fewer \[TEST\] Potion"[\s\S]*data-step="1"[^>]*aria-label="One more \[TEST\] Potion"/);
-  assert.match(css56, /\.agch-crow__qtyrow \{ display: none; align-items: center;/);
-  assert.doesNotMatch(b, /fact--late/);
+  assert.match(line, /data-label="Qty"><span class="agch-qty"><input type="number" min="0" step="1" data-edit="item-qty" data-id="pot" value="3" aria-label="\[TEST\] Potion quantity"><\/span>/);
+  assert.doesNotMatch(line, /data-action="item-qty"/, 'no stepper on the line');
+  assert.match(detailOf(rowOf(b, 'pot')), /<div class="agch-crow__qtyrow"><span>Quantity<\/span><button[^>]*data-action="item-qty" data-id="pot" data-step="-1"[^>]*aria-label="One fewer \[TEST\] Potion"[\s\S]*data-step="1"[^>]*aria-label="One more \[TEST\] Potion"/);
+  assert.match(css56, /\.agch-crow__qtyrow \{ display: flex; align-items: center;/, 'shown at every width');
+  assert.match(css56, /\.agch-crows \.agch-qty input \{ width: 3rem;/);
+  assert.doesNotMatch(css56, /qty-compact|iq-qty/);
+});
+
+test('the name keeps a generous minimum and nothing sits beside it in Inventory', async () => {
+  setup();
+  const b = await render('inventory');
+  for (const id of ['sw', 'pot', 'cloak', 'ring']) if (b.includes(`data-item-id="${id}"`)) assert.doesNotMatch(mainOf(rowOf(b, id)), /agch-item__badges/, id);
+  assert.match(css56, /--agch-ic-lead\) var\(--agch-icon-size\) minmax\(9rem, 1fr\) 3rem 3\.5rem 4rem 3rem var\(--agch-ic-track\)/, 'Inventory: name at least 9rem, planned 11rem; Qty 3rem, Weight, Value, Uses');
+  assert.equal(ITEM_LAYOUT.inventory.main, 176); assert.equal(INVENTORY_MIN_LIST, 416);
+  assert.match(css56, /--agch-ic-track: [^;]*; min-width: 26rem; \}/);
 });
 
 test('container fold toggle, star and nested contents list keep working in the new grid', async () => {
@@ -284,11 +294,18 @@ test('Magic is unchanged: its priority, its steps and none of the item classes',
   assert.match(CSS, /@container agch-body \(max-width: 680px\) \{\n  \.agch-app \.agch-spells \.agch-sp-comps/);
 });
 
+test('Magic: only its pinned actions background changed (follows striping and hover through --agch-row-bg)', () => {
+  assert.match(CSS, /\.agch-app \.agch-spells \.agch-card__actions \{[^}]*position: sticky; inset-inline-end: 0; z-index: 1; background: var\(--agch-row-bg\); \}/);
+  assert.match(CSS, /\.agch-spells\.agch-cards > li:not\(\.agch-card__headrow\) \{ --agch-row-bg: var\(--ag-surface\); background: var\(--agch-row-bg\); \}/);
+  assert.match(CSS, /\.agch-spells\.agch-cards > li\.is-alt \{ --agch-row-bg: color-mix\(in srgb, var\(--ag-text\) 5%, var\(--ag-surface\)\); \}/);
+  assert.match(CSS, /\.agch-spells\.agch-cards > li:not\(\.agch-card__headrow\):hover \{ --agch-row-bg: var\(--ag-surface-hover\); \}/);
+});
+
 test('README, Help and CHANGELOG describe the single line, the priorities and the steps', () => {
-  assert.match(CHANGELOG, /^## 0\.56\.0/m);
+  assert.match(CHANGELOG, /^## 0\.57\.0/m);
   assert.match(README, /single line since 0\.56\.0/);
   assert.match(README, /Properties at 575px[\s\S]*Recovery at 565px[\s\S]*Uses at 535px[\s\S]*Range at 475px[\s\S]*Dice at 400px[\s\S]*To hit at 390px/);
-  assert.match(README, /icons at 755px[\s\S]*Uses at 605px[\s\S]*Weight at 555px[\s\S]*Value at 495px[\s\S]*Quantity at 430px/);
+  assert.match(README, /icons at 775px[\s\S]*Weight at 615px[\s\S]*Value at 555px[\s\S]*Uses at 490px/);
   assert.match(README, /Type at 590px[\s\S]*Use time at 490px[\s\S]*Recovery at 400px[\s\S]*Uses at 390px/);
   assert.match(HELP_HTML, /Combat, Inventory and Features[\s\S]*exactly one line/);
 });

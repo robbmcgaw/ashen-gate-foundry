@@ -137,17 +137,22 @@ function purseHtml(ctx, d) {
 
 function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   const {actor, editable, sheet} = ctx, off = !editable, toParty = partyStashUsable(), expanded = sheet?.expanded;
-  const qty = {...C.quantity, fact: r => String(r.quantity), render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
+  const qtyField = r => `<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>`;
+  const stepBtns = r => `${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}`;
   const compact = !showItemDescriptions(), list = itemListFn(compact, 'inventory');
+  // 0.57.0: on the one-line row Quantity is just the number field (typing works as before); minus and plus are in the open row at every width.
+  const qty = {...C.quantity, fact: r => String(r.quantity), render: r => compact ? `<span class="agch-qty">${qtyField(r)}</span>` : `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${qtyField(r)}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
   const columns = itemCols([qty, C.weight, C.value, C.uses], compact);
   // 0.56.0: the one-line rows give each action a fixed slot (Use, Equip / Unequip, Attune, Move to stash), empty when it does not apply,
   // so the buttons line up in every row. They are labelled when the Hub is wide and an icon cluster (aria-label and tooltip kept) below that.
   const slot = k => `<span class="agch-act agch-act--${k}" aria-hidden="true"></span>`;
-  const iconBtn = (action, label, icon, o) => btn(action, label, {...o, icon: `fa-solid ${icon}`, extra: `agch-act agch-act--${o.slot}`});
+  // 0.57.0: Equip / Equipped and Attune / Attuned are toggle buttons in the pinned track, like Magic's Prepare / Prepared: the same size
+  // in both states, gold fill and the word (Equipped, Attuned) when on, aria-pressed always; icon-only below the label step.
+  const toggle = (action, on, word, onWord, icon, slotName, r, data, tip) => btn(action, on ? onWord : word, {kind: on ? 'primary' : 'sm', extra: `agch-act agch-tog agch-act--${slotName}${on ? ' is-on' : ''}`, icon: `fa-solid ${icon}`, data, title: tip, aria: `${on ? onWord : word} ${r.name}`, pressed: on, disabled: off});
   const controls = r => compact ? [
     r.usable && r.type === 'consumable' ? useBtn(r, off, true) : slot('use'),
-    r.equippable ? iconBtn(r.equipped ? 'item-unequip' : 'item-equip', r.equipped ? 'Unequip' : 'Equip', r.equipped ? 'fa-hand' : 'fa-shield-halved', {slot: 'equip', kind: r.equipped ? 'primary' : 'sm', data: {id: r.id}, title: `${r.equipped ? 'Unequip' : 'Equip'} ${r.name}`, disabled: off}) : slot('equip'),
-    r.canAttune ? iconBtn('item-attune', r.attuned ? 'Unattune' : 'Attune', r.attuned ? 'fa-moon' : 'fa-sun', {slot: 'attune', kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: `${r.attuned ? 'Unattune' : 'Attune'} ${r.name}${r.attunement === 'optional' ? ' (attunement optional)' : ' (requires attunement)'}`, disabled: off}) : slot('attune'),
+    r.equippable ? toggle(r.equipped ? 'item-unequip' : 'item-equip', r.equipped, 'Equip', 'Equipped', 'fa-shield-halved', 'equip', r, {id: r.id}, `${r.equipped ? 'Unequip' : 'Equip'} ${r.name}`) : slot('equip'),
+    r.canAttune ? toggle('item-attune', r.attuned, 'Attune', 'Attuned', 'fa-sun', 'attune', r, {id: r.id, attuned: r.attuned ? 0 : 1}, `${r.attuned ? 'End attunement to' : 'Attune to'} ${r.name}${r.attunement === 'optional' ? ' (attunement optional)' : ' (requires attunement)'}`) : slot('attune'),
     toParty ? btn('item-deposit', '', {kind: 'sm', extra: 'agch-act agch-act--stash', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : slot('stash')
   ].join('') : [
     r.usable && r.type === 'consumable' ? useBtn(r, off) : '',
@@ -155,11 +160,10 @@ function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
     r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
     toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
-  // The quantity's minus and plus also live in the open row; they show only at the narrowest step, when the line keeps just the number field.
-  const qtyRow = r => `<div class="agch-crow__qtyrow"><span>Quantity</span>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</div>`;
+  const qtyRow = r => `<div class="agch-crow__qtyrow"><span>Quantity</span>${stepBtns(r)}</div>`;
   const card = r => ({iconUse: !off, controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off),
-    badges: compact ? `${equippedBadgeCompact(r)}${attunedBadgeCompact(r)}` : `${masteryBadge(r)}${attunedBadge(r)}`,
-    extraFacts: itemExtraFacts(r), ...(compact ? {detailExtra: qtyRow(r)} : {})});
+    badges: compact ? '' : `${masteryBadge(r)}${attunedBadge(r)}`,
+    extraFacts: [...itemExtraFacts(r), ...(r.canAttune ? [['Attunement', r.attuned ? 'Attuned' : r.attunement === 'optional' ? 'Optional, not attuned' : 'Required, not attuned']] : [])], ...(compact ? {detailExtra: qtyRow(r)} : {})});
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${list(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`, nested: true})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), list(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
