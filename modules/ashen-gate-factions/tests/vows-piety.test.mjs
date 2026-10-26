@@ -97,3 +97,8 @@ test('Vow UI: accessible toggle on the first rank card, status line, embed line'
   assert.match(src,/Swear a Vow to \$\{names\(deityId\)\}\? This ends your Vow to \$\{names\(cur\.deity_id\)\}\./);
   assert.match(src,/i===0&&info\.show&&m\.unlocked/);assert.match(src,/Vow: \$\{esc\(g\.name\)\}/);assert.match(src,/static async breakVow\(e,t\)\{try\{\s*assertGM\(\)/);
 });
+
+test('0.19.1: deity notifications and errors say Piety, factions keep Renown',()=>{
+  assert.match(src,/\$\{isDeity\(f\)\?'Piety':'Renown'\}: \$\{result\.before\}/);
+  assert.match(src,/\$\{isDeity\(f\)\?'Piety':'Renown'\} no longer qualifies/);
+});
