@@ -142,7 +142,15 @@ export async function togglePreparedAsk(actor, id, {ask = askPrepareLimit} = {})
 }
 
 /** dnd5e's own favourite id for an item on its actor (a relative UUID, ".Item.<id>"). */
-export const favoriteId = (actor, item) => (typeof item?.getRelativeUUID === 'function' ? item.getRelativeUUID(actor) : null) ?? `.Item.${item?.id}`;
+// 0.54.1: V14 deprecates ClientDocument#getRelativeUUID (removed in V16) for foundry.utils.buildRelativeUuid; use the new one when it exists.
+export const favoriteId = (actor, item) => {
+  try {
+    const build = globalThis.foundry?.utils?.buildRelativeUuid;
+    if (typeof build === 'function') { const id = build(item, actor); if (typeof id === 'string' && id) return id; }
+    else if (typeof item?.getRelativeUUID === 'function') { const id = item.getRelativeUUID(actor); if (typeof id === 'string' && id) return id; }
+  } catch { /* fall through to the plain form */ }
+  return `.Item.${item?.id}`;
+};
 /** True when this dnd5e version keeps favourites on the character (system.favorites, dnd5e 3+). */
 export const favoritesSupported = actor => typeof actor?.system?.addFavorite === 'function' && typeof actor?.system?.removeFavorite === 'function';
 export const isFavorite = (actor, item) => {
