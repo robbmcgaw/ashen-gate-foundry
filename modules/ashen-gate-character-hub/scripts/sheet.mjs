@@ -18,6 +18,7 @@ import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
 import {toggleSection, isCollapsed} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
+import {originDefault} from './feature-origin.mjs';
 import {changeArt} from './art.mjs';
 import * as journey from './journey.mjs';
 import {journeyActor, JOURNEY_VIEWS} from './journey-views.mjs';
@@ -504,7 +505,7 @@ export const EDITS = {
   'spell-descriptions': async (s, i) => { const r = await setShowDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
   'item-descriptions': async (s, i) => { const r = await setShowItemDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
   'prep-enforce': async (s, i) => { const r = await setEnforcement(i.checked === true); if (!r?.ok) s.render(); return r; },
-  'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; },
+  'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value, i.dataset.tab === 'features' ? {group: originDefault(s.document)} : {}); if (r.ok) s.render(); return r; },
   'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; },
   // The Conditions strip's list: remembered while the Hub is open, no redraw (Apply reads it).
   'cond-pick': (s, i) => { s.condPick = i.value || ''; return null; }

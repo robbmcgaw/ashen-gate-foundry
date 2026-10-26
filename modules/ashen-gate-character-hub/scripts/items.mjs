@@ -168,7 +168,7 @@ export function spellsData(actor) {
 export function featureSource(actor, item) {
   const origin = item.flags?.dnd5e?.advancementOrigin ?? (typeof item.getFlag === 'function' ? item.getFlag('dnd5e', 'advancementOrigin') : null);
   const granting = origin ? actor.items?.get?.(String(origin).split('.')[0]) : null;
-  return granting ? {sourceId: granting.id, sourceName: granting.name} : {sourceId: '', sourceName: ''};
+  return granting ? {sourceId: granting.id, sourceName: granting.name, sourceType: granting.type} : {sourceId: '', sourceName: '', sourceType: ''};
 }
 
 export function featuresData(actor) {

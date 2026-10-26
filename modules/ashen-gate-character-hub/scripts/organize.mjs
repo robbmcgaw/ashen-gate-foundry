@@ -19,8 +19,10 @@ export const ORGANIZE = {
   },
   features: {
     // 'activation' keeps its pre-0.14.0 key; it now groups by dnd5e's activation type.
-    groups: [['type', 'Feature type'], ['activation', 'Action type'], ['source', 'Source'], ['uses', 'Uses'], ['none', 'No groups']],
-    sorts: [['name', 'Name'], ['type', 'Type'], ['uses', 'Has uses first'], ['action', 'Action type']]
+    groups: [['origin', 'Origin'], ['type', 'Feature type'], ['activation', 'Action type'], ['source', 'Source'], ['uses', 'Uses'], ['none', 'No groups']],
+    sorts: [['name', 'Name'], ['type', 'Type'], ['action', 'Action type'], ['uses', 'Has uses first'], ['remaining', 'Uses remaining']],
+    // 0.58.0: Origin is the first choice, but the default stays Feature type unless the character has profession or Cinder features (featuresTab passes that in).
+    defaults: {group: 'type'}
   }
 };
 
@@ -58,26 +60,27 @@ export function registerListSortSetting(settings) {
 }
 
 /** {group, sort} for a tab, always valid. */
-export function listChoice(tab) {
+export function listChoice(tab, defaults = {}) {
   const o = ORGANIZE[tab];
   let v = null;
   try { v = globalThis.game?.settings?.get?.(MODULE_ID, LIST_SORT_SETTING)?.[tab]; } catch { v = null; }
-  const pick = (list, value) => list.some(([k]) => k === value) ? value : list[0][0];
-  return {group: pick(o.groups, v?.group), sort: pick(o.sorts, v?.sort)};
+  const pick = (list, value, field) => list.some(([k]) => k === value) ? value : list.some(([k]) => k === defaults[field]) ? defaults[field] : o.defaults?.[field] ?? list[0][0];
+  return {group: pick(o.groups, v?.group, 'group'), sort: pick(o.sorts, v?.sort, 'sort')};
 }
 
-export async function setListChoice(tab, field, value) {
+export async function setListChoice(tab, field, value, defaults = {}) {
   const o = ORGANIZE[tab];
   if (!o || !['group', 'sort'].includes(field)) return {ok: false, error: 'Unknown list choice.'};
   const list = field === 'group' ? o.groups : o.sorts;
   if (!list.some(([k]) => k === value)) return {ok: false, error: 'Unknown list choice.'};
   let all = {};
   try { const cur = globalThis.game?.settings?.get?.(MODULE_ID, LIST_SORT_SETTING); all = cur && typeof cur === 'object' && !Array.isArray(cur) ? cur : {}; } catch { all = {}; }
-  const next = {...all, [tab]: {...listChoice(tab), [field]: value}};
+  const next = {...all, [tab]: {...listChoice(tab, defaults), [field]: value}};
   try { await globalThis.game?.settings?.set?.(MODULE_ID, LIST_SORT_SETTING, next); } catch (err) { console.warn(`${MODULE_ID} | list choice not saved`, err); }
   return {ok: true, result: next[tab]};
 }
 
+const remainingRank = r => !r.uses ? 2 : r.uses.value > 0 ? 0 : 1;
 const byName = (a, b) => String(a.name).localeCompare(String(b.name));
 const COMPARE = {
   name: byName,
@@ -86,6 +89,8 @@ const COMPARE = {
   prepared: (a, b) => Number(!!(b.always || b.prepared)) - Number(!!(a.always || a.prepared)) || (a.level ?? 0) - (b.level ?? 0) || byName(a, b),
   type: (a, b) => String(a.typeLabel ?? a.facts?.type ?? '').localeCompare(String(b.typeLabel ?? b.facts?.type ?? '')) || byName(a, b),
   uses: (a, b) => Number(!!b.uses) - Number(!!a.uses) || byName(a, b),
+  // 0.58.0: features with uses left first (most left first), then spent ones, then features without uses.
+  remaining: (a, b) => remainingRank(a) - remainingRank(b) || (b.uses?.value ?? 0) - (a.uses?.value ?? 0) || byName(a, b),
   equipped: (a, b) => Number(!!b.equipped) - Number(!!a.equipped) || byName(a, b),
   ritual: (a, b) => Number(!!b.facts?.ritual) - Number(!!a.facts?.ritual) || (a.level ?? 0) - (b.level ?? 0) || byName(a, b),
   action: (a, b) => actionRank(a.actType) - actionRank(b.actType) || byName(a, b)
