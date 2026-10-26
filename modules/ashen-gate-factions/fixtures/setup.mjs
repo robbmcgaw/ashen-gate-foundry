@@ -1,6 +1,7 @@
 /** Disposable real Foundry documents for AG Factions acceptance. Not canon or a demo mode.
  * Import after `ready` using `await import('/modules/ashen-gate-factions/fixtures/setup.mjs')`.
  */
+import {factionsFolder} from '../scripts/folder-nesting.mjs';
 import {MODULE_ID,makeFaction,makeGroupRecord,makePersonalRecord,blankStanding,adjustStanding,sourceDefinition,extractCampaignDiscovery,fieldDisclosure,revealField} from '../scripts/core.mjs';
 export const FIXTURE='AG-FACTIONS-PLAYTEST-2026-10-17';
 const gameSafe=()=>{if(!game?.user?.isGM)throw Error('GM-only test fixture.');const mod=game.modules.get(MODULE_ID);if(!mod?.active||typeof mod.api?.refreshPlayerViews!=='function')throw Error('Install/enable Factions v0.6.0 or later before setup.');return mod;};
@@ -23,8 +24,7 @@ export async function setup(){const mod=gameSafe(),players=game.users.filter(u=>
   const readableNote=await fixed(JournalEntry,{name:'QA — Open Route Notes',ownership:{default:NONE,[p1.id]:OBS},pages:[{name:'Western Grasslands',type:'text',text:{content:'The return path runs alongside a wind-bent milestone. This is a fictional test route.'}}]});
   const restrictedNote=await fixed(JournalEntry,{name:'QA — GM Restricted Contact',ownership:owned,pages:[{name:'Private',type:'text',text:{content:'GM test secret: a contact has vanished.'}}]});
   const rewardItem=await fixed(Item,{name:'QA — Scout Charm',type:'loot',ownership:owned,system:{description:{value:'A harmless illustrative charm; no automation or approved game balance.'}}});
-  let folder=game.folders.find(d=>d.type==='JournalEntry'&&d.getFlag?.(MODULE_ID,'storageFolder')===true);
-  if(!folder)folder=await Folder.create({name:'Ashen Gate — Factions Data',type:'JournalEntry',sorting:'a',flags:{[MODULE_ID]:{storageFolder:true}}});
+  const folder=await factionsFolder();
   const created=[];
   const addFaction=async({key,name,leader,role,party=false,actorIds=[],placeholder=false,groupScore=0,reveal=null,entries=[],rewards=[],refs=[]})=>{
     const faction=makeFaction({id:`FACTION-PLAYTEST-${key}`,trackId:`RENOWN-PLAYTEST-${key}`,name,leader,public_role:role,source:`Synthetic fixture ${FIXTURE}`});

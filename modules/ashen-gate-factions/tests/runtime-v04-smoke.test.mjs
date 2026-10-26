@@ -11,7 +11,7 @@ let ctr=1;
 globalThis.foundry={applications:{api:{ApplicationV2:V2,HandlebarsApplicationMixin:C=>C}},utils:{randomID:()=>String(ctr++).padStart(24,'A')}};
 const journal=[];journal.get=id=>journal.find(d=>d.id===id);
 const folders=[];let folderCreates=0;
-globalThis.Folder={create:async data=>{folderCreates++;const f={id:'F'+folderCreates,name:data.name,type:data.type,flags:structuredClone(data.flags??{}),getFlag(mod,key){return this.flags[mod]?.[key]}};folders.push(f);return f;}};
+globalThis.Folder={create:async data=>{folderCreates++;const f={id:'F'+folderCreates,name:data.name,type:data.type,folder:data.folder??null,flags:structuredClone(data.flags??{}),getFlag(mod,key){return this.flags[mod]?.[key]}};folders.push(f);return f;}};
 
 let count=0;
 function makeDoc(data){const doc={id:'J'+(++count),name:data.name,folder:data.folder??null,flags:structuredClone(data.flags??{}),ownership:structuredClone(data.ownership??{default:0}),
@@ -46,9 +46,9 @@ await new Promise(r=>setTimeout(r,30));
 const groupIron=journal.find(d=>d.getFlag(ns,'groupClaims')?.faction_id==='FACTION-IRON');
 const groupSecret=journal.find(d=>d.getFlag(ns,'groupClaims')?.faction_id==='FACTION-SECRET');
 const view1=journal.find(d=>d.getFlag(ns,'playerView')?.user_id==='p1'),view2=journal.find(d=>d.getFlag(ns,'playerView')?.user_id==='p2');
-const store=folders.find(f=>f.getFlag(ns,'storageFolder')===true);
-test(store?.type==='JournalEntry','dedicated JournalEntry storage folder created');
-test(folderCreates===1,'dedicated folder created once');
+const store=folders.find(f=>f.name==='Factions Data');
+test(store?.type==='JournalEntry'&&folders.find(f=>f.id===store.folder)?.name==='Ashen Gate','Factions Data Journal folder created under Ashen Gate');
+test(folderCreates===2,'Ashen Gate and Factions Data created once each');
 test(journal.filter(d=>d.getFlag(ns,'faction')||d.getFlag(ns,'groupClaims')||d.getFlag(ns,'individual')||d.getFlag(ns,'folderIndex')||d.getFlag(ns,'playerView')).every(d=>d.folder===store.id),'all existing and new module Journals moved to storage folder');
 test(unrelated.folder==='MY-GM-FOLDER','unrelated Journal folder unchanged');
 test(groupIron===claimsOld,'old group state doc reused');

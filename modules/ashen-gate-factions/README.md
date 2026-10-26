@@ -2,6 +2,8 @@
 
 Formerly **Factions & Renown**. Only the display name changed: the module id is still `ashen-gate-factions`, and settings, flags, API, import schema and saved data are unchanged.
 
+**Sidebar folders.** Renown keeps its documents under **Ashen Gate / Factions Data** (Journals) with snapshots in **Ashen Gate / Backups**; see docs/folder-convention.md.
+
 Module ID `ashen-gate-factions` · Foundry V14 · dnd5e. Factions with group Renown, per-character Renown, discovery, rewards and service requests. Open it from **Actors sidebar → Renown** (players when **GM Setup → Player access** is on).
 
 ## Tabs

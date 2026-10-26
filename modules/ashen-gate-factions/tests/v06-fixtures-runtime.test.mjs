@@ -11,7 +11,7 @@ class JournalEntry{}JournalEntry.documentName='JournalEntry';class Actor{}Actor.
 for(const [c,a] of [[JournalEntry,journal],[Actor,actors],[Item,items]])setupDoc(c,a);
 globalThis.JournalEntry=JournalEntry;globalThis.Actor=Actor;globalThis.Item=Item;
 globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0,OBSERVER:2,OWNER:3}};
-globalThis.Folder={create:async data=>{const d={...data,id:`F${folders.length}`,getFlag(mod,key){return this.flags?.[mod]?.[key]}};folders.push(d);return d;}};
+globalThis.Folder={create:async data=>{const d={...data,folder:data.folder??null,id:`F${folders.length}`,getFlag(mod,key){return this.flags?.[mod]?.[key]}};folders.push(d);return d;}};
 globalThis.game={user:gm,users,journal,actors,items,folders,modules:{get:()=>mod}};
 const {setup,reset,FIXTURE}=await import('../fixtures/setup.mjs');
 test('Fixture refuses missing second real user without any world mutations',async()=>{
@@ -22,7 +22,7 @@ test('Fixture creates real Foundry-shaped owned Actors, linked Journals, Item, a
  users.push(p2);
  const result=await setup();assert.equal(result.tag,FIXTURE);
  assert.equal(actors.length,2);assert.equal(items.length,1);assert.equal(journal.length,14);
- assert.equal(folders.length,1);assert.equal(actors[0].ownership.p1,3);assert.equal(actors[1].ownership.p2,3);
+ assert.equal(folders.length,2);assert.equal(actors[0].ownership.p1,3);assert.equal(actors[1].ownership.p2,3);
  assert.equal(journal.filter(d=>d.getFlag(moduleId,'faction')).length,3);
  assert.equal(journal.filter(d=>d.getFlag(moduleId,'groupClaims')).length,3);
  assert.equal(journal.filter(d=>d.getFlag(moduleId,'individual')).length,6);
