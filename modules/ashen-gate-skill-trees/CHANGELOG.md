@@ -1,3 +1,10 @@
+## 0.24.1 — 2026-10-26
+
+Wording fix. No behaviour or saved data changed.
+
+- **Honest wording about the player view.** Earlier notes (0.23.3) said other trees were hidden and "enforced in the data and API layer". To be exact: the windows and the API filter trees by character, and GM-only nodes are left out of the published copy, but the published copy is stored in a world setting and a technically minded player can read it from the browser console. That is fine for this table. README, Help and the module description now say so.
+- Module description rewritten in plain words (no internal contract names).
+
 ## 0.24.0 — 2026-10-26
 
 The GM-only definitions journal is filed in **Ashen Gate / Skill Trees** instead of loose at the top of the Journal sidebar. On the first GM login after updating, Skill Trees moves its own loose journal there; one you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.

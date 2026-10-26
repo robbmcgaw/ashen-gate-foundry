@@ -25,7 +25,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.24.0';
+const VERSION='0.24.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -209,7 +209,7 @@ const publishedPayload=trees=>{defIndex=buildDefinitionIndex(game);try{return {s
 async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
   if(gmPrivate())return gmPrivate();
-  if(!await confirm('Create a GM-only Journal for private tree definitions?\nThe public player view receives separately sanitized snapshots. No old v0.1 data or Actor progress will be changed.',{title:'Create the private tree journal?',yes:'Create journal'}))return null;
+  if(!await confirm('Create a GM-only Journal for private tree definitions?\nPlayers get a separate, trimmed copy of each tree. No old v0.1 data or Actor progress will be changed.',{title:'Create the private tree journal?',yes:'Create journal'}))return null;
   return createStore();
 }
 /** Creates the module's own GM-only definitions Journal (no player access). Also used by the Manager import. */
@@ -1191,7 +1191,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <li><strong>Edit</strong> (GM): with Edit layout on, Tree settings, Appearance, Undo/Redo and the Perks list.</li></ul>
       <p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p>
       <h3>Editing a tree (GM)</h3><p>Turn on <strong>Edit layout</strong> above the canvas. Add perks from the Edit tab (drag, or press Add). Move a node by dragging it, by focusing it and using the arrow keys (Shift for bigger steps), or with Move node. <strong>Connect prerequisite</strong> adds a required arrow; Esc or Cancel connecting stops. <strong>Player preview</strong> shows what the chosen character sees: players see only the trees their character holds (a profession in the Profession Ledger, a bound Cinder, or points you awarded), plus any tree where they already bought a perk.</p>
-      <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree in folders by type (Crafting, Gathering, Cinder powers and so on) with a count each; open or close a folder to remember it. Search, Sort, Folders and Filters narrow the list. Each tree has Open and Export; Export all trees and New tree are at the top. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager.</p>
+      <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree in folders by type (Crafting, Gathering, Cinder powers and so on) with a count each; open or close a folder to remember it. Search, Sort, Folders and Filters narrow the list. Each tree has Open and Export; Export all trees and New tree are at the top. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager. The published player copy is kept in a world setting: the windows and API show players only their own character's trees, but a player who opens the browser console can read the raw copy.</p>
       <h3>GM Setup</h3><p>Player access (saved with Save Changes) and Developer Tools.</p>
       <h3>Profession trees</h3><p>Profession trees get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again: the banner’s <strong>Review</strong> button (or the whisper’s) lists them, to keep or remove each.</p>
       <h3>Professions with several trees</h3><p>A profession can have more than one tree (for example one per craft). Its trees share one wallet: 1 point per profession level, 16 at most, whichever tree the points go into. The Tree list shows the profession once; the tabs below it switch between its trees, and the Character tab shows how many points each tree uses. A tree can ask for a tool or skill proficiency: players without one can browse it but not pick from it (the Profession Ledger checks it); the GM can still unlock and grant.</p>`);
