@@ -150,6 +150,10 @@
 .agl-tree--root { padding-left: 0; }
 .agl-tree__row { display: flex; align-items: center; gap: var(--ag-space-1); border: 1px dashed transparent; border-radius: var(--ag-radius); }
 .agl-tree__row .agl-row { flex: 1; min-width: 0; border-radius: var(--ag-radius-sm); }
+/* Deep nesting: a smaller indent from the third level down, and the badge and counts drop under the name instead of squeezing it to a few letters per line. */
+.agl-tree .agl-tree .agl-tree { padding-left: var(--ag-space-2); }
+.agl-tree__row .agl-row { flex-wrap: wrap; row-gap: 0; }
+.agl-tree__row .agl-row .ag-row__main { flex: 1 1 7rem; }
 .agl-tree__toggle { flex: 0 0 var(--ag-control-h-sm); width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); min-height: 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--ag-muted); cursor: pointer; }
 .agl-tree__item--path > .agl-tree__row .agl-row__name { color: var(--ag-muted); }
 .agl-tree__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); padding: var(--ag-space-1); margin-bottom: var(--ag-space-1); border: 1px dashed transparent; border-radius: var(--ag-radius); }
