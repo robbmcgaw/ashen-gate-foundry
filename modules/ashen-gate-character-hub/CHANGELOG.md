@@ -1,3 +1,15 @@
+## 0.53.0 — 2026-10-26
+
+Combat, Inventory and Features rows are one line each, like Magic's.
+
+- **One line per item.** Each row keeps its icon, name and chips, fact columns and buttons on the one line. The description is no longer printed under the name: click the **name** or the **chevron** to open it in a row beneath (with an **Open <item>** button for the item sheet); click again to close. The open rows are remembered while the Hub is open, and focus stays where you clicked. Hovering the name still shows dnd5e's hover card.
+- **Nothing was removed from the line.** Combat: star, icon, name with its chips (mastery, not equipped, attuned), Damage / Healing, To hit, Range, Properties (weapons) or Range, Damage / Healing, Uses, Recovery (actions), Use. Inventory: fold toggle, star, icon, name with chips, Qty (− / field / +), Weight, Value, Uses, Use, Equip / Unequip, Attune, Move to party stash. Features: star, icon, name, Type (unless grouped by it), Use time (unless grouped by it), Uses, Recovery, Use.
+- **Narrow windows.** At 640 pixels wide or less the lower-priority columns move into the open row: Combat Properties or Recovery, Inventory Weight and Value, Features Use time and Recovery.
+- **Show item descriptions** (only for you, off by default, applies at once): Combat and Features under **Filters**, Inventory under **View** beside the search box. On brings back the long rows (summary and **More**). It does not change Magic, which keeps its own **Show spell descriptions**.
+- The column headings stay pinned under the toolbar in all three tabs (inside an open container they scroll with it).
+- Presentation only: no item, character or world data changes, no migration. One new client setting (`showItemDescriptions`, default off).
+- Tests use mocked Foundry and prove the markup and logic, not the live UI. Please check in Forge as described in the pull request.
+
 ## 0.52.0 — 2026-10-26
 
 The compendium picker behind **Add spell…**, **Add item…** and **Add attack…** can be sorted.
