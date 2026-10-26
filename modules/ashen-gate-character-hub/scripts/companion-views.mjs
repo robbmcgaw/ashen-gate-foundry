@@ -26,7 +26,7 @@ const withTier = item => { const t = tierOf(item); return t ? `${item.name} (${t
 function perkList(box, off) {
   if (!box.perks.length) return '';
   const rows = box.perks.map(i => ({...itemRow(i), gives: itemGives(i), roleLabel: companionRole(i) ? COMPANION_ROLES[companionRole(i)].label : 'Perk'}));
-  return cardList(rows, [ROLE, GIVES], {listKey: `companion-${box.kind}`, card: r => ({controls: btn('companion-detach', 'Detach', {kind: 'sm', icon: 'fa-solid fa-link-slash', data: {kind: box.kind, id: r.id, ...slotData(box)}, title: `Take ${r.name} off ${box.active.name} (it stays on the character)`, disabled: off})})});
+  return cardList(rows, [ROLE, GIVES], {listKey: `companion-${box.kind}`, after: r => box.perkProblems?.[r.id] ? `<li class="agch-perknote" data-perk-problem><p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${esc(box.perkProblems[r.id])} Use Detach to take it off.</p></li>` : '', card: r => ({controls: btn('companion-detach', 'Detach', {kind: 'sm', icon: 'fa-solid fa-link-slash', data: {kind: box.kind, id: r.id, ...slotData(box)}, title: `Take ${r.name} off ${box.active.name} (it stays on the character)`, disabled: off})})});
 }
 
 /** The stats box: everything the socketed gear and perks give, from their own Active Effects and armour values (display only). */
@@ -46,13 +46,14 @@ function socketHtml(box, socket, choices, off) {
     const item = socket.item, gives = itemGives(item);
     return `<li class="agch-socketbox is-filled"${drop}><span class="agch-socketbox__label">${esc(socket.label)}</span>
       <button type="button" class="agch-socketbox__item" data-action="item-sheet" data-id="${esc(item.id)}" data-ag-always${tooltipAttrs(itemUuid(item), item.name)} aria-label="${esc(socket.name)}: ${esc(item.name)}. Open"><img src="${esc(item.img)}" alt=""><span class="agch-socketbox__text"><span>${esc(withTier(item))}</span><span class="agch-muted">${esc(gives || 'No bonuses listed')}</span></span></button>
+      ${socket.problem ? `<p class="ag-notice ag-notice--warn agch-notice agch-socketbox__note" role="note" data-socket-problem><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${esc(socket.problem)} Use Remove to take it out.</p>` : ''}
       ${btn('companion-unsocket', 'Remove', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-xmark', data: {kind, socket: socket.key, ...slotData(box)}, title: `Take ${item.name} out of the ${socket.name} socket (it stays on the character)`, disabled: off})}</li>`;
   }
-  const marked = choices.filter(c => c.marked).map(c => c.item), other = choices.filter(c => !c.marked).map(c => c.item);
+  const marked = choices.map(c => c.item), other = [];
   const group = (label, list) => list.length ? `<optgroup label="${esc(label)}">${list.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}</optgroup>` : '';
   return `<li class="agch-socketbox is-empty"${drop}><span class="agch-socketbox__label">${esc(socket.label)}</span>
     <span class="agch-socketbox__empty"><i class="fa-solid fa-circle-dot" aria-hidden="true"></i> Empty</span>
-    ${off || !choices.length ? '' : `<select data-edit="companion-gear" data-kind="${kind}"${slotAttr(box)} data-socket="${esc(socket.key)}" aria-label="Add gear to the ${esc(socket.name)} socket"><option value="">Add gear…</option>${group(`Marked as ${n.lower} ${n.gear}`, marked)}${group('Other items on this character', other)}</select>`}</li>`;
+    ${off || !choices.length ? '' : `<select data-edit="companion-gear" data-kind="${kind}"${slotAttr(box)} data-socket="${esc(socket.key)}" aria-label="Add gear to the ${esc(socket.name)} socket"><option value="">Add gear…</option>${group(`Marked as ${n.lower} ${n.gear}`, marked)}</select>`}</li>`;
 }
 
 /** Inline editor for the player's own name and description. The draft lives on the window until Save or Cancel. */
@@ -76,6 +77,7 @@ function activeHead(box, off, edit = null) {
       ${stats.length ? `<p class="agch-cbox__stats">${stats.map(x => `<span><span class="agch-muted">${esc(x.label)}</span> ${esc(x.value)}</span>`).join('')}</p>` : ''}</div></div>
     ${edit ? labelForm(e, edit) : e.description ? `<p class="agch-cbox__desc">${esc(e.description)}</p>` : ''}
     ${e.denied ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This companion is not shared with you any more, so its sheet and stats are hidden. Remove it, or ask the GM to share it again.</p>' : ''}
+    ${e.ineligible ? `<p class="ag-notice ag-notice--warn agch-notice" role="note" data-companion-ineligible><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <strong>Can't be a companion.</strong> ${esc(e.actorName)} is not a creature (${esc(companionKindOf(e.actor).reason)}). It stays linked until you press Remove…, which only unlinks it and changes nothing on that Actor.</p>` : ''}
     ${e.notOwned ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> No longer owned. It stays linked until you clear it, but it is not listed for you automatically.</p>' : ''}
     ${e.missing ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> The linked Actor is gone. Remove this companion, or ask the GM.</p>' : ''}
     <div class="agch-cbox__buttons">${open}${off || edit ? '' : btn('companion-label-edit', 'Edit name…', {kind: 'sm', icon: 'fa-solid fa-pen', data: {uuid: e.uuid}, title: `Give ${e.actorName} your own name and description`})}${btn('companion-remove', 'Remove…', {kind: 'danger', extra: 'ag-btn--sm', icon: 'fa-solid fa-trash', data: {kind: box.kind, uuid: e.uuid}, title: `Stop using ${e.name} as your ${n.lower} (the Actor is kept)`, disabled: off})}</div>`;
@@ -97,7 +99,7 @@ function boxHtml(box, {actor, off, listId, numbered = false, withLink = true, ed
   const others = box.others.map(e => `<option value="${esc(e.uuid)}">${esc(tagged(e.name, KIND_TITLE[kind]))}</option>`).join('');
   const active = box.active ? `<option value="${esc(box.active.uuid)}" selected>${esc(tagged(box.active.name, KIND_TITLE[kind]))}</option>` : '';
   const owned = box.available.length ? `<optgroup label="Yours to use">${box.available.map(e => `<option value="${esc(e.uuid)}">${esc(tagged(e.name, e.tag))}</option>`).join('')}</optgroup>` : '';
-  const select = `<label class="agch-cbox__pick"><span>Active ${n.lower}</span><select data-edit="companion-active" data-kind="${kind}"${sa} aria-label="Choose ${kind === 'pet' && numbered ? `the active pet for ${esc(title)}` : `your active ${n.lower}`}"${off ? ' disabled' : ''}><option value=""${box.active ? '' : ' selected'}>${box.active ? `No ${n.lower}` : `Choose a ${n.lower}…`}</option>${active}${others}${owned}</select></label>`;
+  const select = `<label class="agch-cbox__pick"><span>Active ${n.lower}: choose which linked ${n.lower} to manage</span><select data-edit="companion-active" data-kind="${kind}"${sa} aria-label="Choose ${kind === 'pet' && numbered ? `the active pet for ${esc(title)}` : `your active ${n.lower}`}"${off ? ' disabled' : ''}><option value=""${box.active ? '' : ' selected'}>${box.active ? 'None' : `Choose a ${n.lower}…`}</option>${active}${others}${owned}</select></label>`;
   const link = withLink ? linkHtml(actor, kind, listId, off) : '';
   const body = box.active ? `${activeHead(box, off, edit && box.active && edit.uuid === box.active.uuid ? edit : null)}${select}${link}
     <h4 class="agch-subheading">Sockets</h4><ul class="agch-sockets" role="group" aria-label="${esc(title)} sockets">${box.sockets.map(x => socketHtml(box, x, gearChoices(actor, kind, x), off)).join('')}</ul>
@@ -106,7 +108,8 @@ function boxHtml(box, {actor, off, listId, numbered = false, withLink = true, ed
     ${statsBox(box, actor)}`
     : `<div class="ag-empty"><p class="ag-empty__title">No ${n.lower} yet.</p><p class="ag-empty__text">Drop a ${n.lower} Actor here or choose one.</p></div>${box.others.length || box.available.length ? select : ''}${link}`;
   return `<section class="ag-card agch-cbox agch-cbox--${kind}" aria-label="${esc(title)}"${off ? '' : ` data-drop-companion="box" data-kind="${kind}"${sa}`}>
-    <h3 class="agch-sec__head"><i class="fa-solid ${n.icon}" aria-hidden="true"></i> ${esc(title)}</h3>${body}
+    <h3 class="agch-sec__head"><i class="fa-solid ${n.icon}" aria-hidden="true"></i> ${esc(title)}</h3>
+    <p class="agch-muted agch-hint agch-cbox__what">The active ${n.lower} is the one you are managing now: its sheet, sockets (${n.lower} ${n.gear} slots) and perks show below. “Yours to use” lists creatures you own that fit.</p>${body}
     ${off ? '' : `<p class="agch-muted agch-hint"><i class="fa-solid fa-hand" aria-hidden="true"></i> Drop a ${n.lower} Actor on the box${box.active ? `, or ${n.gear} on a socket` : ''}.</p>`}</section>`;
 }
 

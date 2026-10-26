@@ -14,7 +14,7 @@ const ITEMS = [
   {id: 'hm', name: "[TEST] Hunter's Mark", type: 'spell', system: {identifier: 'hunters-mark', level: 1}},
   {id: 'fighter', name: '[TEST] Fighter', type: 'class', system: {levels: 3}},
   {id: 'cat', name: '[TEST] Cat', type: 'loot'},
-  {id: 'hat', name: '[TEST] Tiny Hat', type: 'equipment'},
+  {id: 'hat', name: '[TEST] Tiny Hat', type: 'equipment', flags: {'ashen-gate-character-hub': {companion: {role: 'pet-clothing'}}}},
   {id: 'surge', name: '[TEST] Action Surge', type: 'feat', system: {type: {value: 'class'}}}
 ];
 /** dnd5e's tooltips running (game.dnd5e.tooltips) with its loadingTooltip helper. */

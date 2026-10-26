@@ -97,7 +97,15 @@ const abil = k => globalThis.CONFIG?.DND5E?.abilities?.[k]?.label ?? k.toUpperCa
 const skill = k => globalThis.CONFIG?.DND5E?.skills?.[k]?.label ?? k;
 export function keyLabel(key) {
   for (const [re, label] of KEY_LABELS) { const m = String(key).match(re); if (m) return typeof label === 'function' ? label(m) : label; }
-  return String(key);
+  return humanKey(key);
+}
+/** 0.58.2: a key with no label is never shown raw (system.rolls.attack.mod.bonus): its words, without the data path ("Rolls attack"). */
+const NOISE = new Set(['system', 'bonus', 'bonuses', 'mod', 'value', 'flags', 'data']);
+function humanKey(key) {
+  const words = String(key).split('.').filter(w => w && !NOISE.has(w)).map(w => w.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').toLowerCase());
+  const text = words.join(' ').trim();
+  if (/^rolls (attack|damage|save|check)/.test(text)) return `${cap(text.split(' ')[1])} rolls`;
+  return text ? cap(text) : 'Bonus';
 }
 /** Foundry's change modes: 0 custom, 1 multiply, 2 add, 3 downgrade, 4 upgrade, 5 override. */
 export function changeText(mode, value) {

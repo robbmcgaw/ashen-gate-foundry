@@ -18,8 +18,9 @@ const ITEMS = () => [
   {id: 'off', name: '[TEST] Unused Charm', type: 'feat', flags: {[MGR]: {source: {sourceId: 'PERK-MOUNT-TEST-OFF'}}}, effects: [fx('Off', [{key: 'system.attributes.ac.bonus', mode: 2, value: '5'}], {disabled: true})]},
   {id: 'hat', name: '[TEST] Tiny Hat', type: 'equipment', flags: {[MGR]: {source: {sourceId: 'ITEM-PET-TEST-HAT'}}}},
   {id: 'boots', name: '[TEST] Paw Boots', type: 'equipment', flags: {[MODULE_ID]: {companion: {role: 'pet-clothing'}}}},
-  {id: 'scarf', name: '[TEST] Scarf', type: 'loot'},
-  {id: 'bow', name: '[TEST] Bow Tie', type: 'loot'},
+  {id: 'scarf', name: '[TEST] Scarf', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'pet-clothing'}}}},
+  {id: 'mscarf', name: '[TEST] Mount Scarf', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear'}}}},
+  {id: 'bow', name: '[TEST] Bow Tie', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear'}}}},
   {id: 'loyal', name: '[TEST] Loyal', type: 'feat', flags: {[MGR]: {source: {sourceId: 'PERK-PET-TEST-LOYAL'}}}},
   {id: 'sadl', name: '[TEST] Classified Saddle', type: 'equipment', flags: {[MODULE_ID]: {companion: {role: 'mount-gear', slot: 'saddle'}}}},
   {id: 'tackA', name: '[TEST] Classified Tack A', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear', slot: 'tack'}}}},
@@ -29,7 +30,7 @@ const ITEMS = () => [
   {id: 'vest', name: '[TEST] Classified Vest', type: 'equipment', flags: {[MODULE_ID]: {companion: {role: 'pet-clothing', slot: 'body'}}}},
   {id: 'oddA', name: '[TEST] Mismatched Slot', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear', slot: 'head'}}}},
   {id: 'oddB', name: '[TEST] Unmarked With Slot', type: 'loot', flags: {[MODULE_ID]: {companion: {slot: 'saddle'}}}},
-  {id: 'bell', name: '[TEST] Bell', type: 'loot'}, {id: 'rope', name: '[TEST] Rope', type: 'loot'}, {id: 'cloak', name: '[TEST] Cloak', type: 'loot'}, {id: 'shoe', name: '[TEST] Horseshoe', type: 'loot'}
+  {id: 'bell', name: '[TEST] Bell', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear'}}}}, {id: 'rope', name: '[TEST] Rope', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear'}}}}, {id: 'cloak', name: '[TEST] Cloak', type: 'loot'}, {id: 'shoe', name: '[TEST] Horseshoe', type: 'loot', flags: {[MODULE_ID]: {companion: {role: 'mount-gear'}}}}
 ];
 function world(id, {perms = {}, type = 'npc'} = {}) {
   return {documentName: 'Actor', id, uuid: `Actor.${id}`, name: `[TEST] ${id}`, img: `${id}.webp`, type, calls: [],
@@ -52,11 +53,11 @@ const slots = actor => actor.flags[MODULE_ID]?.companionSlots;
 
 test('roles: Hub flag first, then the permanent id prefix; unmarked items go by type (contract unchanged)', () => {
   const {actor} = setup(), it = id => actor.items.get(id);
-  assert.deepEqual(['saddle', 'barding', 'sure', 'hat', 'boots', 'loyal', 'scarf'].map(id => companionRole(it(id))), ['mount-gear', 'mount-gear', 'mount-perk', 'pet-clothing', 'pet-clothing', 'pet-perk', null]);
+  assert.deepEqual(['saddle', 'barding', 'sure', 'hat', 'boots', 'loyal', 'cloak'].map(id => companionRole(it(id))), ['mount-gear', 'mount-gear', 'mount-perk', 'pet-clothing', 'pet-clothing', 'pet-perk', null]);
   assert.deepEqual(routeForRole(it('saddle'), 'mount'), {ok: true, list: 'gear'});
   assert.match(routeForRole(it('saddle'), 'pet').error, /mount gear, not for a pet/);
-  assert.deepEqual(routeForRole(it('scarf'), 'pet'), {ok: true, list: 'clothing'});
-  assert.deepEqual(routeForRole(it('scarf'), 'mount'), {ok: true, list: 'gear'});
+  assert.deepEqual(routeForRole(it('cloak'), 'pet'), {ok: true, list: 'clothing'});
+  assert.deepEqual(routeForRole(it('cloak'), 'mount'), {ok: true, list: 'gear'});
 });
 
 test('stats come only from the items\' own effects and armour; disabled skipped; transfer warned', () => {
@@ -68,7 +69,8 @@ test('stats come only from the items\' own effects and armour; disabled skipped;
   assert.ok(!lines.some(l => l.parts.some(p => p.source === '[TEST] Unused Charm')));
   it('saddle').effects[0].transfer = true;
   assert.match(companionStats([it('saddle')], {owner: actor}).warnings[0], /also applies to \[TEST\] Hero/);
-  assert.equal(keyLabel('system.custom.thing'), 'system.custom.thing');
+  assert.equal(keyLabel('system.custom.thing'), 'Custom thing', 'an unknown key never shows raw');
+  assert.equal(keyLabel('system.rolls.attack.mod.bonus'), 'Attack rolls');
   assert.deepEqual([changeText(1, '2'), changeText(4, '15'), changeText(2, '-1')], ['×2', 'at least 15', '−1']);
   assert.equal(itemGives(it('sure')), 'AC +1; Dexterity saves = 2');
 });
@@ -153,7 +155,7 @@ test('sockets: one item per socket, one socket per item, right kind only, nothin
 test('every socket of a mount can be filled; a sixth item finds no free socket', async () => {
   const {actor} = setup();
   await c.addActorCompanion(actor, world('horse', {perms: shared}), 'mount');
-  for (const id of ['saddle', 'barding', 'scarf', 'bow', 'bell']) assert.equal((await c.socketDroppedGear(actor, 'mount', null, actor.items.get(id))).ok, true, id);
+  for (const id of ['saddle', 'barding', 'mscarf', 'bow', 'bell']) assert.equal((await c.socketDroppedGear(actor, 'mount', null, actor.items.get(id))).ok, true, id);
   assert.deepEqual(Object.keys(slots(actor).gear.horse), ['saddle', 'tack1', 'tack2', 'tack3', 'tack4']);
   assert.match((await c.socketDroppedGear(actor, 'mount', null, actor.items.get('rope'))).error, /No free mount socket/);
   assert.equal(actor.calls.filter(x => x[0] === 'createEmbedded').length, 0, 'items already on the character are not copied');
@@ -208,7 +210,7 @@ test('deleted gear frees its socket; a missing or unshared Actor stays listed an
 test('migration: Actor entries become the new flag (first mount / first pet active, gear in order); old flag untouched; re-run is a no-op', async () => {
   const {actor} = setup({user: users.gm});
   const old = [
-    {id: 'a', kind: 'mount', actorUuid: 'Actor.horse', name: 'Thunder', perkItemIds: ['sure'], gearItemIds: ['saddle', 'barding', 'scarf', 'bow', 'bell', 'rope'], clothing: []},
+    {id: 'a', kind: 'mount', actorUuid: 'Actor.horse', name: 'Thunder', perkItemIds: ['sure'], gearItemIds: ['saddle', 'barding', 'mscarf', 'bow', 'bell', 'rope'], clothing: []},
     {id: 'b', kind: 'mount', actorUuid: 'Actor.pony', perkItemIds: [], gearItemIds: ['shoe'], clothing: []},
     {id: 'c', kind: 'pet', actorUuid: 'Actor.cat', perkItemIds: ['loyal'], gearItemIds: [], clothing: ['hat', null, 'boots']},
     {id: 'd', kind: 'pet', actorUuid: 'Actor.owl', perkItemIds: [], gearItemIds: [], clothing: []},
@@ -221,7 +223,7 @@ test('migration: Actor entries become the new flag (first mount / first pet acti
   assert.deepEqual(await c.migrateCompanionSlots(actor), {ok: true, migrated: true});
   const s = slots(actor);
   assert.deepEqual([s.version, s.activeMount, s.activePets, s.mounts, s.pets], [2, 'Actor.horse', ['Actor.cat', null, null], ['Actor.horse', 'Actor.pony'], ['Actor.cat', 'Actor.owl']]);
-  assert.deepEqual(s.gear.horse, {saddle: 'saddle', tack1: 'barding', tack2: 'scarf', tack3: 'bow', tack4: 'bell'}, 'a sixth gear item has no socket and stays loose');
+  assert.deepEqual(s.gear.horse, {saddle: 'saddle', tack1: 'barding', tack2: 'mscarf', tack3: 'bow', tack4: 'bell'}, 'a sixth gear item has no socket and stays loose');
   assert.deepEqual(s.gear.pony, {saddle: 'shoe'});
   assert.deepEqual(s.gear.cat, {head: 'hat', body: 'boots'});
   assert.deepEqual([s.perks.horse, s.perks.cat], [['sure'], ['loyal']]);
@@ -367,7 +369,7 @@ test('fit rules: classified gear only in its socket type; unclassified gear in a
   assert.equal((await c.socketGear(actor, 'pet', 'body', 'vest')).ok, true);
   // unclassified (older data) keeps today's behaviour, including a mismatched slot flag and a slot without a role
   assert.equal((await c.socketGear(actor, 'mount', 'tack1', 'oddA')).ok, true);
-  assert.equal((await c.socketGear(actor, 'mount', 'tack2', 'oddB')).ok, true);
+  assert.match((await c.socketGear(actor, 'mount', 'tack2', 'oddB')).error, /not companion gear/, '0.58.2: a slot without a role is not companion gear');
   assert.equal((await c.clearSocket(actor, 'mount', 'saddle')).ok, true);
   assert.equal((await c.socketGear(actor, 'mount', 'saddle', 'barding')).ok, true, 'unclassified fits the Saddle too');
   // kind still enforced

@@ -1,3 +1,14 @@
+## 0.58.2 — 2026-10-26
+
+Companions: the party stash (and other non-creature Actors) can no longer be a pet or mount.
+
+- **Cause:** any NPC Actor with a default size counted as a pet or mount, and Utilities' Party Stash is an NPC Actor. It could be picked as a pet, with art, AC 10 and HP 0/0.
+- **Never a companion now:** the Utilities Party Stash (found by its `flags.ashen-gate-utilities.partyStash` flag, no module needed) and Actors of type loot, vehicle or group. They are left out of the dropdown, the link list and name search, and a drop or typed link is refused with a message, for players and the GM. Only the GM's Companion type (pet, mount or either, GM Setup) overrides this. Real creatures are unchanged, including hand-made ones that go by size.
+- **Already linked:** a linked stash stays linked (nothing is rewritten) and shows "Can't be a companion" with Remove…, which only unlinks it.
+- **Gear and perk pickers (socket Add gear…, Add a perk…) only offer companion items.** Both lists come from items already on the character, never a catalog, and only items marked as companion gear (`pet-clothing` / `mount-gear`) or companion perks (`pet-perk` / `mount-perk`, or their ITEM-/PERK- id prefixes) for that kind. The character's own amulets, weapons, armour, containers, loot, origin feats and profession perks are not offered, nor is anything equipped or attuned or already on a companion. Dropping or assigning one is refused with the reason. Something assigned that stops qualifying stays, with a note and Remove / Detach.
+- **No raw keys in the gear row:** an effect key with no friendly name is shown as words ("Attack rolls +1"), never `system.rolls.attack.mod.bonus`; the row now wraps instead of squeezing its text into one-character lines.
+- **Clearer wording:** each box says what it is for (the active pet or mount is the one you are managing; its sockets are the gear slots), the dropdown reads "Active pet: choose which linked pet to manage" with a "None" choice, and Help and the README explain it.
+
 ## 0.58.1 — 2026-10-26
 
 Journey says Piety for deities, to match Renown 0.19.0.

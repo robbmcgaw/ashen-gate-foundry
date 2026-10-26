@@ -46,6 +46,7 @@ const FLAG = 'companionSlots', LEGACY_FLAG = 'companions';
 const refuse = error => ({ok: false, error});
 /** Level backup copies (0.27.0) are not playable characters: never a companion target. */
 export const BACKUP_REFUSAL = 'That is a level backup copy, not a playable character.';
+const gearList = kind => kind === 'mount' ? 'gear' : 'clothing';
 const NOT_GEAR_TYPES = ['class', 'subclass', 'background', 'race', 'spell'];
 const listKey = kind => kind === 'pet' ? 'pets' : 'mounts';
 const kindName = kind => kind === 'pet' ? 'pet' : 'mount';
@@ -233,6 +234,8 @@ export const managerIdOf = actor => { const id = actor?.flags?.['ashen-gate-mana
 export function companionKindOf(actor, {automatic = false} = {}) {
   const flag = automatic ? undefined : actor?.flags?.[MODULE_ID]?.[TYPE_FLAG];
   if (COMPANION_TYPES.includes(flag)) return {kind: flag, source: 'gm', label: `${KIND_TITLE[flag]} (set by GM)`};
+  const not = notACreature(actor);
+  if (not) return {kind: 'none', source: 'utility', label: `Can't be a companion (${not})`, reason: not};
   const id = managerIdOf(actor);
   if (id.startsWith('CRE-MOUNT-')) return {kind: 'mount', source: 'import', label: 'Mount (imported as a mount)'};
   if (id.startsWith('CRE-PET-')) return {kind: 'pet', source: 'import', label: 'Pet (imported as a pet)'};
@@ -240,6 +243,17 @@ export function companionKindOf(actor, {automatic = false} = {}) {
   const size = actor?.system?.traits?.size, kind = SIZE_KIND[size];
   if (!kind) return {kind: 'none', source: 'unknown', label: 'Not a companion (size unknown)'};
   return {kind, source: 'size', label: `${KIND_TITLE[kind]} (${SIZE_NAMES[size]})`};
+}
+/**
+ * 0.58.2: why an Actor is not a creature at all, or ''. Utility Actors are never auto-listed, found by name, dropped or typed in as a
+ * companion: Utilities' Party Stash (its documented Actor flag flags.ashen-gate-utilities.partyStash, feature-detected: no module
+ * needed), and Actors of type loot, vehicle or group. Only the GM's companionType flag (pet, mount or either) overrides this.
+ */
+export function notACreature(actor) {
+  if (!actor) return '';
+  if (actor.flags?.['ashen-gate-utilities']?.partyStash === true) return 'the party stash';
+  if (['loot', 'vehicle', 'group'].includes(actor.type)) return `a ${actor.type} Actor`;
+  return '';
 }
 /** Whether an effective kind fits a box of `kind`. */
 export const kindFits = (info, kind) => info.kind === kind || info.kind === 'either';
@@ -310,12 +324,37 @@ const candidates = (actor, s) => { const used = usedItemIds(s); return [...(acto
  * (marked: true), then unmarked gear. Classified items only appear for their own socket type.
  */
 export function gearChoices(actor, kind, socket = null) {
-  const list = candidates(actor, readSlots(actor)).filter(i => i.type !== 'feat' || companionRole(i))
-    .filter(i => routeForRole(i, kind, kind === 'mount' ? 'gear' : 'clothing').ok && (!socket || slotFit(i, socket).ok));
-  return sortByName(list).map(item => ({item, marked: !!companionRole(item)})).sort((a, b) => Number(b.marked) - Number(a.marked));
+  const list = candidates(actor, readSlots(actor)).filter(i => !gearProblem(actor, i, kind, socket));
+  return sortByName(list).map(item => ({item, marked: true}));
 }
-/** Perk Items that fit the active companion's perk list. */
-export const perkChoices = (actor, kind) => sortByName(candidates(actor, readSlots(actor)).filter(i => routeForRole(i, kind, 'perk').ok));
+/**
+ * 0.58.2: why an Item on the character can't be companion gear for a `kind` (and, with `socket`, that socket), or ''. Only Items the
+ * Companion item conventions mark for this kind (role mount-gear / pet-clothing: flag or ITEM-MOUNT- / ITEM-PET- id) count, so
+ * the character's own weapons, armour, amulets, containers and loot never do. An Item the character has equipped or attuned is
+ * the character's own gear, not the companion's. `onCharacter: false` (an Item dropped from elsewhere, copied after the checks) skips the equipped test.
+ */
+export function gearProblem(actor, item, kind, socket = null, {onCharacter = true} = {}) {
+  if (!item) return 'That item is not on this character.';
+  if (NOT_GEAR_TYPES.includes(item.type) || item.type === 'container' || !companionRole(item)) return `${item.name} is not companion gear. Only items marked as ${kind === 'mount' ? 'mount gear' : 'pet clothing'} can go in a socket.`;
+  const route = routeForRole(item, kind, gearList(kind)); if (!route.ok) return route.error;
+  if (socket) { const fit = slotFit(item, socket); if (!fit.ok) return fit.error; }
+  if (onCharacter && (item.system?.equipped === true || item.system?.attuned === true)) return `${item.name} is equipped or attuned by ${actor?.name ?? 'the character'}, so it can't be companion gear. Unequip it first.`;
+  return '';
+}
+/**
+ * 0.58.2: why an Item can't be a companion perk for `kind`, or ''. Only Items marked as this kind's perk (role mount-perk / pet-perk:
+ * flag or PERK-MOUNT- / PERK-PET- id, the Companion perks Manager imports) count. The character's own class, species, background and
+ * origin feats, class features and profession perks carry no such mark, so they never do; neither does anything the character has equipped or attuned.
+ */
+export function perkProblem(actor, item, kind, {onCharacter = true} = {}) {
+  if (!item) return 'That item is not on this character.';
+  if (NOT_GEAR_TYPES.includes(item.type) || !companionRole(item)) return `${item.name} is not a companion perk. Only items marked as ${kind} perks can be attached.`;
+  const route = routeForRole(item, kind, 'perk'); if (!route.ok) return route.error;
+  if (onCharacter && (item.system?.equipped === true || item.system?.attuned === true)) return `${item.name} is equipped or attuned by ${actor?.name ?? 'the character'}, so it can't be a companion perk. Unequip it first.`;
+  return '';
+}
+/** Perk Items that fit the active companion's perk list (marked companion perks only, from the character's own items, not already used). */
+export const perkChoices = (actor, kind) => sortByName(candidates(actor, readSlots(actor)).filter(i => !perkProblem(actor, i, kind)));
 
 /**
  * A linked companion resolved for display. A linked Actor the viewer can no longer observe (the GM unshared it) is
@@ -325,7 +364,7 @@ function entryOf(uuid, labels = {}) {
   const found = linkedActor(uuid), denied = !!found && !canSeeActor(found), actor = denied ? null : found, key = ckey(uuid), label = labels[key] ?? {name: '', description: ''};
   const actorName = actor?.name ?? (denied ? 'Companion (not shared)' : 'Missing companion');
   // The player's own name wins; the Actor's real name is kept (actorName) so the box can show it when different.
-  return {uuid, key, actor, denied, missing: !found, name: label.name || actorName, actorName, customName: label.name, description: label.description, art: actor?.img || ''};
+  return {uuid, key, actor, denied, missing: !found, ineligible: !!actor && companionKindOf(actor).source === 'utility', name: label.name || actorName, actorName, customName: label.name, description: label.description, art: actor?.img || ''};
 }
 /** A one-line read-only stats strip from the Actor's own sheet data (AC, HP, speeds), only what is present. */
 export function actorStats(actor) {
@@ -353,12 +392,13 @@ export function companionBoxes(actor) {
     // 0.49.0: owned NPC Actors not linked yet (choosing one links it); never one already active in a pet box.
     const available = eligible[kind].filter(e => !e.linked && !act.has(e.uuid)).map(e => ({uuid: e.uuid, name: e.name, tag: KIND_TITLE[e.info.kind], why: e.info.label}));
     // A linked NPC the character's owners no longer own stays linked; the box says so and the owner can clear it.
-    if (active) active.notOwned = !!active.actor && active.actor.type === 'npc' && (!globalThis.game?.user?.isGM || playerOwners(actor).length > 0) && !ownedForCharacter(actor, active.actor);
+    if (active) active.notOwned = !!active.actor && !active.ineligible && active.actor.type === 'npc' && (!globalThis.game?.user?.isGM || playerOwners(actor).length > 0) && !ownedForCharacter(actor, active.actor);
     const placed = (active && s.gear[active.key]) || {};
-    const sockets = SOCKETS[kind].map(({key, type, label, name}) => ({key, type, label, name, item: itemOn(actor, placed[key])}));
+    const sockets = SOCKETS[kind].map(({key, type, label, name}) => { const item = itemOn(actor, placed[key]); return {key, type, label, name, item, problem: item ? gearProblem(actor, item, kind, {key, type, label}) : ''}; });
     const perks = active ? (s.perks[active.key] ?? []).map(id => itemOn(actor, id)).filter(Boolean) : [];
+    const perkProblems = Object.fromEntries(perks.map(i => [i.id, perkProblem(actor, i, kind)]).filter(([, p]) => p));
     const others = kind === 'pet' ? owned.filter(e => !act.has(e.uuid)) : owned.filter(e => e !== active);
-    return {kind, slot, active, owned, others, available, sockets, perks, gearItems: sockets.map(x => x.item).filter(Boolean)};
+    return {kind, slot, active, owned, others, available, sockets, perks, perkProblems, gearItems: sockets.map(x => x.item).filter(Boolean)};
   };
   const pets = [];
   for (let i = 0; i < MAX_PET_SLOTS; i++) if (i < petSlots || s.activePets[i]) pets.push(make('pet', i, s.activePets[i]));
@@ -378,7 +418,7 @@ export const LINKABLE_CAP = 150;
 /** Every world Actor this user could link to `actor` (observable, not itself, a backup or already linked), unsorted and uncapped. */
 function linkCandidates(actor) {
   const s = readSlots(actor), linked = new Set([...s.pets, ...s.mounts]);
-  return [...(globalThis.game?.actors ?? [])].filter(a => a !== actor && a.uuid !== actor.uuid && !linked.has(a.uuid) && !isBackup(a) && canSeeActor(a) && String(a.uuid ?? '').startsWith('Actor.'));
+  return [...(globalThis.game?.actors ?? [])].filter(a => a !== actor && a.uuid !== actor.uuid && !linked.has(a.uuid) && !isBackup(a) && canSeeActor(a) && String(a.uuid ?? '').startsWith('Actor.') && companionKindOf(a).source !== 'utility');
 }
 /** Finds a linkable Actor by typed name among ALL candidates: an exact name (any case) wins, else a name containing the text. */
 export function findLinkableActor(actor, text) {
@@ -491,6 +531,8 @@ async function linkActor(actor, other, kind, slot, mode) {
   if (isBackup(other)) return refuse(BACKUP_REFUSAL);
   if (other === actor || other.uuid === actor.uuid) return refuse(`${actor.name} can't be its own companion.`);
   if (other.pack || !worldUuid(other.uuid)) return refuse(`Import ${other.name} into the world first, then drop it from the Actors sidebar.`);
+  const kindInfo = companionKindOf(other);
+  if (kindInfo.source === 'utility') return refuse(`${other.name} is ${kindInfo.reason}, not a creature, so it can't be a ${kindName(kind)}. ${globalThis.game?.user?.isGM ? "To force it, set its companion type in GM Setup." : 'Ask the GM if you think this is wrong.'}`);
   const user = globalThis.game?.user;
   if (mode === 'auto') { const no = autoLinkRefusal(actor, other, kind, user); if (no) return no; }
   else if (!user?.isGM && other.testUserPermission?.(user, 'OBSERVER') !== true) return refuse(`You can't see ${other.name}. Ask the GM to share it with you.`);
@@ -540,7 +582,6 @@ export async function setCompanionLabel(actor, uuid, {name = '', description = '
   return {ok: true, result: label};
 }
 
-const gearList = kind => kind === 'mount' ? 'gear' : 'clothing';
 function whereIs(s, itemId) {
   for (const [k, g] of Object.entries(s.gear)) for (const [key, id] of Object.entries(g)) if (id === itemId) return {k, key, kind: s.pets.some(u => ckey(u) === k) ? 'pet' : 'mount'};
   return null;
@@ -562,9 +603,7 @@ export async function socketGear(actor, kind, socketKey, itemId, slot = 0) {
   if (!cur) return refuse(chooseText(kind, at.slot, companionBoxes(actor).pets.length));
   const item = itemOn(actor, itemId);
   if (!item) return refuse('That item is not on this character.');
-  if (NOT_GEAR_TYPES.includes(item.type) || (item.type === 'feat' && !companionRole(item))) return refuse(`${item.name} cannot go in a socket.`);
-  const route = routeForRole(item, kind, gearList(kind)); if (!route.ok) return route;
-  const fit = slotFit(item, spec); if (!fit.ok) return refuse(fit.error);
+  const problem = gearProblem(actor, item, kind, spec); if (problem) return refuse(problem);
   const there = whereIs(s, itemId);
   if (there) return refuse(`${item.name} is already in a ${socketLabel(there.kind, there.key)} socket${there.k === cur.key ? '' : ' of another companion'}. Take it out first.`);
   if (usedItemIds(s).has(itemId)) return refuse(`${item.name} is already on a companion.`);
@@ -583,8 +622,9 @@ export async function socketDroppedGear(actor, kind, socketKey, item, slot = nul
   const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!KINDS.includes(kind)) return KIND_REFUSAL(kind);
   if (!item || item.documentName !== 'Item') return refuse('Drop an item here.');
-  const route = routeForRole(item, kind, gearList(kind)); if (!route.ok) return route;
-  if (NOT_GEAR_TYPES.includes(item.type) || (item.type === 'feat' && !companionRole(item))) return refuse(`${item.name} cannot go in a socket.`);
+  const onChar = item.parent === actor || item.actor === actor;
+  const problem = gearProblem(actor, item, kind, null, {onCharacter: onChar});
+  if (problem) return refuse(problem);
   const given = slot === null || slot === undefined ? null : slotArg(kind, slot);
   if (given && !given.ok) return given;
   const s = readSlots(actor);
@@ -633,7 +673,7 @@ export async function attachPerk(actor, kind, itemId, slot = 0) {
   if (!cur) return refuse(chooseText(kind, at.slot, companionBoxes(actor).pets.length));
   const perk = itemOn(actor, itemId);
   if (!perk) return refuse('That item is not on this character.');
-  const route = routeForRole(perk, kind, 'perk'); if (!route.ok) return route;
+  const bad = perkProblem(actor, perk, kind); if (bad) return refuse(bad);
   if (usedItemIds(s).has(itemId)) return refuse(`${perk.name} is already on a companion.`);
   (s.perks[cur.key] ??= []).push(itemId);
   await save(actor, s);
@@ -643,7 +683,7 @@ export async function attachDroppedPerk(actor, kind, item, slot = null) {
   const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!KINDS.includes(kind)) return KIND_REFUSAL(kind);
   if (!item || item.documentName !== 'Item') return refuse('Drop an item here.');
-  const route = routeForRole(item, kind, 'perk'); if (!route.ok) return route;
+  const bad = perkProblem(actor, item, kind, {onCharacter: item.parent === actor || item.actor === actor}); if (bad) return refuse(bad);
   const given = slot === null || slot === undefined ? null : slotArg(kind, slot);
   if (given && !given.ok) return given;
   const s = readSlots(actor), n = given ? given.slot : kind === 'mount' ? 0 : s.activePets.findIndex(Boolean);
