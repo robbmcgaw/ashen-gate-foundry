@@ -2,6 +2,8 @@
 
 Module ID `ashen-gate-headquarters` · Foundry V14 · dnd5e. A shared Guildhall: build its layout from facilities, keep a hirelings roster, personal quarters and benefits. Facility effects are informational; this module does not apply mechanics. Open it from **Actors sidebar → Headquarters** (players when **GM Setup → Player Access** is on).
 
+**Sidebar folders.** The private vault journal files under **Ashen Gate / Headquarters**; see docs/folder-convention.md.
+
 ## Tabs
 
 - **Guildhall Builder** (shown as **Activation** until the GM activates the Guildhall, a one-time setup step): place acquired facilities on the Guildhall canvas by dragging, or with **Place** (first free space) and the inspector's **Move** buttons from the keyboard.

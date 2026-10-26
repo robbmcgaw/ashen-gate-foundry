@@ -1,3 +1,7 @@
+## 0.15.0 — 2026-10-26
+
+The private vault journal is filed in **Ashen Gate / Headquarters** instead of loose at the top of the Journal sidebar. On the first GM login after the vault loads, Headquarters moves its own loose vault there; one you filed elsewhere stays. Only the folder changes: the vault pointer, its content and its permissions are untouched, and nothing is deleted.
+
 ## 0.14.1 — 2026-10-25
 
 - **Quieter console when the private vault is missing (GM only).** The red console error that appeared on every GM load while the vault Journal is missing or can't be used is now one plain yellow console note per session, with no stack. It says a recovery dialog is available and how to open it (open Headquarters as GM). Unexpected failures are still logged as errors with the red toast.

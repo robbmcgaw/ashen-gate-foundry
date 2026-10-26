@@ -18,6 +18,7 @@ import {createPrivateStateStore,projectPublicState,VAULT_POINTER} from './privat
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {requirePlayerViewAccess,buildPlayerView} from './player-view.mjs';
 import {createEmbed,EMBED_MODES,EMBED_CONTRACT} from './embed.mjs';
+import {migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 // Player edits are transported by server-attributed Actor document updates, not module socket packets.
 const ACK_TIMEOUT_MS=16000;
@@ -671,6 +672,8 @@ ${gm?`<h4>Hirelings (GM)</h4><p>Add hirelings imported in General Manager to the
 }
 Hooks.once('init',()=>{
  game.settings.register(MODULE_ID,'state',{name:'Headquarters public layout projection (no private personnel)',scope:'world',config:false,type:Object,default:emptyState(),onChange:()=>{embed.refreshAll();if(windowApp?.rendered&&canView())windowApp.refresh();}});
+ // 1 once Headquarters has filed its private vault under Ashen Gate (folder-nesting.mjs); config:false.
+ game.settings.register(MODULE_ID,FOLDER_SETTING,{name:'Headquarters folder nesting',scope:'world',config:false,type:String,default:''});
  game.settings.register(MODULE_ID,VAULT_POINTER,{name:'GM private Headquarters state document ID (no payload)',scope:'world',config:false,restricted:true,type:String,default:''});
  game.settings.register(MODULE_ID,'playerAccessEnabled',{name:'Player Access — Headquarters',hint:'Show or hide the Headquarters launcher and interface for players. This does not disable game mechanics or delete Guildhall state.',scope:'world',config:true,restricted:true,type:Boolean,default:true,onChange:refreshPlayerAccess});
  // Publish the opening contract before any asynchronous private-state migration.
@@ -726,7 +729,11 @@ Hooks.once('ready',async()=>{
  try{
   const JournalEntryClass=foundry?.documents?.JournalEntry ?? globalThis.JournalEntry ?? game.journal?.documentClass;
   privateStore=createPrivateStateStore({game,JournalEntryClass});
-  if(game.user?.isGM)await privateStore.initialize();
+  if(game.user?.isGM){
+   await privateStore.initialize();
+   // File the loaded vault under Ashen Gate (only its folder changes; a failure here never affects the vault).
+   void migrateFolders().catch(e=>console.warn('Headquarters: could not file the vault under Ashen Gate',e));
+  }
  }catch(error){
   // A vault problem the GM can fix gets one plain dialog and one console note (no stack); anything else stays a console error and a toast.
   if(offerRecovery())warnOnce('vault-console','Headquarters: the private vault Journal is missing or can\'t be used. A recovery dialog is available: open Headquarters (Actors sidebar, or Shift+H) as GM. Nothing has been changed.',true);
