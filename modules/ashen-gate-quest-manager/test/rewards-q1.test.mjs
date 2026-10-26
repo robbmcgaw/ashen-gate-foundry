@@ -92,7 +92,7 @@ function setup(){
  globalThis.game={user:gm,users:[gm,alice],journal:docs,actors,items:{contents:worldItems},folders,packs:{get:()=>null}};
  globalThis.foundry={utils:{randomID:(n=16)=>`R${String(++seq).padStart(n-1,'0')}`.slice(0,n)}};
  globalThis.fromUuid=async u=>uuids[u]??null;
- globalThis.Folder={create:async data=>{const f={...data,id:`fold${folders.length+1}`};folders.push(f);calls.push(['folder.create',data.name]);return f;}};
+ globalThis.Folder={create:async data=>{const f={...data,folder:data.folder??null,id:`fold${folders.length+1}`};folders.push(f);calls.push(['folder.create',data.name]);return f;}};
  globalThis.Item={implementation:{fromDropData:async raw=>uuids[raw.uuid]??null},
   createDocuments:async(data,opts)=>{calls.push(['item.create',data.length,opts]);return data.map(d=>{const it=mkItem(d._id,{type:d.type,flags:d.flags,container:d.system.container,quantity:d.system.quantity,name:d.name});it.folder=d.folder;it.ownership=d.ownership;worldItems.push(it);return it;});},
   deleteDocuments:async ids=>{calls.push(['item.deleteDocuments',ids]);for(const i of ids){const at=worldItems.findIndex(x=>x.id===i);if(at>=0)worldItems.splice(at,1);}}};
@@ -115,15 +115,16 @@ test('addFromDrop: an embedded item gets a GM-only holding copy in the flagged f
  const res=await addFromDrop(s.id,drop('Actor.npc.Item.sword'));
  assert.equal(res.ok,true);
  const itemFolders=()=>t.folders.filter(f=>f.type==='Item');
- assert.deepEqual(itemFolders().map(f=>[f.name,f.flags[MOD].store]),[[HOLDING_FOLDER,'reward-holding']]);
+ assert.deepEqual(itemFolders().map(f=>f.name),['Ashen Gate','Backups',HOLDING_FOLDER]);
+ const held=itemFolders()[2];assert.equal(held.folder,itemFolders()[1].id);assert.equal(itemFolders()[1].folder,itemFolders()[0].id);
  const copy=t.worldItems.find(x=>x.flags?.[MOD]?.holding);
- assert.ok(copy);assert.equal(copy.folder,itemFolders()[0].id);assert.deepEqual(copy.ownership,{default:0});
+ assert.ok(copy);assert.equal(copy.folder,held.id);assert.deepEqual(copy.ownership,{default:0});
  assert.equal(copy.flags[MOD].holding.from,'Actor.npc');assert.equal(typeof copy.flags[MOD].holding.at,'number');
  assert.equal(res.row.ref.sourceKind,'holding');assert.equal(res.row.ref.uuid,copy.uuid);assert.equal(res.row.ref.itemId,'ITEM-TEST-SWORD');
  assert.deepEqual(t.calls.filter(c=>/^actor\.|^item\.(update|delete)$/.test(c[0])),[],'source NPC and its item never changed');
  assert.equal(t.npc.items.length,1);
  // Second embedded drop reuses the folder.
- await addFromDrop(s.id,drop('Actor.npc.Item.sword'));assert.equal(itemFolders().length,1);
+ await addFromDrop(s.id,drop('Actor.npc.Item.sword'));assert.equal(itemFolders().length,3);
 });
 
 test('addFromDrop refuses folders and Actors with plain text, storing nothing',async()=>{

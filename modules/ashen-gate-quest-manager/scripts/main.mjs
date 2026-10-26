@@ -1,3 +1,4 @@
+import {migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES,WORK_ORDER_DOMAINS} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHint,questsAdvanced,filterLabel,editorSection,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
 import {filterActive,openStates,readStored,setAll,storeKey,domKey,toolbarState} from './group-folds.mjs';
@@ -20,7 +21,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.26.0';
+const VERSION='0.27.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -846,12 +847,15 @@ Hooks.on('renderSettingsConfig',hideFromPlayerSettings);
 for(const hook of ['renderJournalEntrySheet','renderJournalSheet','renderJournalEntryPageSheet'])Hooks.on(hook,(app,html,ctx,options)=>{closeAutoOpened(app,options);});
 Hooks.once('init',()=>{
  game.settings.register(MOD,'compendiumPackIds',{name:'Quest Definitions: Compendium Pack IDs',hint:'GM only: exact compendium collection IDs separated by commas, semicolons or whitespace (e.g. world.quests). Sources are read through the bundled pinned definition resolver; reload required after setting changes.',scope:'world',config:false,type:String,default:''});
+ // 1 once Quest Log has filed its held reward copies under Ashen Gate (folder-nesting.mjs); config:false.
+ game.settings.register(MOD,FOLDER_SETTING,{scope:'world',config:false,type:String,default:''});
  game.settings.register(MOD,'playerAccessEnabled',{name:'Quest Log: Player Access',hint:'Show the player Quest Log interface (new module defaults Hidden). Does not change gameplay, documents or GM access.',scope:'world',config:false,type:Boolean,default:false,onChange:updateWindows});
  game.settings.register(MOD,'nextSessionNumber',{name:'Quest Log: Next session number',hint:'Set from Journal > More… > Next session number…. Empty means one more than the highest session number.',scope:'world',config:false,type:Number,default:null,nullable:true});
  game.settings.register(MOD,'openForPlayers',{name:'Quest Log: Open newly revealed quests for players',hint:'GM Setup. Off by default: nothing opens on players\' screens.',scope:'world',config:false,type:Boolean,default:false});
 });
 Hooks.once('ready',()=>{
  const module=game.modules.get(MOD);
+ void migrateFolders().catch(e=>console.warn(`[${MOD}] Could not file held rewards under Ashen Gate:`,e));
  // A separate, packaged Archie pinned reader is built on GM clients only.
  // Player clients never receive a general source/pack reader through Quest API.
  if(hasGM()) {

@@ -2,10 +2,11 @@
 // Every call is GM only and every write goes through updateState (assertGM, validState, publish).
 import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,isPlayerCharacter,LEVEL_BACKUP_ERROR,rewardLabel} from './core.mjs';
 import {getPrivate,allPrivate,updateState} from './store.mjs';
+import {holdingFolder as folderFor} from './folder-nesting.mjs';
 import {resolveItemDrop,itemRef,resolveRef,bundleOf,grantBundle,dragPayload} from './ag-item-drop.mjs';
 
 export const REWARDS_CONTRACT='ag-quest-rewards/1';
-export const HOLDING_FOLDER='Ashen Gate Rewards (Quest Log)';
+export const HOLDING_FOLDER='Quest Rewards';
 const gmOnly=()=>{if(!game.user?.isGM)throw new Error('GM only.');};
 const randomKey=()=>`rw-${globalThis.foundry?.utils?.randomID?.(8)??Math.random().toString(36).slice(2,10)}`;
 function questOf(questId){
@@ -18,9 +19,7 @@ const isHolding=item=>!!item?.flags?.[MOD]?.holding;
 
 /** The folder that holds GM-only copies of items dropped from an Actor (design §2.4), created on first use. */
 async function holdingFolder(){
- const found=[...(game.folders??[])].find(f=>f.type==='Item'&&f.flags?.[MOD]?.store==='reward-holding');
- if(found)return found;
- return Folder.create({name:HOLDING_FOLDER,type:'Item',flags:{[MOD]:{store:'reward-holding'}}});
+ return folderFor();
 }
 /** A world copy of an embedded Item (with its contents), GM only. The source Actor and its Item are never changed (D1). */
 async function createHolding(item,from){
