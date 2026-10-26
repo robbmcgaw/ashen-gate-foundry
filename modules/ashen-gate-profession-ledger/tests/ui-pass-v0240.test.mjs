@@ -15,7 +15,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicati
   DialogV2:{wait:async opts=>{prompts.push(opts);const b=opts.buttons?.find(x=>x.action===(answer?'confirm':'cancel'));return b?.callback?.()??answer;},prompt:async opts=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.32.4'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.33.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{writes.push(key);values[key]=v;}}};
