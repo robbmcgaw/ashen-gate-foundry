@@ -149,8 +149,7 @@ test('CSS: one grid template; rows are subgrids; no wrapping or sideways scroll 
   assert.doesNotMatch(block, /flex-wrap: wrap|overflow-x/);
 });
 
-test('Combat, Inventory and Features keep their 0.53.0 behaviour (640px steps, no Magic classes)', () => {
-  assert.match(CSS, /@container \(max-width: 640px\) \{[\s\S]*\.agch-crow \.agch-card__fact--late \{ display: none; \}/);
+test('the item rows (0.56.0) share no Magic classes', () => {
   assert.doesNotMatch(CSS.slice(CSS.indexOf('/* 0.53.0: Combat'), CSS.indexOf('/* Compact mode (0.29.0)')), /agch-sp-|agch-spells/);
 });
 

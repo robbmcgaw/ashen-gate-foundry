@@ -29,13 +29,14 @@ const verb = open => (open ? 'Hide' : 'Show');
  * more classes and `attrs` more attributes on the li, `lead` HTML before the star (a container's fold toggle).
  * `expanded` is the sheet's Set of open detail keys.
  */
-export function compactRowHtml(row, columns, {p, action, controls = '', star = '', lead = '', badges = '', alt = false, expanded = null, listKey = '', iconUse = false, extra = '', attrs = '', facts = null} = {}) {
+export function compactRowHtml(row, columns, {p, action, controls = '', star = '', lead = '', badges = '', alt = false, expanded = null, listKey = '', iconUse = false, extra = '', attrs = '', facts = null, detailExtra = ''} = {}) {
   const key = sectionKey('more', listKey, row.id), open = expanded?.has?.(key) === true;
   const tip = tooltipAttrs(row.uuid, row.summary ? `${row.name}: ${row.summary}` : row.name);
   const aria = `aria-expanded="${open}" aria-controls="${esc(key)}"`;
   const data = `data-action="${action}" data-id="${esc(row.id)}" data-key="${esc(key)}" data-ag-always`;
-  // `facts` (Magic, 0.55.0): [label, value] pairs that are always in the open row; otherwise the columns marked `late`.
-  const late = facts ? facts.map(([l, v]) => `<div><dt>${esc(l)}</dt><dd>${esc(v || '—')}</dd></div>`).join('')
+  // `facts` (Magic 0.55.0, items 0.56.0): [label, value] pairs that are always in the open row (a value may be {html} for trusted
+  // markup such as a badge); otherwise the columns marked `late`. `detailExtra` is trusted HTML after the facts (Inventory's quantity buttons).
+  const late = facts ? facts.map(([l, v]) => `<div><dt>${esc(l)}</dt><dd>${v && v.html !== undefined ? v.html : esc(v || '—')}</dd></div>`).join('')
     : columns.filter(c => c.late).map(c => `<div><dt>${esc(c.label)}</dt><dd>${c.render ? c.render(row) : esc(row.facts?.[c.key] || '—')}</dd></div>`).join('');
   return `<li class="agch-card ${p}${alt ? ' is-alt' : ''}${open ? ' is-open' : ''}${extra}" data-item-id="${esc(row.id)}"${attrs}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>`
     + `<span class="agch-card__lead">${lead}${star}</span>${iconHtml(row, iconUse)}`
@@ -43,7 +44,7 @@ export function compactRowHtml(row, columns, {p, action, controls = '', star = '
     + `<button type="button" class="agch-item__name ${p}__name" ${data} ${aria} tabindex="-1"${tip}>${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}</span>`
     + `${columns.map(c => cell(c, row)).join('')}<span class="agch-item__controls agch-card__actions">${controls}</span>`
     + `<div class="agch-card__detail ${p}__detail" id="${esc(key)}" role="region" aria-label="${esc(`Description of ${row.name}`)}"${open ? '' : ' hidden'}>`
-    + `${late ? `<dl class="${p}__facts">${late}</dl>` : ''}<p class="${p}__text">${esc(row.details || 'No description.')}</p>`
+    + `${late ? `<dl class="${p}__facts">${late}</dl>` : ''}${detailExtra}<p class="${p}__text">${esc(row.details || 'No description.')}</p>`
     + `<button type="button" class="ag-btn ag-btn--sm ${p}__open" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always><span>Open ${esc(row.name)}</span></button></div></li>`;
 }
 
@@ -82,3 +83,31 @@ export function syncBandHeight(content) {
   set();
   if (typeof globalThis.ResizeObserver === 'function') { body._agchBandObserver = new globalThis.ResizeObserver(set); body._agchBandObserver.observe(band); }
 }
+
+// ---------- Shared layout rules for the one-line rows (0.56.0: Combat, Inventory, Features; Magic's constants keep their own steps) ----------
+
+/**
+ * The drop order of a priority constant: its optional list runs from the column that stays longest to the one that goes first,
+ * so columns drop in the reverse order. (Magic's SPELL_PRIORITY and the item tabs' constants all read this way.)
+ */
+export const dropOrder = priority => [...(priority?.optional ?? [])].reverse();
+/** Round up to the next 5px, the grain of the step widths. */
+export const ceil5 = n => Math.ceil(n / 5) * 5;
+/**
+ * The Hub body width (px, at the default Compact tokens) a one-line row needs: border, row padding, the lead and icon tracks, a
+ * name of at least `main`, the visible data columns, the actions track and the gaps between tracks. `cols` is the visible
+ * columns' widths; `hidden` ids are left out. The step widths in item-rows.mjs are this, rounded up to 5px (and never below the
+ * list's sideways-scroll minimum). The name track itself may shrink to 5rem before anything overflows, which is the slack that
+ * absorbs the Comfortable size's larger tokens.
+ */
+export function rowNeed({metrics, lead, track, cols, hidden = [], widths = {}}) {
+  const shown = cols.filter(k => !hidden.includes(k));
+  const data = shown.reduce((sum, k) => sum + (widths[k] ?? 0), 0);
+  const tracks = 3 + shown.length + 1;
+  return metrics.border + metrics.rowPad + lead + metrics.icon + metrics.main + data + track + metrics.gap * (tracks - 1);
+}
+/**
+ * A small state badge that stays beside the name (Equipped, Attuned): an icon and the word, so colour is never the only signal.
+ * Below the badge step the word is visually hidden (CSS) and the tooltip and screen-reader text carry it.
+ */
+export const stateBadge = (icon, label, tip = label) => `<span class="ag-badge ag-badge--accent agch-sbadge" data-tooltip="${esc(tip)}"><i class="fa-solid ${icon}" aria-hidden="true"></i><span class="agch-sbadge__t"> ${esc(label)}</span></span>`;
