@@ -1,3 +1,13 @@
+## 0.23.3 — 2026-10-26
+
+Fix: players saw every published tree, including ones for professions and Cinders their character does not have.
+
+- **Players see only the trees their character holds.** A profession tree shows when the Profession Ledger gives the character that profession (level 1 or more). A Cinder tree shows when a Cinder made from it is bound to the character. Any other tree shows once the GM has awarded the character points in it. A character that has already bought a node in a tree always keeps seeing that tree. With no trees yet, the window says "No skill trees yet. Trees appear when your character gains a profession or Cinder."
+- **Enforced in the data and API layer, not just the window.** The tree picker, `listTrees`, `listTreesForProfession`, `actorProgress`, `pointsSummary`, `professionWallet`, `professionReport`, the embed (`embed.data` and the Unlock button), `open` with a tree id, and Unlock (the player's request and the GM client's check) all use the same rule. An unrelated tree and a tree that does not exist get the same answer ("Unknown tree"), so a player cannot tell a hidden tree exists. If the Profession Ledger or Cinders is missing, a player does not see its trees (hidden, not shown); the GM is never filtered and the module always opens.
+- **GM:** sees every tree as before. **Player preview** now shows the trees the chosen character holds (pick another character to see as them).
+- A player with several characters sees the trees any of them holds in the API's tree list; the window and the per-character calls show the chosen character's trees only.
+- Saved data: no change, no migration. Tests are mocked Foundry and pure logic; they prove the rules and wiring, not how the window looks in the live Forge.
+
 ## 0.23.2 — 2026-10-26
 
 Fixes a browser freeze when General Manager syncs many Items. The player view was re-published to a world setting for every perk Item that changed (each time scanning the whole world once per tree node); a burst of 50 Items blocked the tab. Now: Manager bulk writes are ignored while they run, any burst of perk changes is one publish after a short pause, and a publish looks perks up from one pass over the world instead of one scan per node. No change to saved data.

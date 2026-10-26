@@ -18,17 +18,19 @@ import {SOURCE_KINDS,sourceRecords,missingSourceMessage} from './source-pick.mjs
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
 import {treePicker,walletLine,professionGroups} from './groups.mjs';
+import {holdsTree,cinderSourceIds,EMPTY_PLAYER_TREES} from './visibility.mjs';
 import {buildLibrary,renderLibraryHtml,renderFiltersFold,cleanFilters,validSort,validGroup,libraryCountText,filtersTitle,groupOptions,sortOptions,pickerGroups} from './library.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.23.2';
+const VERSION='0.23.3';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const LEDGER_ID='ashen-gate-profession-ledger';
 const LEDGER_CONTRACT='ag-ledger-progression/1';
+const CINDERS_ID='ashen-gate-cinders';
 const SAFE_SETTING='publicTreesV2';
 // 0.17.0: generic partner contract. Skill Trees knows no partner by name: it reports progress changes and lets a partner veto one.
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -68,7 +70,26 @@ const readPrivate=()=>{
   return asArray(payload?.trees).map(normalizeTree);
 };
 const readPublic=()=>asArray(game.settings.get(MODULE,SAFE_SETTING)?.trees);
-const readSelectedTrees=preview=>game.user.isGM&&!preview?readPrivate():readPublic();
+/** Characters this user owns (what a player's tree access is worked out from). */
+const ownedCharacters=()=>(game.actors?.contents??[]).filter(a=>a.type==='character'&&a.isOwner&&!isLevelBackup(a));
+/** Cinder sources bound to a character (the Cinders module mirrors them on the Actor), or null when Cinders is not active. */
+const boundCinders=actor=>{const m=game.modules?.get?.(CINDERS_ID);return cinderSourceIds(actor?.flags?.[CINDERS_ID]?.cinders,Boolean(m?.active));};
+/** The visibility rule for one character (see visibility.mjs). Applies to published trees; the GM is never filtered. */
+const holdsFor=(actor,tree,cinderIds=boundCinders(actor))=>holdsTree(tree,{level:professionLevel(actor,tree),cinderIds,account:readProgress(actor,tree)});
+/** Published trees that apply to one character (a player's view of it). GM: every private tree. */
+function treesForActor(actor){
+  if(game.user.isGM)return readPrivate();
+  if(!actor)return [];
+  const cinderIds=boundCinders(actor);
+  return readPublic().filter(t=>holdsFor(actor,t,cinderIds));
+}
+/** What this user may see across all their characters (players); the published trees for the GM's Player preview. */
+function visiblePublic(){
+  if(game.user.isGM)return readPublic();
+  const actors=ownedCharacters(),pub=readPublic();
+  return pub.filter(t=>actors.some(a=>holdsFor(a,t)));
+}
+const readSelectedTrees=preview=>game.user.isGM&&!preview?readPrivate():visiblePublic();
 const readProgress=(actor,tree)=>cleanAccount(safeFlag(actor,'progressV2')?.[walletKey(tree)]);
 const allProgressFor=(tree)=>(game.actors?.contents??[]).map(a=>readProgress(a,tree));
 /** The Profession Ledger's read contract, or null when it is missing, off, or a different version (feature-detected, never required). */
@@ -125,7 +146,7 @@ const accessLine=tree=>cleanAccess(tree?.access)&&ledgerMeetsProficiency()?[acce
  * earned/available are null when the Ledger is unavailable; available never goes below 0 (overSpent says by how much). Trees: those this user may see.
  */
 function walletFor(actor,sourceRef){
-  const trees=professionTrees(sourceRef);if(!trees.length)return null;
+  const trees=professionTrees(sourceRef,treesForActor(actor));if(!trees.length)return null;
   const gm=game.user.isGM,first=gm?resolved(trees[0]):trees[0];
   const st=professionStatus(first,readProgress(actor,trees[0]),professionLevel(actor,trees[0]),walletSiblings(actor,trees[0]));
   return {sourceRef,level:st.level,earned:st.ledger?st.earned:null,spent:st.spent,available:st.ledger?Math.max(0,st.available):null,
@@ -275,7 +296,8 @@ async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
     checkProgress(actor,stored,'unlock');
     // 0.21.0: a tree's proficiency gate applies to players only (the GM is never blocked); no Ledger answer, no gate.
     const access=forUser?await accessCheck(actor,stored):null;
-    if(forUser){ // A player may unlock only what the player view shows them.
+    if(forUser){ // A player may unlock only what the player view shows them, and only on a tree their character holds.
+      if(!holdsFor(actor,stored))throw Error('Unknown tree');
       const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
       if(!pub||!pn||pn.silhouette)throw Error('That node is not released to players');
       const ok=publicAvailability(pub,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});if(!ok.ok)throw Error(ok.reason);
@@ -465,7 +487,7 @@ async function importLedgerChoices({apply=false}={}){
 function professionReport(actor,profId,{level}={}){
   if(!actor)return null;
   if(!game.user.isGM&&actor.testUserPermission?.(game.user,'OBSERVER')!==true)throw Error('Actor access denied');
-  const stored=professionTrees(profId)[0];if(!stored)return null;
+  const stored=professionTrees(profId,treesForActor(actor))[0];if(!stored)return null;
   const t=game.user.isGM?resolved(stored):stored;
   const st=professionStatus(t,readProgress(actor,stored),Number.isSafeInteger(level)?level:professionLevel(actor,stored),walletSiblings(actor,stored));
   // 0.21.0: spent and the over-allocation cover every tree of the profession; with several trees, trees lists them.
@@ -480,7 +502,7 @@ function pointsSummary(actor){
   if(!actor)throw Error('No Actor given');
   checkTreePlayerAccess();
   if(!hasOwner(actor))throw Error('Actor access denied');
-  return readSelectedTrees(false).map(t=>{
+  return treesForActor(actor).map(t=>{
     const acc=readProgress(actor,t),spent=totalSpent(t,acc),kind=t.provider?.kind??'generic_points';
     if(kind==='profession'){
       const st=professionStatus(t,acc,professionLevel(actor,t),walletSiblings(actor,t));
@@ -682,15 +704,22 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Close asks first when GM Setup has unsaved changes. */
   async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;return super.close?.(options);}
   get actor(){return game.actors?.get(this.actorId)??null;}
-  get trees(){return readSelectedTrees(this.playerPreview);}
+  /** GM: every private tree. Players, and the GM's Player preview: the published trees that apply to the chosen character. */
+  get trees(){
+    const all=readSelectedTrees(this.playerPreview);
+    if(game.user.isGM&&!this.playerPreview)return all;
+    const actor=this.actor;if(!actor||!actorChoices().some(a=>a.id===actor.id))return [];
+    const cinderIds=boundCinders(actor);
+    return all.filter(t=>holdsFor(actor,t,cinderIds));
+  }
   /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
   get storedTree(){return game.user.isGM?readPrivate().find(t=>t.id===this.treeId)??null:null;}
   /** Display tree: GM sees it resolved from world perks; players (and preview) see the published projection. */
   get tree(){const t=this.trees.find(t=>t.id===this.treeId)??null;return t&&game.user.isGM&&!this.playerPreview?resolved(t):t;}
   _defaults(){
+    const actors=actorChoices();if(!actors.some(a=>a.id===this.actorId))this.actorId=actors[0]?.id??null;
     const trees=this.trees;
     if(!trees.some(t=>t.id===this.treeId))this.treeId=trees[0]?.id??null;
-    const actors=actorChoices();if(!actors.some(a=>a.id===this.actorId))this.actorId=actors[0]?.id??null;
     if(!this.tree?.nodes?.some(n=>n.id===this.nodeId))this.nodeId=null;
     if(!game.user.isGM){this.editMode=false;this.playerPreview=false;this.activeTab='trees';}
   }
@@ -774,6 +803,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       actorName:actor?.name??'',
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
+      emptyText:EMPTY_PLAYER_TREES,
       trees:picker.options,treeGroups:pickerGroups(picker.options,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
       treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
@@ -1159,7 +1189,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <li><strong>Character</strong>: points, Award points, the characters on a profession tree, the character’s History (every change can be undone) and Reset this tree.</li>
       <li><strong>Edit</strong> (GM): with Edit layout on, Tree settings, Appearance, Undo/Redo and the Perks list.</li></ul>
       <p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p>
-      <h3>Editing a tree (GM)</h3><p>Turn on <strong>Edit layout</strong> above the canvas. Add perks from the Edit tab (drag, or press Add). Move a node by dragging it, by focusing it and using the arrow keys (Shift for bigger steps), or with Move node. <strong>Connect prerequisite</strong> adds a required arrow; Esc or Cancel connecting stops. <strong>Player preview</strong> shows what players see.</p>
+      <h3>Editing a tree (GM)</h3><p>Turn on <strong>Edit layout</strong> above the canvas. Add perks from the Edit tab (drag, or press Add). Move a node by dragging it, by focusing it and using the arrow keys (Shift for bigger steps), or with Move node. <strong>Connect prerequisite</strong> adds a required arrow; Esc or Cancel connecting stops. <strong>Player preview</strong> shows what the chosen character sees: players see only the trees their character holds (a profession in the Profession Ledger, a bound Cinder, or points you awarded), plus any tree where they already bought a perk.</p>
       <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree in folders by type (Crafting, Gathering, Cinder powers and so on) with a count each; open or close a folder to remember it. Search, Sort, Folders and Filters narrow the list. Each tree has Open and Export; Export all trees and New tree are at the top. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager.</p>
       <h3>GM Setup</h3><p>Player access (saved with Save Changes) and Developer Tools.</p>
       <h3>Profession trees</h3><p>Profession trees get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again: the banner’s <strong>Review</strong> button (or the whisper’s) lists them, to keep or remove each.</p>
@@ -1732,8 +1762,8 @@ function embedTreeModel(actor,stored){
  * wallet once ({shared:true, name, sourceRef, level, earned, spent, available, trees:[model…]}); every other tree is a group of one.
  */
 function embedData(actor){
-  const models=new Map(readSelectedTrees(false).map(t=>[t.id,embedTreeModel(actor,t)]));
-  return professionGroups(readSelectedTrees(false)).map(g=>{
+  const mine=treesForActor(actor),models=new Map(mine.map(t=>[t.id,embedTreeModel(actor,t)]));
+  return professionGroups(mine).map(g=>{
     const trees=g.trees.map(t=>({...models.get(t.id),label:g.members.find(m=>m.id===t.id)?.label??t.name}));
     const first=trees[0];
     return {key:g.key,shared:g.multi,name:g.name,sourceRef:g.sourceRef,kind:g.kind,profession:first.profession,
@@ -1781,7 +1811,7 @@ function embedHTML(ctrl){
 async function embedUnlock(actor,treeId,nodeId){
   checkTreePlayerAccess();
   const refusal=embedRefusal(actor);if(refusal)throw Error(refusal);
-  const stored=readSelectedTrees(false).find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+  const stored=treesForActor(actor).find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
   const level=professionLevel(actor,stored);
   if(game.user.isGM){
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Missing private node');
@@ -1848,6 +1878,12 @@ function refreshEmbeds(actorId=null){for(const e of [...embeds])if(!actorId||e.a
 
 function open({treeId=null,actorId=null,resolve=false}={}){
   checkTreePlayerAccess();
+  // A player can open only a tree their character holds; an unrelated or unknown id is answered the same way.
+  if(treeId&&!game.user.isGM){
+    const actor=actorId?game.actors?.get?.(actorId):null;
+    const known=actorId?(actor&&hasOwner(actor)&&treesForActor(actor).some(t=>t.id===treeId)):visiblePublic().some(t=>t.id===treeId);
+    if(!known)throw Error('Unknown tree');
+  }
   if(!instance)instance=new SkillTreeApp();
   if(treeId)instance.treeId=treeId;
   if(actorId)instance.actorId=actorId;
@@ -1877,7 +1913,7 @@ Hooks.once('ready',()=>{
     version:VERSION,open,
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},
     listTrees:()=>{checkTreePlayerAccess();return copy(readSelectedTrees(false));},
-    actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=readSelectedTrees(false).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
+    actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=treesForActor(actor).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
     embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed,
@@ -1905,7 +1941,9 @@ Hooks.once('ready',()=>{
     // Unlock spends the character's points and adds the perk Item. A player's call is checked and done by the active GM client.
     unlock:async(actor,treeId,nodeId)=>{checkTreePlayerAccess();
       if(game.user.isGM){const {node,item}=await unlockNode(actor,treeId,nodeId);return {ok:true,nodeId:node.id,itemId:item?.id??null};}
-      if(!actor?.isOwner)throw Error('Actor access denied');await requestUnlock(actor,treeId,nodeId);return {ok:true,nodeId};},
+      if(!actor?.isOwner)throw Error('Actor access denied');
+      if(!treesForActor(actor).some(t=>t.id===treeId))throw Error('Unknown tree');
+      await requestUnlock(actor,treeId,nodeId);return {ok:true,nodeId};},
     refund:async(actor,treeId,nodeId,options)=>refundNode(actor,treeId,nodeId,options),
     /** Profession trees (0.11.0). GM override grant and keep are GM-only; reports are read-only. */
     overrideGrant:async(actor,treeId,nodeId,options)=>overrideNode(actor,treeId,nodeId,options),

@@ -93,7 +93,8 @@ test('player unlock goes to the active GM client, which checks ownership and doe
   assert.equal(emitted.at(-1).message,"[TEST] Steady Hands unlocked for [TEST] PL1.");assert.equal(emitted.at(-1).userId,'player1');assert.equal(a.items.length,1);
 });
 test('player client sends a request and shows the GM answer; with no GM online it says so',async()=>{
-  const a=await fresh('PL2');asUser(player);emitted.length=0;
+  const a=await fresh('PL2');await api.publish(); // 0.23.3: a player can only ask for a tree that is published and that their character holds
+  asUser(player);emitted.length=0;
   const pending=api.unlock(a,'PT-TREE-T','NODE-A');
   const req=emitted.at(-1);assert.equal(req.type,'unlock-request');assert.equal(req.nodeId,'NODE-A');
   socketHandlers[0]({type:'unlock-result',requestId:req.requestId,userId:'player1',ok:false,message:'Need 1 more point(s)'});

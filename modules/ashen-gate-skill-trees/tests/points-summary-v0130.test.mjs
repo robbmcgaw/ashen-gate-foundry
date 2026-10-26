@@ -44,12 +44,12 @@ test('a player who does not own the Actor is refused; Player Access off refuses 
   try{game.user=owner;assert.throws(()=>api.pointsSummary(hero),/hidden/);game.user=gm;assert.equal(api.pointsSummary(hero).length,2);}
   finally{saved.set('playerAccessEnabled',true);}
 });
-test('no data: zeros for a fresh character, level 0 without the profession; no Actor → error',()=>{
+test('0.23.3 a fresh character holds no tree, so a player sees none; a level-0 profession is not listed; no Actor → error',()=>{
   game.user=owner;
-  assert.deepEqual(api.pointsSummary(blank),[
-    {treeId:'TP-PROF',name:'[TEST] Herbalism Tree',kind:'profession',level:0,earned:0,spent:0,available:0},
-    {treeId:'TP-GEN',name:'[TEST] Generic Tree',kind:'generic_points',level:null,earned:0,spent:0,available:0}]);
+  assert.deepEqual(api.pointsSummary(blank),[]);
   assert.throws(()=>api.pointsSummary(null),/No Actor/);
+  game.user=gm; // the GM still gets the zero rows
+  assert.deepEqual(api.pointsSummary(blank).map(r=>[r.treeId,r.level,r.earned,r.spent,r.available]),[['TP-PROF',0,0,0,0],['TP-GEN',null,0,0,0]]);
 });
 test('Ledger unavailable: profession earned/available are null, spent still counted',()=>{
   game.user=gm;ledger.active=false;
