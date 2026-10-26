@@ -8,7 +8,8 @@
  * idempotent and the next preview is computed from the world, so an interrupted or cancelled run is finished by running
  * the same sync again.
  */
-import {MODULE_ID, MANAGED_TYPES} from './core.js';
+import {MODULE_ID, MANAGED_TYPES, baselineFields} from './core.js';
+import {isArtPath, artDecision, liveArt} from './art-fields.js';
 import {ACTOR_ITEMS_FLAG, ITEM_FLAG, ITEM_PLAY_STATE, itemKeys, itemLeaves, keyOf} from './actor-update.js';
 import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
@@ -33,10 +34,26 @@ export function assertSyncTarget(doc, user, id, {deleting = false} = {}) {
   if (id && flag.sourceId !== id) throw new Error(`This document is bound to ${flag.sourceId}, not ${id}.`);
 }
 
+/**
+ * 0.70.0 "art is always yours", enforced at the write: the art fields of `fields` (portrait, token image, token ring) that the
+ * world has changed from the last import's package value are dropped, whatever the plan said, unless the GM ticked
+ * "Also replace art I set" (replaceArt). Returns the fields to write.
+ */
+export function withoutGmArt(doc, fields, {replaceArt = false} = {}) {
+  if (replaceArt) return fields;
+  const arts = Object.keys(fields).filter(isArtPath);
+  if (!arts.length) return fields;
+  const raw = doc.toObject?.() ?? {}, baseline = baselineFields(doc.getFlag?.(MODULE_ID, 'source')?.managedFields) ?? {};
+  const out = {...fields};
+  for (const path of arts) if (artDecision(path, liveArt(path, raw, baseline, get), fields[path], baseline) === 'keep') delete out[path];
+  return out;
+}
+
 /** Overwrites one document with the package's version of it. Embedded changes first, the source flag last. */
-export async function writeOverwrite(doc, row, {user, flag, extra = {}}) {
+export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceArt = false}) {
   assertSyncTarget(doc, user, row.id);
   const ops = row.ops, kind = doc.documentName;
+  const fields = withoutGmArt(doc, ops.fields, {replaceArt});
   if (kind === 'Actor') {
     const {adopt = [], update = [], create = [], delete: del = []} = ops.items ?? {};
     const updates = [...adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...update];
@@ -58,7 +75,7 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}}) {
     if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create));
     if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds);
   }
-  const update = {...ops.fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
+  const update = {...fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
   if (kind === 'Actor') update[`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`] = {version: 1};
   await doc.update(update);
 }
@@ -69,14 +86,14 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}}) {
  * Embedded changes first and the source flag last, so an interrupted run leaves the document bound to the old id and the
  * same preview finishes it. The old id is kept in the Manager flag `supersededFrom` for the record.
  */
-export async function writeRebind(doc, row, {user, flag, extra = {}}) {
+export async function writeRebind(doc, row, {user, flag, extra = {}, replaceArt = false}) {
   const oldId = row?.supersedes?.oldId;
   if (!oldId) throw new Error('This row does not replace anything.');
   assertSyncTarget(doc, user, oldId);
   if (flag?.sourceId !== row.id) throw new Error(`The new source flag names ${flag?.sourceId}, not ${row.id}.`);
   const prior = doc.getFlag?.(MODULE_ID, 'supersededFrom');
   const from = [...new Set([...(Array.isArray(prior) ? prior : []), oldId])];
-  await writeOverwrite(doc, {...row, id: oldId}, {user, flag, extra: {...extra, [`flags.${MODULE_ID}.supersededFrom`]: from}});
+  await writeOverwrite(doc, {...row, id: oldId}, {user, flag, replaceArt, extra: {...extra, [`flags.${MODULE_ID}.supersededFrom`]: from}});
 }
 
 /**
@@ -88,6 +105,7 @@ export async function stampDoc(doc, record) {
   const memo = {};
   for (const [path, incoming] of Object.entries(incomingFields(record))) {
     if (incoming && typeof incoming === 'object' && !Array.isArray(incoming) && !Object.keys(incoming).length) continue;
+    if (isArtPath(path)) continue; // 0.70.0: the GM's art is never remembered as a "normalised" package value (art-fields.js)
     const live = get(raw, path);
     if (!same(live, incoming)) memo[path] = {raw: contentHash(incoming ?? null), live: contentHash(live ?? null)};
   }
@@ -192,7 +210,7 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   let r = await chunked(rebinds, chunk, signal, async row => {
     try {
       const doc = row.snap?.doc ?? adapter.docFor({...row, id: row.supersedes.oldId});
-      await writeRebind(doc, row, {user, flag: adapter.buildFlag(row), extra: adapter.extraUpdate?.(doc, row) ?? {}});
+      await writeRebind(doc, row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: adapter.extraUpdate?.(doc, row) ?? {}});
       touched.push(row); ok(row, 'rebind', {oldId: row.supersedes.oldId, uuid: doc.uuid});
     } catch (e) { fail(row, 'rebind', e); }
     mark('rebind', row.name)();
@@ -215,7 +233,7 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   }, adapter.pause);
   if (r.cancelled) return result(plan, log, true);
   r = await chunked(overwrites, chunk, signal, async row => {
-    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), extra: adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
+    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
     mark('overwrite', row.name)();
   }, adapter.pause);
   if (r.cancelled) return result(plan, log, true);

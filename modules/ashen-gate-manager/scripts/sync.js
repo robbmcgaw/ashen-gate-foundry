@@ -21,6 +21,7 @@ import {wantsSmartIcon, plannerIcon} from './smart-icons.js';
 import {domainHandoff} from './delivery.js';
 import {contentHash} from './world-export.js';
 import {dependencyOrder} from './workflows.js';
+import {isArtPath, artDecision, liveArt, artLabel, artSentence} from './art-fields.js';
 import {isLocationRecord, planLocation, isRouteRecord, planRoute} from './location-handoff.js';
 import {isShopRecord, planShop} from './shop-handoff.js';
 import {SPECIALISTS, planSpecialist, updatesExisting} from './specialist-handoff.js';
@@ -37,6 +38,8 @@ export const MEMO_KEY = 'syncMemo';
 export const SYNC_MAX_FILES = 150;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 /** A list from a document or flag that may be missing, null or hold null entries (a damaged or hand-edited world): only the object entries. */
+/** Set by planSync for the plan being built (the planners are called without a context): ctx.replaceArt = "Also replace art I set". */
+const artMode = {replace: false};
 const objects = list => (Array.isArray(list) ? list : []).filter(v => v && typeof v === 'object');
 const same = (a, b) => equal(a ?? null, b ?? null);
 const emptyObject = v => isPlainObject(v) && !Object.keys(v).length;
@@ -196,17 +199,26 @@ function matches(path, live, incoming, memo) {
  * Differences between live data and the package's flat fields. `baseline` is the last import (flat); a changed live value
  * that is neither the baseline nor the incoming value is a GM edit this sync will replace.
  */
-export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => false, label = p => p} = {}) {
-  const changes = [], patch = {};
+export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => false, label = p => p, kind = 'Actor'} = {}) {
+  const changes = [], patch = {}, artKept = [];
   for (const [path, incoming] of Object.entries(fields)) {
     if (emptyObject(incoming) || skip(path)) continue;
     const live = getPath(raw, path);
-    if (matches(path, live, incoming, memo)) continue;
+    if (!isArtPath(path) && matches(path, live, incoming, memo)) continue;
+    if (isArtPath(path)) {
+      // 0.70.0 "art is always yours": the GM's art is kept (and is never an edit); art he never changed follows the package.
+      const decision = artDecision(path, liveArt(path, raw, baseline, getPath), incoming, baseline);
+      if (decision === 'same') continue;
+      if (decision === 'keep' && !artMode.replace) { artKept.push({path, label: artLabel(path, kind), live: show(live), package: show(incoming)}); continue; }
+      patch[path] = incoming;
+      changes.push({path, label: label(path), from: show(live), to: show(incoming), gmEdited: decision === 'keep', art: true});
+      continue;
+    }
     const gmEdited = own(baseline, path) && !same(live, baseline[path]) && !equivalentValue(path, live, baseline[path]);
     patch[path] = incoming;
     changes.push({path, label: label(path), from: hasMarker(incoming) ? '(text with links)' : show(live), to: hasMarker(incoming) ? '(text with links)' : show(incoming), gmEdited});
   }
-  return {changes, patch};
+  return {changes, patch, artKept};
 }
 const lostOf = changes => changes.filter(c => c.gmEdited).length;
 
@@ -262,7 +274,7 @@ function planItem(record, snap) {
   const fields = incomingFields(record);
   const link = snap.coreLink?.adopted ? snap.coreLink : null;
   const coreOwned = path => Boolean(link) && (link.adoptedPaths ?? []).some(p => path === p || path.startsWith(`${p}.`));
-  const {changes, patch} = diffFields(raw, fields, {baseline, memo, skip: coreOwned});
+  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, skip: coreOwned, kind: 'Item'});
   const notes = [];
   const kept = Object.keys(fields).filter(coreOwned).filter(p => !matches(p, getPath(raw, p), fields[p], memo));
   if (kept.length) notes.push(`${kept.length} field(s) adopted from a 2024 core item are kept (Core links owns them)`);
@@ -274,13 +286,13 @@ function planItem(record, snap) {
   for (const u of fx.update) if (u.changed.length) changes.push({path: 'effects', label: `effect ${u._id}`, from: 'edited or older', to: u.changed.join(', '), gmEdited: true});
   if (fx.delete.length) changes.push({path: 'effects', label: 'effects', from: `${fx.delete.length} Manager-made effect(s) no longer in the package`, to: 'removed', gmEdited: false});
   notes.push(...fx.notes);
-  return {fields: patch, effects: fx, changes, notes, contentChange: changes.length > 0 || fx.update.length > 0};
+  return {fields: patch, effects: fx, changes, notes, artKept, contentChange: changes.length > 0 || fx.update.length > 0};
 }
 
 function planJournal(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
-  const {changes, patch} = diffFields(raw, fields, {baseline, memo});
+  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, kind: 'JournalEntry'});
   const defs = objects(data.pages), keys = nameKeys(defs.map(p => p.name));
   const live = objects(raw.pages), liveKeys = nameKeys(live.map(p => p.name));
   const liveByKey = new Map(liveKeys.map((k, i) => [k, live[i]]));
@@ -305,13 +317,13 @@ function planJournal(record, snap) {
     pages.delete.push(liveByKey.get(key)._id);
     changes.push({path: `pages.${key}`, label: `page "${def.name}"`, from: 'in the old package', to: 'removed', gmEdited: false});
   }
-  return {fields: patch, pages, changes, notes: [], contentChange: changes.length > 0};
+  return {fields: patch, pages, changes, notes: [], artKept, contentChange: changes.length > 0};
 }
 
 function planTable(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
-  const {changes, patch} = diffFields(raw, fields, {baseline, memo});
+  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, kind: 'RollTable'});
   let results = null;
   if (Array.isArray(data.results)) {
     const sortR = list => [...list].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
@@ -322,17 +334,17 @@ function planTable(record, snap) {
       changes.push({path: 'results', label: 'results', from: `${have.length} result(s)`, to: `${want.length} result(s) (the table's draw history resets)`, gmEdited: false});
     }
   }
-  return {fields: patch, results, changes, notes: [], contentChange: changes.length > 0};
+  return {fields: patch, results, changes, notes: [], artKept, contentChange: changes.length > 0};
 }
 
 const normLines = s => String(s ?? '').replace(/\r\n?/g, '\n');
 function planMacro(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
-  const {changes, patch} = diffFields({...raw, command: normLines(raw.command)}, {...fields, command: normLines(fields.command)}, {baseline: {...baseline, command: normLines(baseline.command)}, memo});
+  const {changes, patch, artKept} = diffFields({...raw, command: normLines(raw.command)}, {...fields, command: normLines(fields.command)}, {baseline: {...baseline, command: normLines(baseline.command)}, memo, kind: 'Macro'});
   if (own(patch, 'command')) patch.command = data.command;
   const notes = own(patch, 'command') ? ['Macro code will be replaced (it is stored, never run, by Sync)'] : [];
-  return {fields: patch, changes, notes, contentChange: changes.length > 0};
+  return {fields: patch, changes, notes, artKept, contentChange: changes.length > 0};
 }
 
 function planActor(record, snap) {
@@ -341,7 +353,7 @@ function planActor(record, snap) {
   if (data.type === 'character') return refuse('The package record is a character; Sync never writes characters.');
   if (raw.type !== data.type) return refuse(`The world Actor is a ${raw.type} and the package says ${data.type}.`);
   const fields = incomingFields(record);
-  const {changes, patch} = diffFields(raw, fields, {baseline, memo});
+  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, kind: 'Actor'});
   const notes = [];
   if (objects(data.effects).length) notes.push('Actor-level effects are not synced (conditions are play state)');
   // Embedded Items: the package's own (marked) Items follow it; anything the GM added stays.
@@ -385,7 +397,7 @@ function planActor(record, snap) {
     const textKeys = [...new Set([...Object.keys(stored), ...Object.keys(incomingDef)])].filter(k => !same(stored[k], incomingDef[k])).sort();
     if (textKeys.length) changes.push({path: 'definition', label: 'record text', from: 'older', to: textKeys.join(', '), gmEdited: false});
   }
-  return {fields: patch, items, changes, notes, contentChange: changes.length > 0};
+  return {fields: patch, items, changes, notes, artKept, contentChange: changes.length > 0};
 }
 
 /**
@@ -402,6 +414,7 @@ export function editedFields(record, snap, plannedChanges = []) {
   const raw = snap.raw, memo = memoOf(snap), fields = record ? incomingFields(record) : null, out = [];
   for (const [path, base] of Object.entries(baseline)) {
     if ((fields ? !own(fields, path) : isActor && keptActorPath(path)) || emptyObject(base) || path === 'items') continue;
+    if (record && isArtPath(path)) continue; // 0.70.0: art is never an edit of a record the package still carries (art-fields.js); a record it dropped is still kept when it has your art
     let live = getPath(raw, path);
     if (path === 'img') live = plannerIcon(live, raw.flags?.[MODULE_ID], base);
     if (same(live, base) || equivalentValue(path, live, base)) continue;
@@ -409,7 +422,7 @@ export function editedFields(record, snap, plannedChanges = []) {
     if (m && m.live === contentHash(live ?? null)) continue;
     out.push(path);
   }
-  for (const c of plannedChanges) if (c.gmEdited && !out.includes(c.path)) out.push(c.path);
+  for (const c of plannedChanges) if (c.gmEdited && !c.art && !out.includes(c.path)) out.push(c.path);
   return out;
 }
 const PLANNERS = {Item: planItem, JournalEntry: planJournal, RollTable: planTable, Macro: planMacro, Actor: planActor};
@@ -476,7 +489,8 @@ export function planSync(set, world, ctx = {}) {
   }
   if (!errors.length) errors.push(...(ctx.validateExtra?.([...set.records.values()].map(r => r.record)) ?? []));
   uuidSourceIds = new Map(docs.filter(d => d.uuid && d.flag?.sourceId).map(d => [d.uuid, d.flag.sourceId]));
-  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited)};
+  artMode.replace = Boolean(ctx.replaceArt);
+  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt)};
   const lines = [...set.lines.values()];
   plan.scope = {
     files: set.files.map(f => ({filename: f.filename, origin: f.origin, kind: f.kind, records: f.records, packageId: f.packageId, version: f.version})),
@@ -529,7 +543,7 @@ export function planSync(set, world, ctx = {}) {
             const p = planRebind(record, offer.snap);
             if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
             const lost = lostOf(p.changes);
-            rows.push({group: 'rebind', key: rowKey('rebind', kind, id), id, name, kind, snap: offer.snap, ops: p, changes: p.changes, lost,
+            rows.push({group: 'rebind', key: rowKey('rebind', kind, id), id, name, kind, snap: offer.snap, ops: p, changes: p.changes, lost, artKept: p.artKept?.length ? p.artKept : null,
               supersedes: {oldId: offer.oldId, oldName}, reason: `Replaces ${oldName} in place (same document, tokens, ownership and folder kept): ${p.changes.length} difference(s).${p.notes?.length ? ` ${p.notes.join('; ')}.` : ''}`, ...base});
             kinds.rebind++; planned.add(id); rebindOld.add(offer.oldId);
           } catch (error) {
@@ -549,9 +563,12 @@ export function planSync(set, world, ctx = {}) {
     const snap = snaps[0];
     if (snap.documentName !== record.foundry.document_type) { rows.push(untouched(id, name, kind, `The world document is a ${snap.documentName}, not a ${record.foundry.document_type}.`, {...base, refused: true})); continue; }
     if (snap.archived) { rows.push(untouched(id, name, kind, 'Archived in Manager; restore it before it can be synced.', {...base, refused: true})); continue; }
+    const rowsBefore = rows.length;
+    let artKept = null;
     try {
       const p = PLANNERS[record.foundry.document_type](record, snap);
       if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
+      if (p.artKept?.length) artKept = p.artKept;
       const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
       if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
       const lost = lostOf(p.changes);
@@ -573,6 +590,9 @@ export function planSync(set, world, ctx = {}) {
       // One document that cannot be compared must not stop the whole preview: it is left exactly as it is (never written, never deleted).
       failures.push({id, name, step: 'compare', message: String(error?.message ?? error), stack: error?.stack ?? null});
       rows.push(untouched(id, name, kind, `Could not compare this record with the world copy (${String(error?.message ?? error)}); it is left as it is.`, {...base, refused: true, failed: true}));
+    } finally {
+      // 0.70.0: whatever happened to the record, the row says whose art it is keeping.
+      if (artKept) for (const row of rows.slice(rowsBefore)) row.artKept = artKept;
     }
   }
 
@@ -705,6 +725,9 @@ function finish(plan) {
   }
   c.untouched += plan.outOfScope?.records ?? 0;
   c.metadataRefreshes ??= 0;
+  const withArt = plan.rows.filter(r => r.artKept?.length && !r.external);
+  c.artKept = withArt.length;
+  plan.artKept = withArt.map(r => ({key: r.key, id: r.id, name: r.name, kind: r.kind, group: r.group, summary: artSentence(r.artKept.map(a => a.path), r.kind), fields: r.artKept}));
   plan.counts = c;
   plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects} : r.reason)]));
   c.supersedeFiles = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0).length;

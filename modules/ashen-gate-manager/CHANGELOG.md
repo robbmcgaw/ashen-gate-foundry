@@ -1,3 +1,15 @@
+## 0.70.0 — 2026-10-26
+
+Art is always yours: a portrait, token image or token ring you set yourself no longer holds a record back in Sync, and is never overwritten.
+
+- **What counts as art:** a document's `img` (an Actor's portrait, an Item's icon), an Actor's token image (`prototypeToken.texture.src`) and the token ring (`prototypeToken.ring.*`, including the subject image and scale). Token size, tint and name, and images written inside page or description text, are not art.
+- **The rule:** if the world's art is still the package's value from the last import, a newer package's art flows in as before. If you changed it (Items > Assets > Link files to records, the token ring tool, or by hand in Foundry), it is kept and is no longer counted as an edit.
+- **Sync from package:** a record whose only changes are art now updates fully (new stat blocks, items, text) except the art; before, it was "Kept: edited in your world" and received nothing. A record with other edits is kept exactly as before. **Also overwrite records I edited** no longer replaces your art. A new, separate, off-by-default option **Also replace art I set** does, and only that one.
+- **Preview:** a "Keeping your art" list with a short line per record (for example "Keeping your portrait and token art"), expandable to the fields, and a "keeping your art" count. The backup before writing still holds everything.
+- **Update existing actors and Also apply updates:** the same rule; an image you changed is kept instead of being replaced or reported as a conflict.
+- **Stays consistent:** the record of the last import keeps the PACKAGE's art value, never yours, so running the same sync twice changes nothing, and a later package art change reaches records you never customised while your own art keeps winning. A document the package no longer carries is still kept (not deleted) when you set its art.
+- No change to saved data; no migration.
+
 ## 0.69.0 — 2026-10-25
 
 Related lists come back, only where they help players: an Item that points to a person, a handout or a quest ends with a short "Related" list.
