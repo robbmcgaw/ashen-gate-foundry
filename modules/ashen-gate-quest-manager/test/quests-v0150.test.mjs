@@ -112,12 +112,32 @@ test('quest card: type badge, status chip, location, giver, audience character, 
  assert.match(hidden,/fa-eye-slash" aria-hidden="true"><\/i>Draft/);assert.match(hidden,/GM only/);assert.doesNotMatch(hidden,/Visible to players|Changed/);
  assert.match(questCard(questRow(entry(src('QUEST-T-I','[TEST] I'),{scope:'individual',actorId:'ghost'}),{})),/Individual: Unknown character/,'an unknown actor is said so, without its id');
 });
-test('cards never clip actionable text: wrapping styles, no ellipsis anywhere in the Quest Log stylesheet',()=>{
+test('quest rows (0.26.0): one line, an ellipsis only on the title with the full name in the open row, text still wraps in the open row',()=>{
  const css=fs.readFileSync(new URL('../styles/quest.css',import.meta.url),'utf8');
- assert.doesNotMatch(css,/text-overflow|line-clamp/);
- assert.match(css,/\.agq-card__main \{[^}]*white-space: normal/);assert.match(css,/\.agq-card__fact \{[^}]*overflow-wrap: anywhere/);
+ assert.match(css,/\.agq-card__main \.ag-row__title \{[^}]*text-overflow: ellipsis; white-space: nowrap/);
+ assert.match(css,/\.agq-card__fullname \{[^}]*overflow-wrap: anywhere/);assert.match(css,/\.agq-card__fact \{[^}]*overflow-wrap: anywhere/);
+ assert.equal((css.match(/text-overflow/g)||[]).length,2,'only the title and the small cells are cut');
+ assert.doesNotMatch(css,/line-clamp/);
+ for(const w of ['18rem','20rem','28rem','36rem','46rem','54rem'])assert.match(css,new RegExp(`@container agqlist \\(min-width: ${w}\\)`),`step ${w}`);
+ assert.match(css,/\.agq-list \{ container: agqlist \/ inline-size; \}/);
+ assert.match(css,/\.agq-gfold > \.ag-fold__summary[^{]*\{ position: sticky; top: 0/);
+ assert.match(css,/\.agq-card__main::after \{ content: ""; position: absolute; inset: 0; \}/,'the whole row selects');
  assert.match(css,/\.agq-subnav \{[^}]*flex-wrap: wrap/);
  assert.match(css,/\.agq-savebar \{[^}]*position: sticky; bottom: 0/);
+});
+test('quest row markup: one line, every fact in the open row, a chevron with aria-expanded, no ids',()=>{
+ const ctx={};
+ const r=questRow(entry(src('QUEST-T-ROW','[TEST] A very long quest title that cannot fit on one line of a narrow list column',{objectives:[{key:'a',goal:'g',visibility:'player'}]}),{status:'Active',revealed:true}),ctx);
+ const closed=questCard(r),open=questCard(r,{expanded:true});
+ assert.match(closed,/<div class="agq-card__line">/);assert.equal((closed.match(/<div class="agq-card__line">/g)||[]).length,1);
+ assert.match(closed,/class="agq-card__chev" data-more="agq-more-[a-z0-9-]+" aria-expanded="false" aria-controls="agq-more-[a-z0-9-]+" aria-label="Show details of \[TEST\] A very long/);
+ assert.match(closed,/class="agq-card__detail" id="agq-more-[a-z0-9-]+" role="region" aria-label="Details of [^"]+" hidden>/);
+ assert.match(open,/aria-expanded="true"[^>]*aria-label="Hide details of/);assert.doesNotMatch(open,/class="agq-card__detail"[^>]*hidden/);
+ assert.match(open,/class="agq-card__fullname">\[TEST\] A very long quest title that cannot fit on one line of a narrow list column</,'the full name is in the open row');
+ for(const f of ['Quest','Visible to players|GM only','Audience: ','Party'])assert.match(open,new RegExp(f));
+ assert.match(closed,/data-tooltip="\[TEST\] A very long quest title/,'the tooltip carries the full name');
+ assert.match(closed,/class="agq-c agq-c--vis" role="img" aria-label="(GM only|Visible to players)"/);
+ assert.doesNotMatch(closed.replace(/data-qid="[^"]*"|data-pick="[^"]*"|data-id="[^"]*"/g,''),/QUEST-T-ROW/,'no raw id in the text');
 });
 test('bulk bar: idle hint, then count, select all / clear, status, hide, reveal, duplicate and a red Delete',()=>{
  // 0.17.0 QL-05: the hint stays in the list column; the actions are a full-width row under the toolbar, hidden until a tick.
@@ -340,4 +360,10 @@ test('bulk delete asks in red with a labelled button; Cancel deletes nothing; th
  app.gmId='QUEST-TEST-A';app.unsavedSource=true;app.picked=new Set(['QUEST-TEST-A']);
  await app.action({dataset:{action:'bulk-hide'}},content);assert.match(notes.at(-1)[1],/Save or cancel your changes/);
  app.unsavedSource=false;console.error=origError;
+});
+test('quest rows (0.26.0): the chevron is wired without a redraw and its state is kept',()=>{
+ const main=fs.readFileSync(new URL('../scripts/main.mjs',import.meta.url),'utf8');
+ assert.match(main,/this\.openCards=new Set\(\)/);assert.match(main,/expanded:this\.openCards/);
+ assert.match(main,/this\.bindPicks\(root,wrap\);this\.bindMore\(wrap\)/);assert.match(main,/this\.bindPicks\(root\);this\.bindMore\(root\)/);
+ assert.match(main,/b\.setAttribute\('aria-expanded',String\(open\)\)/);
 });

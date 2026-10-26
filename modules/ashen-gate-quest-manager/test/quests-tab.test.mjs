@@ -98,13 +98,13 @@ test('quest cards: pick box, title, type badge, status chip, visibility, objecti
  assert.equal(r.groups[0].rows[0].done,1);assert.equal(r.groups[0].rows[0].total,2);
  const html=questCards(r.groups,'QUEST-TWO',{total:1});
  assert.match(html,/<details class="ag-fold agq-gfold" data-key="grp-status-[a-z0-9]+" open><summary class="ag-fold__summary" aria-expanded="true"><span class="ag-fold__title">Active<\/span><span class="ag-fold__count">1<\/span>/);
- assert.match(html,/<div class="ag-row agq-card is-selected" data-qid="QUEST-TWO"><label class="agq-card__pick"><input type="checkbox" data-pick="QUEST-TWO"><span class="ag-sr-only">Select \[TEST\] Two<\/span><\/label>/);
- assert.match(html,/<button type="button" class="agq-card__main" data-action="gm-select" data-id="QUEST-TWO" aria-current="true">/);
+ assert.match(html,/<div class="ag-row agq-card is-selected" data-qid="QUEST-TWO"><div class="agq-card__line"><label class="agq-card__pick"><input type="checkbox" data-pick="QUEST-TWO"><span class="ag-sr-only">Select \[TEST\] Two<\/span><\/label>/);
+ assert.match(html,/<button type="button" class="agq-card__main" data-action="gm-select" data-id="QUEST-TWO" aria-current="true"[^>]*><span class="ag-row__title">/);
  assert.match(html,/aria-valuemax="2" aria-valuenow="1"/);
  assert.match(html,/>1\/2</);assert.match(html,/--ag-meter:50%/);
  assert.match(html,/agq-kind agq-kind--quest"><i class="fa-solid fa-scroll" aria-hidden="true"><\/i>Quest<\/span>/);
  assert.match(html,/<span class="ag-badge ag-badge--accent">Active<\/span>/);
- assert.match(html,/ag-badge--ok"[^>]*data-tooltip="Players can see this quest"[^>]*>.*Visible to players/);
+ assert.match(html,/agq-c--vis" role="img" aria-label="(Visible to players|GM only)" data-tooltip="/);assert.match(html,/ag-badge[^"]*"><i class="fa-solid fa-eye(-slash)?" aria-hidden="true"><\/i>(Visible to players|GM only)<\/span>/);
  assert.match(html,/Audience: <\/span>Party/);
 });
 test('buttons: kit classes, tooltips instead of title, icon-only buttons are labelled',()=>{

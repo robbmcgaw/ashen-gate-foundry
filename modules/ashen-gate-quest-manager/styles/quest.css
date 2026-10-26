@@ -12,20 +12,53 @@
 .agq-subnav { flex-wrap: wrap; max-width: 100%; }
 .agq-subnav > button { display: inline-flex; align-items: center; white-space: nowrap; }
 
-/* GM quest cards: pick box, then title and badges, facts, progress / rewards / last change. Text wraps, never clips. */
-.agq-card { align-items: flex-start; gap: var(--ag-space-2); padding-block: var(--ag-space-2); }
+/* GM quest rows (0.26.0): one line each. The list column is a container; as it widens a row shows more, and what does not fit is
+   in the chevron's open row, never lost. Always: pick box, title, status, chevron. Steps: progress 18rem, visibility 20rem, kind and
+   level 28rem, the progress bar and location 36rem, giver 46rem, last change 54rem (the 18rem rail shows title and status). The title never wraps (an ellipsis, with the full
+   name, location and giver in the tooltip); the whole row selects the quest through the title button (a stretched hit area). */
+.agq-card { display: block; min-height: 0; padding: 0; }
 .agq-card.is-picked { border-left-color: color-mix(in srgb, var(--ag-accent) 50%, transparent); }
-.agq-card__pick { flex: none; display: inline-flex; padding-top: var(--ag-space-1); cursor: pointer; }
-.agq-card__main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--ag-space-1); padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: 400; text-align: left; white-space: normal; }
+.agq-card__line { position: relative; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--ag-space-1); min-height: var(--ag-row-h); padding: 0 var(--ag-space-2); }
+.agq-card__line:has(.agq-card__main:focus-visible) { box-shadow: inset 0 0 0 2px var(--ag-focus); border-radius: var(--ag-radius-sm); }
+.agq-card__pick, .agq-card__chev { position: relative; z-index: 1; }
+.agq-card__pick { flex: none; display: inline-flex; align-items: center; cursor: pointer; }
+.agq-card__main { flex: 1 1 0; min-width: 4.5rem; min-height: 0; display: block; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: 400; text-align: left; white-space: nowrap; overflow: hidden; }
 .agq-card__main:hover:not(:disabled) { background: transparent; }
-.agq-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ag-space-1) var(--ag-space-2); }
-.agq-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); }
-.agq-card__facts,
-.agq-card__stats { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.agq-card__main:focus-visible { outline: none; box-shadow: none; }
+.agq-card__main::after { content: ""; position: absolute; inset: 0; }
+.agq-card__main .ag-row__title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.agq-c { display: none; flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ag-muted); font-size: var(--ag-text-sm); }
+:is(.agq-card:hover, .agq-card.is-selected) .agq-c { color: var(--ag-muted-strong); }
+.agq-c--status { display: block; overflow: visible; }
+@container agqlist (min-width: 36rem) { .agq-c--status { min-width: 4.6rem; } }
+.agq-c--status .ag-badge { white-space: nowrap; }
+.agq-c--vis { text-align: center; }
+.agq-c--prog .agq-meter .ag-meter__track { display: none; }
+.agq-c--level { width: 2.6rem; }
+.agq-c--loc { width: 9rem; }
+.agq-c--giver { width: 8rem; }
+.agq-c--changed { width: 5.5rem; text-align: end; }
+.agq-card__chev { flex: none; display: inline-grid; place-items: center; width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ag-muted); cursor: pointer; }
+.agq-card__chev i { transition: transform var(--ag-dur-fast) var(--ag-ease); }
+.agq-card.is-open .agq-card__chev i { transform: rotate(90deg); }
+.agq-card__detail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); padding: 0 var(--ag-space-3) var(--ag-space-2) calc(var(--ag-space-2) + 1.4rem); color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.agq-card__detail[hidden] { display: none; }
+.agq-card__fullname { flex: 1 0 100%; color: var(--ag-text); font-size: var(--ag-text-md); overflow-wrap: anywhere; }
 .agq-card__fact { display: inline-flex; align-items: baseline; gap: var(--ag-space-1); min-width: 0; overflow-wrap: anywhere; }
 .agq-card__fact > i { flex: none; }
-:is(.agq-card:hover, .agq-card.is-selected) :is(.agq-card__facts, .agq-card__stats) { color: var(--ag-muted-strong); }
+:is(.agq-card:hover, .agq-card.is-selected) .agq-card__detail { color: var(--ag-muted-strong); }
 .agq-kind > i { margin-right: var(--ag-space-1); }
+.agq-list { container: agqlist / inline-size; }
+@container agqlist (min-width: 18rem) { .agq-c--prog { display: block; } }
+@container agqlist (min-width: 20rem) { .agq-c--vis { display: block; } }
+@container agqlist (min-width: 28rem) { .agq-c--kind, .agq-c--level { display: block; } }
+@container agqlist (min-width: 36rem) { .agq-c--loc { display: block; } .agq-c--prog .agq-meter .ag-meter__track { display: block; } }
+@container agqlist (min-width: 46rem) { .agq-c--giver { display: block; } }
+@container agqlist (min-width: 54rem) { .agq-c--changed { display: block; } }
+/* Group headers stay in view while a long group scrolls under them. */
+.agq-gfold > .ag-fold__summary, .agq-group__head { position: sticky; top: 0; z-index: 2; background: var(--ag-surface-sunken); }
+.agq-group__head { padding: var(--ag-space-1) var(--ag-space-2); }
+@media (prefers-reduced-motion: reduce) { .agq-card__chev i { transition: none; } }
 
 /* Bulk row under the toolbar; the hint line stays in the list column */
 .agq-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); background: var(--ag-surface-sunken); }

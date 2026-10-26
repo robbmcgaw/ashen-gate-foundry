@@ -20,7 +20,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.25.1';
+const VERSION='0.26.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -292,7 +292,7 @@ class QuestLogApplication extends Base {
  // Compact size here; Comfortable scales it when the window opens (windowSize).
  constructor(options={}){super({...options,position:{...windowSize(QuestLogApplication.DEFAULT_OPTIONS.position),...options.position}});this.ui=uiState(MOD);this.filtersOpen=this.ui.get('filtersOpen',false,[true,false]);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.statusFilter='all';
   // 0.15.0 The GM's last sub-view, sort, group and editor sections come back (User flag gmView); search starts empty.
-  this.gmPrefs=gmViewState(hasGM()?game.user?.getFlag?.(MOD,'gmView'):null);this.qv={...DEFAULT_VIEW,nav:this.gmPrefs.nav,sort:this.gmPrefs.sort,group:this.gmPrefs.group};this.picked=new Set();this.shownIds=[];}
+  this.gmPrefs=gmViewState(hasGM()?game.user?.getFlag?.(MOD,'gmView'):null);this.qv={...DEFAULT_VIEW,nav:this.gmPrefs.nav,sort:this.gmPrefs.sort,group:this.gmPrefs.group};this.picked=new Set();this.openCards=new Set();this.shownIds=[];}
  // 0.17.0 The quest editor's unsaved state is a kit guardDirty: tab switch, picking another quest, New quest, Cancel and
  // closing the window all ask "Discard unsaved changes?" (Keep editing is the default).
  get guard(){return this._guard??=guardDirty({status:()=>this.element?.querySelector?.('[data-source-status]'),message:'Your quest changes have not been saved.'});}
@@ -381,7 +381,7 @@ class QuestLogApplication extends Base {
   return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p>
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). <em><em>Export</em> opens the list of downloads: <em>Export Journal</em> (on a player journal) and <em>Export Group Journal</em> download every session of that journal as one Markdown file. The GM and whoever started a session can rename it (pencil); the GM can also set its date and its <em>Session number</em> (the first session is 0). <em>More… &gt; Next session number…</em> sets the number the next <em>New session</em> uses. The toolbar has bold, italic, underline, strikethrough, highlight, headings, lists, quote and divider; <em>Auto format…</em> shows what it would tidy (spaces, blank lines, bullet and numbered lines, punctuation spacing) and <em>Undo auto format</em> puts the text back.${gm?' Under the party journal, <em>GM-only notes</em> is a section players cannot see. <em>Export GM Journal</em>, <em>Export This Session</em>, <em>Archive session</em> and, for an archived session, <em>Delete session…</em> sit under the session title.':''}</p>
-  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver. Each group header folds open and closed (Enter or Space on it too), with <em>Collapse all</em> and <em>Expand all</em> next to Sort; while a search or filter is on, groups with matches stay open. Your open and closed choices are remembered for you, per grouping.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>A new quest's ID is made from its title and never changes; you never type one. In <em>Links</em>, pick the quest giver, faction, locations and prerequisite quests by name. A link to something that has been deleted reads <em>Missing</em> with <em>Replace…</em>.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest is one line: the title and status, then progress, visibility, kind, level, location, giver and last change as the list gets wider (a long title ends in an ellipsis; hover it for the full name). The chevron at the end of a row opens every fact in place. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver. Each group header folds open and closed (Enter or Space on it too), with <em>Collapse all</em> and <em>Expand all</em> next to Sort; while a search or filter is on, groups with matches stay open. Your open and closed choices are remembered for you, per grouping.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>A new quest's ID is made from its title and never changes; you never type one. In <em>Links</em>, pick the quest giver, faction, locations and prerequisite quests by name. A link to something that has been deleted reads <em>Missing</em> with <em>Replace…</em>.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
  }
@@ -404,7 +404,7 @@ class QuestLogApplication extends Base {
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    this.bindToolbar(root);this.bindNav(root);
-   this.bindPicks(root);
+   this.bindPicks(root);this.bindMore(root);
    bindFolds(root,this.ui);this.bindGroupFolds(root);bindRadios(root.querySelector('.agq-subnav'));
    bindRefPickers(root);bindRefLists(root,()=>this.markDirty(root));
    bindFileButtons(root,files=>this.importFile(files[0]).catch(notifyError));
@@ -491,7 +491,7 @@ class QuestLogApplication extends Base {
   const mode=this.qv.group,filtering=filterActive(this.qv);
   const open=openStates({groups,mode,total,selectedId:this.gmId,stored:readStored(this.ui,groups,mode),filtering});
   this.fold={groups,mode,filtering,open};
-  return questCards(groups,this.gmId,{total,picked:this.picked,mode,open});
+  return questCards(groups,this.gmId,{total,picked:this.picked,mode,open,expanded:this.openCards});
  }
  bindGroupFolds(root){
   for(const el of root.querySelectorAll('#ag-gm-cards details.agq-gfold'))el.addEventListener('toggle',()=>{
@@ -528,13 +528,22 @@ class QuestLogApplication extends Base {
   const count=root.querySelector('#ag-gm-count');if(count)count.textContent=`${shown} of ${total} quests`;
   this.paintBulk(root);
   wrap.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
-  this.bindPicks(root,wrap);
+  this.bindPicks(root,wrap);this.bindMore(wrap);
  }
  paintBulk(root){
   for(const [sel,html] of [['#ag-gm-bulk',bulkBar(this.picked.size,this.shownIds.length)],['#ag-gm-bulkhint',bulkHint(this.picked.size,this.shownIds.length)]]){
    const bar=root.querySelector(sel);if(!bar)continue;bar.outerHTML=html;
    root.querySelector(sel)?.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
   }
+ }
+ /** A row's chevron opens its facts in place (no redraw, so focus stays on the chevron); the choice is kept while the window is open. */
+ bindMore(scope){
+  for(const b of scope.querySelectorAll('[data-more]'))b.addEventListener('click',()=>{
+   const card=b.closest('.agq-card'),id=card?.dataset.qid,open=b.getAttribute('aria-expanded')!=='true';
+   if(id)open?this.openCards.add(id):this.openCards.delete(id);
+   b.setAttribute('aria-expanded',String(open));b.setAttribute('aria-label',b.getAttribute('aria-label').replace(/^(Show|Hide)/,open?'Hide':'Show'));
+   const d=card?.querySelector('.agq-card__detail');if(d)d.hidden=!open;card?.classList.toggle('is-open',open);
+  });
  }
  bindPicks(root,scope=root){
   for(const box of scope.querySelectorAll('[data-pick]'))box.addEventListener('change',()=>{

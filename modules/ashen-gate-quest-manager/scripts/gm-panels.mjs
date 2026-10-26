@@ -28,31 +28,45 @@ const rewardText=({items,text})=>{
  const parts=[];if(items.length)parts.push(items.map(i=>`${E(i.quantity)} × ${E(i.name)}`).join(', '));if(text)parts.push(E(text));
  return parts.join(' · ');
 };
-/** One GM quest card: pick box, then the card button (title and badges; facts; progress, rewards, last change). */
-export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
- const vis=r.visible?`<span class="ag-badge ag-badge--ok"${tip('Players can see this quest')}>${icon('fa-eye')}Visible to players</span>`
-  :`<span class="ag-badge"${tip('Players cannot see this quest')}>${icon('fa-eye-slash')}GM only</span>`;
+/** One GM quest row (0.26.0): exactly one line that holds pick box, title and, as the list column widens, kind, level, status,
+    visibility, progress, location, giver and last change (CSS drops them by container width, last-used first). The chevron opens
+    every fact in place: kind, level, visibility, location, giver, audience, tags, rewards and last change, so nothing is lost. */
+export function questCard(r,{selected=false,picked=false,now=Date.now(),expanded=false}={}){
+ const eye=r.visible?'fa-eye':'fa-eye-slash',eyeText=r.visible?'Visible to players':'GM only';
  const facts=[];
- if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',[...new Set(r.locationNames)].map(E).join(', ')+(r.regions?.length?` (${r.regions.map(E).join(', ')})`:'')));
- if(r.givers.length)facts.push(meta('fa-handshake','Giver',r.givers.map(E).join(', ')));
+ const place=r.locationNames.length?[...new Set(r.locationNames)].map(E).join(', ')+(r.regions?.length?` (${r.regions.map(E).join(', ')})`:''):'';
+ const giver=r.givers.length?r.givers.map(E).join(', '):'';
+ if(place)facts.push(meta('fa-map-location-dot','Location',place));
+ if(giver)facts.push(meta('fa-handshake','Giver',giver));
  else if(r.sourceText)facts.push(meta('fa-handshake','Source',E(r.sourceText)));
  facts.push(r.audience.scope==='individual'?meta('fa-user','Audience',`Individual: ${E(r.audience.name)}`):meta('fa-users','Audience','Party'));
  if(r.tags.length)facts.push(meta('fa-tags','Tags',r.tags.map(E).join(', ')));
  const rewards=rewardText(r.rewards),changed=changedLabel(r.changed,now);
- return `<div class="ag-row agq-card${selected?' is-selected':''}${picked?' is-picked':''}" data-qid="${E(r.id)}"><label class="agq-card__pick"><input type="checkbox" data-pick="${E(r.id)}"${picked?' checked':''}><span class="ag-sr-only">Select ${E(r.name)}</span></label>
- <button type="button" class="agq-card__main" data-action="gm-select" data-id="${E(r.id)}"${selected?' aria-current="true"':''}>
- <span class="agq-card__head"><span class="ag-row__title">${E(r.name)}</span><span class="agq-card__badges"><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${E(r.kindLabel)}${r.detail?` · ${E(r.detail)}`:''}</span>${r.level!==null?`<span class="ag-badge">Level ${r.level}</span>`:''}${statusBadge(r.chip)}${vis}</span></span>
- <span class="agq-card__facts">${facts.join('')}</span>
- <span class="agq-card__stats">${progressMeter(r.done,r.total)}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}</span></button></div>`;
+ const kind=`${E(r.kindLabel)}${r.detail?` · ${E(r.detail)}`:''}`;
+ const more=`agq-more-${domKey('card',r.id)}`,verbText=expanded?'Hide':'Show';
+ const detail=`<strong class="agq-card__fullname">${E(r.name)}</strong><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${kind}</span>${r.level!==null?`<span class="ag-badge">Level ${r.level}</span>`:''}<span class="ag-badge${r.visible?' ag-badge--ok':''}">${icon(eye)}${eyeText}</span>${facts.join('')}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}`;
+ const full=[r.name,place,giver].filter(Boolean).join(' · ');
+ return `<div class="ag-row agq-card${selected?' is-selected':''}${picked?' is-picked':''}${expanded?' is-open':''}" data-qid="${E(r.id)}"><div class="agq-card__line"><label class="agq-card__pick"><input type="checkbox" data-pick="${E(r.id)}"${picked?' checked':''}><span class="ag-sr-only">Select ${E(r.name)}</span></label>
+ <button type="button" class="agq-card__main" data-action="gm-select" data-id="${E(r.id)}"${selected?' aria-current="true"':''}${tip(full)}><span class="ag-row__title">${E(r.name)}</span></button>
+ <span class="agq-c agq-c--kind" role="img" aria-label="${E(kind)}"${tip(kind)}>${icon(KIND_ICON[r.kind]||'fa-scroll')}</span>
+ <span class="agq-c agq-c--level">${r.level!==null?`Lv ${r.level}`:''}</span>
+ <span class="agq-c agq-c--status">${statusBadge(r.chip)}</span>
+ <span class="agq-c agq-c--vis" role="img" aria-label="${eyeText}"${tip(eyeText)}>${icon(eye)}</span>
+ <span class="agq-c agq-c--prog">${progressMeter(r.done,r.total)}</span>
+ <span class="agq-c agq-c--loc">${place}</span>
+ <span class="agq-c agq-c--giver">${giver||E(r.sourceText||'')}</span>
+ <span class="agq-c agq-c--changed">${changed?E(changed):''}</span>
+ <button type="button" class="agq-card__chev" data-more="${E(more)}" aria-expanded="${expanded}" aria-controls="${E(more)}" aria-label="${verbText} details of ${E(r.name)}"${tip(`${verbText} details`)}>${icon('fa-chevron-right')}</button></div>
+ <div class="agq-card__detail" id="${E(more)}" role="region" aria-label="Details of ${E(r.name)}"${expanded?'':' hidden'}>${detail}</div></div>`;
 }
 /** GM Quests list: cards grouped under collapsible headers with counts (a kit fold per group; "No grouping" is one flat list).
     opts.open is {[group key]: boolean} from openStates(); opts.mode is the group-by mode. No fold sits inside a fold: the cards
     are plain rows. */
-export function questCards(groups,selectedId,{total=null,picked=new Set(),now=Date.now(),mode='status',open={}}={}){
+export function questCards(groups,selectedId,{total=null,picked=new Set(),now=Date.now(),mode='status',open={},expanded=new Set()}={}){
  if(!groups.length)return total===0
   ?emptyState('No quests yet','Create one with New quest, or import quest files with General Manager.',{action:safeButton('New quest','new',{sm:true,icon:'fa-plus'})})
   :emptyState('Nothing matches','Change the view, search or filters to see more quests.',{iconName:'fa-magnifying-glass',action:safeButton('Clear filters','clear-filters',{sm:true,kind:'ghost'})});
- const cards=g=>`<div class="ag-rows">${g.rows.map(r=>questCard(r,{selected:selectedId===r.id,picked:picked.has(r.id),now})).join('')}</div>`;
+ const cards=g=>`<div class="ag-rows">${g.rows.map(r=>questCard(r,{selected:selectedId===r.id,picked:picked.has(r.id),now,expanded:expanded.has(r.id)})).join('')}</div>`;
  if(!isFolded(mode))return groups.map(g=>`<section class="agq-group"><h3 class="ag-eyebrow agq-group__head">${E(g.label)} <span class="agq-group__count">${g.rows.length}</span></h3>${cards(g)}</section>`).join('');
  return groups.map(g=>{
   const isOpen=open[g.key]!==false,key=domKey(mode,g.key);

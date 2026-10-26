@@ -1,3 +1,12 @@
+## 0.26.0 — 2026-10-26
+
+GM Quests list: every quest is one line, like the Character Hub's rows.
+
+- **Why:** each quest was a card of three to five wrapped lines (about 163px each in the 18rem list column), so 36 quests were about 5,900px of scrolling and about four cards were on screen. Now each is one 32px line: 36 quests are about 1,200px.
+- **One line, always.** Always shown: the pick box, the title (a long one ends in an ellipsis; the tooltip has the full title, location and giver) and the status. As the list column widens a row adds progress (18rem), visibility (20rem), kind and level (28rem), the progress bar and location (36rem), giver (46rem) and last change (54rem). The list is a container, so the same steps apply in the stacked narrow layout.
+- **Nothing is lost.** The chevron at the end of each row opens, in place and without a redraw, the full title and every fact: kind, level, visibility (as words), location, giver or source, audience, tags, rewards and last change. Pick, select (the whole row), bulk actions, group folds, sort and filters work as before. Group headers stay pinned while a group scrolls.
+- Presentation only: no quest data, flags or settings change. Player tabs (Party, Individual) are unchanged. Tests use mocked Foundry and prove markup and CSS text; the widths were checked in a real browser with 36 quests.
+
 ## 0.25.1 — 2026-10-26
 
 The Quest Log ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.
