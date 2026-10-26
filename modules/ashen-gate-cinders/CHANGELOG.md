@@ -1,3 +1,7 @@
+## 0.16.0 — 2026-10-26
+
+The GM-only records journal is filed in **Ashen Gate / Cinders** instead of loose at the top of the Journal sidebar. On the first GM login after updating, Cinders moves its own loose journal there; one you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
+
 ## 0.15.0 — 2026-10-26
 
 Manage → Cinders: each Cinder is one line, like the Character Hub's rows.

@@ -2,6 +2,8 @@
 
 Module ID `ashen-gate-cinders` · Foundry V14 · dnd5e. Cinders that keep their own powers and points and move between bearers, Push and Backfire, and the shared **Strain** resource. Open it from **Actors sidebar → Cinders** (players when **GM Setup → Player Access** is on).
 
+**Sidebar folders.** The GM-only records journal files under **Ashen Gate / Cinders**; see docs/folder-convention.md.
+
 Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers a Cinder can unlock, its points and unlocks). Without Skill Trees, Strain still works and the Cinder parts say what is missing. Next to an older Skill Trees (0.15/0.16, which had Strain and Cinders built in), this module stays off until Skill Trees is updated.
 
 ## How it works
