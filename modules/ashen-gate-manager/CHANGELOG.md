@@ -1,3 +1,9 @@
+## 0.70.10 — 2026-10-26
+
+- **Smaller window.** Manager opens at 1000 x 760 (was 1020 x 820). The layout is fluid, so the same content fits.
+- README: the Sync "Files" note describes content packs generically (no private pack names or build scripts).
+- Release packaging (workflow, not module code): zips for Profession Ledger and Headquarters no longer include test-only folders (Ledger `data/`, Headquarters `examples/`). Folders that modules read at runtime or that the documented console test steps import (Manager `samples/`, Locations `examples/`, the `fixtures/` folders of Utilities, Factions and Headquarters) stay.
+
 ## 0.70.9 — 2026-10-26
 
 Fix: the NPC Codex now treats a faction Renown has not named for a player as Unknown.
