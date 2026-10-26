@@ -1,3 +1,7 @@
+## 0.20.0 — 2026-10-26
+
+Renown now files its Journals and held reward Items under one **Ashen Gate** folder instead of a second top-level folder: definitions, state and the per-player views go in **Ashen Gate / Factions Data**, import snapshots in **Ashen Gate / Backups**, held reward copies in **Ashen Gate / Backups / Renown Rewards**. On the first GM login after updating, Renown moves its own documents that are in the old **Ashen Gate — Factions Data** or **Ashen Gate Rewards (Renown)** folder (or loose); anything you filed somewhere else stays where you put it. Nothing is deleted (the old, now empty folders stay for you to delete) and no ownership or permission changes. Players still see only their own view.
+
 ## 0.19.1 — 2026-10-26
 
 Two messages that still said Renown for a deity now say Piety (follow-up to 0.19.0).

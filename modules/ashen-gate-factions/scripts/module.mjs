@@ -11,6 +11,7 @@ import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sort
 import {standingView,markCurrent,paragraphHTML} from './standing-view.mjs';
 import {getVow,canManageVow,swearVow,endVow,breakVow,migrateVows,VOW_BREAK_PENALTY} from './vow.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
+import {factionsFolder,backupsFolder,holdingFolder,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -46,22 +47,16 @@ const getSnapshot=d=>d?.getFlag(MODULE_ID,'importSnapshot');
 const getImportSource=d=>d?.getFlag(MODULE_ID,'importSource');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
-const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d)||getSnapshot(d));
+// Documents file under Journal "Ashen Gate / Factions Data" (snapshots under "Ashen Gate / Backups"); see folder-nesting.mjs.
 async function ensureStorageFolder(){
   assertGM();
-  let folder=game.folders.find(d=>d.type==='JournalEntry'&&d.getFlag(MODULE_ID,'storageFolder')===true);
-  if(folder)return folder;
-  folder=await Folder.create({name:STORAGE_FOLDER_NAME,type:'JournalEntry',sorting:'a',flags:{[MODULE_ID]:{storageFolder:true}}});
-  if(!folder)throw Error('Could not create faction storage folder.');
-  return folder;
+  // A folder problem never stops saving data: the record is filed loose and the next migration moves it.
+  return (await factionsFolder())??{id:null};
 }
+/** GM, once per world: files Renown's own loose or old-folder Journals and held reward Items under Ashen Gate. Leaves anything the GM moved. */
 async function organizeModuleJournals(){
   assertGM();
-  const folder=await ensureStorageFolder();
-  const updates=game.journal.filter(isModuleJournal).filter(d=>d.folder?.id!==folder.id&&d.folder!==folder.id).map(d=>({_id:d.id,folder:folder.id}));
-  if(updates.length)await JournalEntry.updateDocuments(updates);
-  return updates.length;
+  return migrateFolders();
 }
 
 const defs=()=>game.journal.filter(d=>getFaction(d));
@@ -280,7 +275,7 @@ const importIO=()=>({
   saveSnapshot:async(records,meta)=>{
     const data={schema:'ag-renown-snapshot/1',created_at:new Date().toISOString(),module_version:moduleVersion(),reason:meta?.reason??'',
       note:'Definitions as they were before an import replaced them. Campaign state is not rewritten by an import and is not included.',definitions:records.map(r=>structuredClone(r.definition))};
-    const doc=await JournalEntry.create({name:`Renown Snapshot • ${data.created_at.slice(0,19).replace('T',' ')} • ${records.length} definition${records.length===1?'':'s'}`,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},
+    const doc=await JournalEntry.create({name:`Renown Snapshot • ${data.created_at.slice(0,19).replace('T',' ')} • ${records.length} definition${records.length===1?'':'s'}`,folder:(await backupsFolder())?.id??null,ownership:{default:NONE},
       flags:{[MODULE_ID]:{importSnapshot:data}},pages:[{name:'Snapshot (JSON)',type:'text',text:{format:1,content:`<pre>${esc(JSON.stringify(data,null,2))}</pre>`}}]});
     const back=getSnapshot(doc);
     if(!doc?.id||back?.definitions?.length!==records.length)throw Error('the snapshot did not read back');
@@ -369,7 +364,6 @@ async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.
   await stateDoc.setFlag(MODULE_ID,key,state);await reproject();ui.notifications.info(`${user.name} requested ${reward.name}.`);accepted=true;
 }catch(e){notifyError(e)}finally{inFlight.delete(requestLock);if(msg?.requestId&&msg?.userId)game.socket?.emit(SOCKET,{type:'receipt',userId:msg.userId,requestId:msg.requestId,ok:accepted,message:msg.type==='share'?'Discovery shared with party.':'Renown request received by GM.'});}}
 /* ---- 0.14.0: item rewards follow the shared item-drop standard (ag-item-drop/1). ---- */
-const HOLDING_FOLDER_NAME='Ashen Gate Rewards (Renown)';
 const missingItemText=reward=>`The reward item is missing (${reward.name}). Fix the reward, then approve again.`;
 async function loadDoc(uuid){if(typeof uuid!=='string'||!uuid)return null;try{return (await fromUuid(uuid))??null;}catch{return null;}}
 // An item reward points at an Item uuid or carries a permanent id. Older rewards may link a Journal: those grant nothing.
@@ -387,12 +381,9 @@ async function rewardLook(reward){
   return {isItemReward:true,rowImg:reward.img||source?.img||null,rowItemId:reward.item_id??null,rowMissing:!source};
 }
 async function rewardLooks(rewards=[]){return new Map(await Promise.all(rewards.map(async r=>[r.id,await rewardLook(r)])));}
-const holdingFolder=()=>game.folders?.find?.(d=>d.type==='Item'&&d.getFlag?.(MODULE_ID,'store')==='reward-holding')??null;
 async function ensureHoldingFolder(){
-  assertGM();let folder=holdingFolder();if(folder)return folder;
-  folder=await Folder.create({name:HOLDING_FOLDER_NAME,type:'Item',sorting:'a',flags:{[MODULE_ID]:{store:'reward-holding'}}});
-  if(!folder)throw Error('Could not create the reward holding folder.');
-  return folder;
+  assertGM();
+  return (await holdingFolder())??{id:null};
 }
 const ItemClass=()=>Item.implementation??Item;
 async function deleteWorldItems(ids){if(ids.length)await ItemClass().deleteDocuments(ids);}
@@ -1057,6 +1048,8 @@ Hooks.once('init',()=>{
   // {{#agfFold key title count hint open}}…{{/agfFold}}: the kit's fold() around template content (kit 2.2).
   globalThis.Handlebars?.registerHelper?.('agfParas',(text,cls)=>new Handlebars.SafeString(paragraphHTML(text,typeof cls==='string'?cls:undefined)));
   globalThis.Handlebars?.registerHelper?.('agfFold',function(options){const h=options.hash??{};return new Handlebars.SafeString(fold({key:h.key,title:h.title,count:h.count,hint:h.hint,open:Boolean(h.open),body:options.fn(this)}));});
+  // 1 once Renown has filed its own documents under Ashen Gate (folder-nesting.mjs); config:false.
+  game.settings.register(MODULE_ID,FOLDER_SETTING,{name:'Renown: folder nesting',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'groupName',{name:'Group display name',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'pantheonDamping',{name:'Pantheon knock-on damping',scope:'world',config:false,type:Number,default:DAMPING_DEFAULT});
   game.settings.register(MODULE_ID,'groupNameEnabled',{name:'Custom group name enabled',scope:'world',config:false,type:Boolean,default:false});

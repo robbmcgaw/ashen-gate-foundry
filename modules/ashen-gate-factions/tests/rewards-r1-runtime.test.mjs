@@ -26,7 +26,7 @@ globalThis.JournalEntry={create:async x=>makeJournal(x),updateDocuments:async ro
 
 // Folders (Journal storage + the Item holding folder).
 const folders=[];
-globalThis.Folder={create:async data=>{const f={...flagged,id:`F${folders.length+1}`,name:data.name,type:data.type,flags:structuredClone(data.flags??{})};folders.push(f);return f;}};
+globalThis.Folder={create:async data=>{const f={...flagged,id:`F${folders.length+1}`,name:data.name,type:data.type,folder:data.folder??null,flags:structuredClone(data.flags??{})};folders.push(f);return f;}};
 
 // Items: world collection, Actor items, compendium-free.
 function makeItem(row,parent=null){const id=row._id;const doc={...flagged,id,_id:id,documentName:'Item',name:row.name,img:row.img??null,type:row.type??'loot',flags:structuredClone(row.flags??{}),
@@ -102,8 +102,9 @@ test('an Item dropped from an NPC becomes a GM-only holding copy with its conten
   const before=JSON.stringify(beast.items.map(i=>i.toObject()));
   await drop({type:'Item',uuid:'Actor.BEAST.Item.E1'});
   assert.equal(JSON.stringify(beast.items.map(i=>i.toObject())),before);
-  const folder=folders.find(f=>f.type==='Item'&&f.getFlag(ns,'store')==='reward-holding');
-  assert.equal(folder?.name,'Ashen Gate Rewards (Renown)');
+  const folder=folders.find(f=>f.type==='Item'&&f.name==='Renown Rewards');
+  const backups=folders.find(f=>f.type==='Item'&&f.name==='Backups'),root=folders.find(f=>f.type==='Item'&&f.name==='Ashen Gate');
+  assert.ok(folder&&backups&&root&&!root.folder&&backups.folder===root.id&&folder.folder===backups.id,'held copies file under Ashen Gate / Backups / Renown Rewards');
   const r=rewardNamed('[TEST] Beast Sack'),copy=worldItems.find(i=>i.uuid===r.uuid);
   assert.ok(copy&&copy.id!=='E1');assert.equal(copy.folder,folder.id);assert.equal(copy.ownership.default,0);
   assert.equal(copy.getFlag(ns,'holding').from,'Actor.BEAST');
@@ -111,7 +112,7 @@ test('an Item dropped from an NPC becomes a GM-only holding copy with its conten
   const inside=worldItems.filter(i=>i.system.container===copy.id);
   assert.deepEqual(inside.map(i=>[i.name,i.folder,i.ownership.default]),[['[TEST] Fang',folder.id,0]]);
   await drop({type:'Item',uuid:'Actor.BEAST.Item.E2'});
-  assert.equal(folders.filter(f=>f.type==='Item').length,1,'the holding folder is created once');
+  assert.equal(folders.filter(f=>f.type==='Item').length,3,'the folders are created once');
 });
 
 test('a Journal or a folder on the reward zone is refused and nothing is stored',async()=>{
