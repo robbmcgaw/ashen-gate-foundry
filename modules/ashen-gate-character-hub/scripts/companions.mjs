@@ -258,8 +258,10 @@ export function notACreature(actor) {
 /** Whether an effective kind fits a box of `kind`. */
 export const kindFits = (info, kind) => info.kind === kind || info.kind === 'either';
 
+/** True when a non-GM user owns the Actor (GM Setup → Companion types lists player-owned NPCs by default). */
+export const ownedByPlayer = a => [...(globalThis.game?.users ?? [])].some(u => u && !u.isGM && a?.testUserPermission?.(u, 'OWNER') === true);
 /** Non-GM users with Owner on the character: the people whose companions are auto-listed. */
-function playerOwners(actor) {
+export function playerOwners(actor) {
   return [...(globalThis.game?.users ?? [])].filter(u => u && !u.isGM && actor.testUserPermission?.(u, 'OWNER') === true);
 }
 /**

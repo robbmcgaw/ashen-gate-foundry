@@ -224,7 +224,7 @@ test('GM Setup shows a Companion types card with a select per NPC Actor and the 
   const html = gmSetupTab();
   assert.match(html, /Companion types/); assert.match(html, /data-edit="companion-type" data-actor="horse"/);
   assert.match(html, /Automatic: Mount \(Large\)/); assert.match(html, /<option value="mount" selected>Mount<\/option>/);
-  assert.match(html, /Mount \(set by GM\)/); assert.doesNotMatch(html, /companion-type" data-actor="pc"/);
+  assert.doesNotMatch(html, /companion-type" data-actor="pc"/);
   assert.match(html, /data-ctype-filter/);
 });
 

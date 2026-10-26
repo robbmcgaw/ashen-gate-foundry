@@ -1038,7 +1038,7 @@
 /* Companion types (0.49.0): a name, its select, and the effective kind in plain words. */
 .agch-app .agch-ctypes { margin-top: var(--ag-space-2); }
 .agch-app .agch-ctypes li[hidden] { display: none; }
-.agch-app .agch-ctypes label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.agch-app .agch-ctypes label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
 .agch-app .agch-ctype__name { min-width: 12em; }
 .agch-app .agch-cbox__who { display: grid; grid-template-columns: var(--ag-portrait) minmax(0, 1fr); gap: var(--ag-space-3); align-items: center; }
 .agch-app .agch-companion__art--small { width: var(--ag-portrait); }
@@ -1075,3 +1075,11 @@
 .agch-bsort__label { font-size: var(--ag-text-sm); font-weight: 600; }
 .agch-bsort select { width: auto; min-width: 10ch; max-width: 100%; }
 .agch-bsort__dir i { margin-right: var(--ag-space-1); }
+
+/* 0.58.3: Companion types in GM Setup: grouped, collapsed groups, name and select on one wrapping row. */
+.agch-app .agch-ctype__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); margin-block: var(--ag-space-2); }
+.agch-app .agch-ctgroup { margin-top: var(--ag-space-2); }
+.agch-app .agch-ctgroup > summary { cursor: pointer; font-weight: 600; padding-block: var(--ag-space-1); }
+.agch-app .agch-ctgroup[hidden], .agch-app .agch-ctype__more[hidden] { display: none; }
+.agch-app .agch-ctype__name { min-width: 10em; overflow-wrap: break-word; }
+.agch-app .agch-ctypes select { max-width: 100%; }
