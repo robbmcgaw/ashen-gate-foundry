@@ -1,3 +1,16 @@
+## 0.56.0 — 2026-10-26
+
+Combat, Inventory and Features rows are exactly one line, at every width, like Magic's.
+
+- **One line, always.** The item name never wraps: a long name is cut with an ellipsis (hover it for the full name and dnd5e's hover card). Only two small badges stay beside it, each an icon and a word: **Equipped** and **Attuned** (at 480px or less the word is hidden, the icon, tooltip and screen-reader text stay). The mastery, "Not equipped", Effect and rarity chips are in the open row now (the rarity edge on the icon stays); the Effect note was already in the open row's text.
+- **Columns, by what players use.** Each tab has one ordered priority list and steps, shared with Magic's machinery (`compact-rows.mjs`). **Combat**: Use always; To hit, Dice, Range, Uses, Recovery, Properties drop in the reverse order, Properties first (575px or less), then Recovery (565px), Uses (535px), Range (475px), Dice (400px), To hit (390px). **Inventory**: the fold toggle, star, icon, name and the four action slots always; Uses drops first (605px), then Weight (555px), Value (495px); at 430px Quantity keeps only its number field and the minus and plus move into the open row. **Features**: Use always; Type drops first (590px), then Use time (490px), Recovery (400px), Uses (390px). A dropped column moves into the open row, which now always lists every column plus Equipped, Mastery and Rarity.
+- **Inventory actions** (Use, Equip / Unequip, Attune, Move to party stash) have four fixed slots, so the buttons line up in every row (an action that does not apply leaves an empty slot). They are labelled while the Hub is wide and become an icon cluster at 755px or less; every button keeps its aria-label and tooltip ("Equip <item>"). Equip is a shield, Unequip a hand, Attune a sun, Unattune a moon; Equipped and Attuned also show as badges, so colour is never the only sign.
+- **Aligned and pinned.** Fixed column widths from one grid template per list, so every row and the heading line up, with uniform row height. The actions are a fixed-width track pinned to the right with a gutter and right padding, its background following the row's striped / hovered state. Below 24rem wide the list scrolls sideways with the actions pinned. A container's contents list uses the same grid.
+- **Dice.** The Combat heading is **Dice** (done in 0.55.0); nothing in Inventory or Features says Damage / Healing.
+- Unchanged: the long rows (**Show item descriptions**), favourites, quantity, equip, attune, use, move to stash, container fold, Filters / View, grouping, sorting, pinned headings, Magic. The old 640px rule that hid Combat Properties / Recovery, Inventory Weight / Value and Features Use time / Recovery is replaced by the steps above.
+- Presentation only: no item, character or world data changes, no migration.
+- Tests use mocked Foundry and prove the markup, the constants and the CSS text, not the live layout. Please check in Forge as described in the pull request.
+
 ## 0.55.0 — 2026-10-26
 
 Magic: every spell is exactly one line, at every window width.

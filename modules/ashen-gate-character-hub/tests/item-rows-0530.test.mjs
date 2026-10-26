@@ -57,7 +57,7 @@ test('default: Combat, Inventory and Features rows are one line with a hidden de
   setup();
   for (const tab of TABS) {
     const b = body((await render(tab)).html);
-    assert.match(b, /class="ag-list agch-cards agch-crowlist agch-crows"/, tab);
+    assert.match(b, /class="ag-list agch-cards agch-crowlist agch-crows agch-crows--\w+( agch-set-\w+)?"/, tab);
     assert.doesNotMatch(b, /agch-card__summary|data-action="item-more"/, `${tab}: no summary or More in the row`);
     assert.match(b, /class="agch-crow__chev" data-action="item-expand" data-id="\w+" data-key="more:[^"]+" data-ag-always aria-expanded="false" aria-controls="more:[^"]+" aria-label="Show description of \[TEST\] [^"]+" data-tooltip="Show description"/, `${tab} chevron`);
     assert.match(b, /class="agch-item__name agch-crow__name" data-action="item-expand"[^>]*tabindex="-1"/, `${tab}: the name toggles too, the chevron is the tab stop`);
@@ -91,18 +91,20 @@ test('every control of the long row is still in the compact row', async () => {
   }
 });
 
-test('Combat compact row: star, icon, name chips, columns and Use on the line', async () => {
+test('Combat compact row: star, icon, equipped badge, columns and Use on the line (0.56.0: other chips are in the open row)', async () => {
   setup();
   const b = body((await render('combat')).html);
-  assert.match(b, /<span>Dice<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(b, /<span class="agch-ic agch-ic-dice">Dice<\/span><span class="agch-ic agch-ic-tohit">To hit<\/span><span class="agch-ic agch-ic-range">Range<\/span><span class="agch-ic agch-ic-props">Properties<\/span>/);
   assert.match(b, /data-action="item-favorite" data-id="sw"/);
   assert.match(b, /data-action="item-use" data-id="sw" aria-label="Use \[TEST\] Longsword"/, 'icon');
-  assert.match(b, /ag-btn--sm" data-action="item-use" data-id="sw"/, 'Use button');
-  assert.match(b, /Not equipped/);
-  assert.match(b, /agch-crow is-alt|agch-crow is-equipped has-rarity ag-rarity-edge" data-item-id="sw" data-rarity="rare"/, 'rarity and equipped kept');
-  assert.match(b, /data-label="Properties"/);
-  assert.match(b, /agch-card__fact agch-card__fact--late" data-label="Properties"/, 'lower priority: Properties moves into the open row when narrow');
-  assert.doesNotMatch(b, /agch-card__fact agch-card__fact--late" data-label="Damage/);
+  assert.match(b, /ag-btn--sm agch-use agch-act agch-act--use" data-action="item-use" data-id="sw"/, 'Use button, fixed width class');
+  assert.match(b, /agch-crow(?: is-alt)? is-equipped has-rarity ag-rarity-edge" data-item-id="sw" data-rarity="rare"/, "rarity and equipped kept");
+  assert.match(b, /agch-item__badges"><span class="ag-badge ag-badge--accent agch-sbadge" data-tooltip="Equipped"><i class="fa-solid fa-shield-halved" aria-hidden="true"><\/i><span class="agch-sbadge__t"> Equipped<\/span><\/span><\/span>/);
+  assert.doesNotMatch(b, /Not equipped<\/span>/, 'no chip for it on the line');
+  assert.match(b, /<dt>Equipped<\/dt><dd>No<\/dd>/, 'the longbow says so in its open row');
+  assert.doesNotMatch(b, /fact--late/, 'no late columns: every fact is in the open row at every width');
+  const sw = b.slice(b.indexOf('data-item-id="sw"'), b.indexOf('</li>', b.indexOf('data-item-id="sw"')));
+  assert.match(sw, /<dl class="agch-crow__facts"><div><dt>Dice<\/dt><dd>1d8 \+ 3 Slashing<\/dd><\/div><div><dt>To hit<\/dt><dd>\+5<\/dd><\/div><div><dt>Range<\/dt><dd>5 ft<\/dd><\/div><div><dt>Properties<\/dt><dd>Versatile<\/dd><\/div><div><dt>Equipped<\/dt><dd>Yes<\/dd><\/div><div><dt>Rarity<\/dt><dd>/);
 });
 
 test('Inventory compact row: quantity, weight, value, uses, equip, attune, use, container fold, party stash', async () => {
@@ -111,29 +113,29 @@ test('Inventory compact row: quantity, weight, value, uses, equip, attune, use, 
   assert.match(b, /data-label="Qty"><span class="agch-qty">[\s\S]*data-edit="item-qty" data-id="pot" value="3"/);
   for (const re of [/data-action="item-unequip" data-id="sw"/, /data-action="item-equip" data-id="bow"/, /data-action="item-attune" data-id="cloak" data-attuned="1"/, /data-action="item-use" data-id="pot"/, /data-action="item-qty" data-id="pot" data-step="-1"/, /data-action="item-qty" data-id="pot" data-step="1"/]) assert.match(b, re);
   assert.match(b, /data-key="container:pack" data-ag-always aria-expanded="false"/, 'container fold toggle');
-  assert.match(b, /<li class="agch-contents" data-sec-body="container:pack" hidden><ul class="ag-list agch-cards agch-crowlist agch-crowlist--nested agch-crows"[\s\S]*\[TEST\] Rope/);
-  assert.match(b, /agch-card__fact agch-card__fact--late" data-label="Weight"/); assert.match(b, /agch-card__fact agch-card__fact--late" data-label="Value"/);
-  assert.doesNotMatch(b, /fact--late" data-label="(Qty|Uses)"/, 'quantity and uses stay on the line');
-  assert.match(b, /data-label="Qty">/);
+  assert.match(b, /<li class="agch-contents" data-sec-body="container:pack" hidden><ul class="ag-list agch-cards agch-crowlist agch-crowlist--nested agch-crows agch-crows--inventory agch-set-all"[\s\S]*\[TEST\] Rope/);
+  assert.match(b, /agch-ic agch-ic-weight" data-label="Weight"/); assert.match(b, /agch-ic agch-ic-value" data-label="Value"/);
+  assert.doesNotMatch(b, /fact--late/);
 });
 
 test('Features compact row: type, use time, uses, recovery, Use; Type only when not grouped by it', async () => {
   setup();
   const b = body((await render('features')).html);
-  assert.match(b, /<span>Use time<\/span><span>Uses<\/span><span>Recovery<\/span>/, 'grouped by type: no Type column');
+  assert.match(b, /<span class="agch-ic agch-ic-act">Use time<\/span><span class="agch-ic agch-ic-uses">Uses<\/span><span class="agch-ic agch-ic-recovery">Recovery<\/span>/, 'grouped by type: no Type column');
+  assert.match(b, /agch-set-notype/);
   assert.match(b, /data-action="item-use" data-id="su"/); assert.match(b, /data-action="item-favorite" data-id="su"/);
-  assert.match(b, /fact--late" data-label="Use time"/); assert.match(b, /fact--late" data-label="Recovery"/);
-  assert.doesNotMatch(b, /fact--late" data-label="(Type|Uses)"/);
+  assert.doesNotMatch(b, /fact--late/);
   setup({listSort: {features: {group: 'none', sort: 'name'}}});
   const g = body((await render('features')).html);
-  assert.match(g, /<span>Type<\/span><span>Use time<\/span><span>Uses<\/span><span>Recovery<\/span>/, 'ungrouped: Type shows and stays on the line');
-  assert.match(g, /data-label="Type">[^<]+</); assert.doesNotMatch(g, /fact--late" data-label="Type"/);
+  assert.match(g, /<span class="agch-ic agch-ic-type">Type<\/span><span class="agch-ic agch-ic-act">Use time<\/span><span class="agch-ic agch-ic-uses">Uses<\/span><span class="agch-ic agch-ic-recovery">Recovery<\/span>/, 'ungrouped: Type shows');
+  assert.match(g, /agch-set-full/);
+  assert.match(g, /data-label="Type"[^>]*>[^<]+</);
 });
 
-test('late columns: the open row lists them, the long rows do not mark them', async () => {
+test('the open row lists every column and the badges that left the line, at any width', async () => {
   setup();
   const b = body((await render('inventory')).html);
-  assert.match(b, /<dl class="agch-crow__facts"><div><dt>Weight<\/dt><dd>0.5 lb<\/dd><\/div><div><dt>Value<\/dt><dd>50 gp<\/dd><\/div><\/dl>/);
+  assert.match(b, /<dl class="agch-crow__facts"><div><dt>Qty<\/dt><dd>3<\/dd><\/div><div><dt>Weight<\/dt><dd>0.5 lb<\/dd><\/div><div><dt>Value<\/dt><dd>50 gp<\/dd><\/div><div><dt>Uses<\/dt><dd>1 \/ 1<\/dd><\/div><\/dl>/);
   setup({showItemDescriptions: true});
   assert.doesNotMatch(body((await render('inventory')).html), /fact--late|agch-crow__facts/);
 });
@@ -212,16 +214,14 @@ test('observers see compact rows with the same controls disabled, as in the long
   assert.match(b, /<img class="agch-item__img" src="[^"]*" alt="">/, 'plain image, not a Use button');
 });
 
-test('sticky headings, narrow collapse and reduced motion (CSS text); tokens only', () => {
+test('sticky headings and reduced motion (CSS text); the 640px late-column rule is gone', () => {
   assert.match(CSS, /\.agch-app \.agch-crowlist:not\(\.agch-crowlist--nested\) > \.agch-card__headrow \{ position: sticky; top: var\(--agch-band-h, 0\); z-index: 4; \}/);
   const at = CSS.indexOf('/* 0.53.0: Combat, Inventory'), seg = CSS.slice(at, CSS.indexOf('/* Compact mode (0.29.0)', at));
-  assert.match(seg, /@container \(max-width: 640px\) \{[\s\S]*\.agch-crow \.agch-card__fact--late \{ display: none; \}[\s\S]*\.agch-crow__facts \{ display: flex; \}/);
+  assert.doesNotMatch(seg, /fact--late|max-width: 640px/);
   assert.match(seg, /prefers-reduced-motion/);
-  assert.doesNotMatch(seg.replaceAll('(max-width: 640px)', '').replace(/1px solid/g, ''), /\d+px/);
-  assert.doesNotMatch(seg, /overflow-x|white-space: nowrap/);
 });
 
 test('help and README describe it; the version is 0.53.0', () => {
-  assert.match(HELP_HTML, /Show item descriptions/); assert.match(README, /showItemDescriptions/); assert.match(README, /Item rows \(0\.53\.0\)/);
+  assert.match(HELP_HTML, /Show item descriptions/); assert.match(README, /showItemDescriptions/); assert.match(README, /Item rows \(0\.53\.0; single line since 0\.56\.0\)/);
   assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.53\.0/m);
 });

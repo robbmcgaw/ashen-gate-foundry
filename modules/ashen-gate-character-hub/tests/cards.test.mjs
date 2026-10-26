@@ -98,18 +98,18 @@ test('Combat: no initiative in the tab (it is on the left), weapons and actions 
   const {html} = await renderTab('combat');
   assert.doesNotMatch(body(html), /roll-initiative|Roll initiative/);
   assert.match(html, /agch-tile[^>]*data-config="initiative"[\s\S]*data-action="roll-initiative"/, 'initiative still on the character column');
-  assert.match(body(html), /<span>Dice<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(body(html), /<span class="agch-ic agch-ic-dice">Dice<\/span><span class="agch-ic agch-ic-tohit">To hit<\/span><span class="agch-ic agch-ic-range">Range<\/span><span class="agch-ic agch-ic-props">Properties<\/span>/);
   assert.match(body(html), /data-action="item-use" data-id="sw"/);
-  assert.match(body(html), /Not equipped/);
+  assert.match(body(html), /<dt>Equipped<\/dt><dd>No<\/dd>/, '0.56.0: Not equipped is in the open row');
 });
 
 test('Inventory: quantity, weight, value, uses columns; every action kept; containers still fold', async () => {
   installGlobals({user: users.owner, settings: {collapsedSections: {'container:pack': true}}});
   const {html} = await renderTab('inventory');
   const b = body(html);
-  assert.match(b, /<span>Qty<\/span><span>Weight<\/span><span>Value<\/span><span>Uses<\/span>/);
+  assert.match(b, /<span class="agch-ic agch-ic-qty">Qty<\/span><span class="agch-ic agch-ic-weight">Weight<\/span><span class="agch-ic agch-ic-value">Value<\/span><span class="agch-ic agch-ic-uses">Uses<\/span>/);
   assert.match(b, /data-label="Qty"><span class="agch-qty">[\s\S]*data-edit="item-qty" data-id="pot" value="3"/);
-  assert.match(b, /data-label="Weight">0.5 lb<[\s\S]*data-label="Value">50 gp</);
+  assert.match(b, /data-label="Weight"[^>]*>0.5 lb<[\s\S]*data-label="Value"[^>]*>50 gp</);
   for (const re of [/data-action="item-unequip" data-id="sw"/, /data-action="item-equip" data-id="bow"/, /data-action="item-use" data-id="pot"/]) assert.match(b, re);
   assert.match(b, /data-key="container:pack" data-ag-always aria-expanded="false"/);
   assert.match(b, /<li class="agch-contents" data-sec-body="container:pack" hidden><ul class="ag-list agch-cards agch-crowlist agch-crowlist--nested[\s\S]*\[TEST\] Rope/);
@@ -167,7 +167,7 @@ test('Features: group by action type, sort by uses; Use kept', async () => {
   installGlobals({user: users.owner, settings: {listSort: {features: {group: 'activation', sort: 'uses'}}}});
   const b = body((await renderTab('features')).html);
   assert.match(b, /data-key="features:activation-bonus"[\s\S]*data-key="features:activation-special"/, 'grouped by dnd5e activation type');
-  assert.match(b, /<span>Type<\/span><span>Uses<\/span><span>Recovery<\/span>/);
+  assert.match(b, /<span class="agch-ic agch-ic-type">Type<\/span><span class="agch-ic agch-ic-uses">Uses<\/span><span class="agch-ic agch-ic-recovery">Recovery<\/span>/);
   assert.match(b, /data-action="item-use" data-id="su"/);
 });
 

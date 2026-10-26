@@ -17,13 +17,20 @@ import {coinIcon} from './coins.mjs';
 import {ADD_LABELS, addReason} from './item-add.mjs';
 import {showDescriptions, descriptionsToggle, spellList, preparedIndicator, SPELL_COLUMNS, castingException} from './spell-rows.mjs';
 import {preparationSummary} from './spell-prep.mjs';
-import {showItemDescriptions, itemDescriptionsToggle, itemListFn, withLate} from './item-rows.mjs';
+import {showItemDescriptions, itemDescriptionsToggle, itemListFn, itemCols} from './item-rows.mjs';
+import {stateBadge} from './compact-rows.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
 const pips = (value, max) => `${value} / ${max}`;
-const useBtn = (row, off) => row.usable ? btn('item-use', 'Use', {kind: 'sm', icon: 'fa-solid fa-dice-d20', data: {id: row.id}, title: `Use ${row.name}`, disabled: off}) : '';
+// 0.56.0: in the one-line rows Use is a fixed-width button (agch-use) so the actions track never changes size.
+const useBtn = (row, off, compact = false) => row.usable ? btn('item-use', 'Use', {kind: 'sm', extra: compact ? 'agch-use agch-act agch-act--use' : '', icon: 'fa-solid fa-dice-d20', data: {id: row.id}, title: `Use ${row.name}`, disabled: off}) : '';
 const attunedBadge = r => r.attuned ? '<span class="ag-badge ag-badge--accent" data-tooltip="Attuned"><i class="fa-solid fa-sun" aria-hidden="true"></i> Attuned</span>' : '';
+/** The one-line rows keep only the state badges that matter at a glance, as icon and word: Equipped and Attuned. Everything else is in the open row. */
+const equippedBadgeCompact = r => (r.equippable && r.equipped ? stateBadge('fa-shield-halved', 'Equipped') : '');
+const attunedBadgeCompact = r => (r.attuned ? stateBadge('fa-sun', 'Attuned') : '');
+/** Open-row facts the line no longer shows: equipped state, the weapon's mastery (its badge and rules tooltip). */
+const itemExtraFacts = r => [...(r.equippable ? [['Equipped', r.equipped ? 'Yes' : 'No']] : []), ...(r.mastery ? [['Mastery', {html: masteryBadge(r)}]] : [])];
 /**
  * A weapon's mastery (0.30.0): the name from dnd5e's CONFIG.DND5E.weaponMasteries; hover shows dnd5e's own rules page
  * for it (rich tooltip) or, without dnd5e's tooltips, just the name. Dimmed when dnd5e says the character can't use it.
@@ -87,8 +94,11 @@ function combatTab(ctx) {
   // dnd5e's damage labels include healing (heal activities), so the column is headed Dice (0.55.0; it was Damage / Healing).
   const dmg = {...C.damage, label: 'Dice'};
   const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery], mixedCols = [dmg, C.toHit, C.range, C.uses];
-  const card = r => ({iconUse: !off, controls: useBtn(r, off), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`});
-  const compact = !showItemDescriptions(), list = itemListFn(compact), late = cols => withLate(cols, ['properties', 'recovery'], compact);
+  const compact = !showItemDescriptions(), list = itemListFn(compact, 'combat'), late = cols => itemCols(cols, compact);
+  // 0.56.0: one-line rows keep Equipped / Attuned beside the name; mastery and "not equipped" are in the open row. The long rows keep their chips.
+  const card = r => ({iconUse: !off, controls: useBtn(r, off, compact), star: starBtn(actor, r, off),
+    badges: compact ? `${equippedBadgeCompact(r)}${attunedBadgeCompact(r)}` : `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`,
+    extraFacts: itemExtraFacts(r)});
   const shown = sortRows(filterRows(d.rows, f), sort);
   const groups = orderGroups(groupRows(shown, group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'Everything'}), group);
   const colsFor = g => late(group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols);
@@ -127,16 +137,29 @@ function purseHtml(ctx, d) {
 
 function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   const {actor, editable, sheet} = ctx, off = !editable, toParty = partyStashUsable(), expanded = sheet?.expanded;
-  const qty = {...C.quantity, render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
-  const compact = !showItemDescriptions(), list = itemListFn(compact);
-  const columns = withLate([qty, C.weight, C.value, C.uses], ['weight', 'value'], compact);
-  const controls = r => [
+  const qty = {...C.quantity, fact: r => String(r.quantity), render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
+  const compact = !showItemDescriptions(), list = itemListFn(compact, 'inventory');
+  const columns = itemCols([qty, C.weight, C.value, C.uses], compact);
+  // 0.56.0: the one-line rows give each action a fixed slot (Use, Equip / Unequip, Attune, Move to stash), empty when it does not apply,
+  // so the buttons line up in every row. They are labelled when the Hub is wide and an icon cluster (aria-label and tooltip kept) below that.
+  const slot = k => `<span class="agch-act agch-act--${k}" aria-hidden="true"></span>`;
+  const iconBtn = (action, label, icon, o) => btn(action, label, {...o, icon: `fa-solid ${icon}`, extra: `agch-act agch-act--${o.slot}`});
+  const controls = r => compact ? [
+    r.usable && r.type === 'consumable' ? useBtn(r, off, true) : slot('use'),
+    r.equippable ? iconBtn(r.equipped ? 'item-unequip' : 'item-equip', r.equipped ? 'Unequip' : 'Equip', r.equipped ? 'fa-hand' : 'fa-shield-halved', {slot: 'equip', kind: r.equipped ? 'primary' : 'sm', data: {id: r.id}, title: `${r.equipped ? 'Unequip' : 'Equip'} ${r.name}`, disabled: off}) : slot('equip'),
+    r.canAttune ? iconBtn('item-attune', r.attuned ? 'Unattune' : 'Attune', r.attuned ? 'fa-moon' : 'fa-sun', {slot: 'attune', kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: `${r.attuned ? 'Unattune' : 'Attune'} ${r.name}${r.attunement === 'optional' ? ' (attunement optional)' : ' (requires attunement)'}`, disabled: off}) : slot('attune'),
+    toParty ? btn('item-deposit', '', {kind: 'sm', extra: 'agch-act agch-act--stash', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : slot('stash')
+  ].join('') : [
     r.usable && r.type === 'consumable' ? useBtn(r, off) : '',
     r.equippable ? btn(r.equipped ? 'item-unequip' : 'item-equip', r.equipped ? 'Unequip' : 'Equip', {kind: r.equipped ? 'primary' : 'sm', data: {id: r.id}, disabled: off}) : '',
     r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
     toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
-  const card = r => ({iconUse: !off, controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${attunedBadge(r)}`});
+  // The quantity's minus and plus also live in the open row; they show only at the narrowest step, when the line keeps just the number field.
+  const qtyRow = r => `<div class="agch-crow__qtyrow"><span>Quantity</span>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</div>`;
+  const card = r => ({iconUse: !off, controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off),
+    badges: compact ? `${equippedBadgeCompact(r)}${attunedBadgeCompact(r)}` : `${masteryBadge(r)}${attunedBadge(r)}`,
+    extraFacts: itemExtraFacts(r), ...(compact ? {detailExtra: qtyRow(r)} : {})});
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${list(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`, nested: true})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), list(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
@@ -225,9 +248,10 @@ function magicTab(ctx) {
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
   const {group, sort} = listChoice('features'), f = sheet?.listFilters?.features ?? {};
-  const compact = !showItemDescriptions(), list = itemListFn(compact);
-  const columns = withLate([...(group === 'type' ? [] : [{...C.type, render: r => esc(r.typeLabel || r.facts.type || '—')}]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery], ['activation', 'recovery'], compact);
-  const card = r => ({iconUse: !off, controls: useBtn(r, off), star: starBtn(actor, r, off)});
+  const compact = !showItemDescriptions(), list = itemListFn(compact, 'features');
+  const typeCol = {...C.type, render: r => esc(r.typeLabel || r.facts.type || '—'), tip: r => r.typeLabel || r.facts.type, fact: r => r.typeLabel || r.facts.type};
+  const columns = itemCols([...(group === 'type' ? [] : [typeCol]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery], compact);
+  const card = r => ({iconUse: !off, controls: useBtn(r, off, compact), star: starBtn(actor, r, off)});
   const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label}))), shown = filterRows(all, f);
   const groups = group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);

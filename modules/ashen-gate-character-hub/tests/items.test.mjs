@@ -242,12 +242,12 @@ test('every tab renders for owner and observer; observer controls disabled excep
   installGlobals({user: users.observer});
   const view = new Cls({document: actorWith()}); view.tab = 'inventory';
   const vh = await view._renderHTML();
-  assert.match(vh, /data-action="item-equip" data-id="bow" disabled/);
+  assert.match(vh, /data-action="item-equip" data-id="bow"[^>]*disabled/);
   assert.match(vh, /data-action="item-sheet" data-id="bow" data-ag-always/);
   assert.match(vh, /data-action="slot-open" data-slot="mainhand" data-id="sword" data-ag-always/, 'observers can open the item sheet');
   view.menu = 'slot:mainhand';
   const vm = await view._renderHTML();
-  assert.match(vm, /data-action="item-unequip" data-id="sword" disabled/);
+  assert.match(vm, /data-action="item-unequip" data-id="sword"[^>]*disabled/);
   assert.match(vm, /data-action="item-sheet" data-id="sword" data-ag-always/);
 });
 
