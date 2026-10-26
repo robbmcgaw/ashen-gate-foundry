@@ -15,6 +15,7 @@ import {buildUuidIndex, resolveRichText, resolveTypedRefs, stripReferenceBlock, 
 import {projectedReferences} from './contract.js';
 import {relatedFor, withRelated} from './related-lists.mjs';
 import {itemKeys} from './actor-update.js';
+import {activityEffectRefs, resolveActivityEffects, unknownEffectWarning} from './activity-effects.js';
 import {isInterruption as isStop} from './sync-connection.js';
 
 export const REPEAT_STOP = 25;     // this many identical failures in a row end the step (a systematic fault, not bad records)
@@ -91,6 +92,15 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
         }
         issue(row, name, {action: 'rich-text-link', status: 'ok', resolved: linked.resolved.length});
       }
+      // 0.71.0: activities name their effects by eff_id; point each at the live effect's _id (re-resolved every run, so random ids are fine).
+      const system = record.foundry.data?.system;
+      if (activityEffectRefs(system).length) {
+        const live = (doc.effects?.contents ?? [...(doc.effects ?? [])]).map(e => e?.toObject?.() ?? e);
+        const r = resolveActivityEffects(system, live, doc._source?.system ?? doc.system ?? null);
+        Object.assign(updates, r.updates);
+        const warning = unknownEffectWarning(name, r.unknown);
+        if (warning) issue(row, name, {action: 'activity-effect', status: 'warning', message: warning});
+      }
     } else if (doc.documentName === 'Actor') {
       const created = fresh, touched = new Set(plans.get(row.id)?.patch?.touched ?? []);
       const defs = record.foundry.data?.items ?? [], keys = itemKeys(defs);
@@ -160,7 +170,7 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
       for (const f of w.after) f();
     }
     // Only what actually differs is written, so a re-run after a cancel writes nothing that is already done.
-    const pending = works.map(w => ({w, changed: Object.fromEntries(Object.entries(w.updates).filter(([path, value]) => !same(pathGet(w.doc, path), value)))}));
+    const pending = works.map(w => ({w, changed: Object.fromEntries(Object.entries(w.updates).filter(([path, value]) => !same(pathGet(w.doc._source ?? w.doc, path), value)))}));
     const needed = pending.filter(p => Object.keys(p.changed).length);
     for (const [documentName, list] of group(needed, p => p.w.doc.documentName)) {
       const done = ok => { for (const p of ok) if (p.w.bindings.length) issue(p.w.row, p.w.name, {action: 'uuid-bind', status: 'ok', bindings: p.w.bindings.length}); };

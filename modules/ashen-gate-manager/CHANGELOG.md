@@ -1,3 +1,12 @@
+## 0.71.0 — 2026-10-26
+
+Item activities can point at their effects.
+
+- **The link:** in a package, an activity names its effect by the effect's own `eff_id`: `system.activities.<activityId>.effects: [{"eff_id": "EFF-..."}]` (an optional `level: {min, max}` is kept). After Manager has created or updated the Item's effects it finds each effect on that Item by its `eff_id` and writes dnd5e's real link, `[{"_id": "<the effect's id in your world>"}]`. dnd5e applies an effect that stays on the Item (`transfer: false`) only through such a link, from the activity's "apply effect" button, so this is what makes perks like Panacea Hand or Battle Hymn work.
+- **Import, Sync and re-runs:** the link is resolved on every import and sync, so worlds that already hold the effect under a random id are fixed by the next run. A record whose only difference is a missing or stale link shows as a quiet metadata refresh ("activity effect links"), never as an Overwrite, and a correctly linked Item stays Unchanged.
+- **Never silent:** an `eff_id` that no effect on the Item carries is reported once per record in the import report (and in the preview when the record itself lacks that effect); an existing link is not blanked by it. Activities without `effects` are not touched, and the raw `eff_id` form is never stored on the Item.
+- No change to saved data; no migration.
+
 ## 0.70.10 — 2026-10-26
 
 - **Smaller window.** Manager opens at 1000 x 760 (was 1020 x 820). The layout is fluid, so the same content fits.

@@ -215,8 +215,8 @@ test('0.70.1 wiring: no per-record world scans in the Sync path; legacy conversi
 });
 test('0.70.1 version, CHANGELOG, README and Help agree', () => {
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.70.10');
-  assert.ok(manifest.download.endsWith('/ashen-gate-manager-v0.70.10/ashen-gate-manager.zip'));
+  assert.equal(manifest.version, '0.71.0');
+  assert.ok(manifest.download.endsWith('/ashen-gate-manager-v0.71.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.70\.1 /m);
   assert.match(read('../README.md'), /has not moved for 60 s/);
   assert.match(read('../scripts/main.js'), /not moved for 60 s|resumes/);

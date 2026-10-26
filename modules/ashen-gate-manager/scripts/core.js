@@ -6,6 +6,7 @@ import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-e
 import {modifierRecordProblems} from './modifier-definitions.js';
 import {validateSupersedes, supersedeMap} from './supersedes.js';
 import {systemWithRelated} from './related-lists.mjs';
+import {withoutActivityEffectRefs} from './activity-effects.js';
 import {isArtPath, artDecision, artSentence} from './art-fields.js';
 /** Ashen Gate Manager — pure, side-effect-free import planning tools. v0.1.0 */
 export const MODULE_ID = "ashen-gate-manager";
@@ -52,7 +53,8 @@ export function exportedFields(record) {
     const keys = {name: data.name};
     if (own(data, "img")) keys.img = data.img;
     // 0.69.0: an Item that points at a person, a handout or a quest ends with a short Related list (related-lists.mjs).
-    if (own(data, "system")) keys.system = systemWithRelated(record, data.system);
+    // 0.71.0: an activity's raw `effects: [{eff_id}]` is a package-only link, resolved to real effect ids after the effects exist (activity-effects.js).
+    if (own(data, "system")) keys.system = withoutActivityEffectRefs(systemWithRelated(record, data.system));
     // Only allow-listed flags are managed fields (0.37.0); effects are matched and compared per effect (item-effects.js).
     const flags = allowedItemFlags(data.flags);
     if (Object.keys(flags).length) keys.flags = flags;

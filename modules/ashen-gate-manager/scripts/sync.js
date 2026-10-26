@@ -22,6 +22,7 @@ import {domainHandoff} from './delivery.js';
 import {contentHash} from './world-export.js';
 import {dependencyOrder} from './workflows.js';
 import {isArtPath, artDecision, liveArt, artLabel, artSentence} from './art-fields.js';
+import {activityLinksNeeded} from './activity-effects.js';
 import {isLocationRecord, planLocation, isRouteRecord, planRoute} from './location-handoff.js';
 import {isShopRecord, planShop} from './shop-handoff.js';
 import {SPECIALISTS, planSpecialist, updatesExisting, filterSpecialist} from './specialist-handoff.js';
@@ -584,6 +585,8 @@ export function planSync(set, world, ctx = {}) {
       if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
       if (p.artKept?.length) artKept = p.artKept;
       const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
+      // 0.71.0: an activity whose effect link is missing or points at an old id is a quiet refresh, not a content difference.
+      if (record.foundry.document_type === 'Item' && activityLinksNeeded(record, snap.raw)) meta.push('activity effect links');
       if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
       const lost = lostOf(p.changes);
       const edited = p.contentChange ? editedFields(record, snap, p.changes) : [];
