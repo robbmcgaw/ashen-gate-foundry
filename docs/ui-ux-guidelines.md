@@ -152,6 +152,13 @@ device to Comfortable.
     the full value is one click or focus away. (CLAUDE.md) [Apple Lists and tables] [Primer Data table]
 11. The create action is in the toolbar at the right end, labelled "New <thing>", and is the only create button on the
     screen. (CLAUDE.md)
+12. **Dense record lists use one-line rows** (Character Hub Combat, Inventory, Magic, Features): the name first, then only
+    what acts on that row (an Equip or Attune toggle, a quantity field, a uses count). Detail and secondary actions live
+    in the hover card, the "⋯" menu or the opened record. The row keeps its grid at narrow widths instead of wrapping to a
+    second line. **Ours** (Robb, 2026-10)
+13. **Group and sort controls stay pinned** in the list's top band while the rows scroll. A grouping with a sensible
+    default per character (for example Features by origin) leaves out empty groups and never stores anything on the
+    record. **Ours**
 
 ## 6. Forms and settings
 
@@ -211,6 +218,10 @@ device to Comfortable.
    [Carbon Dialogs]
 8. A form that collects input and then asks "Are you sure?" asks once: put the consequence in the form's button ("Award 3
    points"). **Ours** [Carbon Dialogs]
+9. **"Can't tell" lists get a tick per row.** When a cleanup or refresh meets records it cannot identify, it leaves them
+   alone and lists each one with its own **Also remove** tick, unticked by default. A group-level "Select all…" /
+   "Clear all…" pair is fine. Ticked rows move to the "Will remove" list, count in the confirmation and are covered by
+   the snapshot. Never remove an unidentified record on a single group-wide confirmation. **Ours** (Robb, 2026-10)
 
 ## 8. Empty, loading and error states
 
@@ -304,6 +315,12 @@ device to Comfortable.
 9. **Production wording:** no Alpha, Beta, Preview, New, Experimental or similar status labels anywhere a user sees them
    (UI, Help, settings, module descriptions); status is discussed in chat. Internal API contract ids keep their names.
    `scripts/ui-lint.mjs` (`status-wording`) checks module.json, scripts and templates. **Ours** (Robb, 2026-10)
+10. **Say each fact once per card.** Don't repeat in prose what a badge, chip or field on the same card already shows (tier,
+    effort, a tool, an effect note). Where generated text restates it, drop the prose or the badge, not the data.
+    **Ours** (Robb, 2026-10)
+11. **Deity scores are Piety, faction scores are Renown.** Use "Piety" for what a character earns with a deity (Pantheon
+    tab, embeds, Journey entries, notifications, Help) and "Renown" for factions. Ids, flags and API names keep their
+    names. **Ours** (Robb, 2026-10)
 
 ## 13. Theming
 
@@ -371,6 +388,7 @@ rows marked **shipped** (usage in [section 17](#17-kit-22-usage)); the rest are 
 - [ ] Kit tokens only; ink tokens on tinted fills; checked in a dark and a light skin, Compact and Comfortable.
 - [ ] Reduced motion respected.
 - [ ] Same names in launcher, header, tabs, Help and embeds; verb-first buttons; no raw ids or tokens.
+- [ ] Dense lists use one-line rows with pinned group/sort; no fact repeated on a card; "can't tell" rows carry their own Also remove tick; Piety for deities, Renown for factions.
 - [ ] Tell Robb exactly what to click in Forge to see the change.
 
 ## 17. Kit 2.2 usage
