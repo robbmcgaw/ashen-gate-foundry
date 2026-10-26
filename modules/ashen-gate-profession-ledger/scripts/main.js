@@ -1664,7 +1664,7 @@ function draftMaterial(id){
   return (game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i))??null;
 }
 /** The world Material to award: an awardable one, or (GM "use anyway" only) a draft/unreleased one. */
-/** 0.35.2: states a GM round may give without "use anyway": released (approved, player-visible) materials, even when the world Item itself is
+/** 0.35.1: states a GM round may give without "use anyway": released (approved, player-visible) materials, even when the world Item itself is
  * not Observer for every player (a permission detail: the Item given to a character is a copy, so nobody needs the world Item). */
 const releasedState=state=>state==='ok'||state==='not-visible';
 function releasedMaterial(id){
@@ -2156,7 +2156,7 @@ function giveChoices(round,row,{query=''}={}){
   return {matching:fit.length>0,materials:list.sort((a,b)=>(a.tier??9)-(b.tier??9)||a.name.localeCompare(b.name)).slice(0,60).map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,draft:m.draft}))};
 }
 /**
- * A non-modal DialogV2 whose content buttons (`data-action="name"`) run `handlers[name](dataset, element)`. 0.35.2: the buttons did nothing in
+ * A non-modal DialogV2 whose content buttons (`data-action="name"`) run `handlers[name](dataset, element)`. 0.35.1: the buttons did nothing in
  * Forge when they were wired only from the dialog's `render` callback. They are now reached three ways, each safe to run alongside the others
  * (one click is handled once): ApplicationV2's own `actions` for `data-action` elements, the `render` callback, and a click listener put on the
  * dialog element once it has rendered. Nothing relies on inline handlers.

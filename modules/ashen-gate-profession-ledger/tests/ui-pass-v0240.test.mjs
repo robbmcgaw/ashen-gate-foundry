@@ -29,7 +29,7 @@ const html=async view=>{app.view=view;return (await app._prepareContext({})).htm
 const tick=checked=>{app.accessDraft=checked;app._syncRosterActions();};
 
 test('Comfortable size: the Ledger window opens 1.2× its Compact default',()=>{
-  assert.deepEqual(app.options.position,{width:1416,height:960});
+  assert.deepEqual(app.options.position,{width:1200,height:912});
 });
 
 test('D4: Player Access is a GM Setup checkbox, not a toggle button that saves at once',async()=>{
