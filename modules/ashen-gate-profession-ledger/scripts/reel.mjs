@@ -34,7 +34,7 @@ export function revealHtml(view,{reduced=false,elapsed=0,skipId='skip-reveal'}={
           .map(p=>`<li><img src="${escape(p?.img||FALLBACK_IMG)}" alt="" width="40" height="40"></li>`).join('')}</ul></div>`:'';
     const drops=win?r.drops.map(d=>`<span class="agl-reveal__drop"><img src="${escape(d.hidden?FALLBACK_IMG:d.img||FALLBACK_IMG)}" alt="" width="20" height="20"> ${escape(dropText(d))} <span class="ag-badge">${escape(d.kind[0].toUpperCase()+d.kind.slice(1))}</span></span>`).join(''):
       r.result==='fail'?'<span class="agl-reveal__none">Nothing found</span>'
-      :'<span class="agl-reveal__none">The Ledger can’t pick this one: the GM gives it by hand</span>';
+      :`<span class="agl-reveal__none">${r.reason?`${escape(r.reason)} The GM gives it by hand.`:'The Ledger can’t pick this one: the GM gives it by hand'}</span>`;
     return `<li class="agl-reveal__row" data-result="${escape(r.result)}">
       <div class="agl-reveal__who"><strong>${escape(r.name)}</strong> <span class="agl-sub">${escape(r.total)}${view.dcText?` vs ${escape(view.dcText)}`:''} · ${verdictText(r)}</span></div>
       ${strip}<div class="agl-reveal__drops">${drops}</div></li>`;

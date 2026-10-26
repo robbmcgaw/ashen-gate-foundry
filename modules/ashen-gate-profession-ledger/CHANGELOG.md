@@ -1,3 +1,12 @@
+## 0.35.1 — 2026-10-27
+
+Fixes for gathering found in a live Forge test.
+
+- **Give… in the Hand out loot pop-up works.** The buttons did nothing; they now open the Add picker (materials of the right quality, matching professions and tiers first), give the item to that character, post a chat card and mark the row as given. They work however Foundry delivers a click to the dialog (its own actions, the render callback, or a click on the dialog window); one click is handled once.
+- **Fewer rounds the Ledger cannot settle.** A released material is no longer skipped just because its world Item is not Observer for every player (including players who are offline). A Material imported with only the flag envelope (older or thinner imports) is still matched: its quality, tier and profession are read from the flag's gathered_by refs and the Item description's first line, whatever the capitalisation.
+- **A specific reason when nothing can be picked.** Instead of the generic line, the row (and the pop-up) says why: nothing imported for those professions and tiers, matches that are draft/unreleased (tick Use draft materials anyway), imported more than once, or imports with no readable quality, tier or profession. Players never see this.
+- No saved data changes.
+
 ## 0.35.0 — 2026-10-26
 
 The Ledger files its journals under the **Ashen Gate** folder instead of loose at the top: *Profession Ledger (GM Data)* in **Ashen Gate / Professions** and the *Profession Refresh* snapshots in **Ashen Gate / Backups**. On the first GM login after updating, the Ledger moves its own loose journals there; anything you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.

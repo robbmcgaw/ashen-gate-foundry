@@ -88,10 +88,32 @@ export function materialMeta(definition,{name=''}={}){
   if(PROF.test(String(d.source_profession_id??'')))ids.add(d.source_profession_id);
   for(const r of Array.isArray(d.refs)?d.refs:[])if(r?.relation==='gathered_by'&&PROF.test(String(r.target_id??'')))ids.add(r.target_id);
   return {id:d.id,name:String(name||d.name||d.id),quality:quality?quality[0].toUpperCase()+quality.slice(1):null,exotic:quality==='exotic',
-    tier:tierNumber(d.tierId??d.tier),professionIds:[...ids]};
+    tier:tierNumber(d.tierId??d.tier_id??d.tier),professionIds:[...ids]};
+}
+const TIER_WORDS='Apprentice|Journeyman|Expert|Artisan|Master';
+const DESC_LINE=new RegExp(`<em>\\s*(Common|Rare|Exotic)\\s*(?:·|&middot;|&#183;|\\|)\\s*(${TIER_WORDS})\\s*(?:·|&middot;|&#183;|\\|)\\s*([^<]*?)\\s*</em>`,'i');
+/**
+ * 0.35.1: the same metadata read from a world Material Item, tolerant of older or thinner imports. `source` is the Manager flag
+ * (`flags.ashen-gate-manager.source`). The full definition is preferred; when it is missing or lacks quality, tier or profession,
+ * the gaps are filled from the flag's own `refs` (gathered_by) and from the Item description's first line ("Common · Apprentice · Herbalism").
+ * Quality is matched without regard to case and tier by name or number.
+ */
+export function materialMetaOfSource(source,{name='',description=''}={}){
+  const flag=source&&typeof source==='object'?source:null;
+  const def=flag?.definition&&typeof flag.definition==='object'?flag.definition:{};
+  const id=def.id??flag?.sourceId;
+  const base=materialMeta({...def,id,entity_type:def.entity_type??flag?.entityType??'Material',tierId:def.tierId??def.tier_id??def.tier,
+    refs:Array.isArray(def.refs)&&def.refs.length?def.refs:(Array.isArray(flag?.refs)?flag.refs:[])},{name});
+  if(!base)return null;
+  const line=DESC_LINE.exec(String(description??''));
+  const out={...base,professionKeys:[]};
+  if(!out.quality&&line){out.quality=line[1][0].toUpperCase()+line[1].slice(1).toLowerCase();out.exotic=out.quality==='Exotic';}
+  if(out.tier==null&&line)out.tier=tierNumber(line[2]);
+  if(line){const k=professionKey(line[3]);if(k)out.professionKeys=[k];}
+  return out;
 }
 /** Profession keys a material is gathered by. `keyOf(profId)` may name it from its world definition. */
-export const materialProfessionKeys=(meta,keyOf=professionKeyFromId)=>[...new Set((meta?.professionIds??[]).map(id=>keyOf(id)??professionKeyFromId(id)).filter(Boolean))];
+export const materialProfessionKeys=(meta,keyOf=professionKeyFromId)=>[...new Set([...(meta?.professionIds??[]).map(id=>keyOf(id)??professionKeyFromId(id)),...(meta?.professionKeys??[])].filter(Boolean))];
 
 /**
  * Filter material metadata for a selector: text, gathering profession key, quality, exact tier or "not above" tier.
