@@ -4069,7 +4069,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
       externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
       sceneActorIds,hotbarMacroIds,isProtectedFolder:id=>Boolean(id&&folders.isProtected(id)),
-      locationIds,routeIds,shopIds:shopSet,specialistApi:kind=>specialistApi(game,kind),moduleHas:(kind,id)=>handed(kind,id),
+      locationIds,routeIds,shopIds:shopSet,specialistApi:kind=>specialistApi(game,kind),heldFingerprint:(which,id)=>heldFingerprint(which,id),moduleHas:(kind,id)=>handed(kind,id),
       validateExtra:records=>[...cinderDefinitionChecks(game,records).errors,...modifierDefinitionChecks(game,records).errors],
       copyCount:id=>copies.get(id)??0};
   }
@@ -4253,6 +4253,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
           world:{moduleId:MODULE_ID,itemFlag:ITEM_FLAG,documents:allBoundDocuments,sourceFlag,moduleRecord:moduleRecordLookup(game),
             updateDocuments:(name,updates,opts)=>({Item,JournalEntry,Actor,RollTable,Macro}[name]).updateDocuments(updates,opts)}});
       },
+      heldFingerprint:row=>heldFingerprint(row.specialist??(['Shop','Service','MerchantList'].includes(row.kind)?'shops':'locations'),row.id),
       apis: {locations:locationsApi(game),routes:routesApi(game),shops:shopsApi(game),specialist:kind=>specialistApi(game,kind)},
       retire: async ids=>{ const prior=new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]);for(const id of ids)prior.add(id);await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...prior].sort()); },
       saveLedger: saveLedgerEntries,
@@ -4384,6 +4385,14 @@ function moduleRecordIndex(locApi,shpApi) {
   return (kind,id)=>kind==='Location'||kind==='Route'?(loc?loc.has(id):undefined):['Shop','Service','MerchantList'].includes(kind)?(shop?shop.has(id):undefined):undefined;
 }
 /** Remembers which ids Manager passed to other modules, per package line, so a later sync can say what a newer package no longer carries. */
+/** The owning module's own fingerprint of what it holds for an id, when it exposes `contentFingerprint(id)` (feature-detected; null otherwise). */
+function heldFingerprint(which,id) {
+  try {
+    const api=which==='shops'?shopsApi(game):which==='locations'?locationsApi(game):specialistApi(game,which);
+    const value=typeof api?.contentFingerprint==='function'?api.contentFingerprint(id):null;
+    return typeof value==='string'&&value?value:null;
+  } catch { return null; }
+}
 async function saveLedgerEntries(entries) {
   if(!entries.length)return;
   const ledger=structuredClone(game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{});

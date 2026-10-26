@@ -24,7 +24,7 @@ import {dependencyOrder} from './workflows.js';
 import {isArtPath, artDecision, liveArt, artLabel, artSentence} from './art-fields.js';
 import {isLocationRecord, planLocation, isRouteRecord, planRoute} from './location-handoff.js';
 import {isShopRecord, planShop} from './shop-handoff.js';
-import {SPECIALISTS, planSpecialist, updatesExisting} from './specialist-handoff.js';
+import {SPECIALISTS, planSpecialist, updatesExisting, filterSpecialist} from './specialist-handoff.js';
 import {bundleRecordIds} from './zip-import.js';
 import {offerFor, supersedeMap, adjustRebindOps, collectSpecialistSupersedes} from './supersedes.js';
 
@@ -45,6 +45,20 @@ const same = (a, b) => equal(a ?? null, b ?? null);
 const emptyObject = v => isPlainObject(v) && !Object.keys(v).length;
 const show = value => { const t = JSON.stringify(value ?? null); return t.length > 160 ? `${t.slice(0, 157)}…` : t; };
 const hasMarker = v => typeof v === 'string' && v.includes('[[AGREF:');
+/**
+ * 0.70.5: hand-off records have no per-field preview, so "did this change?" is answered from a fingerprint Manager stores
+ * (handoffLedger[<line or specialist>][id].fp = hash of the record exactly as handed over). Same fingerprint and the module's own copy not edited
+ * since = Unchanged (not passed on again). A module that exposes `contentFingerprint(id)` (feature-detected) also lets Manager see edits made in
+ * that module's own window: the value stored after the last hand-off (`held`) must still be the module's current one.
+ */
+export const handoffFingerprint = value => contentHash(value ?? null);
+export function handoffDecision({fp, entry, held = null, overwriteEdited = false}) {
+  const edited = Boolean(entry?.held && held && entry.held !== held);
+  if (edited && !overwriteEdited) return {group: 'untouched', keptEdited: true};
+  if (!entry?.fp) return {group: 'overwrite', first: true};
+  if (entry.fp === fp && !edited) return {group: 'untouched', unchanged: true};
+  return {group: 'overwrite'};
+}
 export const ledgerKey = (packageId, kind = null) => kind ? `specialist:${kind}` : String(packageId);
 
 /** Actor system data that is play state for an NPC: kept on an overwrite, never written from the package. */
@@ -673,9 +687,17 @@ function planModuleRows(set, ctx, rows, errors) {
   const upd = true, drafts = Boolean(ctx.includeDrafts);
   const map = (action, reason) => action === 'create' ? 'create' : action === 'update' ? 'overwrite' : 'untouched';
   const push = (record, moduleLabel, kind, res, extra = {}) => {
-    const group = map(res.action);
+    let group = map(res.action), more = {}, reason = res.reason;
+    if (group === 'create') more = {fp: handoffFingerprint(record)}; // remembered after the hand-off, so the next sync can say Unchanged
+    if (group === 'overwrite') {
+      const fp = handoffFingerprint(record), entry = ctx.ledger?.[ledgerKey(extra.line)]?.[record.id];
+      const d = handoffDecision({fp, entry, held: ctx.heldFingerprint?.(moduleLabel === 'Utilities' ? 'shops' : 'locations', record.id) ?? null, overwriteEdited: ctx.overwriteEdited});
+      group = d.group; more = {fp, ...(d.unchanged ? {unchanged: true} : {}), ...(d.keptEdited ? {keptEdited: true} : {})};
+      reason = d.unchanged ? `Already matches the package (last handed to ${moduleLabel} unchanged).` : d.keptEdited ? `Kept: edited in ${moduleLabel}. Tick "Also overwrite records I edited" to replace it.`
+        : `${res.reason} ${d.first ? 'No earlier import is recorded for this record, so it is passed on once and remembered. ' : ''}Passed to ${moduleLabel}, which keeps its own state; no per-field preview is available.`;
+    }
     rows.push({group, key: rowKey(group, kind, record.id), id: record.id, name: record.location?.name ?? record.route?.name ?? record.name ?? record.id, kind, record, external: true, module: moduleLabel,
-      reason: group === 'overwrite' ? `${res.reason} Passed to ${moduleLabel}, which keeps its own state; no per-field preview is available.` : res.reason, changes: [], lost: 0, refused: res.action === 'blocked', ...extra});
+      reason, changes: [], lost: 0, refused: res.action === 'blocked', ...more, ...extra});
   };
   const locationIds = ctx.locationIds ?? null;
   const endpoints = new Set(locationIds ?? []);
@@ -692,12 +714,21 @@ function planModuleRows(set, ctx, rows, errors) {
     for (const e of res.errors ?? []) errors.push(`${file.filename}: ${e}`);
     for (const n of res.notes ?? []) notes.push(`${file.filename}: ${n}`);
     for (const r of res.rows) {
-      const group = r.action === 'create' ? 'create' : r.action === 'update' ? 'overwrite' : 'untouched';
+      let group = r.action === 'create' ? 'create' : r.action === 'update' ? 'overwrite' : 'untouched', more = {}, note = '';
+      if (group === 'create') more = {fp: handoffFingerprint(filterSpecialist(file.kind, file.payload, [r.id]))};
+      if (group === 'overwrite') {
+        const fp = handoffFingerprint(filterSpecialist(file.kind, file.payload, [r.id])), entry = ctx.ledger?.[ledgerKey(null, file.kind)]?.[r.id];
+        const d = handoffDecision({fp, entry, held: ctx.heldFingerprint?.(file.kind, r.id) ?? null, overwriteEdited: ctx.overwriteEdited});
+        group = d.group; more = {fp, ...(d.unchanged ? {unchanged: true} : {}), ...(d.keptEdited ? {keptEdited: true} : {})};
+        if (d.unchanged) note = `Already matches the package (last handed to ${spec.label} unchanged).`;
+        else if (d.keptEdited) note = `Kept: edited in ${spec.label}. Tick "Also overwrite records I edited" to replace it.`;
+        else if (d.first) note = 'No earlier import is recorded for this record, so it is passed on once and remembered.';
+      }
       const reason = group === 'untouched' && !canUpdate && !spec.canUpdate && /exist|kept/i.test(r.reason ?? '') ? `${spec.label} does not update records that already exist; kept as they are. ${r.reason}` : r.reason;
       // Renown reports what an update changes (field names, counts of milestones, rewards, entries), so its rows say that instead of "no preview".
       const detailed = file.kind === 'factions' && group === 'overwrite' && canUpdate;
-      rows.push({group, key: rowKey(group, r.kind, r.id), id: r.id, name: r.name, kind: r.kind, external: true, module: spec.label, specialist: file.kind, filename: file.filename,
-        reason: group === 'overwrite' ? `${reason} ${detailed ? `Passed to ${spec.label}, which saves a snapshot of the old definition first and keeps standings, claims, requests, choices and what the party learned.` : `Passed to ${spec.label}, which keeps its own state; no per-field preview is available.`}` : reason,
+      rows.push({group, key: rowKey(group, r.kind, r.id), id: r.id, name: r.name, kind: r.kind, external: true, module: spec.label, specialist: file.kind, filename: file.filename, ...more,
+        reason: more.unchanged || (more.keptEdited && group === 'untouched' && note) ? note : group === 'overwrite' ? `${note ? note + ' ' : ''}` + `${reason} ${detailed ? `Passed to ${spec.label}, which saves a snapshot of the old definition first and keeps standings, claims, requests, choices and what the party learned.` : `Passed to ${spec.label}, which keeps its own state; no per-field preview is available.`}` : reason,
         changes: [], lost: 0, refused: r.action === 'blocked', ...(r.keptEdited ? {keptEdited: true} : {})});
     }
   }

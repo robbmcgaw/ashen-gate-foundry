@@ -1,3 +1,14 @@
+## 0.70.5 — 2026-10-26
+
+Sync from package: records handed to other modules (Locations, Skill Trees, Quests, Shops, Renown and the rest) show as Unchanged when nothing changed.
+
+- **Why they always said Overwrite:** these records have no per-field preview, so Manager had nothing to compare and treated every one as an update ("Passed to Skill Trees, which keeps its own state; no per-field preview is available").
+- **Now:** after each hand-off Manager remembers a fingerprint of the record exactly as it handed it over (in the same hand-off record it already kept, per module and id). The next preview compares the incoming record with it: the same record is listed as **Unchanged** ("Already matches the package") and is not passed on again; a changed record is Overwrite; only the records that changed are passed on.
+- **First sync after this update:** there is no earlier fingerprint, so each record says "No earlier import is recorded for this record, so it is passed on once and remembered" and is passed on one more time; the next sync shows Unchanged.
+- **Edited in the other module:** a module that can report the state of its own copy (`contentFingerprint(id)`, detected, none required) lets Manager see edits made in that module's own window. Such a record is **Kept: edited in <module>** and is only replaced when you tick "Also overwrite records I edited". Modules that cannot say are judged by the fingerprint alone.
+- Each module's records are tracked separately (by package line or specialist file), and a module that is not active is skipped as before. GM only; the bulk-write, progress and chunking behaviour of 0.70.x is unchanged.
+- No change to saved data beyond a fingerprint added to the existing hand-off record; no migration.
+
 ## 0.70.4 — 2026-10-26
 
 Fixes 0.70.3, where Sync failed every record with "Cannot add property parent, object is not extensible".

@@ -421,7 +421,8 @@ test('records other modules own go through their import API in update mode; ones
   assert.equal(first.counts.failed, 0, JSON.stringify(first.log.filter(l => l.status === 'error')));
   assert.ok(Object.keys(world.ledger[pack.manifest.package_id] ?? {}).length >= locations.length);
   const again = world.plan(set);
-  assert.ok(again.rows.filter(r => r.kind === 'Location').every(r => r.group === 'overwrite' && /keeps its own state/.test(r.reason)), 'existing module records are replaced by definition only');
+  // 0.70.5: what was handed over unchanged is Unchanged the second time (the ledger holds a fingerprint of each record).
+  assert.ok(again.rows.filter(r => r.kind === 'Location').every(r => r.group === 'untouched' && r.unchanged && /Already matches the package/.test(r.reason)), 'an unchanged hand-off is not passed on again');
   // A newer package that drops one location: the location stays in Locations and is listed as not removed.
   const dropped = locations[0].id;
   const smaller = {...pack, records: pack.records.filter(r => r.id !== dropped)};
@@ -539,7 +540,7 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.70.4');
+  assert.equal(manifest.version, '0.70.5');
   assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /m);
 });
 
