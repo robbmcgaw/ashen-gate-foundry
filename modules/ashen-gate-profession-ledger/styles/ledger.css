@@ -39,6 +39,7 @@
 /* 0.26.1: name + badges stay on one row down to the ~220px Hub embed. The name takes the room left and ends in an
  * ellipsis (full name in its tooltip); the badges are one nowrap group, so they never split. When even a short stub of
  * the name would not fit, the whole group drops to its own row, right-aligned, just above the tier line. */
+.agl-prof-actions{display:flex;margin-top:var(--ag-space-1)}
 .agl-prof-head{display:flex;align-items:center;gap:var(--ag-space-1) var(--ag-space-2);flex-wrap:wrap}
 .agl-prof-name{flex:1 1 0;min-width:min(100%,4.5em);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--ag-text-lg)}
 .agl-prof-badges{display:inline-flex;flex:none;align-items:center;gap:var(--ag-space-1);margin-left:auto;white-space:nowrap}
@@ -81,6 +82,13 @@
 .agl-ing.warn::before{content:'✗ ';color:var(--ag-danger)}
 .agl-recipe-summary{margin:0;font-size:var(--ag-text-sm);color:var(--ag-muted);font-style:italic}
 .agl-recipe-effect{margin:0;font-size:var(--ag-text-sm)}
+/* 0.33.4: Party and Catalog cards fold the body under the title; the summary is a native disclosure (keyboard: Enter or Space). */
+.agl-recipe-more>summary{display:inline-flex;align-items:center;gap:var(--ag-space-1);cursor:pointer;font-size:var(--ag-text-sm);color:var(--ag-accent);list-style:none;padding:var(--ag-space-1) 0;min-height:1.75rem}
+.agl-recipe-more>summary::-webkit-details-marker{display:none}
+.agl-recipe-more>summary::before{content:'\25B8';display:inline-block}
+.agl-recipe-more[open]>summary::before{content:'\25BE'}
+.agl-recipe-more>summary:focus-visible{outline:2px solid var(--ag-accent);outline-offset:2px}
+.agl-recipe-body{display:flex;flex-direction:column;gap:var(--ag-space-2)}
 .agl-label-table input[type="text"]{width:100%;min-width:9rem}
 .agl-recipe-status{display:flex;gap:var(--ag-space-2);flex-wrap:wrap}
 

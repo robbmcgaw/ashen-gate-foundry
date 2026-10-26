@@ -173,6 +173,19 @@ export function boundCinders(actor) {
   const tone = strainTone(s?.value, s?.guaranteeAt);
   return list.map(ci => ({instanceId: String(ci.instanceId ?? ''), name: String(ci.name || 'Cinder'), art: cleanArt(ci.art), tone, treeId: ci.treeId ?? null}));
 }
+/**
+ * The Items each Cinder gave this character (0.58.0), for grouping features: [{instanceId, name, treeId, itemIds}], where itemIds are the
+ * signature ability and passive Items (api.cinder.list `signature.active.itemId` / `passive.itemId`, Cinders 0.10.0+). Empty when Cinders
+ * is missing, older or refuses this user. Read through api.cinder.list only.
+ */
+export function cinderPowerItems(actor) {
+  const c = cindersApi()?.cinder;
+  if (c?.contract !== 'ag-cinder/1' || !actor) return [];
+  let list = [];
+  try { list = c.list(actor) ?? []; } catch { return []; }
+  return list.map(ci => ({instanceId: String(ci.instanceId ?? ''), name: String(ci.name || 'Cinder'), treeId: ci.treeId ?? null,
+    itemIds: [ci.signature?.active?.itemId, ci.signature?.passive?.itemId].filter(Boolean).map(String)}));
+}
 /** Header chips (0.31.0): a small orb (art, glow, slow turn) and the name per Cinder; a click opens Ashen Gate → Cinders. */
 export function cinderChipsHtml(actor, {spin = artSpins()} = {}) {
   const list = boundCinders(actor);

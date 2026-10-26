@@ -1,3 +1,12 @@
+## 0.58.0 — 2026-10-26
+
+Features tab: group by origin, and sort by uses remaining.
+
+- **Group → Origin** (Features, Filters): sections for Class and Subclass, Species and Background, Feats, Professions (one section per profession, such as "Professions: Herbalism"), Cinder powers (one per Cinder) and Everything else. Empty sections are not shown. It is the starting Group for a character that has any profession or Cinder feature; everyone else keeps Feature type, and a Group you have picked is kept.
+- **Sort → Uses remaining**: features with uses left first (most left first), then spent ones, then features without uses. Name, Type, Action type and Has uses first are as before.
+- Origin is read from dnd5e (advancement origin, feature type) and, when active, from the public APIs and flags of Skill Trees (perk grants), the Profession Ledger (professions, its `grant` flag) and Cinders (signature ability and passive). Without them those Items stay in the dnd5e sections. Nothing is written to the character.
+- Rows, columns and widths are unchanged.
+
 ## 0.57.2 — 2026-10-26
 
 Fixes Combat, Inventory and Features rows falling apart when the Hub body is 640px wide or less.

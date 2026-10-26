@@ -131,7 +131,7 @@ test('group and sort choices: per user, safe defaults, unknown values refused', 
   assert.deepEqual(sortRows(rows, 'name').map(r => r.name), ['A', 'B', 'C']);
   assert.deepEqual(sortRows(rows, 'level').map(r => r.name), ['C', 'B', 'A']);
   assert.deepEqual(sortRows(rows, 'prepared').map(r => r.name), ['C', 'A', 'B']);
-  assert.ok(ORGANIZE.magic.sorts.some(([k]) => k === 'school') && ORGANIZE.features.groups.length === 5);
+  assert.ok(ORGANIZE.magic.sorts.some(([k]) => k === 'school') && ORGANIZE.features.groups.length === 6);
 });
 
 test('Magic (long rows): toolbar with search, group and sort; group by school; columns follow the grouping', async () => {

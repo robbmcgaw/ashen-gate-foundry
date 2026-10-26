@@ -15,6 +15,7 @@ Module ID `ashen-gate-skill-trees` · Foundry V14 · dnd5e. Progression trees (g
 - **Keyboard:** in Edit layout, arrow keys move the focused node (Shift for bigger steps), or use **Move node…**; Esc cancels Connect prerequisite.
 - **Import preview (0.23.0).** For each tree, `api.previewTreeImport` rows carry a `summary` such as "24 nodes, 3 rival pairs, up to 21 can be taken together" (counts: nodes, rival pairs, and the most perks one character can hold from the best choice in every pair). General Manager shows rows from this API.
 - Points are awarded by the GM per tree. Players see a published, sanitized copy of the trees; GM-only nodes never reach them.
+- **Players see only their own character's trees (0.23.3).** A profession tree needs the profession in the Profession Ledger; a Cinder tree needs that Cinder bound to the character; any other tree needs points awarded to the character. Trees with purchased nodes stay visible. Without the Ledger or Cinders, players do not see those trees (fail closed); the GM sees all trees, and **Player preview** shows what the chosen character sees. The same rule covers the API, embed and unlock; an unrelated tree answers "Unknown tree".
 
 ## Relation to other modules
 
@@ -74,7 +75,7 @@ Optional per-tree proficiency gate (any provider; meant for profession trees):
 
 API (additive):
 
-- `listTreesForProfession(sourceRef)` → the trees of that profession, sorted by name; same rules as `listTrees` (GM: private trees; players: published ones).
+- `listTreesForProfession(sourceRef)` → the trees of that profession, sorted by name; same rules as `listTrees` (GM: private trees; players: published ones), and only those a player's characters hold, 0.23.3).
 - `professionWallet(actorId, sourceRef)` → `{sourceRef, level, earned, spent, available, overSpent, overAllocated, trees: [{id, name, spent}]}` or `null` when the caller sees no tree of it. `earned`/`available` are `null` without the Ledger; `available` never goes below 0. GM or the Actor's owner.
 - `embed.data(actorId)` → `[{key, shared, name, sourceRef, kind, profession, level, earned, spent, available, trees: [model]}]`: the embed's data grouped by wallet. `shared: true` for a profession with several trees (the wallet once, `trees[].label` is the tab name, `trees[].treeSpent` that tree's share); every other tree is a group of one with the 0.14.0 model.
 - `pointsSummary(actor)`: rows of a shared profession report the shared `spent`/`available` and add `sourceRef`, `wallet` (`profession:<sourceRef>`), `treeSpent` and `walletTrees`; count a wallet once. Single-tree rows are unchanged.
