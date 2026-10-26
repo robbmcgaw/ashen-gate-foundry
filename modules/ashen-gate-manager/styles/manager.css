@@ -201,6 +201,9 @@ ul.agcodex-value{padding-left:var(--ag-space-5);white-space:normal}
 .agcodex-bulk__chars{display:grid;gap:var(--ag-space-1);max-height:12rem;overflow:auto}
 .agcodex-bulk__actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .agcodex-note{margin:0;min-height:var(--ag-control-h-sm);color:var(--ag-ok-ink)}
+.agcodex-note--warn{color:var(--ag-danger-ink)}
+.agcodex-reason{flex:1 1 100%;color:var(--ag-danger-ink);font-size:var(--ag-text-sm)}
+.agcodex-reason[hidden]{display:none}
 .agcodex-pick{display:flex;align-items:center;gap:var(--ag-space-2);min-height:var(--ag-control-h-sm)}
 .agcodex-pick small{color:var(--ag-muted)}
 .agcodex-dialog{display:grid;gap:var(--ag-space-3)}
