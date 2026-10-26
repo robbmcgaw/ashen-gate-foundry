@@ -106,6 +106,12 @@ test('0.70.5 the ledger stores the fingerprint after a hand-off; GM-only paths u
   assert.match(apply, /\.\.\.\(row\.fp \? \{fp: row\.fp\} : \{\}\)/);
   assert.match(apply, /adapter\.heldFingerprint\?\.\(row\)/);
   assert.match(read('../scripts/main.js'), /contentFingerprint/);
-  assert.match(read('../CHANGELOG.md'), /^## 0\.70\.5 /);
+  assert.match(read('../CHANGELOG.md'), /^## 0\.70\.5 /m);
   assert.match(read('../README.md'), /Unchanged/);
+});
+
+test('0.70.6 Help explains the hand-off rows and reference links', () => {
+  const src = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
+  const help = src.slice(src.indexOf('const MANAGER_HELP='), src.indexOf('class AshenGateManager'));
+  for (const text of ['Already matches the package', 'No earlier import is recorded for this record', 'Kept: edited in</em> that module', '<strong>Reference links</strong>']) assert.ok(help.includes(text), text);
 });

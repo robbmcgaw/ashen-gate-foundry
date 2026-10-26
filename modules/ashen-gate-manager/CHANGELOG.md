@@ -1,3 +1,10 @@
+## 0.70.6 — 2026-10-26
+
+Help catches up with 0.68 to 0.70.5. No behaviour change, no saved-data change.
+
+- **Sync from package** now explains the hand-off rows: a record that has not changed is listed as "Already matches the package" and is not passed on again; the first Sync after 0.70.5 says "No earlier import is recorded for this record" and passes it on once; a record edited in the other module's own window is "Kept: edited in <module>" until you tick "Also overwrite records I edited".
+- **Reference links** (`@AGRef[id]{Label}`, 0.68.0) have a Help paragraph: names not ids, handout Item twin, what players may open, how the GM opens a person.
+
 ## 0.70.5 — 2026-10-26
 
 Sync from package: records handed to other modules (Locations, Skill Trees, Quests, Shops, Renown and the rest) show as Unchanged when nothing changed.
