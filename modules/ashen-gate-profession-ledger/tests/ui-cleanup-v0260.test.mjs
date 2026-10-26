@@ -20,7 +20,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicati
   DialogV2:{wait:async opts=>{prompts.push(opts);const b=opts.buttons?.find(x=>x.action===(answer?'confirm':'cancel'));return b?.callback?.()??answer;},prompt:async opts=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.33.3'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.34.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{values[key]=v;}}};
@@ -32,22 +32,24 @@ const main=h=>h.slice(h.indexOf('<main'),h.indexOf('</main>'));
 const request={requestId:'r1',requesterId:'u1',requesterName:'Player',actorId:'a',actorName:'[TEST] Alpha',helperIds:[],at:1,draft:false,
   node:{id:'n1',key:'loc|n1',label:'[TEST] Reed bank',skill:'Herbalism',tier:1,dc:12,materialId:'MAT-TEST-REED',quantity:2,rareQuantity:1,locationId:'loc',locationName:'[TEST] Marsh'}};
 
-test('PL-02: GM Gathering has Requests (n) · Active checks (n) · Start gathering, and opens on Requests when one waits',async()=>{
+test('PL-02: GM Gathering has Requests (n) · Gather · Gathering nodes, and opens on Requests when one waits',async()=>{
   let h=main(await html('gathering'));
   assert.match(h,/<div class="ag-tabs ag-tabs--sub" role="tablist" aria-label="Gathering">/);
-  assert.match(h,/data-tab="requests"[^>]*aria-selected="false"[^>]*>Requests <span class="ag-tab__count">0<\/span>.*data-tab="active"[^>]*>Active checks <span class="ag-tab__count">0<\/span>.*data-tab="start"[^>]*aria-selected="true"[^>]*>Start gathering</s);
+  assert.match(h,/data-tab="requests"[^>]*aria-selected="false"[^>]*>Requests <span class="ag-tab__count">0<\/span>.*data-tab="start"[^>]*aria-selected="true"[^>]*>Gather<.*data-tab="nodes"[^>]*>Gathering nodes</s);
+  assert.doesNotMatch(h,/Active checks/,'0.34.0: the open gather lives in Gather, not its own sub-tab');
   assert.match(h,/id="agl-gather-panel-requests"[^>]*hidden><div class="ag-empty"><p class="ag-empty__title">No gathering requests waiting\./,'empty Requests panel is still there');
-  assert.match(h,/id="agl-gather-panel-start" role="tabpanel"[^>]*tabindex="0"><section class="ag-card agl-panel"><h2>Start gathering/);
+  assert.match(h,/id="agl-gather-panel-start" role="tabpanel"[^>]*tabindex="0"><section class="ag-card agl-panel"><h2>Gather<\/h2>/);
+  assert.match(h,/data-action="gather-start" disabled><i class="fa-solid fa-seedling" aria-hidden="true"><\/i> Start gather…</,'one primary: Start gather…');
+  assert.doesNotMatch(h,/Lead gatherer|Helpers|data-gather-helper/,'no lead gatherer');
   // Short draft label, explanation as a field hint.
   assert.match(h,/data-gather-allow-draft aria-describedby="agl-allow-draft-hint" > Use draft materials anyway<\/label>\s*<p class="ag-field__hint" id="agl-allow-draft-hint">GM only:/);
-  assert.match(h,/<span class="ag-fold__title">How gathering works<\/span>/);
   // A request waiting: entering the Gathering tab opens on Requests, with its count.
   _test.gatherRequests.set('r1',request);
   app.view='individual';await app._click('tab','gathering');
   h=main(await html('gathering'));
   assert.equal(app.gatherTab,'requests');
   assert.match(h,/data-tab="requests"[^>]*aria-selected="true"[^>]*>Requests <span class="ag-tab__count">1<\/span>/);
-  assert.match(h,/id="agl-gather-panel-start"[^>]*hidden>/,'Start gathering no longer sits under the queue');
+  assert.match(h,/id="agl-gather-panel-start"[^>]*hidden>/,'Gather no longer sits under the queue');
   _test.gatherRequests.clear();
 });
 

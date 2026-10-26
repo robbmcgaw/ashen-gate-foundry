@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.33.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.34.0',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -229,27 +229,28 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   assert.match(h,/Material “Tg Fish” is draft\/unreleased \(status: draft\): approve it in General Manager, or tick “Use draft materials anyway”/);
   assert.match(h,/data-action="gather-start" disabled/);
   const node=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-FORD').nodes.find(n=>n.id==='f1');
-  await assert.rejects(()=>_test.startGather({node,leadId:'belwar'}),/is draft\/unreleased/);
-  // Ad-hoc dropdowns: every material, drafts in their own group with a draft label.
-  app.gather.source='adhoc';Object.assign(app.gather.adhoc,{skill:'Herbalism',tier:'1',materialId:'MAT-TG-FISH'});
+  await assert.rejects(()=>_test.startRound({node,leadId:'belwar'}),/is draft\/unreleased/);
+  // Ad-hoc gather: its pool is the imported materials of the chosen professions and tiers; a draft one is in it only when the GM allows drafts.
+  app.gather.source='adhoc';Object.assign(app.gather,{professions:['herbalism'],tiers:[1],dc:'',label:''});
   h=await html('gathering');
-  assert.match(h,/<optgroup label="Released"><option value="MAT-TG-HERB" >\[TEST\] Herb( · [^<]*)?<\/option>/,'0.31.1: a material may carry its quality and tier after the name');
-  assert.match(h,/<optgroup label="Draft \/ unreleased \(GM only\)">[^]*?<option value="MAT-TG-FISH" selected>\[TEST\] Ford Fish( · [^<]*?)? — draft \(draft\)<\/option>[^]*?<\/optgroup>/);
-  assert.doesNotMatch(h.match(/<optgroup label="Released">[^]*?<\/optgroup>/)[0],/Ford Fish/,'drafts are not in the released group');
-  assert.match(h,/Common material <span[^>]*><span class="ag-badge ag-badge--warn">Draft<\/span>/,'a clear draft badge');
-  assert.match(h,/Use draft materials anyway/);
-  // Exotic picker: the draft Exotic can be picked.
-  app.gather.pick.profession='any';h=await html('gathering');
-  assert.match(h.slice(h.indexOf('agl-exotic-filters')),/\[TEST\] Draft Pearl.*data-id="MAT-TG-PEARL" >Add/s);
-  await app._click('adhoc-exotic-add','MAT-TG-PEARL');assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-PEARL',mode:'discovery'}]);
-  // Use anyway: the draft common material and the draft Exotic are awarded.
-  _test.setExoticRoll(()=>1);
-  values.exoticChance=100;
-  const s=await _test.startGather({node:app._selectedNode(),leadId:'belwar',allowDraft:true});
-  const out=await _test.resolveGather(s.id,{total:12,choice:'skill:sur'});
-  assert.deepEqual(out.awards.map(a=>a.materialId),['MAT-TG-FISH','MAT-TG-PEARL']);
+  assert.match(h,/Use draft materials anyway/);assert.doesNotMatch(h,/data-gather-adhoc|Common material/);
+  _test.setExoticRoll(()=>1);values.exoticChance=100;
+  let plain=await _test.startRound({node:app._selectedNode(),professions:['herbalism'],tiers:[1]});
+  _test.recordRoll(plain.id,{actorId:'belwar',total:12});
+  assert.deepEqual(_test.revealRound(plain.id).rows[0].drops.map(d=>d.materialId),['MAT-TG-HERB'],'no draft material and no draft Exotic without “use anyway”');
+  _test.cancelRound(plain.id);
+  // Use anyway: the draft common material and the draft Exotic are given.
+  const round=await _test.startRound({node:app._selectedNode(),professions:['herbalism'],tiers:[1],allowDraft:true});
+  _test.recordRoll(round.id,{actorId:'belwar',total:12});
+  const out=_test.revealRound(round.id);
+  assert.deepEqual(out.rows[0].drops.map(a=>a.materialId),['MAT-TG-FISH','MAT-TG-PEARL']);
+  const playerView=_test.roundView(_test.openRound(),{players:true});
+  assert.ok(playerView.rows[0].drops.every(d=>d.hidden),'players are not shown unreleased materials before the GM gives them');
+  assert.doesNotMatch(JSON.stringify(playerView),/Ford Fish|Draft Pearl/,'…nor their names in the reel');
+  assert.ok(_test.roundView(_test.openRound(),{players:false}).rows[0].drops.every(d=>!d.hidden),'the GM sees them');
+  await _test.giveRound(round.id);
   assert.equal(qty('MAT-TG-FISH'),1);assert.equal(qty('MAT-TG-PEARL'),1);
-  values.exoticChance=2;app.gather.adhoc.exotics=[];
+  values.exoticChance=2;
   // A material that is not imported at all still says so, and "use anyway" does not cover it.
   await assert.rejects(()=>api.gathering.start({node:{label:'x',skill:'Herbalism',tier:1,materialId:'MAT-TG-GONE'},leadId:'belwar',allowDraft:true}),/“Tg Gone” is not imported in this world/);
   assert.equal(_test.materialState('MAT-TG-GONE').state,'missing');assert.equal(_test.materialState('MAT-TG-FISH').state,'draft');
@@ -263,8 +264,12 @@ test('player request on a draft-material node waits for the GM, who approves it 
   assert.match(h,/is draft\/unreleased.*Approve gives it anyway/s);assert.match(h,/data-draft="1"[^>]*>.*Approve \(use draft material\)/s);
   assert.equal(api.gathering.requests()[0].draftMaterial,true);
   await assert.rejects(()=>_test.approveGatherRequest('rq1'),/draft\/unreleased/,'a plain approve still names the draft');
+  // The spot is Fishing: only a character who holds Fishing is asked to roll.
+  await assert.rejects(()=>_test.approveGatherRequest('rq1',{allowDraft:true}),/No party character holds any of the chosen professions \(Fishing\)/);
+  inv.push(held('bfish','[TEST] Fishing — Profession',src('PROF-TG-FISHING','Profession',{definition:{id:'PROF-TG-FISHING',entity_type:'Profession',version:'0.1.0',refs:[],name:'[TEST] Fishing'}}),1,{type:'feat'}));
   const s=await _test.approveGatherRequest('rq1',{allowDraft:true});
-  assert.equal(s.allowDraft,true);_test.cancelGather(s.id);
+  assert.equal(s.allowDraft,true);_test.cancelRound(s.id);
+  inv.splice(inv.findIndex(i=>i.id==='bfish'),1);
 });
 
 test('Robb B: Skinning & Harvesting nodes read Hunting for the GM and players',async()=>{
@@ -318,10 +323,12 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   app.gather.source='template';app.gather.templateId='NODE-TEST-PEBBLE-RUN';app.gather.templateTier='3';app.gather.allowDraft=true;app.view='gathering';
   h=await html('gathering');assert.match(h,/<option value="3" selected>3 · Expert<\/option>/);assert.match(h,/aria-checked="true" data-action="gather-source" data-id="template"/);
   _test.setExoticRoll(()=>61);
-  const s=await _test.startGather({node:app._selectedNode(),leadId:'belwar',allowDraft:true});
-  assert.equal(s.node.tier,3);assert.equal(s.plan.toolKey,'mason');assert.equal(s.node.finite,false,'a template roll never exhausts anything');
-  const out=await _test.resolveGather(s.id,{total:16,choice:'skill:nat'});
-  assert.equal(out.reward.materialId,'MAT-TG-FISH');assert.deepEqual(out.reward.tableRoll,{roll:61,faces:100});
+  const s=await _test.startRound({node:app._selectedNode(),professions:['herbalism'],allowDraft:true});
+  assert.equal(s.node.tier,3);assert.equal(s.rollers[0].plan.toolKey,'mason');assert.equal(s.node.finite,false,'a template roll never exhausts anything');
+  _test.recordRoll(s.id,{actorId:'belwar',total:16});
+  const out=_test.revealRound(s.id);
+  assert.equal(out.rows[0].drops[0].materialId,'MAT-TG-FISH','one d100 picks from the weighted table: 61 is in the 40% band');
+  await _test.giveRound(s.id);
   // Duplicate, then delete the copy.
   await app._click('node-duplicate','NODE-TEST-PEBBLE-RUN');
   assert.equal(app.nodeDraft.data.id,'NODE-TEST-PEBBLE-RUN-COPY');app.nodeDraft=null;

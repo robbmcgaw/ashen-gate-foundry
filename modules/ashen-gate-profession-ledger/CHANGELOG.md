@@ -1,3 +1,14 @@
+## 0.34.0 — 2026-10-26
+
+Gathering is simpler, and there is no lead gatherer any more.
+
+- **One gather, everyone with the profession rolls.** Gathering → **Gather**: choose Ad-hoc, a Location spot or a Node template, tick the professions that can roll, the tier(s) and the DC, then **Start gather…**. Every party character who holds a chosen profession rolls once with their own check for it; others are not offered a roll.
+- **The Ledger settles the loot.** **Reveal results** picks a material for each character who met the DC from the existing rules (Common on success, Rare on success by 5+, an Exotic by the usual chance), a different material for each while the pool allows. A saved spot uses its own material tables; an ad-hoc gather uses the imported Materials of the chosen professions and tiers.
+- **Slot-machine reveal.** A reel of material pictures lands on each result. It is only a picture: the result is fixed before it starts, **Skip animation** and reduced motion show the plain list, and nothing is given until you press **Give loot**. Unreleased materials stay out of players' view.
+- **Hand-out pop-up.** When a drop cannot be settled from the tier and DC, a pop-up lists who rolled, who met the DC and what each may receive, with **Give…** (Add per material).
+- Removed: Lead gatherer, Helpers, the Active checks sub-tab and the ad-hoc material and Exotic pickers. Player requests remain (Approve opens the gather).
+- API: `gathering.start` ignores `leadId` and `helperIds` and takes `professions`, `tiers`, `dc`; new `round`, `roll`, `reveal`, `give`, `giveByHand`; `resolve(roundId, {actorId, total})` records one roll. No saved data changes; an old remembered Active checks sub-tab opens Gather.
+
 ## 0.33.3 — 2026-10-26
 
 Refresh… can now remove what it cannot identify. Every row under **Can't tell, left alone** has an *Also remove* tick box, unticked by default: known recipes the recipe catalog does not have (including old entries that are not recipe ids at all, or not text), signature perks with no grant record, and profession features with no grant record. **Select all that I can't identify** ticks the whole group (and **Clear all that I can't identify** undoes it). Ticked rows appear under *Will remove* with "Ticked by you: …", are counted in the confirmation, and are saved in the snapshot Journal (previous flags and removed Items) first. Removing an unrecognised recipe takes its entry out of the character's known recipes (and its granted-recipe record); removing a perk or profession feature deletes that Item. Unrecognised recipes show as "Unrecognised recipe 1, 2…", never as ids. Nothing unticked is ever removed. API: `refreshProfessions` takes `alsoRemoveRecipes` (the `optInRecipe` values of `cantTell` rows); `alsoRemove` also covers unidentified perks. No change to saved data.
