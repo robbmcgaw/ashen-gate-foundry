@@ -10,6 +10,7 @@ import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playe
 import {executeSell} from './shop-sell.mjs';
 import {servicesApi,executeServiceUse} from './services.mjs';
 import {merchantsApi,migrateLists} from './merchant-lists.mjs';
+import {stashFolderId,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {executeExchange,exchange,quoteExchange,exchangeHTML,bindExchange,fundFee,FUND_FEE_MAX,FUND_SLOW,fundRequest} from './party-fund.mjs';
 import {importApi} from './shop-import.mjs';
 import {installItemTips,uuidTipAttrs} from './item-tips.mjs';
@@ -436,7 +437,7 @@ class UtilitiesApp extends ApplicationV2 {
    });
    return;
   }
-  if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
+  if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',folder:await stashFolderId(),ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
   if(action==='stash-take'){try{await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));}finally{await this.render?.();}return;}
   if(action==='stash-delete'){try{await notifyResult(deleteStashItem(b.dataset.item));}finally{await this.render?.();}return;}
   if(action==='stash-add'){await addToStash(this,b,root);return;}
@@ -1526,6 +1527,8 @@ Hooks.once('init',()=>{
  // 0.25.0 Party Fund: the coin exchange fee, a whole percent 0–50 (0 = no fee).
  game.settings.register(ID,'exchangeFeePercent',{name:'Utilities: Party Fund Exchange Fee',scope:'world',config:false,type:Number,default:0,onChange:refreshWindows});
  game.settings.register(ID,'stashHistory',{name:'Utilities: Party Stash History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
+ // 1 once Utilities has filed its own documents under Ashen Gate (see folder-nesting.mjs); config:false.
+ game.settings.register(ID,FOLDER_SETTING,{name:'Utilities: Folder Nesting',scope:'world',config:false,type:String,default:''});
  game.settings.register(ID,'overlayPosition',{name:'Utilities: Conditions Overlay Position',scope:'client',config:false,type:Object,default:{}});
 });
 Hooks.once('ready',()=>{
@@ -1558,5 +1561,6 @@ Hooks.once('ready',()=>{
  syncOverlay();
  // 0.25.0: merchant lists get `audience` (re-runnable; writes nothing once done). One GM writes.
  if(isGM()&&coordinatorIsMe())void migrateLists().catch(e=>console.warn(`[${ID}] Could not update merchant lists: ${e?.message??e}`));
+ void migrateFolders().catch(e=>console.warn(`[${ID}] Could not file documents under Ashen Gate: ${e?.message??e}`));
  console.info(`${ID} ${VERSION} initialized.`);
 });

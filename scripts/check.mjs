@@ -131,8 +131,8 @@ if (!wanted.length) {
 
 // Shared files are copied into modules and must not drift: the Actors launcher helper
 // (player-facing modules), the UI kit stylesheet (every module), the dialog helper, the HTML helper and the
-// item-drop helper (modules that accept item drops).
-for (const shared of ['ag-launchers.mjs', 'ag-ui.css', 'ag-dialogs.mjs', 'ag-html.mjs', 'ag-item-drop.mjs']) {
+// item-drop helper (modules that accept item drops) and the folder helper (modules that create world documents).
+for (const shared of ['ag-launchers.mjs', 'ag-ui.css', 'ag-dialogs.mjs', 'ag-html.mjs', 'ag-item-drop.mjs', 'ag-folders.mjs']) {
   const copies = fs.readdirSync(modulesDir).sort()
     .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === shared));
   if (new Set(copies.map(f => fs.readFileSync(f, 'utf8'))).size > 1) {

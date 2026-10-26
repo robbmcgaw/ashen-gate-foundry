@@ -1,3 +1,7 @@
+## 0.33.0 — 2026-10-26
+
+The shop journals and the Party Stash now sit under the **Ashen Gate** folder: **Ashen Gate / Shops** (Journals, including *Utilities Shops (Player View)*, which used to sit loose at the top) and **Ashen Gate / Party** (the Party Stash character). On the first GM login after updating, Utilities moves its own loose documents there; anything you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
+
 ## 0.32.0 — 2026-10-26
 
 Shops (GM): each shop and service is one line, like the Character Hub's rows.
