@@ -2,7 +2,7 @@
 
 Module `ashen-gate-factions` (Renown) 0.11.0 or later. A deity is a Renown definition with `entity_type: "Deity"`. It goes in the same file as factions: `definitions[]` of an `ag-factions-source-export/0.4` file. Files marked `0.3` still import, but they can only hold factions.
 
-Standing with a deity is **per character only**. A deity has no group score and no group track. All of its rewards use `audience: "individual"`. By default re-importing never changes a deity that is already in the world (same rule as factions). With Renown 0.18.0 update mode (see the API section) its definition is refreshed from the file, while its discovery and every character's favour stay as they are.
+Standing with a deity is **per character only**. A deity has no group score and no group track. All of its rewards use `audience: "individual"`. By default re-importing never changes a deity that is already in the world (same rule as factions). With Renown 0.18.0 update mode (see the API section) its definition is refreshed from the file, while its discovery and every character's piety stay as they are.
 
 The file is checked as a whole: any error (a bad definition, a duplicate `id` within the file, a deity in a `0.3` file, a bad `starting_state` row) blocks the entire import and nothing is written. A definition whose `id` is already in the world is skipped (or, in Renown 0.18.0 update mode, refreshed; see the API section). A `starting_state` character name that matches no Actor is skipped and listed after the import.
 
@@ -120,18 +120,18 @@ Same as for factions: `{faction_id: "DEITY-…", party_discovered?, actors?: [{n
 
 ## Cross-deity effects (Resonance / Dissonance)
 
-These rules are approved by Robb. If a character **gains** N favour with deity A, then for each relation A → B:
+These rules are approved by Robb. If a character **gains** N piety with deity A, then for each relation A → B:
 
 - factor = (resonance − 0.5) × 2. This runs from −1 (full Dissonance) through 0 (neutral) to +1 (full Resonance).
 - B changes by N × factor × damping. Damping is a GM Setup world setting: default 0.5, range 0 to 0.95, so B never moves by the full N.
 - Rounding: positive results round down. Negative results round away from zero, so −1.2 becomes −2. If the result is 0, nothing happens.
 - Example at damping 0.5: a gain of 10 gives +5 at resonance 1, +2 at 0.7, 0 at 0.5 and −5 at 0.
 
-Only gains spread; a loss with A changes no other deity. Effects don't chain: a change to B never spreads further. Effects apply even if the character hasn't discovered B. Favour never drops below 0.
+Only gains spread; a loss with A changes no other deity. Effects don't chain: a change to B never spreads further. Effects apply even if the character hasn't discovered B. Piety never drops below 0.
 
 The GM confirms every award. A list shows each related change, all ticked; untick any you don't want, or Cancel to drop the whole award.
 
-History: B's entry reads "Resonance with A: <reason>" (or "Dissonance with A: …") and links back to A's entry with `caused_by` and `source_deity`. If a player can't see A, the entry shows as "Favour shifted through a related deity" and doesn't name A.
+History: B's entry reads "Resonance with A: <reason>" (or "Dissonance with A: …") and links back to A's entry with `caused_by` and `source_deity`. If a player can't see A, the entry shows as "Piety shifted through a related deity" and doesn't name A.
 
 Undo (GM): click **Undo** on a history entry. It adds reversing entries for that entry and for any related changes it caused. Nothing is deleted, an entry can only be undone once, and undo entries never spread.
 

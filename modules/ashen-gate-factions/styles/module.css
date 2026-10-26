@@ -179,3 +179,16 @@
 .agf-embed .agf-embed__score{font-variant-numeric:tabular-nums;color:var(--ag-accent)}
 .agf-embed .agf-embed__next,.agf-embed .agf-embed__note{font-size:var(--ag-text-sm);color:var(--ag-muted)}
 .agf-embed .agf-embed__heading{font:600 var(--ag-text-md) var(--ag-font-display);margin:var(--ag-space-3) 0 var(--ag-space-1);border:0}
+
+/* 0.19.0: reward and rank text as paragraphs; a blank line in the source is a visible gap. */
+.agf-prose > p { margin:0; white-space:pre-line; overflow-wrap:anywhere; line-height:1.45; }
+.agf-prose > p + p { margin-top:var(--ag-space-2); }
+.agf-milestone__empty { margin:0; }
+.agf-vows { margin:0 0 var(--ag-space-3); }
+.agf-vows > div { min-width:0; }
+.agf-vows__list { margin:var(--ag-space-1) 0 0; padding-left:1.2em; }
+.agf-vows__list li { margin:0; overflow-wrap:anywhere; }
+.agf-vowbar { display:flex; flex-wrap:wrap; gap:var(--ag-space-2); margin-top:var(--ag-space-2); }
+.agf-vowbar .is-on { font-weight:700; border-style:double; border-width:3px; }
+.agf-vow-status { margin:0 0 var(--ag-space-2); }
+.agf-embed__vow { margin:0 0 var(--ag-space-1); font-weight:600; }

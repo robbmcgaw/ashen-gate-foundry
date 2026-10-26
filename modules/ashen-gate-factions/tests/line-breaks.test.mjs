@@ -38,8 +38,8 @@ test('the Edit… reward dialog round-trips line breaks: a textarea value goes t
 test('reward text and benefits render escaped with line breaks preserved; Add a reward has a multi-line box',()=>{
   assert.match(css,/\.agf-reward__text \{[^}]*white-space:pre-line/);
   assert.match(css,/\.agf-milestone__text \{[^}]*white-space:pre-line/);
-  assert.match(hbs,/<p class="agf-reward__text">\{\{description\}\}<\/p>/,'double braces: escaped, never HTML');
-  assert.match(hbs,/<p class="agf-milestone__text">\{\{benefit\}\}<\/p>/);
+  assert.match(hbs,/\{\{\{agfParas description "agf-reward__text"\}\}\}/,'0.19.0: paragraphs come from the escaping helper');
+  assert.match(hbs,/\{\{\{agfParas benefit "agf-milestone__text"\}\}\}/);
   assert.match(hbs,/<textarea name="reward-description"/);
-  assert.equal(/\{\{\{\s*(description|benefit)/.test(hbs),false);
+  assert.equal(/\{\{\{\s*(description|benefit)\b/.test(hbs),false);
 });

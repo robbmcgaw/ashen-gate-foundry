@@ -81,10 +81,10 @@ export function validateDeityParts(f){
 export function visibleRelations(deity,visibleNames){
   return (deity.deity?.relations??[]).filter(r=>visibleNames.has(r.deity_id)).map(r=>{const label=relationLabel(r.resonance);return{deity_id:r.deity_id,name:visibleNames.get(r.deity_id),label,isDissonant:label==='Dissonance',isResonant:label==='Resonance'};});
 }
-/** Player-safe favour history: an entry caused by, or undoing one caused by, a deity this viewer cannot see
+/** Player-safe piety history: an entry caused by, or undoing one caused by, a deity this viewer cannot see
  * does not name it. Ids of unseen deities are dropped. */
 export function visibleHistory(events,visibleNames){
-  return (events??[]).map(e=>{if(!e.source_deity||visibleNames.has(e.source_deity))return e;const {source_deity,...rest}=e;return{...rest,reason:e.reverses?'Undo: favour shifted through a related deity':'Favour shifted through a related deity'};});
+  return (events??[]).map(e=>{if(!e.source_deity||visibleNames.has(e.source_deity))return e;const {source_deity,...rest}=e;return{...rest,reason:e.reverses?'Undo: piety shifted through a related deity':'Piety shifted through a related deity'};});
 }
 /** The player card: profile fields only, never discovery settings, tags or GM provenance. */
 export function deityCard(f){
