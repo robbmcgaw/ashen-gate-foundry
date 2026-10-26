@@ -106,6 +106,6 @@ test('0.70.5 the ledger stores the fingerprint after a hand-off; GM-only paths u
   assert.match(apply, /\.\.\.\(row\.fp \? \{fp: row\.fp\} : \{\}\)/);
   assert.match(apply, /adapter\.heldFingerprint\?\.\(row\)/);
   assert.match(read('../scripts/main.js'), /contentFingerprint/);
-  assert.match(read('../CHANGELOG.md'), /^## 0\.70\.5 /);
+  assert.match(read('../CHANGELOG.md'), /^## 0\.70\.5 /m);
   assert.match(read('../README.md'), /Unchanged/);
 });

@@ -58,20 +58,27 @@ export function syncView(state) {
   const files = state.inputs.flatMap(i => i.imports ?? []);
   const fileRows = files.map(f => `<tr><td><code>${esc(f.filename)}</code></td><td>${esc(f.label)}</td><td class="is-num">${f.records}</td><td>${esc(f.packageId ?? '—')}</td></tr>`).join('');
   const parts = [`<section class="ag-section agm-sync" aria-label="${esc(SYNC_NAME)}">`,
+    `<h3 class="agm-step"><span class="agm-step__n">1</span> Choose the files</h3>`,
+    ...(busy ? ['<p id="agm-clear-why" class="agmanager-tiny">Clear inputs… is off while a sync is running.</p>'] : []),
+    ...(state.unfinished && !busy ? ['<p class="ag-notice ag-notice--warn" role="status"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>The last sync did not finish. Preview and run the same files again to finish it; nothing already written is repeated. Discarding forgets the files and the preview.</span></p>'] : []),
     `<p class="ag-notice ag-notice--warn" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>${esc(SYNC_INTRO)}</span></p>`,
     `<div class="ag-toolbar agm-import-bar">${state.fileButton}<span class="agm-import-loaded">${files.length
       ? `<strong>${plural(files.length, 'import file')}</strong> <span class="agmanager-tiny">from ${plural(state.inputs.length, 'source')}</span>` : '<span class="agmanager-tiny">No files chosen</span>'}</span>
-      <div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--ghost" data-ag-action="sync-reset" ${busy ? 'disabled' : ''}>Clear files</button></div></div>`,
+      <div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--ghost${state.unfinished ? ' ag-btn--danger' : ''}" data-ag-action="clear-inputs" ${busy ? 'disabled aria-describedby="agm-clear-why" data-tooltip="Not while a sync is running"' : ''}><i class="fa-solid fa-eraser" aria-hidden="true"></i> ${state.unfinished ? 'Discard the unfinished sync…' : 'Clear inputs…'}</button></div></div>`,
     `<p class="agmanager-tiny">Choose every file of the sync in one go (Ctrl or Shift to pick several): for Robb's pack both ZIPs, main and sandbox. Packages are compared as one union, so syncing the main ZIP alone never removes the sandbox records. A ZIP may carry an import-order manifest.</p>`];
   if (files.length) parts.push(`<details class="ag-fold" open><summary class="ag-fold__summary"><span class="ag-fold__title">Files in this sync</span><span class="ag-fold__count">${files.length}</span></summary><div class="ag-fold__body">
-    <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Package line</th></tr></thead><tbody>${fileRows}</tbody></table></div>
+    <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Package line</th></tr></thead><tbody>${fileRows}</tbody></table></div>
     ${state.skipped.length ? `<p class="agmanager-tiny">Not part of the sync: ${state.skipped.map(s => `<code>${esc(s.filename)}</code> (${esc(s.reason)})`).join('; ')}</p>` : ''}</div></details>`);
+  const adv = [state.deleteUnscoped ? 'deleting records not in the files' : null, state.overwriteEdited ? 'overwriting edited records' : null, state.replaceArt ? 'replacing art' : null].filter(Boolean);
+  parts.push(`<details class="ag-fold agm-sync-advanced" data-ag-fold="sync-advanced" ${adv.length ? 'open' : ''}><summary class="ag-fold__summary"><span class="ag-fold__title">Advanced</span><span class="ag-fold__hint">${esc(adv.length ? `On: ${adv.join(', ')}` : 'Default: keep what you edited, keep your art, delete only what the files drop')}</span></summary><div class="ag-fold__body">`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-unscoped ${state.deleteUnscoped ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also delete records not in these files</strong></label>
     <p class="ag-field__hint">Off by default. Records imported by an older Manager have no package line, so Sync cannot tell whether they belong to these files and keeps them. Ticking this lets Sync delete those that no chosen file mentions. Only documents with Manager's flag are ever considered.</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-edited ${state.overwriteEdited ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also overwrite records I edited</strong></label>
     <p class="ag-field__hint">Off by default. Off: a record you changed since the last import is left alone, and is not deleted either when the files no longer carry it. On: the package wins, your changes are replaced and such records are deleted (the preview counts them, and the backup keeps them).</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-art ${state.replaceArt ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>Also replace art I set</strong></label>
     <p class="ag-field__hint">Off by default, and separate from the option above. Art you set yourself (a portrait, a token image or a token ring, for example from Link files to records) is always kept, even when you overwrite edited records. On: art you changed is replaced by the package's art. The backup keeps what you had.</p>`);
+  parts.push('</div></details>');
+  parts.push('<h3 class="agm-step"><span class="agm-step__n">2</span> Preview</h3>');
   parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
   if (state.message) parts.push(`<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> ${esc(state.message)}</p>`);
 
@@ -113,6 +120,7 @@ export function syncView(state) {
     const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0);
     if (!plan.errors.length && !ready) parts.push('<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> The world already matches these files. Nothing to do.</p>');
     if (ready) {
+      parts.push('<h3 class="agm-step"><span class="agm-step__n">3</span> Confirm and run</h3>');
       parts.push(`<div class="ag-field agm-sync-confirm"><label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>
         <input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>
         <span class="ag-field__hint">A JSON backup of everything that will be overwritten or deleted downloads first. If it cannot be saved, nothing is written. Running the same files again changes nothing more, and a run you cancel is finished by running it again.</span></div>`);

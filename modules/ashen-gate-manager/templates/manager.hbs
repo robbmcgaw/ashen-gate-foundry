@@ -29,34 +29,24 @@
   {{{githubHtml}}}
   {{#if syncOn}}{{{syncHtml}}}{{else}}
   <section class="ag-section agm-import" aria-label="Import a package">
+    <h3 class="agm-step"><span class="agm-step__n">1</span> Choose a package</h3>
+    {{#if busy}}<p id="agm-clear-why" class="agmanager-tiny">Clear inputs… is off while an import is running.</p>{{/if}}
     <div class="ag-toolbar agm-import-bar">
       {{{fileButtons.import}}}
       <span class="agm-import-loaded">{{#if hasPackage}}<strong>{{packageId}}</strong> <span class="agmanager-tiny">v{{packageVersion}} · {{recordCount}} record(s)</span>{{else}}<span class="agmanager-tiny">No file loaded</span>{{/if}}</span>
       <div class="ag-toolbar__end">
-        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="reset">Clear</button>
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="clear-inputs" {{#if busy}}disabled aria-describedby="agm-clear-why" data-tooltip="Not while an import is running"{{/if}}><i class="fa-solid fa-eraser" aria-hidden="true"></i> Clear inputs…</button>
         <button type="button" class="ag-btn" data-ag-action="export" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download report</button>
       </div>
     </div>
 
-    <details class="ag-fold" data-ag-fold="load" {{#if folds.load}}open{{/if}}>
-      <summary class="ag-fold__summary"><span class="ag-fold__title">Load</span><span class="ag-fold__hint">{{#if hasPackage}}{{#each typeSummary}}{{name}}: {{count}}{{#unless @last}} · {{/unless}}{{/each}}{{else}}Package details{{/if}}</span></summary>
-      <div class="ag-fold__body">
-      <dl class="agmanager-package">
-        <div><dt>Package</dt><dd>{{packageId}}</dd></div>
-        <div><dt>Version</dt><dd>{{packageVersion}}</dd></div>
-        <div><dt>Schema</dt><dd>{{schemaVersion}}</dd></div>
-        <div><dt>Records</dt><dd>{{recordCount}}</dd></div>
-      </dl>
-      <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. A Manager package, or a Quest, Skill Tree, Headquarters or Factions file (handed to that module), or a ZIP of them. Scripts in a ZIP never run.</p>
-      {{#if hasZipPortraits}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}} {{#if busy}}disabled{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
-      </div>
-    </details>
+    {{#if hasPackage}}<p class="agmanager-tiny agm-typesummary">{{#each typeSummary}}{{name}}: {{count}}{{#unless @last}} · {{/unless}}{{/each}}</p>{{/if}}
 
     {{#if zipBundle}}<details class="ag-fold agmanager-zip-contents" data-ag-fold="zip" {{#if folds.zip}}open{{/if}}>
       <summary class="ag-fold__summary"><span class="ag-fold__title">ZIP files</span><span class="ag-fold__count">{{zipBundle.rows.length}}</span><span class="ag-fold__hint">{{zipBundle.source}} · {{zipBundle.pickedCount}} ticked</span></summary>
       <div class="ag-fold__body">
       <p class="agmanager-tiny">{{zipBundle.summary}} Files import one at a time (Manager packages first), each through its own preview and Apply.</p>
-      <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Import</th><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Status</th></tr></thead><tbody>
+      <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Import</th><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Status</th></tr></thead><tbody>
       {{#each zipBundle.rows}}<tr class="{{#if isCurrent}}is-selected{{/if}}">
         <td><input type="checkbox" data-ag-zip-pick="{{filename}}" {{#if picked}}{{#unless isError}}checked{{/unless}}{{/if}} {{#unless canPick}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Import {{filename}}" /></td>
         <td><code>{{filename}}</code></td><td>{{label}}</td><td class="is-num">{{count}}</td>
@@ -71,7 +61,7 @@
     </details>
     {{#if zipBundle.progress}}<p class="ag-notice ag-notice--info" role="status" aria-live="polite" data-ag-zip-progress><i class="fa-solid fa-list-check" aria-hidden="true"></i> {{#if zipBundle.stopping}}Stopping after the current file…{{else}}{{zipBundle.progress}}{{/if}}</p>{{/if}}
     {{#if zipBundle.hasAutoSummary}}<section class="ag-section agmanager-zip-summary" aria-label="ZIP import summary">
-      <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><caption class="agmanager-tiny">ZIP import summary</caption><thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col" class="is-num">Created</th><th scope="col" class="is-num">Updated</th><th scope="col" class="is-num">Unchanged</th><th scope="col" class="is-num">Needs your decision</th><th scope="col" class="is-num">Skipped</th><th scope="col" class="is-num">Failed</th></tr></thead><tbody>
+      <div class="ag-table-wrap"><table class="ag-table"><caption class="agmanager-tiny">ZIP import summary</caption><thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col" class="is-num">Created</th><th scope="col" class="is-num">Updated</th><th scope="col" class="is-num">Unchanged</th><th scope="col" class="is-num">Needs your decision</th><th scope="col" class="is-num">Skipped</th><th scope="col" class="is-num">Failed</th></tr></thead><tbody>
       {{#each zipBundle.summaryRows}}<tr><td><code>{{filename}}</code><div class="agmanager-tiny">{{label}}</div></td><td><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span>{{#if note}}<div class="agmanager-tiny">{{note}}</div>{{/if}}</td>
         {{#if hasCounts}}<td class="is-num">{{counts.created}}</td><td class="is-num">{{counts.updated}}</td><td class="is-num">{{counts.unchanged}}</td><td class="is-num">{{counts.needsDecision}}</td><td class="is-num">{{counts.skipped}}</td><td class="is-num">{{counts.failed}}</td>
         {{else}}<td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td>{{/if}}</tr>{{/each}}
@@ -85,8 +75,19 @@
     </div>{{/if}}
 
     <details class="ag-fold" data-ag-fold="options" {{#if folds.options}}open{{/if}}>
-      <summary class="ag-fold__summary"><span class="ag-fold__title">Options</span><span class="ag-fold__hint">{{optionsSummary}}</span></summary>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Advanced</span><span class="ag-fold__hint">{{optionsSummary}}</span></summary>
       <div class="ag-fold__body">
+      {{#if hasPackage}}<h4 class="agm-subhead">Package details</h4>
+      <dl class="agmanager-package">
+        <div><dt>Package</dt><dd>{{packageId}}</dd></div>
+        <div><dt>Version</dt><dd>{{packageVersion}}</dd></div>
+        <div><dt>Schema</dt><dd>{{schemaVersion}}</dd></div>
+        <div><dt>Records</dt><dd>{{recordCount}}</dd></div>
+      </dl>
+      <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. A Manager package, or a Quest, Skill Tree, Headquarters or Factions file (handed to that module), or a ZIP of them. Scripts in a ZIP never run.</p>
+      {{#if hasZipPortraits}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}} {{#if busy}}disabled{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
+      {{/if}}
+      <h4 class="agm-subhead">Options</h4>
       <label class="ag-field agm-profile">Import profile
         <select data-ag-profile {{#if busy}}disabled{{/if}}>
           <option value="development" {{#if developmentProfile}}selected{{/if}}>Development: include draft, proposed and example records</option>
@@ -103,6 +104,7 @@
       </div>
     </details>
 
+    <h3 class="agm-step"><span class="agm-step__n">2</span> Preview</h3>
     <div class="ag-cluster agm-import-actions">
       <button type="button" class="ag-btn" data-ag-action="preview" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Validate &amp; Preview</button>
       <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="select" {{#unless hasPreview}}disabled{{/unless}}>Select eligible</button>
@@ -113,6 +115,7 @@
 
   {{#if hasPreview}}
   <section class="ag-section agmanager-results" aria-label="Import preview">
+    <h3 class="agm-step"><span class="agm-step__n">3</span> Confirm and run</h3>
     <details class="ag-fold" data-ag-fold="preview" {{#if folds.preview}}open{{/if}}>
       <summary class="ag-fold__summary"><span class="ag-fold__title">Preview</span><span class="ag-fold__count">{{rows.length}}</span><span class="ag-fold__hint">{{selectedCount}} ticked</span></summary>
       <div class="ag-fold__body">
@@ -128,7 +131,7 @@
         <span class="ag-badge"><strong>{{summary.skipped}}</strong> excluded</span>
         <span class="ag-badge"><strong>{{summary.local}}</strong> local edits</span>
       </div>
-      <div class="ag-table-wrap agm-scrollcap agm-preview-table">
+      <div class="ag-table-wrap agm-preview-table">
       <table class="ag-table">
         <thead><tr><th scope="col">Apply?</th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Reason</th>{{#if hasIconRows}}<th scope="col">Icon</th>{{/if}}</tr></thead>
         <tbody>
@@ -153,6 +156,7 @@
         </tbody>
       </table>
       </div>
+      {{#if moreRows}}<div class="ag-cluster agm-more"><span class="agmanager-tiny" role="status">Showing {{rows.length}} of {{totalRows}} records.</span><button type="button" class="ag-btn ag-btn--sm" data-ag-action="preview-more">Show {{nextPage}} more</button></div>{{/if}}
       <p class="agmanager-tiny">Existing Actors change only with <strong>Update existing actors</strong> ticked; character progress is never overwritten. Back up your world first.</p>
       {{#if actorUpdateCount}}<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="backup-actors"><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup of {{actorUpdateCount}} actor(s) to update</button></div>{{/if}}
       </div>
@@ -186,6 +190,36 @@
   </div>
   {{/if}}
 
+  {{#if importActive}}{{#if drawer.any}}
+    {{#if drawer.open}}<div id="agm-drawer-body" class="agm-drawer__body" role="region" aria-label="{{drawer.label}}">
+      {{#if drawer.errors}}<div class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><div><strong>Validation failed — import blocked</strong><ul>{{#each errors}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
+      {{#if drawer.warnings}}<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Import review notes</strong><ul>{{#each warnings}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
+      {{#if drawer.links}}<div class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div><strong>Links to other Ashen Gate modules</strong> (for information; those records are imported separately and their ids are kept)<ul>{{#each moduleLinks}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
+      {{#if drawer.results}}
+      <section class="agmanager-result-panel" aria-label="Import results" aria-live="polite">
+        <div class="ag-section__head"><h3 class="ag-section__title">Import results</h3><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="clear-results">Clear results</button></div>
+        {{#each importReports}}
+        <article class="ag-card ag-card--compact agmanager-result agmanager-result-{{tone}}">
+          <header class="ag-card__head"><span><span class="ag-badge {{#if isError}}ag-badge--danger{{else}}{{#if isWarn}}ag-badge--warn{{else}}ag-badge--ok{{/if}}{{/if}}">{{toneLabel}}</span> <strong>{{file}}</strong></span> <small class="ag-card__meta">{{at}}</small></header>
+          <p class="agmanager-result-headline">{{headline}}</p>
+          {{#each notes}}<p class="agmanager-tiny">{{this}}</p>{{/each}}
+          {{#each sections}}
+          <div class="agmanager-result-module">
+            <h4>{{module}} <small>{{countText}}</small></h4>
+            {{#if where}}<p class="agmanager-tiny"><strong>Find it:</strong> {{where}}</p>{{/if}}
+            <ul>
+              {{#each lines}}
+              <li class="agmanager-result-line agmanager-line-{{outcome}}"><span class="ag-badge">{{label}}</span> {{#if name}}{{name}} {{/if}}{{#if id}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for this record"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details>{{/if}}{{#if message}} — {{message}}{{/if}}{{#if fix}}<br><strong>Fix:</strong> {{fix}}{{/if}}</li>
+              {{/each}}
+            </ul>
+          </div>
+          {{/each}}
+        </article>
+        {{/each}}
+      </section>
+      {{/if}}
+    </div>{{/if}}
+  {{/if}}{{/if}}
   {{#if itemsActive}}
   <div class="agitems">
     {{{itemsTabsHtml}}}
@@ -1464,34 +1498,7 @@
         {{#each drawer.tabs}}<button type="button" class="ag-chip" data-ag-drawer-tab="{{id}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}" aria-controls="agm-drawer-body" {{#unless count}}disabled{{/unless}}>{{label}} <span class="ag-badge{{#if count}}{{#if tone}} ag-badge--{{tone}}{{/if}}{{/if}}">{{count}}</span></button>{{/each}}
       </div>
     </div>
-    {{#if drawer.open}}<div id="agm-drawer-body" class="agm-drawer__body ag-scroll" role="region" aria-label="{{drawer.label}}">
-      {{#if drawer.errors}}<div class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><div><strong>Validation failed — import blocked</strong><ul>{{#each errors}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
-      {{#if drawer.warnings}}<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Import review notes</strong><ul>{{#each warnings}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
-      {{#if drawer.links}}<div class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div><strong>Links to other Ashen Gate modules</strong> (for information; those records are imported separately and their ids are kept)<ul>{{#each moduleLinks}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
-      {{#if drawer.results}}
-      <section class="agmanager-result-panel" aria-label="Import results" aria-live="polite">
-        <div class="ag-section__head"><h3 class="ag-section__title">Import results</h3><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="clear-results">Clear results</button></div>
-        {{#each importReports}}
-        <article class="ag-card ag-card--compact agmanager-result agmanager-result-{{tone}}">
-          <header class="ag-card__head"><span><span class="ag-badge {{#if isError}}ag-badge--danger{{else}}{{#if isWarn}}ag-badge--warn{{else}}ag-badge--ok{{/if}}{{/if}}">{{toneLabel}}</span> <strong>{{file}}</strong></span> <small class="ag-card__meta">{{at}}</small></header>
-          <p class="agmanager-result-headline">{{headline}}</p>
-          {{#each notes}}<p class="agmanager-tiny">{{this}}</p>{{/each}}
-          {{#each sections}}
-          <div class="agmanager-result-module">
-            <h4>{{module}} <small>{{countText}}</small></h4>
-            {{#if where}}<p class="agmanager-tiny"><strong>Find it:</strong> {{where}}</p>{{/if}}
-            <ul>
-              {{#each lines}}
-              <li class="agmanager-result-line agmanager-line-{{outcome}}"><span class="ag-badge">{{label}}</span> {{#if name}}{{name}} {{/if}}{{#if id}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for this record"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details>{{/if}}{{#if message}} — {{message}}{{/if}}{{#if fix}}<br><strong>Fix:</strong> {{fix}}{{/if}}</li>
-              {{/each}}
-            </ul>
-          </div>
-          {{/each}}
-        </article>
-        {{/each}}
-      </section>
-      {{/if}}
-    </div>{{/if}}
+
   </aside>
   {{/if}}{{/if}}
   {{#if setupActive}}

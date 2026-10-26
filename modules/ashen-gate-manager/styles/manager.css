@@ -333,7 +333,7 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 .agm-drawer{flex:0 0 auto;display:flex;flex-direction:column;border-top:1px solid var(--ag-border-strong);background:var(--ag-surface)} /* ag-lint-allow: 1px hairline drawer edge */
 .agm-drawer__bar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-4)}
 .agm-drawer__bar .ag-chip-group{flex-wrap:wrap}
-.agm-drawer__body{max-height:min(18rem,35vh);padding:0 var(--ag-space-4) var(--ag-space-3)}
+.agm-drawer__body{padding:var(--ag-space-3) 0} /* 0.70.6: part of the page, not a scroll box of its own */
 .agm-drawer__body .ag-notice ul{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-5)}
 .agm-drawer__body .ag-notice li,.agm-drawer__body .agmanager-result-line{overflow-wrap:anywhere}
 /* 0.47.0 smart icons: preview Icon column and Items → Checks → Improve icons. */
@@ -390,3 +390,11 @@ body:not(.agm-viewer-gm) [data-ag-managed-links]:not(:has(a.agm-ref-link)){displ
 [data-ag-managed-links] ul{margin:0;padding-left:1.2em}
 a.agm-ref-link:focus-visible{outline:2px solid var(--ag-accent,currentColor);outline-offset:1px}
 .agm-codex-card.is-focused{border-color:var(--ag-accent);box-shadow:inset 0 0 0 1px var(--ag-accent)}
+
+/* ---------- 0.70.6 Import tab: three steps, one scroller (the content pane), no inner scroll boxes ---------- */
+.agm-step{display:flex;align-items:center;gap:var(--ag-space-2);margin:var(--ag-space-4) 0 var(--ag-space-2);font-size:var(--ag-text-lg)}
+.agm-step__n{display:inline-flex;align-items:center;justify-content:center;min-width:var(--ag-control-h-sm);height:var(--ag-control-h-sm);border:1px solid var(--ag-border-strong);border-radius:50%;font-size:var(--ag-text-sm)} /* ag-lint-allow: 1px step marker */
+.agm-subhead{margin:var(--ag-space-3) 0 var(--ag-space-1);font-size:var(--ag-text-md)}
+.agm-more{align-items:center;margin:var(--ag-space-2) 0}
+.agm-pane .ag-table-wrap{overflow-x:auto;max-width:100%}
+.agm-sync-advanced{margin:var(--ag-space-2) 0}

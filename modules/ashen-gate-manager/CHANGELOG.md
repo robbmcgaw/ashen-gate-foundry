@@ -1,3 +1,14 @@
+## 0.70.6 — 2026-10-26
+
+Import tab: **Clear inputs…**, and a tidier page (three steps, one scroll area).
+
+- **Clear inputs…** (Import and Sync): returns the page to its empty starting state: the chosen files or ZIP, the package list, the preview and its results, your ticks, the typed "Replace content from package" phrase, messages, progress and GitHub pull results. It only forgets what this window holds; your world, the hand-off record, your backups and your settings are never touched. It asks first, is off (with the reason shown) while an import or sync is running, and after a sync that did not finish (cancelled, interrupted or with failures) it becomes **Discard the unfinished sync…**, a separate danger confirmation, because running the same files again would have finished it.
+- **Three steps:** 1 Choose a package (or the files), 2 Preview, 3 Confirm and run. The footer keeps Cancel on the left and the one primary action on the right.
+- **One scroll area:** the ZIP file list and the preview table no longer scroll inside their own boxes, and the Import messages (errors, review notes, links, results) now sit in the page under the step content instead of in a second scrolling drawer; the bar to open and filter them stays at the bottom. The preview shows 100 records at a time with **Show 100 more**; selecting and Import still cover every record.
+- **Advanced:** the Load details (package, version, schema, ZIP portrait upload) and the Options (profile, update toggles, icons) are one **Advanced** fold in Import. In Sync, the three "Also…" switches (delete records not in the files, overwrite edited records, replace art) are one **Advanced** fold that opens by itself while any is on and says which are on when closed.
+- Nothing was removed: modes, Sync rows (Overwrite, Unchanged, Kept), staged art, progress, Cancel and resume work as before.
+- No change to saved data.
+
 ## 0.70.5 — 2026-10-26
 
 Sync from package: records handed to other modules (Locations, Skill Trees, Quests, Shops, Renown and the rest) show as Unchanged when nothing changed.
