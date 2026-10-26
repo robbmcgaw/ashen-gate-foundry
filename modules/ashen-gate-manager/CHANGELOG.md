@@ -1,3 +1,10 @@
+## 0.70.9 — 2026-10-26
+
+Fix: the NPC Codex now treats a faction Renown has not named for a player as Unknown.
+
+- Renown's player view calls an unnamed faction "Unknown faction"; the Codex still looked for the older wording "Unknown Organization", so such a link showed as a known faction called "Unknown faction" instead of "Unknown". It now recognises both wordings. A test covers each.
+- No change to saved data. Mocked tests only; check in Forge as a player on an NPC whose Codex entry links a faction the party knows only by a hidden name: the link reads Unknown.
+
 ## 0.70.8 — 2026-10-26
 
 Recipes show their one requirement: a tool or a station.
