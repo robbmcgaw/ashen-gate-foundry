@@ -7,6 +7,7 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionSource} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {tierBadge} from './tier-style.mjs';
+import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,formDialog,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
@@ -24,7 +25,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.3';
+const VERSION='0.33.4';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -401,8 +402,11 @@ const recipeLabelFor=(ref,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(r
 const recipeWord=(recipe,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(recipe?.professionId)??labelKeyOf(professionLabel(recipe))),opts);
 /** 0.29.0: a recipe's effect note (activities); older stored catalog rows read it from their source definition. */
 const effectNote=recipe=>recipe?.effectNote??effectNoteOf(recipe?.sourceDefinition);
-const effectNoteHtml=recipe=>{const note=isActivity(recipe)?effectNote(recipe):null;
-  return note?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(note)} <small class="agl-sub">(the GM decides at the table)</small></p>`:'';};
+/** 0.33.4: each fact once. The summary is the description minus the badge-restating first sentence and minus the effect text; the effect shows once.
+ * "(the GM decides at the table)" only where a character is about to complete the activity (craft context). */
+const recipeTextHtml=(recipe,{gmNote=false}={})=>{
+  const {summary,effect}=recipeTexts({name:recipe.name,tier:tierLabel(recipe.tier),effort:recipe.effort,description:recipe.description,effect:isActivity(recipe)?effectNote(recipe):null});
+  return `${summary?`<p class="agl-recipe-summary">${esc(summary)}</p>`:''}${effect?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(effect)}${gmNote?' <small class="agl-sub">(the GM decides at the table)</small>':''}</p>`:''}`;};
 
 /** The world ITEM-* document a recipe produces (Manager import), or null. */
 function resultDocument(recipe,{forPlayer=!game.user.isGM}={}){
@@ -1183,12 +1187,9 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   // 0.32.0: header (name, tier, effort), then Needs → Makes, then the tool or station, then the quieter text, then who knows it.
   const makes=result?`<span class="agl-qty">1 ×</span> ${itemRef(result.name,recipe.resultItemId,'Item',ctx)}`
     :`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported yet':'Not available yet'}</span>`;
-  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
-    <div class="agl-recipe-head">
-      <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
-        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
-      <div class="agl-recipe-actions">${actions}</div>
-    </div>
+  // 0.33.4: lists with no craft context (Party, Catalog) fold the body under the title; Known by stays visible.
+  const compact=!craft&&!learnItem;
+  const bodyHtml=`
     ${activity?'':`<div class="agl-recipe-flow">
       <div class="agl-recipe-needs"><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
       <i class="fa-solid fa-arrow-right agl-recipe-arrow" aria-hidden="true"></i>
@@ -1196,8 +1197,14 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     </div>`}
     ${gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''}
     ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
-    ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
-    ${effectNoteHtml(recipe)}
+    ${recipeTextHtml(recipe,{gmNote:Boolean(craft)})}`;
+  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
+    <div class="agl-recipe-head">
+      <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
+        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
+      <div class="agl-recipe-actions">${actions}</div>
+    </div>
+    ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`:bodyHtml}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
   </article>`;
 }
@@ -1248,6 +1255,21 @@ function xpPanel(actor,p){
 }
 /** The "GM: XP" Award/Adjust switch. Only the panes inside this card change; nothing is saved. Works in the window,
  * the Tidy5e tab and the Character Hub embed (each click handler calls this first). Returns true when it handled the click. */
+/** 0.33.4: Skill Trees' public API when it is enabled and can open a tree; otherwise null (the button is then not shown). */
+const skillTreesApi=()=>{const m=game.modules?.get?.('ashen-gate-skill-trees');return m?.active&&typeof m.api?.open==='function'?m.api:null;};
+/** "Open skill tree…" on a profession card. Owner or GM only (checked here, not just by hiding the button), and only for a profession the character holds. Returns true when it handled the click. */
+function skillTreeClick(button){
+  if(button?.dataset?.action!=='skilltree')return false;
+  const actor=game.actors?.get?.(button.dataset.actor),id=button.dataset.id;
+  try{
+    if(!actor||!owned(actor))throw Error('You can only open the skill tree for your own character.');
+    if(!professionsOf(actor).some(p=>p.sourceId===id))throw Error(`${actor.name} doesn’t have this profession.`);
+    const api=skillTreesApi();
+    if(!api){say('Skill Trees is not enabled.',true);return true;}
+    api.open({actorId:actor.id,treeId:professionTreeId(api,id)});
+  }catch(err){say(`Profession Ledger: ${err.message}`,true);}
+  return true;
+}
 function xpModeClick(button){
   if(button?.dataset?.action!=='xp-mode')return false;
   const mode=button.dataset.mode==='adjust'?'adjust':'award';
@@ -1265,6 +1287,7 @@ function professionCard(actor,p,{lastAward=null}={}){
     <div class="agl-prof-head"><strong class="agl-prof-name" data-tooltip="${esc(p.name)}">${esc(p.name)}</strong><span class="agl-prof-badges">${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</span></div>
     <div class="ag-meter ag-meter--ok"><span class="ag-meter__label">${tierBadge(p.tier,esc)}</span><span class="ag-meter__value">${esc(value)}</span><span class="ag-meter__track" role="progressbar" aria-label="${esc(p.name)} XP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}" aria-valuetext="${esc(value)}" style="--ag-meter:${p.percent}%"><span class="ag-meter__fill"></span></span></div>
     ${p.tracked?'':'<div class="agl-sub">No XP awarded yet.</div>'}
+    ${skillTreesApi()&&owned(actor)?`<div class="agl-prof-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="skilltree" data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open skill tree…</button></div>`:''}
     ${gm?xpPanel(actor,p):''}
   </div>`;
 }
@@ -2651,6 +2674,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
+    <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
     <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
@@ -3031,7 +3055,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         // Gathering nodes shares Gathering's sub-tab row but is its own view (it has an editor and a footer).
         if(game.user.isGM&&sub.id.startsWith('agl-gather-')&&(sub.dataset.tab==='nodes'||this.view==='nodes')){void this._click('gather-tab',sub.dataset.tab);return;}
         this._showSubTab(sub);return;}
-      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||itemLinkClick(b))return;
+      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
       // 0.27.0: a Tools and checks cell's checkbox list opens and closes in place (no re-render, the draft is untouched).
       if(b.dataset.action==='map-pick'||b.dataset.action==='map-pick-done'){const picker=b.closest('[data-map-picker]');
         this._toggleMapPicker(picker,b.dataset.action==='map-pick'&&picker?.querySelector('.agl-mpick__pop')?.hidden!==false);return;}
@@ -3249,9 +3273,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.notice=total?`Granted ${plural(total,'signature perk')} to ${plural(out.granted.length,'character')}.${out.failed.length?` ${plural(out.failed.length,'character')} could not be updated.`:''}`:out.failed.length?`${plural(out.failed.length,'character')} could not be updated.`:'Nothing new to grant.';
         this.render();say(this.notice,out.failed.length>0&&!total);return;}
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
-      if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
-        if(!api?.open){say('Skill Trees is not enabled.',true);return;}
-        api.open({actorId:this.actorId,treeId:professionTreeId(api,id)});return;}
       if(action==='roster-all'||action==='roster-clear'){if(!game.user.isGM)throw Error('GM only');
         for(const input of this.element.querySelectorAll('[data-roster-actor]')){const a=game.actors.get(input.dataset.rosterActor);input.checked=action==='roster-all'?Boolean(a?.hasPlayerOwner):false;}this._rememberRosterDraft();return;}
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
@@ -3490,7 +3511,7 @@ function renderSheetTab(params){
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
-    if(xpModeClick(b)||itemLinkClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
       if(b.dataset.action==='open-ledger'){game.modules.get(ID)?.api?.open({actorId:sheetActor.id,view:'individual'});return;}
@@ -3534,7 +3555,7 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
-    if(xpModeClick(b)||itemLinkClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
@@ -3716,4 +3737,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
+  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
