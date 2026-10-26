@@ -1,3 +1,10 @@
+## 0.54.1 — 2026-10-26
+
+Fixes a Foundry deprecation warning in the console.
+
+- Starring an item and the Favourites list asked Foundry for an item's relative id with `ClientDocument#getRelativeUUID`, which V14 deprecates (removal in V16) and logged a warning on every redraw. The Hub now uses `foundry.utils.buildRelativeUuid`, and falls back to the old call only on a Foundry that lacks the new one. The id is the same (".Item.<id>"), so existing favourites are unchanged.
+- No change to saved data.
+
 ## 0.54.0 — 2026-10-26
 
 The resurrection-diamond message moves to the window's title bar.
