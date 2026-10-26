@@ -1,3 +1,7 @@
+## 0.20.5 — 2026-10-26
+
+Internal: the **Ashen Gate / Locations** Journal folder is now found or created with the shared race-safe folder helper, so Locations and another Ashen Gate module starting at the same moment cannot make two **Ashen Gate** folders. Nothing moves and no saved data changes.
+
 ## 0.20.4 — 2026-10-26
 
 Locations ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.

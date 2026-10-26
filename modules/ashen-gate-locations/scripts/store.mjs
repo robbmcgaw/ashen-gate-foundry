@@ -34,6 +34,7 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
   normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions} from './model.mjs';
 import {nodePlayerView} from './ledger-nodes.mjs';
+import {folderIdOrNull} from './ag-folders.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
@@ -71,14 +72,9 @@ export function assertGM() {
   if (!isGM()) throw new Error('Only the GM can do that.');
 }
 
+/** Journal folder Ashen Gate / Locations, found or created once (shared lock; see ag-folders.mjs). Null if Foundry cannot. */
 async function ensureFolder() {
-  let parent = null;
-  for (const name of FOLDER_PATH) {
-    let folder = [...(game.folders ?? [])].find(f => f.type === 'JournalEntry' && f.name === name && (f.folder?.id ?? f.folder ?? null) === parent);
-    if (!folder) folder = await Folder.create({name, type: 'JournalEntry', folder: parent});
-    parent = folder?.id ?? null;
-  }
-  return parent;
+  return folderIdOrNull('JournalEntry', FOLDER_PATH);
 }
 
 /** All locations, full GM data, sorted by name. */
