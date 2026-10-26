@@ -1,3 +1,10 @@
+## 0.58.4 — 2026-10-26
+
+Cinder sockets: Detach is for the GM, and the professions note is accurate.
+
+- **Detach (Cinder sockets) is GM only.** It no longer asks for confirmation (it is reversible: the item stays in the inventory). Players see the button disabled with the reason, and the Hub refuses a player's detach itself, not just the button. Attach and Swap are unchanged.
+- **Professions without the Profession Ledger:** the note no longer says levels show "when Skill Trees is active". With Skill Trees active but no profession tree to show (none yet, or hidden from you) it says "No profession trees yet. They appear when your character gains a profession."; with neither module it says levels show when the Profession Ledger is active.
+
 ## 0.58.3 — 2026-10-26
 
 GM Setup → Companion types is short and grouped.
