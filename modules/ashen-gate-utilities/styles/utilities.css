@@ -337,3 +337,36 @@
 .ag-utilities .agu-icon-row {display:flex;align-items:center;gap:var(--ag-space-2);min-height:var(--ag-row-h);flex-wrap:wrap;}
 .ag-utilities .agu-icon-row .agu-icon-name {flex:1 1 10rem;}
 .ag-utilities .agu-icon-row .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);}
+
+/* ---------- 0.32.0: the GM shop and service list, one line per row ---------- */
+/* Always: picture, name, shown-to icon, chevron, Edit, Present / Open / Stop showing. The agu-main container's content width adds
+   items 30rem, merchant 38rem, place 46rem, cash 56rem, the shown-to words 66rem and the action labels 72rem (icons with an
+   aria-label and tooltip below). The name never wraps; an ellipsis and tooltip carry a long one, and the open row has the full name. */
+.ag-utilities .agu-srows > .agu-srow {display:block;min-height:0;padding:0;}
+.ag-utilities .agu-srow__line {display:flex;flex-wrap:nowrap;align-items:center;gap:var(--ag-space-2);min-height:var(--ag-row-h);padding:var(--ag-space-1) var(--ag-space-2);}
+.ag-utilities .agu-srow .agu-shop-avatar {flex:none;}
+.ag-utilities .agu-srow__name {flex:1 1 0;min-width:6rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal;}
+.ag-utilities .agu-sc {display:none;flex:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ag-muted);font-size:var(--ag-text-sm);}
+.ag-utilities .agu-sc--items {width:7.5rem;}
+.ag-utilities .agu-sc--merchant {width:8rem;}
+.ag-utilities .agu-sc--place {width:9rem;}
+.ag-utilities .agu-sc--cash {width:8rem;}
+.ag-utilities .agu-sc--shown {display:block;width:2.4rem;overflow:visible;}
+.ag-utilities .agu-sc--warn {display:block;width:auto;overflow:visible;}
+.ag-utilities .agu-srow__end {display:flex;flex:none;align-items:center;justify-content:flex-end;gap:var(--ag-space-1);width:calc(4 * var(--ag-control-h-sm) + 3 * var(--ag-space-1) + 1.25rem);}
+.ag-utilities .agu-srow__chev i {transition:transform var(--ag-dur-fast) var(--ag-ease);}
+.ag-utilities .agu-srow.is-open .agu-srow__chev i {transform:rotate(90deg);}
+.ag-utilities .agu-srow__detail {display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-4);margin:0;padding:0 var(--ag-space-3) var(--ag-space-2) calc(var(--ag-space-2) + var(--ag-icon-chip) + var(--ag-space-2));font-size:var(--ag-text-sm);}
+.ag-utilities .agu-srow__detail[hidden] {display:none;}
+.ag-utilities .agu-srow__detail dt {display:inline;color:var(--ag-muted);}
+.ag-utilities .agu-srow__detail dt::after {content:": ";}
+.ag-utilities .agu-srow__detail dd {display:inline;margin:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-srow__detail .agu-srow__full {flex:1 0 100%;font-size:var(--ag-text-md);font-weight:600;}
+.ag-utilities .agu-srow__detail .agu-srow__full dt::after {content:none;}
+@container (min-width:30rem) {.ag-utilities .agu-sc--items {display:block;}}
+@container (min-width:38rem) {.ag-utilities .agu-sc--merchant {display:block;}}
+@container (min-width:46rem) {.ag-utilities .agu-sc--place {display:block;}}
+@container (min-width:56rem) {.ag-utilities .agu-sc--cash {display:block;}}
+@container (min-width:66rem) {.ag-utilities .agu-sc--shown {width:11rem;}.ag-utilities .agu-sc--shown .agu-sc__txt,.ag-utilities .agu-sc--warn .agu-sc__txt {position:static !important;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none;white-space:nowrap;}}
+@container (min-width:72rem) {.ag-utilities .agu-srow__end {width:27rem;}.ag-utilities .agu-srow__lab {position:static !important;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none;white-space:nowrap;}.ag-utilities .agu-srow__btn i {margin-inline-end:var(--ag-space-1);}}
+@media (prefers-reduced-motion:reduce) {.ag-utilities .agu-srow__chev i {transition:none;}}

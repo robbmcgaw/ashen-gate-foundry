@@ -239,21 +239,39 @@ export const shownBadge=s=>!s.presented?'':`<span class="ag-badge ag-badge--ok">
 /** 0.18.0: Present… or, while shown, Open and Stop showing. */
 export const presentButtons=s=>s.kind==='service'&&!s.known?'':s.presented?`${button('shop-view','Open',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(s.id)}" aria-label="Open ${E(s.name)} as players see it"`})}${button('shop-stop','Stop showing',{kind:'sm',ic:'fa-eye-slash',attrs:`data-shop="${E(s.id)}" aria-label="Stop showing ${E(s.name)}"`})}`
  :button('shop-present','Present…',{kind:'sm',ic:'fa-eye',attrs:`data-shop="${E(s.id)}" aria-label="Present ${E(s.name)}"`});
-/** 0.20.0: a service in the list: its type (or "Unknown service type", never shown to players) instead of items and cash. */
-function serviceRow(s,locations){
- const {place}=placeOf(s,locations),meta=[s.merchant?.name,place,serviceTypeLabel(s.service?.type)].filter(Boolean).map(E).join(' · ');
- const unknown=!s.known?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${E(UNKNOWN_TYPE)}</span>`:'';
- return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta}</span></div>
- <div class="ag-row__end">${shownBadge(s)}${unknown}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
+/* 0.32.0: the GM's shop and service list is one line per row (Character Hub convention). Always: picture, name, who it is shown
+   to (an icon; the words from 66rem), the chevron, Edit and Present / Open / Stop showing (labels from 72rem, icons below, each with an
+   aria-label and tooltip). Columns by the window's content width, last-used first: items or service type 30rem, merchant 38rem, place
+   46rem, cash 56rem. The chevron opens, in place, every fact that is not on the line. */
+const compactBtn=(action,label,ic,s,{aria,cls=''}={})=>`<button type="button" class="ag-btn ag-btn--sm agu-srow__btn${cls?` ${cls}`:''}" data-action="${action}" data-shop="${E(s.id)}" aria-label="${E(aria)}" ${tip(aria)}>${icon(ic)}<span class="agu-srow__lab ag-sr-only">${E(label)}</span></button>`;
+const rowActions=s=>{
+ const edit=compactBtn('shop-edit','Edit','fa-pen',s,{aria:`Edit ${s.name}`});
+ if(s.kind==='service'&&!s.known)return edit;
+ return edit+(s.presented?compactBtn('shop-view','Open','fa-store',s,{aria:`Open ${s.name} as players see it`})+compactBtn('shop-stop','Stop showing','fa-eye-slash',s,{aria:`Stop showing ${s.name}`}):compactBtn('shop-present','Present…','fa-eye',s,{aria:`Present ${s.name}`}));
+};
+const shownCell=s=>!s.presented?'<span class="agu-sc agu-sc--shown"></span>':`<span class="agu-sc agu-sc--shown"><span class="ag-badge ag-badge--ok" ${tip(s.presented.mode==='all'?'Shown to all players':`Shown to ${s.presented.userIds.length} ${s.presented.userIds.length===1?'player':'players'}`)}>${icon('fa-eye')}<span class="agu-sc__txt ag-sr-only">${s.presented.mode==='all'?'Shown to all players':`Shown to ${s.presented.userIds.length} ${s.presented.userIds.length===1?'player':'players'}`}</span></span></span>`;
+const pre=(label,html)=>html?`<span class="ag-sr-only">${label}: </span>${html}`:'';
+function compactRow(s,{merchant,place,what,cash='',extra='',open=false}){
+ const more=`agu-more-${String(s.id).split('').reduce((h,c)=>((h*33)^c.charCodeAt(0))>>>0,5381).toString(36)}`,verb=open?'Hide':'Show';
+ const facts=[['Merchant',merchant],['Place',place],[s.kind==='service'?'Type':'Items',what],['Cash',cash],['Shown to',s.presented?(s.presented.mode==='all'?'All players':`${s.presented.userIds.length} ${s.presented.userIds.length===1?'player':'players'}`):'Nobody']].filter(([,v])=>v);
+ return `<li class="ag-row agu-shop-row agu-srow${open?' is-open':''}" data-shop-row="${E(s.id)}"><div class="agu-srow__line">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<span class="agu-srow__name ag-row__title" ${tip(s.name)}>${E(s.name)}</span>`
+ +`<span class="agu-sc agu-sc--items">${what}</span><span class="agu-sc agu-sc--merchant">${pre('Merchant',merchant)}</span><span class="agu-sc agu-sc--place">${pre('Place',place)}</span><span class="agu-sc agu-sc--cash">${pre('Cash',cash)}</span>${extra}${shownCell(s)}`
+ +`<span class="agu-srow__end"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost agu-srow__chev" data-shop-more="${E(more)}" aria-expanded="${open}" aria-controls="${E(more)}" aria-label="${verb} details of ${E(s.name)}" ${tip(`${verb} details`)}>${icon('fa-chevron-right')}</button>${rowActions(s)}</span></div>`
+ +`<dl class="agu-srow__detail" id="${E(more)}" role="region" aria-label="Details of ${E(s.name)}"${open?'':' hidden'}><div class="agu-srow__full"><dt class="ag-sr-only">Name</dt><dd>${E(s.name)}</dd></div>${facts.map(([k,v])=>`<div><dt>${E(k)}</dt><dd>${v}</dd></div>`).join('')}</dl></li>`;
 }
-function shopRow(s,locations){
- if(s.kind==='service')return serviceRow(s,locations);
+/** 0.20.0: a service in the list: its type (or "Unknown service type", never shown to players) instead of items and cash. */
+function serviceRow(s,locations,open){
+ const {place}=placeOf(s,locations);
+ const unknown=!s.known?`<span class="agu-sc agu-sc--warn"><span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')}<span class="agu-sc__txt ag-sr-only"> ${E(UNKNOWN_TYPE)}</span></span></span>`:'';
+ return compactRow(s,{merchant:E(s.merchant?.name??''),place:E(place??''),what:E(serviceTypeLabel(s.service?.type)??''),extra:unknown,open});
+}
+function shopRow(s,locations,open){
+ if(s.kind==='service')return serviceRow(s,locations,open);
  const {place}=placeOf(s,locations),lines=s.lines??[],hidden=lines.filter(l=>l.hidden).length;
- const meta=[s.merchant?.name,place,`${lines.length} ${lines.length===1?'item':'items'}`,...(hidden?[`${hidden} hidden`]:[])].filter(Boolean).map(E).join(' · ');
- // 0.26.0: cash in the meta line; the row keeps Edit and Present… / Open / Stop showing (Duplicate is in the editor).
- const cash=s.purse?`<span class="agu-row-cash">Cash ${coinChipsHTML(cashText(s))}</span>`:E(cashText(s));
- return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta}</span><span class="ag-row__meta">${cash}</span></div>
- <div class="ag-row__end">${shownBadge(s)}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
+ const what=`${lines.length} ${lines.length===1?'item':'items'}${hidden?` · ${hidden} hidden`:''}`;
+ // 0.26.0: cash is the purse as coin chips; 0.32.0: it is a column on the line from 56rem and always in the open row.
+ const cash=s.purse?`<span class="agu-row-cash">${coinChipsHTML(cashText(s))}</span>`:E(cashText(s));
+ return compactRow(s,{merchant:E(s.merchant?.name??''),place:E(place??''),what:E(what),cash,open});
 }
 function listView(app){
  if(app.shopImport)return importView(app);
@@ -264,7 +282,7 @@ function listView(app){
  const toolbar=`<div class="ag-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agu-shop-search" placeholder="Search shops, merchants, places or items" value="${E(app.shopSearch)}" aria-label="Search shops"></label><div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-shop-sort">Sort<select id="agu-shop-sort">${SHOP_SORTS.map(s=>opt(s,SORT_LABELS[s],app.shopSort)).join('')}</select></label></div><span class="ag-toolbar__count">${E(count)}</span><div class="ag-toolbar__end"><span class="ag-btn-group">${fileButton({label:'Import JSON…',accept:'.json,application/json',className:'ag-btn ag-btn--sm',data:{shopImport:true}})}${button('shop-export','Export',{kind:'sm',ic:'fa-file-export',attrs:tip('Every shop, service and merchant list as one JSON file')})}</span>${button('shop-new-service','New Bank (deprecated)',{kind:'ghost sm',ic:'fa-scale-balanced',attrs:tip('A Bank (deprecated): players change coins in Party Inventory → Party Fund.')})}${button('shop-new','New shop',{ic:'fa-plus'})}</div></div>`;
  if(!all.length)return toolbar+emptyState('No shops yet','Create one with New shop, then drop items into it, or import shops from a file with Import JSON.',{icon:'fa-store',action:button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})});
  if(!shown)return toolbar+emptyState('Nothing matches','No shop or service name, merchant, place, item or id has that text.',{icon:'fa-magnifying-glass',action:button('shop-clear-search','Clear search',{kind:'sm'})});
- return toolbar+groups.map(g=>`<section class="agu-shop-group">${g.group?`<h3 class="ag-eyebrow">${E(g.group)} · ${g.shops.length}</h3>`:''}<ul class="ag-rows">${g.shops.map(s=>shopRow(s,locations)).join('')}</ul></section>`).join('');
+ return toolbar+groups.map(g=>`<section class="agu-shop-group">${g.group?`<h3 class="ag-eyebrow">${E(g.group)} · ${g.shops.length}</h3>`:''}<ul class="ag-rows agu-srows">${g.shops.map(s=>shopRow(s,locations,app.shopOpen?.has?.(s.id)===true)).join('')}</ul></section>`).join('');
 }
 
 /* Editor draft: the record plus the typed text of each line's price, cost and stock (turned into copper on save). */
@@ -495,6 +513,13 @@ export function bindShops(app,root,{error,render}){
  bindImport(app,root,{error,render});
  // 0.26.0: kit sub-tabs (Shops & services / Merchant lists) and the shop editor's tabs; the window binds their arrow keys.
  for(const b of root.querySelectorAll('[id^="agu-shops-tab-"]'))b.addEventListener('click',()=>{app.shopSub=b.dataset.tab;render();});
+ // 0.32.0: a list row's chevron opens its facts in place (no redraw, focus stays); the open rows are kept while the window is open.
+ for(const b of root.querySelectorAll('[data-shop-more]'))b.addEventListener('click',()=>{
+  const row=b.closest('.agu-srow'),id=row?.dataset.shopRow,open=b.getAttribute('aria-expanded')!=='true';
+  app.shopOpen??=new Set();if(id)open?app.shopOpen.add(id):app.shopOpen.delete(id);
+  b.setAttribute('aria-expanded',String(open));b.setAttribute('aria-label',b.getAttribute('aria-label').replace(/^(Show|Hide)/,open?'Hide':'Show'));b.setAttribute('data-tooltip',open?'Hide details':'Show details');
+  const d=row?.querySelector('.agu-srow__detail');if(d)d.hidden=!open;row?.classList.toggle('is-open',open);
+ });
  for(const b of root.querySelectorAll('[id^="agu-shop-ed-tab-"]'))b.addEventListener('click',()=>{app.shopEdTab=b.dataset.tab;render();});
  bindFileButtons(root,([file])=>openImportFile(app,file).then(()=>render()).catch(error));
  root.querySelector('#agu-shop-search')?.addEventListener('input',e=>{app.shopSearch=e.target.value;const at=e.target.selectionStart;Promise.resolve(render()).then(()=>{const q=app.element?.querySelector?.('#agu-shop-search');if(q){q.focus();q.setSelectionRange?.(at,at);}}).catch(error);});
