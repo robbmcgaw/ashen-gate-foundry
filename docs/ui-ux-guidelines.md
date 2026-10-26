@@ -60,6 +60,9 @@ Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortabl
 
 1. **Top-level tabs: 6 at most** per role. More than that means two tabs belong together (make them sub-tabs) or the module
    needs a labelled side list. [Apple Tab views] [MS NavigationView] [Carbon Tabs]
+   **Recorded exception (decision CH-01):** Character Hub keeps its side rail of section tabs, 9 top-level tabs for a GM and 8 for
+   a player, because the rail suits the Compact size and the pop-out. Visible text labels show when the window is wide enough;
+   `aria-label` and tooltips are always kept. Hub does not move to a labelled tab strip. No other module gets this exception.
 2. **Tab labels**: one or two words, nouns, with visible text. An icon may lead the text but never replaces it. Icon-only
    navigation hides the labels in tooltips that keyboard and touch users can't read. [Apple Tab views] [Carbon Tabs]
    [NNg Tooltips]
@@ -76,7 +79,7 @@ Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortabl
    (`bindTablist()` *(kit 2.2)*). [W3C APG Tabs]
 8. **Don't use tabs** when the user needs to compare content across them, or for a step-by-step flow. [Carbon Tabs]
 9. **Side rails** (`.ag-siderail`) are for a list of many peers (records, rooms). A rail of section icons needs visible
-   labels. (Character Hub's icon rail is a pending decision: see the audit.) [NNg Vertical nav] [MS NavigationView]
+   labels. (Character Hub's icon rail is the recorded exception in rule 1, decision CH-01.) [NNg Vertical nav] [MS NavigationView]
 10. **One name per thing** everywhere: the launcher, window title, header, tabs, Help and partner embeds use the same word.
     [WCAG 3.2.4] [Apple Writing]
 
