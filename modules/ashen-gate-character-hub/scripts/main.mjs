@@ -177,10 +177,13 @@ if (globalThis.Hooks) {
     for (const a of game.actors ?? []) if (a.type === 'character') recordLevelSoon(a);
     renownSoon(); questsSoon();
   });
-  Hooks.on('updateActor', actor => recordLevelSoon(actor));
-  for (const hook of ['createItem', 'updateItem', 'deleteItem']) Hooks.on(hook, item => { if (item?.type === 'class') recordLevelSoon(actorOf(item)); });
+  // 0.56.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+  const isBulk = (...a) => a.some(x => x && typeof x === 'object' && x.agBulk === true);
+  Hooks.on('ashenGate.bulkFinished', () => { renderAllHubs(); renownSoon(); questsSoon(); });
+  Hooks.on('updateActor', (actor, ...rest) => { if (isBulk(...rest)) return; recordLevelSoon(actor); });
+  for (const hook of ['createItem', 'updateItem', 'deleteItem']) Hooks.on(hook, (item, ...rest) => { if (isBulk(...rest)) return; if (item?.type === 'class') recordLevelSoon(actorOf(item)); });
   // Renown keeps players' views and Quest Log its state in journals: any journal change re-checks (through their public APIs only).
-  for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, () => { renownSoon(); questsSoon(); });
+  for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
   // 0.51.0: a player preparing a spell past their class's limit from any sheet is stopped (spell-prep.mjs; never throws).
@@ -216,7 +219,7 @@ if (globalThis.Hooks) {
   Hooks.on('targetToken', user => { if (user === game.user) renderAllHubs(100); });
   // Foundry re-renders the sheet for its own Actor changes too; these cover embedded Items/Effects and bursts.
   for (const hook of ['updateActor', 'createItem', 'updateItem', 'deleteItem', 'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) {
-    Hooks.on(hook, doc => scheduleRender(actorOf(doc)));
+    Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; scheduleRender(actorOf(doc)); });
   }
   // A partner's Player Access (or the Utilities stash switch) changed: re-draw so its part appears or vanishes for players.
   for (const hook of ['createSetting', 'updateSetting', 'deleteSetting']) Hooks.on(hook, setting => { if (isPartnerSetting(setting)) renderAllHubs(); });

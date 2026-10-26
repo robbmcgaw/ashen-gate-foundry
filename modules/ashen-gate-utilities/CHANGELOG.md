@@ -1,3 +1,7 @@
+## 0.31.1 — 2026-10-26
+
+Conditions, Party stash and Shops ignore Manager bulk writes (Sync, Import) while they run and refresh once when they finish. No change to saved data.
+
 ## 0.31.0 — 2026-10-25
 
 - **Only real conditions are offered.** The condition lists (Conditions tab, overlay, and the Character Hub's list through Utilities) now offer only statuses Foundry can toggle. A group name (dnd5e's "cover" group) or dnd5e's automatic effects (encumbrance) are never offered; Half Cover, Three-Quarters Cover and Total Cover are separate conditions.

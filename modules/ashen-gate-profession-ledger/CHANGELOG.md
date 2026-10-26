@@ -1,3 +1,7 @@
+## 0.33.1 — 2026-10-26
+
+The Ledger window and embeds ignore Manager bulk writes (Sync, Import) while they run and refresh once when they finish; before, every updated Item redrew them. No change to saved data.
+
 ## 0.33.0 — 2026-10-26
 
 - **Assign: Refresh… for one character.** After a player changes proficiencies (or swaps professions), pick the character in Assign → Professions and press **Refresh…**. The preview lists **Will add**, **Will keep**, **Will remove** and **Can't tell, left alone**. Refresh removes only profession features and signature perks the Ledger recorded giving the character, and starting recipes of the professions it removes, then adds what the character now qualifies for (profession features, starting recipes, signature perks) the same way Assign does. Crafted items, materials, gear and anything added by hand are never touched. A profession feature with no record of who added it (added before this version, or by hand) is listed under *Can't tell* and stays unless you tick *Also remove*.

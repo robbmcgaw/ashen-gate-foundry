@@ -17,7 +17,10 @@ import {relatedFor, withRelated} from './related-lists.mjs';
 import {itemKeys} from './actor-update.js';
 import {isInterruption as isStop} from './sync-connection.js';
 
-export const BIND_CHUNK = 50;
+export const BIND_CHUNK = 25;
+export const WRITE_UNIT = 10;      // documents per request, so progress moves inside a chunk
+export const SLOW_CHUNK_MS = 20000; // a chunk slower than this halves the chunk size
+import {bulkWrite} from './bulk.js';
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const pathGet = (o, path) => path.split('.').reduce((v, k) => v == null ? undefined : v[k], o);
 const msg = e => String(e?.message ?? e);
@@ -30,7 +33,13 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
   const docs = world.documents();
   const flags = new Map(), byId = new Map();
   const flagOf = doc => { if (!flags.has(doc)) flags.set(doc, world.sourceFlag(doc) ?? null); return flags.get(doc); };
-  for (const doc of docs) { const id = flagOf(doc)?.sourceId; if (id) (byId.get(id) ?? byId.set(id, []).get(id)).push(doc); }
+  // Chunked with a yield, so even a big world draws a progress tick before and between slices (no long silent pass).
+  for (let i = 0; i < docs.length; i += 200) {
+    if (signal?.aborted) return {cancelled: true, done: 0, total: 0};
+    step('Reading the world', i, docs.length);
+    for (const doc of docs.slice(i, i + 200)) { const id = flagOf(doc)?.sourceId; if (id) (byId.get(id) ?? byId.set(id, []).get(id)).push(doc); }
+    await pause?.();
+  }
   const uuidIndex = buildUuidIndex(docs);
   const currentIds = new Set(uuidIndex.keys());
   const moduleRecord = world.moduleRecord ?? (() => null);
@@ -119,24 +128,24 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
   };
 
   // ---- a chunk: embedded first, then the documents themselves ----
-  const flush = async works => {
+  const flush = async (works, report = () => {}) => {
     const group = (list, keyOf) => { const m = new Map(); for (const x of list) (m.get(keyOf(x)) ?? m.set(keyOf(x), []).get(keyOf(x))).push(x); return m; };
     for (const w of works) {
       if (w.items.length) {
-        try { await guard(w.doc.updateEmbeddedDocuments('Item', w.items.map(x => x.update), {render: false})); }
+        try { await guard(w.doc.updateEmbeddedDocuments('Item', w.items.map(x => x.update), bulkWrite())); }
         catch (batchError) {
           if (isStop(batchError)) throw batchError;
-          for (const x of w.items) try { await guard(x.embedded.update({'system.description.value': x.update['system.description.value']}, {render: false})); }
+          for (const x of w.items) try { await guard(x.embedded.update({'system.description.value': x.update['system.description.value']}, bulkWrite())); }
           catch (e) { if (isStop(e)) throw e; issue(w.row, w.name, {action: 'actor-item-link', status: 'error', message: `${x.embedded.name ?? 'Item'}: ${msg(e)}`}); }
         }
       }
       if (w.pages.length) {
         try {
-          await guard(w.doc.updateEmbeddedDocuments('JournalEntryPage', w.pages.map(x => x.update), {render: false}));
+          await guard(w.doc.updateEmbeddedDocuments('JournalEntryPage', w.pages.map(x => x.update), bulkWrite()));
           for (const x of w.pages) issue(w.row, w.name, {action: 'rich-text-link', status: 'ok', page: x.page.name});
         } catch (batchError) {
           if (isStop(batchError)) throw batchError;
-          for (const x of w.pages) try { await guard(x.page.update({'text.content': x.update['text.content']}, {render: false})); issue(w.row, w.name, {action: 'rich-text-link', status: 'ok', page: x.page.name}); }
+          for (const x of w.pages) try { await guard(x.page.update({'text.content': x.update['text.content']}, bulkWrite())); issue(w.row, w.name, {action: 'rich-text-link', status: 'ok', page: x.page.name}); }
           catch (e) { if (isStop(e)) throw e; issue(w.row, w.name, {action: 'rich-text-link', status: 'error', message: `Page ${x.page.name}: ${msg(e)}`}); }
         }
       }
@@ -147,13 +156,18 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
     const needed = pending.filter(p => Object.keys(p.changed).length);
     for (const [documentName, list] of group(needed, p => p.w.doc.documentName)) {
       const done = ok => { for (const p of ok) if (p.w.bindings.length) issue(p.w.row, p.w.name, {action: 'uuid-bind', status: 'ok', bindings: p.w.bindings.length}); };
-      try {
-        await guard(world.updateDocuments(documentName, list.map(p => ({_id: p.w.doc.id, ...p.changed})), {render: false}));
-        done(list);
-      } catch (batchError) {
-        if (isStop(batchError)) throw batchError;
-        for (const p of list) try { await guard(p.w.doc.update(p.changed, {render: false})); done([p]); }
-        catch (e) { if (isStop(e)) throw e; issue(p.w.row, p.w.name, {action: 'link-sync', status: 'error', message: `UUID binding update failed: ${msg(e)}`}); }
+      for (let u = 0; u < list.length; u += WRITE_UNIT) {
+        const unit = list.slice(u, u + WRITE_UNIT);
+        report(unit[0].w.name, u);
+        try {
+          await guard(world.updateDocuments(documentName, unit.map(p => ({_id: p.w.doc.id, ...p.changed})), bulkWrite()));
+          done(unit);
+        } catch (batchError) {
+          if (isStop(batchError)) throw batchError;
+          for (const p of unit) try { await guard(p.w.doc.update(p.changed, bulkWrite())); done([p]); }
+          catch (e) { if (isStop(e)) throw e; issue(p.w.row, p.w.name, {action: 'link-sync', status: 'error', message: `UUID binding update failed: ${msg(e)}`}); }
+        }
+        await pause?.();
       }
     }
     for (const p of pending) if (!Object.keys(p.changed).length && p.w.bindings.length) issue(p.w.row, p.w.name, {action: 'uuid-bind', status: 'ok', bindings: p.w.bindings.length});
@@ -162,8 +176,10 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
   // ---- the run ----
   const total = todo.length;
   let done = 0;
-  for (let i = 0; i < total; i += chunk) {
+  const timer = world.now ?? (() => globalThis.performance?.now?.() ?? Date.now());
+  for (let i = 0; i < total;) {
     if (signal?.aborted) return {cancelled: true, done, total};
+    const started = timer();
     const part = todo.slice(i, i + chunk);
     const lead = byId.get(part[0].id)?.[0]?.name ?? part[0].id;
     step('Binding links', done, total, lead);
@@ -176,8 +192,13 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
       }
     }
     step('Saving links', done, total, lead);
-    await flush(works);
+    await flush(works, (who, offset) => step('Saving links', Math.min(total, done + offset), total, who));
     done += part.length;
+    i += part.length;
+    const took = timer() - started;
+    console.info(`[${MODULE_ID}] Binding links: ${done} of ${total} (chunk of ${part.length} in ${Math.round(took)} ms)`);
+    // Low impact: a slow chunk (a busy server or many open windows) halves the next ones, never below 5.
+    if (took > SLOW_CHUNK_MS && chunk > 5) { chunk = Math.max(5, Math.floor(chunk / 2)); console.warn(`[${MODULE_ID}] Binding links is slow here (${Math.round(took / 1000)} s for a chunk); using chunks of ${chunk}`); }
     step('Binding links', done, total, '');
     await pause?.();
   }

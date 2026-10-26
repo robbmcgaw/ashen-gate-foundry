@@ -12,7 +12,7 @@ const store={flags:{[MODULE]:{privateStore:true,payload:{schema:'ag-skill-trees/
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:()=>{}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{}}},utils:{escapeHTML:x=>x,randomID:()=>'r'}};
 globalThis.document={documentElement:{dataset:{agSize:'comfortable'}},createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);}})};
-globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.23.1'}]]),settings:{
+globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.23.2'}]]),settings:{
   register:(_m,key,def)=>defs.set(key,def),registerMenu:()=>{},
   get:(_m,key)=>values.has(key)?values.get(key):({treeData:{schema:'ag-skill-trees/0.1',trees:[{id:'OLD',name:'[TEST] Old tree',nodes:[]}]},publicTreesV2:{schema:'ag-skill-trees/0.2',trees:[]}})[key]??defs.get(key)?.default,
   set:async(_m,key,value)=>{writes.push([key,value]);values.set(key,value);return value;}

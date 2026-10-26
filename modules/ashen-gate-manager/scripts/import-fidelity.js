@@ -134,7 +134,7 @@ export function resolveTypedRefs(refs,index,excludeIds=[],moduleRecord=null){
 const REF_ID_LIKE=/^[A-Z]+(?:-[A-Z0-9_]+)+$/;
 export function resolveRefCells(html,bindings,{nameOf=()=>'',canLink=()=>false}={}){
   if(typeof html!=='string'||!html.includes('data-ag-ref'))return html;
-  return html.replace(/(<([a-z][a-z0-9]*)\b[^>]*\bdata-ag-ref="([A-Za-z0-9_]+)"[^>]*>)([\s\S]*?)(<\/\2>)/g,(whole,open,tag,relation,inner,close)=>{
+  return html.replace(/(<([a-z][a-z0-9]*)\b[^>]*\bdata-ag-ref="([A-Za-z0-9_]+)"[^>]*>)([\s\S]{0,20000}?)(<\/\2>)/g,(whole,open,tag,relation,inner,close)=>{
     let label=inner.replace(/@(?:UUID|AGRef)\[[^\]]*\]\{([^}]*)\}/g,'$1').replace(/<[^>]*>/g,'').replace(/[{}\[\]]/g,'').trim();
     const candidates=(bindings??[]).filter(b=>b.relation===relation);
     const named=candidates.filter(b=>label&&String(nameOf(b.target_id)).toLowerCase()===label.toLowerCase());

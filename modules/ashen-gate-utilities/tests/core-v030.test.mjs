@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSession,acceptRoll,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,VERSION} from '../scripts/core.mjs';
 
-test('version is 0.31.0',()=>assert.equal(VERSION,'0.31.0'));
+test('version is 0.31.1',()=>assert.equal(VERSION,'0.31.1'));
 test('skill bonus reads the prepared dnd5e total and formats signs',()=>{
  const actor={system:{skills:{acr:{total:5},ath:{total:-1},prc:{}}}};
  assert.equal(skillBonus(actor,'acr'),5);assert.equal(skillBonus(actor,'prc'),null);assert.equal(skillBonus({},'acr'),null);

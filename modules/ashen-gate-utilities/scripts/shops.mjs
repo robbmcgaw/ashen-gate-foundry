@@ -638,7 +638,8 @@ export function followRecord(d,stored){
 }
 /** The GM's window follows saved shops, electrum and Locations changes. */
 export function shopHooks(rerender,app=()=>null){
- const onPage=page=>{if(page?.parent?.flags?.[ID]?.store!==STORE)return;const d=app()?.shopDraft,stored=page.flags?.[ID]?.shop;if(d&&stored)followRecord(d,stored);rerender();};
+ const onPage=(page,...rest)=>{if(rest.some(x=>x&&typeof x==='object'&&x.agBulk===true))return;if(page?.parent?.flags?.[ID]?.store!==STORE)return;const d=app()?.shopDraft,stored=page.flags?.[ID]?.shop;if(d&&stored)followRecord(d,stored);rerender();};
  for(const ev of ['createJournalEntryPage','updateJournalEntryPage','deleteJournalEntryPage'])Hooks.on(ev,onPage);
  Hooks.on(`${ID}.electrumChanged`,()=>rerender());
+ Hooks.on('ashenGate.bulkFinished',()=>rerender());
 }

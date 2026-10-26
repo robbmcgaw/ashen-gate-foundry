@@ -24,7 +24,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.0';
+const VERSION='0.33.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -3660,11 +3660,14 @@ Hooks.once('ready',()=>{
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
-  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,refresh);
+  // 0.33.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+  const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();});
+  Hooks.on('ashenGate.bulkFinished',()=>refresh());
   // 0.31.0: signature perks are granted on the GM client that wrote the XP (the only client that fires this hook).
   Hooks.on(PROGRESSION_HOOK,payload=>{void onProgressionChanged(payload).catch(err=>{console.error(`[${ID}] signature perks`,err);try{say(`Signature perks were not granted: ${err.message}`,true);}catch{}});});
   // Another GM client saved node templates.
-  for(const hook of ['createJournalEntry','updateJournalEntry'])Hooks.on(hook,doc=>{if(game.user?.isGM&&doc?.getFlag?.(ID,'role')==='gm-data')refresh();});
+  for(const hook of ['createJournalEntry','updateJournalEntry'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;if(game.user?.isGM&&doc?.getFlag?.(ID,'role')==='gm-data')refresh();});
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
   console.info(`[${ID}] v${VERSION} ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);

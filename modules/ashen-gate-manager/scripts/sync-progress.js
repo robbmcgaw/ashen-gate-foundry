@@ -34,16 +34,18 @@ export function stepText(p) {
  */
 export function createProgress({paint, warn = () => {}, now = Date.now, stallMs = STALL_MS, isStopping = () => false} = {}) {
   const startedAt = now();
-  let last = null, movedAt = now(), key = '', warned = false;
+  let last = null, movedAt = now(), key = '', warned = false, stepKey = '', stepAt = now();
   const keyOf = p => `${p.phase}|${p.step ?? ''}|${p.done}|${p.stepDone ?? ''}|${p.name ?? ''}`;
   const compose = () => {
     if (!last) return null;
     const idle = now() - movedAt, stalled = idle >= stallMs;
     const detail = stepText(last);
-    let label = progressLine(last) + (detail ? ` · ${detail}` : '') + ` · ${clock(now() - startedAt)}`;
+    // Two clocks, labelled: the whole run, and the step now running (a long run is not a long step).
+    const times = `run ${clock(now() - startedAt)} · step ${clock(now() - stepAt)}`;
+    let label = progressLine(last) + (detail ? ` · ${detail}` : '') + ` · ${times}`;
     if (stalled) {
       const where = detail || last.label;
-      label = `Sync has not moved for ${Math.floor(idle / 1000)} s: ${last.label.replace(/…$/, '')}, ${last.stepTotal ? `${last.stepDone ?? 0} of ${last.stepTotal}` : `${last.done} of ${last.total}`}${last.name ? ` (${last.name})` : ''}. Wait, or Cancel; running the same sync again resumes. · ${clock(now() - startedAt)}`;
+      label = `Sync has not moved for ${Math.floor(idle / 1000)} s: ${last.label.replace(/…$/, '')}, ${last.stepTotal ? `${last.stepDone ?? 0} of ${last.stepTotal}` : `${last.done} of ${last.total}`}${last.name ? ` (${last.name})` : ''}. Wait, or Cancel; running the same sync again resumes. · ${times}`;
       void where;
     } else if (idle >= 5000) label += ` · still working (last change ${Math.floor(idle / 1000)} s ago)`;
     return {pct: last.total ? Math.min(1, last.done / last.total) : 1, label, stalled};
@@ -52,6 +54,8 @@ export function createProgress({paint, warn = () => {}, now = Date.now, stallMs 
   return {
     report(p) {
       last = p;
+      const sk = `${p.phase}|${p.step ?? ''}`;
+      if (sk !== stepKey) { stepKey = sk; stepAt = now(); }
       const k = keyOf(p);
       if (k !== key) { key = k; movedAt = now(); warned = false; }
       return draw();

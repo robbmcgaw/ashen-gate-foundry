@@ -1,3 +1,7 @@
+## 0.18.2 — 2026-10-26
+
+Renown ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.
+
 ## 0.18.1 — 2026-10-25
 
 Line breaks in reward text are kept.

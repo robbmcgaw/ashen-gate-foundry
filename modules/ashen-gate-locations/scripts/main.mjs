@@ -9,7 +9,7 @@ import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.20.3';
+const VERSION = '0.20.4';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -30,7 +30,7 @@ const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notificati
 // 1.13.0: compact read-only view for partner modules (embed.mjs).
 const embed = createEmbed({mayOpen, readViews, api: () => game.modules.get(MODULE_ID)?.api, notifyError});
 for (const hook of ['createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage', 'updateJournalEntry'])
-  Hooks.on(hook, doc => { if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) embed.refreshAll(); });
+  Hooks.on(hook, (doc, ...rest) => { if (rest.some(x => x && typeof x === 'object' && x.agBulk === true)) return; if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) embed.refreshAll(); });
 
 function attachActorsLauncher(app, html, visible = mayOpen()) {
   return mountLauncher(launcherRoot(app, html), {moduleId: MODULE_ID, label: 'Locations', icon: 'fa-solid fa-map-location-dot',
@@ -135,7 +135,7 @@ async function reconcileShared() {
 }
 let reconcileTimer = null;
 Hooks.on('updateJournalEntryPage', (page, _changes, _options, userId) => {
-  if (!isSharedNotesPage(page) || userId === game.user?.id || !isGM() || !(game.users?.activeGM?.isSelf ?? true)) return;
+  if (_options?.agBulk === true || !isSharedNotesPage(page) || userId === game.user?.id || !isGM() || !(game.users?.activeGM?.isSelf ?? true)) return;
   clearTimeout(reconcileTimer);
   reconcileTimer = setTimeout(() => reconcileShared().catch(notifyError), 500);
 });
@@ -149,6 +149,9 @@ function refresh() {
     if (app?.rendered && !app.dirty && mayOpen()) app.render().catch(notifyError);
   }, 100);
 }
+// 0.20.4: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+const isBulk = (...a) => a.some(x => x && typeof x === 'object' && x.agBulk === true);
 for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {
-  Hooks.on(hook, doc => { if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
+  Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
 }
+Hooks.on('ashenGate.bulkFinished', () => { refresh(); embed.refreshAll(); });

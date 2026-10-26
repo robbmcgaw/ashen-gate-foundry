@@ -563,13 +563,16 @@ export function tradeApi(){
 export function tradeHooks(rerender){
  // Shops already open at login don't pop up again; only newly presented ones do.
  if(!isGM()&&shopsVisible())try{for(const v of forMe())announced.add(v.id);}catch{/* not visible yet */}
- const onPage=page=>{
+ const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
+ Hooks.on('ashenGate.bulkFinished',()=>{scheduleSync();refreshShopWindows();rerender();});
+ const onPage=(page,...rest)=>{
+  if(isBulk(...rest))return;
   const store=page?.parent?.flags?.[ID]?.store;
   if(store==='shops-gm')scheduleSync();
   if(store===VIEW_STORE){refreshShopWindows();rerender();if(!isGM())openNewShops();}
  };
  for(const ev of ['createJournalEntryPage','updateJournalEntryPage','deleteJournalEntryPage'])Hooks.on(ev,onPage);
- const onLocations=doc=>{if(doc?.flags?.['ashen-gate-locations']||doc?.parent?.flags?.['ashen-gate-locations'])scheduleSync();};
+ const onLocations=(doc,...rest)=>{if(isBulk(...rest))return;if(doc?.flags?.['ashen-gate-locations']||doc?.parent?.flags?.['ashen-gate-locations'])scheduleSync();};
  for(const ev of ['updateJournalEntry','updateJournalEntryPage'])Hooks.on(ev,onLocations);
  Hooks.on(`${ID}.electrumChanged`,()=>{scheduleSync();refreshShopWindows();});
  Hooks.on('renderChatMessageHTML',bindChatCard);

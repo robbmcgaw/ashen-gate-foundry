@@ -10,6 +10,18 @@ export function isActiveDefinition(doc) {
   return !!src && doc?.flags?.[ARCHIVED_FLAG]?.lifecycle?.archived !== true &&
     src.status !== 'retired' && src.status !== 'superseded';
 }
+const worldDocs=game=>[...(game?.items?.contents??[]),...(game?.journal?.contents??[]),
+  ...(game?.actors?.contents??[]),...(game?.tables?.contents??[]),...(game?.macros?.contents??[])];
+/** Active Manager-bound documents by permanent id, built in one pass; pass it as `index` to look many ids up cheaply. */
+export function buildDefinitionIndex(game){
+  const index=new Map();
+  for(const doc of worldDocs(game)){
+    if(!isActiveDefinition(doc))continue;
+    const id=definitionSource(doc)?.sourceId;
+    if(id)(index.get(id)??index.set(id,[]).get(id)).push(doc);
+  }
+  return index;
+}
 /** A player-facing projection must be readable by every present player. */
 function visibleToEveryPlayer(doc, game) {
   const viewers=game?.users?.contents?.filter?.(u=>!u.isGM) ?? [];
@@ -26,14 +38,13 @@ function visibleToEveryPlayer(doc, game) {
  * trust an options.viewer object from an exported helper, macro, or console.
  */
 export function lookupWorldDefinition(game,sourceId,{
-  entityType=null,publicForAll=false,approvedOnly=false,expectedVersion=null
+  entityType=null,publicForAll=false,approvedOnly=false,expectedVersion=null,index=null
 }={}) {
   if(typeof sourceId!=='string'||!CANONICAL_ID.test(sourceId))return {status:'invalid'};
   const viewer=game?.user;
   if(!viewer)return {status:'not_found'};
-  const docs=[...(game?.items?.contents??[]),...(game?.journal?.contents??[]),
-    ...(game?.actors?.contents??[]),...(game?.tables?.contents??[]),...(game?.macros?.contents??[])];
-  const bindings=docs.filter(doc=>isActiveDefinition(doc)&&definitionSource(doc)?.sourceId===sourceId);
+  // 0.23.2: `index` (buildDefinitionIndex) answers from one pass over the world; without it every lookup scans every document.
+  const bindings=index?(index.get(sourceId)??[]):worldDocs(game).filter(doc=>isActiveDefinition(doc)&&definitionSource(doc)?.sourceId===sourceId);
   if(!bindings.length)return {status:'not_found'};
   // Do not reveal whether a restricted source has competing bindings.
   if(bindings.length!==1)return {status:viewer.isGM?'conflict':'not_found'};
