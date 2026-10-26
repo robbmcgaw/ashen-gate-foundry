@@ -97,7 +97,10 @@ function professions(actor, api) {
     if (p) rows.push(`<li><strong>${esc(ref.name)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP${recipeCountHtml(api, ref.id, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
   }
   const recipeLine = knownRecipes(actor, api, ids);
-  const note = refs.length ? '' : '<p class="agch-muted">Profession levels show here when Skill Trees is active (it lists the professions).</p>';
+  // 0.58.4: without the Ledger the Hub can only read professions from Skill Trees' profession trees. Say what is true: with Skill
+  // Trees active but no tree visible (none yet, or hidden from this player) there is nothing to list; with neither, the Ledger is what shows levels.
+  const note = refs.length ? '' : trees ? '<p class="agch-muted">No profession trees yet. They appear when your character gains a profession.</p>'
+    : '<p class="agch-muted">Profession levels show here when the Profession Ledger is active.</p>';
   return list(rows, refs.length ? 'No profession progress yet.' : '') + note + recipeLine;
 }
 

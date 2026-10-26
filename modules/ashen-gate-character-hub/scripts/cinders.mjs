@@ -213,6 +213,8 @@ export async function openSkillTree(actor, treeId = null) {
   try { return {ok: true, result: await api.api.open({actorId: actor.id, ...(treeId ? {treeId} : {})})}; } catch (error) { return refuse(String(error?.message ?? error)); }
 }
 
+/** Detaching is the GM's (0.58.4): reversible (the item stays in the inventory) so it asks nothing, but players can't do it. */
+export const DETACH_GM_ONLY = 'Only the GM can detach an item from a Cinder. Ask the GM, or Swap it for another item.';
 /** Socket rows of one Cinder with Attach / Swap / Detach (or a Locked badge), each row a drop target while the user may change it. */
 export function socketsHtml(h, api = null, {instanceId = h?.instanceId, maxSockets = socketsOf(api)?.maxSockets ?? 12} = {}) {
   if (!h) return '';
@@ -223,7 +225,7 @@ export function socketsHtml(h, api = null, {instanceId = h?.instanceId, maxSocke
     const name = r.empty ? 'Empty socket' : r.name, fx = r.empty ? '' : effectsOf(r);
     const actions = !edit ? (h.locked ? lockBadge : '')
       : r.empty ? btn('cinder-attach', 'Attach', {kind: 'sm', extra: 'ag-btn--primary', icon: 'fa-solid fa-plus', data: data(r), title: `Attach an item to socket ${r.number}`})
-      : `${r.active ? btn('cinder-swap', 'Swap', {kind: 'sm', icon: 'fa-solid fa-right-left', data: data(r), title: `Swap ${r.name} for another item`}) : ''}${btn('cinder-detach', 'Detach', {kind: 'sm', extra: 'ag-btn--danger', icon: 'fa-solid fa-link-slash', data: data(r), title: `Detach ${r.name}`})}`;
+      : `${r.active ? btn('cinder-swap', 'Swap', {kind: 'sm', icon: 'fa-solid fa-right-left', data: data(r), title: `Swap ${r.name} for another item`}) : ''}${btn('cinder-detach', 'Detach', {kind: 'sm', extra: 'ag-btn--danger', icon: 'fa-solid fa-link-slash', data: data(r), title: isGM() ? `Detach ${r.name} (it stays in the inventory)` : DETACH_GM_ONLY, disabled: !isGM()})}`;
     const drop = edit ? ` data-cinder-drop data-instance="${esc(instanceId)}" data-slot="${esc(r.slot)}" data-filled="${!r.empty}"` : '';
     return `<li class="ag-row agch-sock${r.empty ? ' is-empty' : ''}${r.active ? '' : ' is-inactive'}"${drop}><span class="agch-sock__dot" aria-hidden="true">${r.number ?? '–'}</span>
       <span class="ag-row__main"><span class="ag-row__title">${esc(name)}${r.extra ? ' <span class="ag-badge ag-badge--accent">+1</span>' : ''}${r.active ? '' : ' <span class="ag-badge ag-badge--warn">inactive</span>'}</span>${fx ? `<span class="ag-row__meta">${esc(fx)}</span>` : ''}${r.active ? '' : '<span class="ag-row__meta">Over capacity: no effect until an item is removed.</span>'}</span>
@@ -285,18 +287,17 @@ const slotOf = v => v === '' || v == null || !Number.isSafeInteger(Number(v)) ? 
 
 /**
  * Attach, Swap or Detach from a socket row, through Cinders' api.sockets. pick(title, options, ok) resolves an item id (or null);
- * confirm(message, opts) resolves true to detach. Attach first asks Cinders' canAttach for the item.
+ * Detach is GM only and needs no confirmation. Attach first asks Cinders' canAttach for the item.
  */
 export async function socketFromHub(actor, kind, data, {pick, confirm} = {}) {
   const {s, h, error} = socketTarget(actor, data.instance);
   if (error) return refuse(error);
   const slot = slotOf(data.slot);
+  if (kind === 'detach' && !isGM()) return refuse(DETACH_GM_ONLY);   // 0.58.4: the data layer, not only the button
   try {
     if (kind === 'detach') {
       const x = (h.slots ?? []).find(y => y.slot === slot);
       if (!x) return refuse('That socket is empty.');
-      const ok = await confirm(`${x.name} comes out of this Cinder's socket and stays in ${actor.name}'s inventory.`, {title: `Detach ${x.name}?`, yes: 'Detach', danger: true});
-      if (!ok) return {ok: true, result: null};
       return {ok: true, result: await s.detach(actor, data.instance, slot)};
     }
     const fits = (s.socketable?.(actor) ?? []).filter(f => !(h.slots ?? []).some(x => x.itemId === f.itemId));

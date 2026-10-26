@@ -49,6 +49,10 @@ test('owner, Player Access on, not locked: Attach / Swap / Detach, every row a d
   assert.match(html, /data-action="cinder-attach"[^>]*data-instance="cinst_TEST00001"[^>]*data-slot="1"/);
   assert.equal((html.match(/data-action="cinder-swap"/g) ?? []).length, 2);
   assert.equal((html.match(/data-action="cinder-detach"/g) ?? []).length, 2);
+  assert.equal((html.match(/data-action="cinder-detach"[^>]*disabled/g) ?? []).length, 2, 'a player sees Detach disabled, with the reason');
+  assert.match(html, /Only the GM can detach/);
+  install(users.gm, {});
+  assert.equal((cindersSummary(makeActor(), api).match(/data-action="cinder-detach"[^>]*disabled/g) ?? []).length, 0, 'the GM can detach');
   assert.equal((html.match(/data-cinder-drop/g) ?? []).length, 3, 'every socket row is a drop target');
   assert.match(html, /data-slot="2" data-filled="true"/);assert.match(html, /data-slot="1" data-filled="false"/);
   assert.match(html, /ag-badge--accent">\+1</);assert.doesNotMatch(html, /\+1 (sock|from)/, 'only "+1", no source');
@@ -108,7 +112,7 @@ test('older Cinders: no art field, no ag-sockets/1, or a refusal: the sub-tab st
   assert.equal(canChangeSockets(hostOf(), api), true, 'no playerAccess state: Cinders\' own canEdit decides');
 });
 
-test('Attach / Swap / Detach go through api.sockets; Attach asks canAttach; Detach asks first; Cancel changes nothing', async () => {
+test('Attach / Swap / Detach go through api.sockets; Attach asks canAttach; Detach is GM only and asks nothing', async () => {
   install(users.owner, {});
   const actor = makeActor();
   assert.equal((await socketFromHub(actor, 'attach', {instance: INST, slot: '1'}, ui('F1'))).ok, true);
@@ -117,12 +121,13 @@ test('Attach / Swap / Detach go through api.sockets; Attach asks canAttach; Deta
   install(users.owner, {});
   await socketFromHub(actor, 'swap', {instance: INST, slot: '2'}, ui('F1'));
   assert.deepEqual(calls.at(-1), ['swap', INST, 2, 'F1']);
+  // 0.58.4: Detach is GM only and asks nothing; a player is refused in the data layer.
   install(users.owner, {});
-  assert.equal((await socketFromHub(actor, 'detach', {instance: INST, slot: '0'}, ui(null, false))).result, null);
-  assert.deepEqual(calls, [['confirm', 'Detach [TEST] <Lens>?', true]], 'asked, then nothing');
-  install(users.owner, {});
-  await socketFromHub(actor, 'detach', {instance: INST, slot: '0'}, ui());
-  assert.deepEqual(calls.at(-1), ['detach', INST, 0]);
+  const refused = await socketFromHub(actor, 'detach', {instance: INST, slot: '0'}, ui());
+  assert.equal(refused.ok, false); assert.match(refused.error, /Only the GM can detach/); assert.equal(calls.some(c => c[0] === 'detach' || c[0] === 'confirm'), false);
+  install(users.gm, {});
+  assert.equal((await socketFromHub(actor, 'detach', {instance: INST, slot: '0'}, ui())).ok, true);
+  assert.deepEqual(calls, [['detach', INST, 0]], 'no confirmation asked');
   install(users.owner, {canAttach: {ok: false, reasons: ['All sockets are in use; detach or swap an item']}});
   const r = await socketFromHub(actor, 'attach', {instance: INST, slot: '1'}, ui('F1'));
   assert.match(r.error, /All sockets are in use/);assert.equal(calls.some(c => c[0] === 'attach'), false);
