@@ -1,3 +1,9 @@
+## 0.20.1 — 2026-10-26
+
+- **Fix:** when two players share the same faction at about the same time (or a Share arrives after the party already knows it), Renown now answers "Discovery shared with party." Before, the player got the red "Renown request was not accepted" notice although nothing was wrong.
+- README: held reward copies are in **Ashen Gate / Backups / Renown Rewards** (it still named the old folder).
+- No change to saved data. Mocked tests only; hard to try by hand (it needs two players sharing together), so the test covers it.
+
 ## 0.20.0 — 2026-10-26
 
 Renown now files its Journals and held reward Items under one **Ashen Gate** folder instead of a second top-level folder: definitions, state and the per-player views go in **Ashen Gate / Factions Data**, import snapshots in **Ashen Gate / Backups**, held reward copies in **Ashen Gate / Backups / Renown Rewards**. On the first GM login after updating, Renown moves its own documents that are in the old **Ashen Gate — Factions Data** or **Ashen Gate Rewards (Renown)** folder (or loose); anything you filed somewhere else stays where you put it. Nothing is deleted (the old, now empty folders stay for you to delete) and no ownership or permission changes. Players still see only their own view.

@@ -111,6 +111,11 @@ const playerAuth=view1.getFlag(ns,'playerView');
 game.socket.emit(`module.${ns}`,{type:'share',factionId:'FACTION-MASK',userId:'p1',capability:playerAuth.capability});
 await new Promise(r=>setTimeout(r,30));
 test(view2.getFlag(ns,'playerView').payload.factions.some(f=>f.id==='FACTION-MASK'),'share with party reveals faction');
+// Sharing something the party already knows is not a refusal: the player gets an accepted receipt, not the red "not accepted" toast.
+{const sent=[],plain=game.socket.emit;game.socket.emit=(id,p)=>{sent.push(p);return plain(id,p);};
+ game.socket.emit(`module.${ns}`,{type:'share',factionId:'FACTION-MASK',userId:'p1',capability:playerAuth.capability,requestId:'again-1'});
+ await new Promise(r=>setTimeout(r,30));game.socket.emit=plain;
+ test(sent.some(m=>m.type==='receipt'&&m.requestId==='again-1'&&m.ok===true),'sharing an already shared faction answers accepted');}
 // Personal Renown remains private, and doesn't mutate Group standing.
 await actions.select.call(dashboard,null,{dataset:{id:'FACTION-IRON'}});
 await actions.award.call(dashboard,null,award('individual',3,'Saved a faction officer'));

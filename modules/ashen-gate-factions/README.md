@@ -23,7 +23,7 @@ Discovery can be all-or-nothing per faction, or field by field (Name, Leader, De
 
 Drop an item on a reward level (from the Items sidebar, a compendium, or any character or NPC sheet). Reward levels take **items only**; journals and other documents go on the information list.
 - The reward keeps the item's link, its picture and its **permanent item id** (from General Manager) when it has one; the editor shows a **Permanent id** badge (the GM can open Details for the id and Copy id), or **No permanent id**, and a red **Missing** badge when the item can't be found.
-- An item dragged off a sheet is copied into a GM-only **holding copy** (Items sidebar → folder *Ashen Gate Rewards (Renown)*). The sheet keeps its item. Removing the reward deletes its holding copy.
+- An item dragged off a sheet is copied into a GM-only **holding copy** (Items sidebar → folder *Ashen Gate / Backups / Renown Rewards*). The sheet keeps its item. Removing the reward deletes its holding copy.
 - When the GM approves a claim, the item is found by its permanent id first, then by its link, and copied to the character with everything inside it (containers). A claim is never granted twice. If the item is missing, the GM is told and the request stays waiting.
 
 Reward descriptions, teasers and rank benefits keep line breaks (`\n` in the source text; shown with `white-space: pre-line`, still escaped plain text).

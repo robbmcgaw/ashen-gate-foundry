@@ -334,7 +334,7 @@ const inFlight=new Set();
 async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.user.isGM||activeGM()?.id!==game.user.id)return;let accepted=false;const requestLock=[msg?.type,msg?.factionId,msg?.audience,msg?.actorId,msg?.rewardId,msg?.userId].join('/');if(inFlight.has(requestLock))return;inFlight.add(requestLock);try{
   const user=requestAuthorized(msg),fdoc=definition(msg.factionId);if(!fdoc)throw Error('Faction missing.');const f=loadDef(fdoc),actorIds=ownedActorIds(user);if(!discoverable({discovery:f.discovery,actorIds}))throw Error(`${isDeity(f)?'Deity':'Faction'} undiscovered for this player.`);
   if(msg.type==='share'){
-    if(!f.discovery.sharing_enabled)throw Error('Faction sharing disabled.');if(f.discovery.party)return;
+    if(!f.discovery.sharing_enabled)throw Error('Faction sharing disabled.');if(f.discovery.party){accepted=true;return;}
     f.discovery.party=true;
     // Sharing copies only profile fields this character has actually learned.
     if(f.field_reveals?.mode==='selective')for(const key of FIELD_KEYS){
