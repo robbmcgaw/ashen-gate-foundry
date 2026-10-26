@@ -18,7 +18,7 @@ import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.14.0';
+const VERSION='0.14.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -186,7 +186,7 @@ const TARGET_WORDS={'push.cost':'Push cost','backfire.chance':'Backfire chance',
 function socketView(h,fits){
   const empties=Array.from({length:h.free},(_,i)=>({index:i}));
   const spare=fits.filter(f=>!h.slots.some(x=>x.itemId===f.itemId));
-  return {instanceId:h.instanceId,capacity:h.capacity,used:h.slots.filter(x=>x.active).length,locked:h.locked,canEdit:h.canEdit,
+  return {instanceId:h.instanceId,capacity:h.capacity,used:h.slots.filter(x=>x.active).length,locked:h.locked,canEdit:h.canEdit,canDetach:h.canDetach===true,
     slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??'modifier'} ${signed(m.value)}`).join(' · ')})),
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
@@ -478,7 +478,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _help(){
     const gm=game.user.isGM?`<h3>Managing Cinders (GM)</h3>
       <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers, unbinds or deletes it (Manage → Cinders). Delete Cinder… lists what it removes first and refuses a Cinder that still has a bearer (Unbind… it first). Strain stays with each character.</p>
-      <p><strong>Sockets</strong> (Manage → Sockets): drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it, or use Attach…. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached.</p>
+      <p><strong>Sockets</strong> (Manage → Sockets): drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it, or use Attach…. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached. Only the GM can detach an item; players can attach and swap.</p>
       <p><strong>Stage art</strong> (Manage → Cinders): give a whole Cinder its art stages, with or without a bearer. Every bearer follows them unless their own Cinder has Stages… (Binding card); a re-import keeps them. General Manager's Assets tab fills them from files such as Echo_Cinder_Stage_1.webp.</p>
       <p><strong>Check</strong> (Manage → Check) lists anything out of step; Repair… fixes it after asking.</p>
       <p><strong>GM Setup</strong>: General holds Player Access, the Cinder limits, the Strain chip, art rotation and the Push offer; Strain holds the Strain editor. Both save with one Save Changes.</p>`:'';
@@ -541,6 +541,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _socketMenu(instanceId,slot,empty){
     if(empty)return this._socket('attach',instanceId,slot);
     const actor=this._socketActor(),x=cinders.socketsApi.slots(actor,instanceId)?.slots.find(s=>s.slot===slot);if(!x)throw Error('That socket is empty');
+    if(!game.user.isGM)return this._socket('swap',instanceId,slot); // only the GM may detach (data layer enforces it too)
     const mods=x.modifiers.map(m=>`<li>${esc(m.label)}: ${esc(TARGET_WORDS[m.target]??m.target)} ${esc(signed(m.value))}</li>`).join('');
     const pick=await choiceDialog(x.name,`<p>${x.active?'In an active socket: its Cinder modifiers count.':'Inactive: over capacity. It does nothing until another item is removed.'}</p>${mods?`<ul>${mods}</ul>`:''}`,
       [{action:'swap',label:'Swap item…',icon:'fa-solid fa-right-left'},{action:'detach',label:'Detach item',icon:'fa-solid fa-link-slash',danger:true}]);

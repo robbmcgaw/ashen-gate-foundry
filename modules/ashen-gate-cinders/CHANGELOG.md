@@ -1,3 +1,11 @@
+## 0.14.1 — 2026-10-26
+
+Only the GM can detach an item from a Cinder socket.
+
+- **Detach is GM-only, checked in the data layer.** `api.sockets.detach` refuses anyone but the GM with "Only the GM can detach an item from a Cinder." before any request is sent, and the GM client refuses a forged detach request from a player too. Attach and Swap are unchanged for the character's owner (Player Access on, Cinder not locked).
+- **No working Detach for players.** Tapping a filled socket now goes straight to Swap for a player; the GM still gets Swap or Detach. `api.sockets.hosts()` / `slots()` report `canDetach`. Manage → Sockets (GM only) shows Detach only when `canDetach`.
+- No saved-data change. Tests use mocked Foundry and prove the checks, not the live window.
+
 ## 0.14.0 — 2026-10-25
 
 The GM can delete a Cinder, for example one made with New Cinder that was never bound. Additive; no migration, no saved-data change.

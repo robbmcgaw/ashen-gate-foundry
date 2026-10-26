@@ -533,6 +533,7 @@ export function createCinders(deps){
   /** Attach, detach or swap on the GM client. One registry write, then the bearer's copy and the item markers. */
   async function socketOp(actor,instanceId,op,{user=game.user}={}){
     requireGM();if(!actor)throw Error('No character');notBackup(actor);
+    if(op.kind==='detach'&&!user.isGM)throw Error(DETACH_GM_ONLY);
     return withRegistry(async()=>{
       let registry=readRegistry();
       const inst=registry.instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
@@ -566,6 +567,7 @@ export function createCinders(deps){
     });
   }
   const SOCKET_KINDS=['attach','detach','swap'];
+  const DETACH_GM_ONLY='Only the GM can detach an item from a Cinder.';
   const cleanSocketOp=op=>{
     if(!op||!SOCKET_KINDS.includes(op.kind))throw Error('Unknown socket operation');
     const slot=op.slot==null||op.slot===''?null:Number(op.slot);
@@ -577,6 +579,7 @@ export function createCinders(deps){
     const op=cleanSocketOp(raw);op.opId??=`sock:${foundry.utils.randomID(16)}`;
     if(op.kind==='detach'&&op.slot==null)throw Error('Choose a socket');
     if(game.user.isGM)return socketOp(actor,instanceId,op);
+    if(op.kind==='detach')throw Error(DETACH_GM_ONLY);
     requirePlayerAccess();if(!actor.isOwner)throw Error('Actor access denied');
     const p=pointerFor(actor,instanceId);if(!p)throw Error('That character does not bear this Cinder');
     if(normalizeSockets(p.sockets).locked)throw Error('The GM has locked this Cinder\'s sockets');
@@ -588,7 +591,7 @@ export function createCinders(deps){
     return pointersOf(actor).map(p=>{
       const st=socketState(actor,p.definitionId,p.sockets);
       return {hostKind:'cinder',instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,capacity:st.plan.capacity,base:st.plan.base,
-        free:st.plan.free,locked:st.sockets.locked,canEdit:Boolean(game.user.isGM||(!st.sockets.locked&&actor.isOwner)),
+        free:st.plan.free,locked:st.sockets.locked,canEdit:Boolean(game.user.isGM||(!st.sockets.locked&&actor.isOwner)),canDetach:Boolean(game.user.isGM),
         slots:st.plan.slots.map(x=>{const item=itemOf(actor,x.itemId);return {slot:x.slot,itemId:x.itemId,sourceId:x.sourceId,name:item?.name??x.sourceId??x.itemId,active:x.active,
           modifiers:blockModifiers(sourceOf(item)?.definition).map(m=>({target:m.target,value:m.value,label:m.label}))};})};
     });
