@@ -1,6 +1,15 @@
-## 0.15.0 — 2026-10-26
+## 0.16.0 — 2026-10-26
 
 The GM-only records journal is filed in **Ashen Gate / Cinders** instead of loose at the top of the Journal sidebar. On the first GM login after updating, Cinders moves its own loose journal there; one you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
+
+## 0.15.0 — 2026-10-26
+
+Manage → Cinders: each Cinder is one line, like the Character Hub's rows.
+
+- **Why:** the Manage table became labelled stacked blocks at 40rem or less (a 640px window or narrower): four labelled lines and wrapping buttons, about 214px per Cinder, and still about 91px per Cinder at 980px because the three buttons wrapped. Now a Cinder is 37px at 640px and wider and 41px at 360px.
+- **One line.** Always: the bearer (an ellipsis when long) and the buttons, pinned at the right as icons (each with an aria-label naming the Cinder, and a tooltip), with their words from 52rem. Points appear at 30rem and Powers at 40rem of window width. Below 30rem Points and Powers sit in a small line under the bearer, so nothing is hidden.
+- Same buttons, same confirmations, same data; only the layout changed. The Sockets list, the Cinder sheet and GM Setup are unchanged: those lists hold at most 12 rows and were checked (43px a row at 480px and wider; 78px a row at 360px, where the buttons drop under the name but stay in reach).
+- Tests use mocked Foundry and prove markup and CSS text; widths were checked in a real browser.
 
 ## 0.14.1 — 2026-10-26
 
