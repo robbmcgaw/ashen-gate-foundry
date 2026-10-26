@@ -59,7 +59,7 @@
   {{#if refreshNeeded}}<p class="ag-notice ag-notice--info agf-notice" role="status"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Waiting for the GM to prepare your view. Reopen Renown once your GM is connected.</p>{{/if}}
 
   {{#if showFolders}}
-  <div class="ag-split agf-body" id="agf-view">
+  <div class="ag-split agf-body" id="agf-view" data-agf-scroll="body">
     <aside class="ag-split__list agf-folders" aria-label="Factions" data-agf-scroll="folders">
       {{#each folders}}
         <section class="agf-folder" data-folder-drop="{{key}}">
@@ -131,7 +131,7 @@
         {{#if orgs.isFaction}}<button type="button" class="ag-btn" data-action="create"><i class="fa-solid fa-plus" aria-hidden="true"></i> New faction…</button>{{else}}<button type="button" class="ag-btn" data-action="createDeity"><i class="fa-solid fa-plus" aria-hidden="true"></i> New deity…</button>{{/if}}
       </div>
     </div>
-    <div class="ag-split agf-body">
+    <div class="ag-split agf-body" data-agf-scroll="orgs-body">
       <aside class="ag-split__list agf-roster" aria-label="{{orgs.kindLabel}}" data-agf-scroll="roster">
         {{#each orgs.groups}}<section class="agf-roster__group" data-agf-group {{#if hidden}}hidden{{/if}}><h3 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{rows.length}}</span></h3>
           <div class="ag-rows agf-orgs">{{#each rows}}<button type="button" class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-action="select" data-id="{{id}}" data-agf-search="{{search}}" {{#if hidden}}hidden{{/if}}>

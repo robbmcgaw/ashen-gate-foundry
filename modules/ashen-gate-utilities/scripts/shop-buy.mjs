@@ -12,7 +12,7 @@ import {shopsFolderId} from './folder-nesting.mjs';
 import {focusKey,restoreFocus,refocusSoon,guardKeys} from './ui-parts.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
-import {windowSize,subTabs,tabPanelAttrs,fold,bindFolds,uiState} from './ag-html.mjs';
+import {windowSize,subTabs,tabPanelAttrs,fold,bindFolds,bindRadioGroups,uiState} from './ag-html.mjs';
 import {modeSwitch,sellViewHTML,sellFlow,sellDrop,quoteSell,sell} from './shop-sell.mjs';
 import {servicesAll,serviceViewHTML,bindServiceView,UNKNOWN_TYPE} from './services.mjs';
 
@@ -493,6 +493,7 @@ function shopWindowClass(){
    for(const b of content.querySelectorAll('[data-action="shop-sell"]'))b.addEventListener('click',()=>{if(b.disabled)return;const k=focusKey(b);b.disabled=true;sellFlow(b.dataset.shop,seller(),b.dataset.itemId,{payTo:this.payTo}).finally(()=>{b.disabled=false;refocusSoon(content,[k]);});});
    const body=content.querySelector('.agu-shop-window__body');
    if(body){
+    for(const g of body.querySelectorAll('[role="radiogroup"]'))bindRadioGroups(g); // Buy / Sell, Coins go to, the Bank's Whose coins: arrow keys (new nodes on every render)
     body.addEventListener('dragover',ev=>ev.preventDefault());
     body.addEventListener('drop',ev=>{ev.preventDefault();let v=null;try{v=viewOf(this.shopId);}catch{v=null;}
      if(!v){ui.notifications?.warn('Ask the GM to open this.');return;}

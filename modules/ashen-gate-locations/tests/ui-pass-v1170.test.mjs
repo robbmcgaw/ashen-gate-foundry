@@ -100,7 +100,7 @@ test('location editor: Cancel bottom-left, Save Changes (the only gold button) b
   assert.match(head, /class="ag-btn ag-btn--danger ag-btn--sm" data-action="delete"><i class="fa-solid fa-trash" aria-hidden="true"><\/i><span>Delete location<\/span>/);
   const editor = html.slice(html.indexOf('<form class="agl-editor"'));
   assert.equal((editor.match(/ag-btn--primary/g) ?? []).length, 1, 'one gold button in the editor');
-  assert.match(html, /<div class="ag-segmented agl-state" role="radiogroup" aria-label="What players see">/);
+  assert.match(html, /<div class="ag-segmented agl-state" role="group" aria-label="What players see">/);
   // A new, unsaved location has nothing to delete: Cancel is the way out.
   await app.onAction({dataset: {action: 'new'}}).catch(() => {});
   app.draft ??= {}; app.selectedId = null;

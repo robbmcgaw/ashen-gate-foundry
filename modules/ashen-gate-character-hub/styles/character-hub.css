@@ -99,9 +99,10 @@
 /* Tab rail: kit .ag-siderail; the open view is filled with the accent. 0.33.0 (CH-01): each tab shows its name under the
    icon (a narrow middle width, 901-1000 px, keeps icons only; the name stays the tooltip and accessible name there).
    GM Setup carries the kit's GM marker while the names show. */
-.agch-app .agch-rail { background: var(--agch-bg-raised); }
+/* A short window: the rail scrolls down (without a bar; the kit fades the cut-off end) instead of running past the window edge. */
+.agch-app .agch-rail { background: var(--agch-bg-raised); min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .agch-app .agch-rail__tab { position: relative; font-size: var(--ag-text-lg); }
-.agch-app .agch-rail .agch-rail__tab { width: auto; min-width: 4.5rem; height: auto; min-height: var(--ag-row-h); padding: var(--ag-space-1); display: grid; justify-items: center; align-content: center; gap: 0; border-radius: var(--ag-radius); }
+.agch-app .agch-rail .agch-rail__tab { flex: none; width: auto; min-width: 4.5rem; height: auto; min-height: var(--ag-row-h); padding: var(--ag-space-1); display: grid; justify-items: center; align-content: center; gap: 0; border-radius: var(--ag-radius); }
 .agch-app .agch-rail__label { font-size: var(--ag-text-xs); line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
 .agch-app .agch-rail__tab.ag-tab--gm::after { margin: 0; line-height: 1.2; }
 @container (min-width: 901px) and (max-width: 1000px) {

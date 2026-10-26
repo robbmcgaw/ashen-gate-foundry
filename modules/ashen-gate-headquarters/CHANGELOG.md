@@ -1,3 +1,10 @@
+## 0.15.1 — 2026-10-26
+
+Narrow-window fix (shared kit 2.4.0).
+
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: open Headquarters as the GM and make the window about 640 px wide: the tab row fades at the right edge and GM Setup is reachable; open GM Setup and reopen the window and GM Setup is scrolled into view.
+
 ## 0.15.0 — 2026-10-26
 
 The private vault journal is filed in **Ashen Gate / Headquarters** instead of loose at the top of the Journal sidebar. On the first GM login after the vault loads, Headquarters moves its own loose vault there; one you filed elsewhere stays. Only the folder changes: the vault pointer, its content and its permissions are untouched, and nothing is deleted.

@@ -160,6 +160,9 @@
   .agf-level-editor__text { grid-column:2 / -1; }
 }
 @container (max-width:40rem) {
+  /* Stacked split (kit 2.4.0): the editor and its body take their natural height and the split scrolls once. */
+  .agf-shell .agf-editor { overflow:visible; }
+  .agf-editor__body { flex:0 0 auto; overflow:visible; }
   .agf-pane { padding:var(--ag-space-2) var(--ag-space-3); }
   .agf-award__row { grid-template-columns:minmax(0,1fr); }
   .agf-deity-card { grid-template-columns:minmax(0,1fr); }

@@ -1,6 +1,7 @@
 /**
  * Ashen Gate shared HTML helpers (ag-html.mjs, UI kit 2).
  * Every module that ships this file ships an identical copy; scripts/check.mjs fails if the copies drift.
+ * Kit 2.4.0 adds bindSplitNav (stacked list/detail: scroll to the detail on select, Back to list), bindRadioGroups (WAI-ARIA radio group keys for role="radiogroup" switches) and bindScrollTabs (edge cues on a scrolling tab strip).
  * Kit 2.3.0 adds idSlug/generateId/checkNewId, pickerOptions/filterPickerOptions/missingLabel and refPicker/bindRefPickers
  * (permanent ids made for the GM and searchable record pickers; docs/ui-ux-guidelines.md §17b). Kit 2.2.0 adds uiState, subTabs/tabPanelAttrs/bindTablist, fold/bindFolds, fileButton/bindFileButtons and
  * linkButton. They are additive: nothing calls them until a module adopts them (usage: docs/ui-ux-guidelines.md §17).
@@ -84,7 +85,8 @@ export function tabPanelAttrs(group, tab, {hidden = false} = {}) {
  * root: a [role="tablist"] element, or a container whose tablists are all bound. Tabs are its role="tab" children,
  * or its direct buttons/links (which then get role="tab"). Wires each tab's aria-controls panel with
  * role="tabpanel" and aria-labelledby. Clicks keep running the module's own handlers; with {state, key} a clicked
- * tab's data-tab is also remembered (read it back with state.get(key, fallback, ids)). Returns an unbind function.
+ * tab's data-tab is also remembered (read it back with state.get(key, fallback, ids)). A scrolling strip (.ag-tabs--scroll) or
+ * side rail (.ag-siderail) also gets bindScrollTabs(), so it shows where more tabs are hidden. Returns an unbind function.
  */
 export function bindTablist(root, {state, key} = {}) {
   if (!root?.querySelectorAll) return () => {};
@@ -129,8 +131,244 @@ export function bindTablist(root, {state, key} = {}) {
     list.addEventListener('keydown', onKey);
     list.addEventListener('click', onClick);
     undo.push(() => { list.removeEventListener('keydown', onKey); list.removeEventListener('click', onClick); });
+    if (list.matches?.('.ag-tabs--scroll, .ag-siderail')) undo.push(bindScrollTabs(list));
   }
   return () => undo.forEach(fn => fn());
+}
+
+const SPLIT_BOUND = new WeakMap();
+let splitPending = null;
+const SPLIT_SELECTED = '[aria-current="true"], .is-selected, .is-focused';
+const SPLIT_CONTROL = 'button, a[href], [role="button"]';
+const splitKey = el => radioKey(el) || String(el.textContent ?? '').trim().slice(0, 80);
+const splitMotion = () => (globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth');
+/** True while the split shows one column (the kit's narrow layout): list above, detail below. */
+export function isSplitStacked(split) {
+  const cols = globalThis.getComputedStyle?.(split)?.gridTemplateColumns;
+  return !!cols && cols !== 'none' && cols.trim().split(/\s+/).length === 1;
+}
+const hasClass = (el, name) => typeof el?.classList?.contains === 'function' ? el.classList.contains(name) : String(el?.className ?? '').split(/\s+/).includes(name);
+const splitDetail = split => [...(split.children ?? [])].find(c => hasClass(c, 'ag-split__detail'));
+const splitList = split => [...(split.children ?? [])].find(c => hasClass(c, 'ag-split__list'));
+
+/** Brings the detail of a stacked split into view and moves focus to its heading (or its first control). */
+export function showSplitDetail(split) {
+  const detail = splitDetail(split);
+  if (!detail) return false;
+  detail.scrollIntoView?.({block: 'start', behavior: splitMotion()});
+  const heading = detail.querySelector?.('h1, h2, h3, h4');
+  let target = heading;
+  if (target) { if (target.getAttribute('tabindex') === null) target.setAttribute('tabindex', '-1'); }
+  else target = [...(detail.querySelectorAll?.('button, input, select, textarea, a[href]') ?? [])].find(x => !x.disabled && !hasClass(x, 'ag-split__back'));
+  if (!target) { if (detail.getAttribute('tabindex') === null) detail.setAttribute('tabindex', '-1'); target = detail; }
+  target.focus?.({preventScroll: true});
+  return true;
+}
+
+/** Back to the list of a stacked split: scrolls the selected row into view and puts focus on it. */
+export function showSplitList(split) {
+  const list = splitList(split);
+  if (!list) return false;
+  const row = list.querySelector?.('[aria-current="true"]') ?? list.querySelector?.('.is-selected, .is-focused');
+  const control = row && (row.matches?.(SPLIT_CONTROL) ? row : row.querySelector?.(SPLIT_CONTROL));
+  const target = control ?? row ?? list;
+  target.scrollIntoView?.({block: row ? 'center' : 'start', behavior: splitMotion()});
+  if (control) control.focus?.({preventScroll: true});
+  return true;
+}
+
+/**
+ * Stacked list + detail (.ag-split in one column, narrow windows): the detail sits below the whole list, so picking a row
+ * would leave the user looking at the list. This scrolls the detail into view and focuses its heading when a row is picked
+ * (a click on a list button or link that ends up selected, with or without a re-render) or when a "create" control is
+ * used, and gives the detail a "Back to list" button, visible only while stacked, that scrolls the selected row back into
+ * view and focuses it. Side by side (wide windows) it does nothing visible. Rows are recognised by what the kit already
+ * marks selected (aria-current="true", .is-selected or .is-focused); {create: selector} names the controls that make a new
+ * record. Call it after every render with the window root: one delegated listener per root, and a click's intent survives a
+ * re-render (it is acted on by the next call). Motion is instant under prefers-reduced-motion. Returns an unbind function.
+ */
+export function bindSplitNav(root, {create} = {}) {
+  if (!root?.querySelectorAll) return () => {};
+  const doc = root.ownerDocument ?? globalThis.document;
+  const splits = () => (root.matches?.('.ag-split') ? [root] : [...root.querySelectorAll('.ag-split')]);
+  for (const split of splits()) {
+    const detail = splitDetail(split);
+    if (detail && !detail.querySelector?.('.ag-split__back') && doc?.createElement) {
+      const back = doc.createElement('button');
+      back.setAttribute('type', 'button');
+      back.setAttribute('class', 'ag-btn ag-btn--ghost ag-btn--sm ag-split__back');
+      back.setAttribute('data-ag-split-back', '');
+      back.innerHTML = '<i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Back to list</span>';
+      detail.insertBefore ? detail.insertBefore(back, detail.children?.[0] ?? null) : detail.prepend?.(back);
+    }
+  }
+  const settle = () => {
+    if (!splitPending) return;
+    if (Date.now() - splitPending.at > 3000) { splitPending = null; return; }
+    for (const split of splits()) {
+      if (!isSplitStacked(split)) continue;
+      let ok = splitPending.create;
+      if (!ok) {
+        const list = splitList(split);
+        const mine = list && [...list.querySelectorAll(SPLIT_CONTROL)].find(c => splitKey(c) === splitPending.key);
+        const chosen = list?.querySelector?.(SPLIT_SELECTED);
+        ok = !!(mine && chosen && (chosen === mine || chosen.contains?.(mine) || mine.contains?.(chosen)));
+      }
+      if (ok) { splitPending = null; (globalThis.requestAnimationFrame ?? (f => f()))(() => showSplitDetail(split)); return; } // after a module restores its scroll offsets
+    }
+  };
+  settle();
+  if (SPLIT_BOUND.has(root)) return SPLIT_BOUND.get(root);
+  if (typeof root.addEventListener !== 'function') return () => {};
+  const onClick = event => {
+    const t = event.target;
+    if (!t?.closest) return;
+    const back = t.closest('.ag-split__back');
+    if (back) { const split = back.closest('.ag-split'); if (split) showSplitList(split); return; }
+    if (create && t.closest(create)) { splitPending = {create: true, at: Date.now()}; setTimeout(settle, 400); return; }
+    if (/^(INPUT|SELECT|TEXTAREA|LABEL)$/.test(t.tagName)) return;
+    const control = t.closest(SPLIT_CONTROL);
+    if (!control || !control.closest('.ag-split__list')) return;
+    const key = splitKey(control);
+    if (!key) return;
+    splitPending = {key, at: Date.now()};
+    setTimeout(settle, 400);
+  };
+  root.addEventListener('click', onClick);
+  const unbind = () => { root.removeEventListener('click', onClick); SPLIT_BOUND.delete(root); };
+  SPLIT_BOUND.set(root, unbind);
+  return unbind;
+}
+
+const SCROLL_BOUND = new WeakMap();
+
+/**
+ * Scroll cue for a tab strip that scrolls (.ag-tabs--scroll, or a .ag-siderail that overflows): sets data-ag-more-before /
+ * data-ag-more-after (and data-ag-axis="x" | "y") on it while more tabs lie hidden in that direction, and the kit CSS fades
+ * that edge. It also scrolls the selected tab (aria-selected="true", .active or aria-current) into view when called, which a
+ * re-render would otherwise lose, and keeps a focused tab clear of the fade (CSS scroll-padding does that for the browser's
+ * own focus scrolling). Nothing animates, so reduced motion needs no special case. bindTablist() calls it for you; call it
+ * directly for a strip that does not use bindTablist. One listener set per element, so calling it after every render is
+ * safe. Returns an unbind function.
+ */
+export function bindScrollTabs(list) {
+  if (!list?.addEventListener || typeof list.scrollWidth !== 'number') return () => {};
+  const axisOf = () => list.scrollWidth - list.clientWidth > 1 ? 'x' : list.scrollHeight - list.clientHeight > 1 ? 'y' : null;
+  const fitSelected = () => {
+    const axis = axisOf();
+    const on = list.querySelector?.('[aria-selected="true"], .active, [aria-current]');
+    if (!axis || !on?.getBoundingClientRect) return;
+    const a = list.getBoundingClientRect(), b = on.getBoundingClientRect(), pad = 28;
+    if (axis === 'y') {
+      if (b.top < a.top + pad) list.scrollTop = Math.max(0, list.scrollTop - (a.top + pad - b.top));
+      else if (b.bottom > a.bottom - pad) list.scrollTop += b.bottom - (a.bottom - pad);
+    } else if (b.left < a.left + pad) list.scrollLeft = Math.max(0, list.scrollLeft - (a.left + pad - b.left));
+    else if (b.right > a.right - pad) list.scrollLeft += b.right - (a.right - pad);
+  };
+  const known = SCROLL_BOUND.get(list);
+  if (known) { known.update(); fitSelected(); known.update(); return known.unbind; }
+  const update = () => {
+    const axis = axisOf();
+    const size = axis === 'y' ? list.scrollHeight : list.scrollWidth, view = axis === 'y' ? list.clientHeight : list.clientWidth;
+    const pos = Math.abs(axis === 'y' ? list.scrollTop : list.scrollLeft);
+    const set = (name, on) => (on ? list.setAttribute(name, '') : list.removeAttribute(name));
+    if (axis) list.setAttribute('data-ag-axis', axis); else list.removeAttribute('data-ag-axis');
+    set('data-ag-more-before', !!axis && pos > 1);
+    set('data-ag-more-after', !!axis && pos + view < size - 1);
+  };
+  list.addEventListener('scroll', update, {passive: true});
+  let watcher = null;
+  if (typeof globalThis.ResizeObserver === 'function') {
+    watcher = new globalThis.ResizeObserver(update);
+    watcher.observe(list);
+    for (const child of list.children ?? []) watcher.observe(child);
+  }
+  const unbind = () => { list.removeEventListener('scroll', update); watcher?.disconnect(); SCROLL_BOUND.delete(list); };
+  SCROLL_BOUND.set(list, {update, unbind});
+  update();
+  fitSelected();
+  update();
+  return unbind;
+}
+
+const RADIO_BOUND = new WeakMap();
+let radioPendingFocus = null;
+const radiosOf = group => [...group.querySelectorAll('[role="radio"]')].filter(r => r.closest('[role="radiogroup"]') === group);
+const radioKey = el => el.getAttribute('id') || [...(el.getAttributeNames?.() ?? [])].filter(n => n.startsWith('data-')).sort().map(n => `${n}=${el.getAttribute(n)}`).join('|');
+const groupKey = group => group.getAttribute('id') || group.getAttribute('aria-label') || group.getAttribute('aria-labelledby') || '';
+
+/** Roving tabindex for one radiogroup: the checked radio (or the first enabled one) is the only Tab stop. */
+function syncRadioGroup(group) {
+  const all = radiosOf(group);
+  const enabled = all.filter(r => !r.disabled);
+  const stop = enabled.find(r => r.getAttribute('aria-checked') === 'true') ?? enabled[0];
+  for (const r of all) {
+    if (r.getAttribute('aria-checked') === null) r.setAttribute('aria-checked', 'false');
+    r.setAttribute('tabindex', r === stop ? '0' : '-1');
+  }
+}
+
+/**
+ * Keyboard pattern for value switches (W3C APG Radio Group): root is a [role="radiogroup"] element or a container of them
+ * (buttons with role="radio" and aria-checked, e.g. the kit's .ag-segmented). One Tab stop per group (roving tabindex on the
+ * checked radio, or the first when none is), Right/Down and Left/Up move focus to the next/previous enabled radio, wrapping,
+ * Home/End jump to the ends, and the radio that gets focus is also selected by clicking it, so the module's own click handler
+ * runs exactly as for a mouse click. If that handler leaves aria-checked alone, the kit moves it. Space/Enter still click.
+ * Safe to call after every render: it re-syncs tabindex and adds ONE delegated listener per root (groups added later are
+ * covered), so re-renders never stack handlers. If the click re-rendered and focus fell to the page, the next call restores it
+ * to the same radio (found by its group label and data-* attributes). Use it only for groups where selecting is harmless to
+ * repeat; a choice with consequences (it saves, publishes or asks first) is a group of aria-pressed buttons instead.
+ * Returns an unbind function.
+ */
+export function bindRadioGroups(root) {
+  if (!root?.querySelectorAll) return () => {};
+  const groups = () => root.matches?.('[role="radiogroup"]') ? [root] : [...root.querySelectorAll('[role="radiogroup"]')];
+  const found = groups();
+  for (const g of found) syncRadioGroup(g);
+  const doc = root.ownerDocument ?? globalThis.document;
+  if (radioPendingFocus && Date.now() - radioPendingFocus.at > 2000) radioPendingFocus = null;
+  if (radioPendingFocus) {
+    const active = doc?.activeElement;
+    if (active && active !== doc.body && active.isConnected !== false) radioPendingFocus = null;
+    else {
+      const g = found.find(x => groupKey(x) === radioPendingFocus.group);
+      const target = g && radiosOf(g).find(r => radioKey(r) === radioPendingFocus.radio && !r.disabled);
+      if (target) { radioPendingFocus = null; target.focus?.(); }
+    }
+  }
+  if (RADIO_BOUND.has(root)) return RADIO_BOUND.get(root);
+  if (typeof root.addEventListener !== 'function') return () => {};
+  const onKey = event => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    const current = event.target?.closest?.('[role="radio"]');
+    const group = current?.closest?.('[role="radiogroup"]');
+    if (!group) return;
+    const items = radiosOf(group).filter(r => !r.disabled && !r.hidden);
+    const i = items.indexOf(current);
+    if (i < 0) return;
+    const to = {ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: items.length - 1}[event.key];
+    if (to === undefined) return;
+    event.preventDefault();
+    const next = items[(to + items.length) % items.length];
+    if (next === current) return;
+    radioPendingFocus = {group: groupKey(group), radio: radioKey(next), at: Date.now()};
+    next.focus?.();
+    next.click?.();
+    // The module's handler may already have moved the selection (or re-rendered); only fill in what it left alone.
+    if (current.getAttribute('aria-checked') === 'true' && next.getAttribute('aria-checked') !== 'true') {
+      for (const r of radiosOf(group)) r.setAttribute('aria-checked', String(r === next));
+    }
+    syncRadioGroup(group);
+  };
+  const onClick = event => {
+    const group = event.target?.closest?.('[role="radio"]')?.closest?.('[role="radiogroup"]');
+    if (group) syncRadioGroup(group);
+  };
+  root.addEventListener('keydown', onKey);
+  root.addEventListener('click', onClick);
+  const unbind = () => { root.removeEventListener('keydown', onKey); root.removeEventListener('click', onClick); RADIO_BOUND.delete(root); };
+  RADIO_BOUND.set(root, unbind);
+  return unbind;
 }
 
 /**

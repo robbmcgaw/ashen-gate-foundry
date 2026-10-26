@@ -42,8 +42,9 @@ test('GM builder: list, editor with toggles, quest picker, no ID input', async (
   app.select('LOC-TEST-MILLBROOK');
   const editor = await app._renderHTML();
   assert.match(editor, /data-action="state" data-state="revealed"/);
-  assert.match(editor, /role="radio" aria-checked="true" data-action="state" data-state="revealed"/, 'current state is checked in the segmented control');
-  assert.match(editor, /role="radio" aria-checked="false" data-action="state" data-state="hidden"/);
+  assert.match(editor, /aria-pressed="true" data-action="state" data-state="revealed"/, 'current state is pressed in the segmented control');
+  assert.match(editor, /aria-pressed="false" data-action="state" data-state="hidden"/);
+  assert.doesNotMatch(editor, /role="radio"[^>]*data-action="state"/, 'a choice that saves and publishes is a group of pressed buttons, not a radio group (no arrow-key selecting)');
   assert.match(editor, /data-action="publish"/);
   assert.match(editor, /data-action="preview"/);
   assert.match(editor, /data-bind="unidentifiedLabel"/);

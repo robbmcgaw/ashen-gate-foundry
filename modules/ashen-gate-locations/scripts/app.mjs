@@ -7,7 +7,7 @@ import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
-import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
+import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
@@ -596,7 +596,7 @@ export class LocationsApp extends Base {
         <select data-bind="loot.${e.key}.status" aria-label="Loot status">${LOOT_STATUSES.map(st => `<option value="${st}" ${e.status === st ? 'selected' : ''}>${LOOT_STATUS_LABELS[st]}</option>`).join('')}</select></span>`);
 
     const unpublished = d.id && hasUnpublishedChanges(d);
-    const stateBar = `<div class="ag-segmented agl-state" role="radiogroup" aria-label="What players see">${STATES.map(st => `<button type="button" role="radio" aria-checked="${d.state === st}" data-action="state" data-state="${st}"${
+    const stateBar = `<div class="ag-segmented agl-state" role="group" aria-label="What players see">${STATES.map(st => `<button type="button" aria-pressed="${d.state === st}" data-action="state" data-state="${st}"${
         tip(d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`)}><i class="${STATE_ICONS[st]}" aria-hidden="true"></i> ${STATE_LABELS[st]}</button>`).join('')}</div>`;
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {
@@ -1013,6 +1013,7 @@ export class LocationsApp extends Base {
     // 0.19.0: kit keyboard pattern for the tab rows (one Tab stop, Left/Right, Home/End) and the remembered folds.
     bindTablist(root.querySelector('.agl-root') ?? root);
     bindFolds(root, uiMem());
+    bindSplitNav(root, {create: '[data-action="new"]'}); // stacked: scroll to the editor, Back to list
     // Editor sub-tabs: nothing is lost on a switch (the draft stays in memory), so no discard question.
     for (const b of root.querySelectorAll('.ag-tabs--sub[aria-label="Location editor sections"] [data-tab]')) b.addEventListener('click', async () => {
       this.editorTab = uiMem().set('editorTab', b.dataset.tab);

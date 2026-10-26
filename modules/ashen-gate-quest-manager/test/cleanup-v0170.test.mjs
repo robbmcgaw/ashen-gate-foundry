@@ -49,7 +49,7 @@ test('QL-01: location links are real buttons (kit linkButton), in the window and
 });
 test('QL-04: Party puts the character picker in the Character notes heading; Individual keeps it in the toolbar',async()=>{
  reset();app.tab='party';let html=await app.render();
- const toolbar=h=>h.slice(h.indexOf('<div class="ag-toolbar agq-toolbar">'),h.indexOf('<div class="ag-split agq-split">'));
+ const toolbar=h=>h.slice(h.indexOf('<div class="ag-toolbar agq-toolbar">'),h.indexOf('<div class="ag-split agq-split"'));
  assert.doesNotMatch(toolbar(html),/id="ag-actor"/);
  assert.match(html,/<h3 class="agq-h">Character notes<\/h3><label class="ag-field agq-notefor">Character<select id="ag-actor" aria-label="Character for notes">/);
  app.tab='individual';html=await app.render();

@@ -1,3 +1,13 @@
+## 0.27.2 — 2026-10-26
+
+Narrow-window fixes (shared kit 2.4.0).
+
+- **A narrow window no longer scrolls a list inside the page.** When the list and the editor stack, the list takes its natural height and the window scrolls once. Side by side (wider windows) the list and the editor keep their own scroll.
+- The Quest Log remembers where you were scrolled in that single scroll area when the window redraws.
+- **Stacked list and editor: picking a row brings the editor into view.** In a narrow window, picking a row (or creating a new one) scrolls to the editor or reading pane and moves focus to its heading, and a **Back to list** button at its top (shown only while stacked) scrolls back to the selected row and focuses it. Wide windows are unchanged; scrolling is instant under reduced motion.
+- **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
+- No change to saved data. Check in Forge: Quest Log > Quests with the window about 600 px wide or less: the quest list is full length with no scroll box of its own, and the editor follows it.
+
 ## 0.27.1 — 2026-10-26
 
 Fix: the objective rows in the quest editor ran off the right edge when the window was a little narrower than its default.

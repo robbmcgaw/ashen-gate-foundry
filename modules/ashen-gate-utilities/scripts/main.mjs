@@ -1,7 +1,7 @@
 import {ID,VERSION,isPlayerCharacter,overlayCards,overlayControlState,sharedConditionChoices,unknownStatusLabel,statusIsToggleable,manualStatusEntries,friendlyStatusError,cleanConditionIcons,conditionIconChange,resolveConditionIcon,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,planStashDelete,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
-import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
+import {windowSize,subTabs,tabPanelAttrs,bindTablist,bindRadioGroups,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,grantBundle} from './ag-item-drop.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks,shopsDirty} from './shops.mjs';
 import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus,refocusSoon,guardKeys,stopActivationKeys} from './ui-parts.mjs';
@@ -383,6 +383,8 @@ class UtilitiesApp extends ApplicationV2 {
   if(nav){bindTablist(nav);for(const el of nav.querySelectorAll('[data-tab]'))el.addEventListener('click',()=>{this.selectTab(el.dataset.tab).catch(error);});}
   // Sub-tabs (Rolls, Party Inventory, Shops): one Tab stop, arrow keys; each module handler still runs on click.
   for(const list of root.querySelectorAll('.ag-tabs--sub'))bindTablist(list);
+  // Value switches (Change coins action and Whose coins): arrow keys, one Tab stop per group.
+  for(const g of root.querySelectorAll('[role="radiogroup"]'))bindRadioGroups(g);
   for(const b of root.querySelectorAll('[id^="agu-rolls-tab-"]'))b.addEventListener('click',()=>{this.rollsSub=b.dataset.tab;this.render().catch(error);});
   const start=root.querySelector('[data-start-rolls] details');
   start?.addEventListener('toggle',()=>{this.startOpen=start.open;});

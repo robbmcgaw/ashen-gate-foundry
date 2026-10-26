@@ -35,7 +35,11 @@ export class FakeElement {
   getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; }
   setAttribute(k, v) { this.attrs.set(k, String(v)); }
   removeAttribute(k) { this.attrs.delete(k); }
+  getAttributeNames() { return [...this.attrs.keys()]; }
   append(...kids) { for (const k of kids) { k.parentElement = this; k.ownerDocument ??= this.ownerDocument; this.children.push(k); } return this; }
+  prepend(...kids) { for (const k of kids) { k.parentElement = this; k.ownerDocument ??= this.ownerDocument; } this.children.unshift(...kids); return this; }
+  insertBefore(el, ref) { el.parentElement = this; el.ownerDocument ??= this.ownerDocument; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(el); else this.children.splice(i, 0, el); return el; }
+  contains(el) { for (let e = el; e; e = e.parentElement) if (e === this) return true; return false; }
   remove() { const p = this.parentElement; if (p) { p.children = p.children.filter(c => c !== this); this.parentElement = null; } }
   replaceWith(el) { const p = this.parentElement; if (!p) return; p.children = p.children.map(c => c === this ? el : c); el.parentElement = p; el.ownerDocument ??= p.ownerDocument; this.parentElement = null; }
   addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
@@ -58,7 +62,7 @@ export class FakeElement {
 }
 
 function matchCompound(el, sel) {
-  const parts = sel.match(/^[a-z]+|\.[\w-]+|\[[^\]]+\]/gi) ?? [];
+  const parts = sel.match(/^[a-z][a-z0-9]*|\.[\w-]+|\[[^\]]+\]/gi) ?? [];
   if (parts.join('') !== sel) throw new Error(`fake-dom cannot match selector "${sel}"`);
   return parts.every(p => {
     if (p.startsWith('.')) return el.classList.contains(p.slice(1));
