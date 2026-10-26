@@ -101,7 +101,8 @@ export const COLUMNS = {
 };
 
 /** `col.cls` adds a class (Magic's fixed-width columns, 0.55.0); `col.tip` puts the plain value in a tooltip, since the cell may be cut with an ellipsis. */
-export const cell = (col, row) => `<span class="agch-card__fact${col.late ? ' agch-card__fact--late' : ''}${col.cls ? ` ${col.cls}` : ''}" data-label="${esc(col.label)}"${col.tip && row.facts?.[col.key] ? ` data-tooltip="${esc(row.facts[col.key])}"` : ''}>${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
+const tipOf = (col, row) => (typeof col.tip === 'function' ? col.tip(row) : col.tip ? row.facts?.[col.key] : '');
+export const cell = (col, row) => `<span class="agch-card__fact${col.late ? ' agch-card__fact--late' : ''}${col.cls ? ` ${col.cls}` : ''}" data-label="${esc(col.label)}"${tipOf(col, row) ? ` data-tooltip="${esc(tipOf(col, row))}"` : ''}>${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
 
 /**
  * One item card. `expanded` (Set of item ids) keeps "More" open across re-renders. `lead` is HTML before the image

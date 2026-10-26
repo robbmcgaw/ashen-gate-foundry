@@ -748,47 +748,48 @@
 .agch-app .agch-spell__facts dt::after { content: ":"; }
 .agch-app .agch-spell__facts dd { margin: 0; }
 /* 0.55.0 Magic: every spell is exactly one line. Fixed column tracks (not content-driven), so every row and the heading line up.
-   As the Hub body narrows its columns drop in this order, each one moving into the open row: Components (760px), Casting (660px),
-   Range (560px, its place taken by the short "Action · 30 ft" text), that text (440px); at 380px Cast keeps only its icon. */
-.agch-app .agch-spells { --agch-sp-prep: 6.25rem; --agch-sp-cast: 4.75rem; --agch-sp-actions: calc(var(--agch-sp-prep) + var(--agch-sp-cast) + var(--ag-space-1)); }
-.agch-app .agch-spells.agch-cards { display: grid; grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 6.5rem 5rem 5.5rem var(--agch-sp-actions); }
-.agch-app .agch-spells.agch-cards > li { display: grid; grid-template-columns: subgrid; align-items: center; }
+   Always shown: star, icon, chevron, name, C / R badges, Prepare / Prepared / Always, Cast (pinned right). Optional columns, last to
+   first to go as the Hub body narrows (each moves into the open row): Dice, Range, Casting, Components. Steps: Components 680px,
+   Casting 590px, Range 505px, Dice shrinks 455px, Dice 415px. A casting time that is not a plain Action keeps a short badge by
+   the name once Casting is hidden. The actions track has a fixed width (buttons plus a gutter of one space-2 on their left, and the row's own padding on their right), so the data columns never move with the button text. Below 384px the list scrolls sideways and the buttons stay pinned. Mirrors SPELL_STEPS. */
+.agch-app .agch-spells { --agch-sp-prep: 5.25rem; --agch-sp-cast: 4.5rem; --agch-sp-actions: calc(var(--agch-sp-prep) + var(--agch-sp-cast) + var(--ag-space-1)); --agch-sp-track: calc(var(--agch-sp-actions) + var(--ag-space-2)); min-width: 24rem; }
+.agch-app .agch-spells.agch-cards { display: grid; grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 4rem 5.25rem 5rem var(--agch-sp-track); }
+.agch-app .agch-spells.agch-cards > li { display: grid; grid-template-columns: subgrid; align-items: center; column-gap: var(--ag-space-1); padding-inline: var(--ag-space-2); }
 .agch-app .agch-spells.agch-cards > .agch-card__headrow { display: grid; }
 .agch-app .agch-spells .agch-card__main { display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; flex: none; }
 .agch-app .agch-spell__name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 .agch-app .agch-spells .agch-item__badges { flex: 0 0 auto; flex-wrap: nowrap; }
-.agch-app .agch-spells .agch-flag { padding-inline: var(--ag-space-1); justify-content: center; }
+.agch-app .agch-spells .agch-flag, .agch-app .agch-spells .agch-cast-ex { padding-inline: var(--ag-space-1); justify-content: center; }
+.agch-app .agch-spells .agch-cast-ex { display: none; }
 .agch-app .agch-spells .agch-card__fact { min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agch-app .agch-spells .agch-card__fact::before { content: none; }
 .agch-app .agch-spells > .agch-card__headrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agch-app .agch-spells > .agch-card__headrow > span:last-child { text-align: end; }
-.agch-app .agch-spells .agch-sp-brief { display: none; }
-.agch-app .agch-spells .agch-card__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--ag-space-1); width: var(--agch-sp-actions); }
-.agch-app .agch-spells .agch-prep { box-sizing: border-box; flex: 0 0 var(--agch-sp-prep); width: var(--agch-sp-prep); min-height: var(--ag-control-h-sm); padding-block: 0; padding-inline: var(--ag-space-3); justify-content: center; border-radius: var(--ag-radius-control); font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); white-space: nowrap; }
+.agch-app .agch-spells .agch-card__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--ag-space-1); box-sizing: border-box; width: var(--agch-sp-track); padding-inline-start: var(--ag-space-2); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--ag-surface); }
+.agch-app .agch-spells > .agch-card__headrow > span:last-child { position: sticky; inset-inline-end: 0; background: var(--agch-bg-sunken); }
+.agch-app .agch-spells .agch-prep { box-sizing: border-box; flex: 0 0 var(--agch-sp-prep); width: var(--agch-sp-prep); min-height: var(--ag-control-h-sm); padding-block: 0; padding-inline: var(--ag-space-2); justify-content: center; border-radius: var(--ag-radius-control); font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); white-space: nowrap; }
 .agch-app .agch-spells .agch-prep--always { cursor: default; }
 .agch-app .agch-spells .agch-prep--none { visibility: hidden; padding: 0; border: 0; }
-.agch-app .agch-spells .agch-cast { flex: 0 0 var(--agch-sp-cast); width: var(--agch-sp-cast); white-space: nowrap; }
-@container agch-body (max-width: 760px) {
+.agch-app .agch-spells .agch-cast { flex: 0 0 var(--agch-sp-cast); width: var(--agch-sp-cast); padding-inline: var(--ag-space-2); white-space: nowrap; }
+@container agch-body (max-width: 680px) {
   .agch-app .agch-spells .agch-sp-comps { display: none; }
-  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 6.5rem 5rem var(--agch-sp-actions); }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 4rem 5.25rem var(--agch-sp-track); }
 }
-@container agch-body (max-width: 660px) {
+@container agch-body (max-width: 590px) {
   .agch-app .agch-spells .agch-sp-cast { display: none; }
-  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 5rem var(--agch-sp-actions); }
+  .agch-app .agch-spells .agch-cast-ex { display: inline-flex; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 4rem var(--agch-sp-track); }
 }
-@container agch-body (max-width: 560px) {
+@container agch-body (max-width: 505px) {
   .agch-app .agch-spells .agch-sp-range { display: none; }
-  .agch-app .agch-spells .agch-sp-brief { display: block; }
-  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 8rem var(--agch-sp-actions); }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem var(--agch-sp-track); }
 }
-@container agch-body (max-width: 440px) {
-  .agch-app .agch-spells .agch-sp-brief { display: none; }
-  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) var(--agch-sp-actions); }
+@container agch-body (max-width: 455px) {
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) 4.5rem var(--agch-sp-track); }
 }
-@container agch-body (max-width: 380px) {
-  .agch-app .agch-spells { --agch-sp-cast: var(--ag-control-h-sm); }
-  .agch-app .agch-spells .agch-cast { padding-inline: 0; }
-  .agch-app .agch-spells .agch-cast > span { position: absolute; width: 0; height: 0; overflow: hidden; white-space: nowrap; }
+@container agch-body (max-width: 415px) {
+  .agch-app .agch-spells .agch-sp-dice { display: none; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(5rem, 1fr) var(--agch-sp-track); }
 }
 /* 0.53.0: Combat, Inventory and Features rows share Magic's one-line row styles (agch-crow = the item twin of agch-spell). */
 .agch-app .agch-crowlist:not(.agch-crowlist--nested) > .agch-card__headrow { position: sticky; top: var(--agch-band-h, 0); z-index: 4; }

@@ -15,7 +15,7 @@ import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
 import {coinIcon} from './coins.mjs';
 import {ADD_LABELS, addReason} from './item-add.mjs';
-import {showDescriptions, descriptionsToggle, spellList, preparedIndicator, SPELL_COLUMNS} from './spell-rows.mjs';
+import {showDescriptions, descriptionsToggle, spellList, preparedIndicator, SPELL_COLUMNS, castingException} from './spell-rows.mjs';
 import {preparationSummary} from './spell-prep.mjs';
 import {showItemDescriptions, itemDescriptionsToggle, itemListFn, withLate} from './item-rows.mjs';
 
@@ -84,8 +84,8 @@ function actionChips(tab, all, f) {
 function combatTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = combatData(actor), h = headerData(actor), expanded = sheet?.expanded;
   const {group, sort} = listChoice('combat'), f = sheet?.listFilters?.combat ?? {};
-  // dnd5e's damage labels include healing (heal activities), so the column says both.
-  const dmg = {...C.damage, label: 'Damage / Healing'};
+  // dnd5e's damage labels include healing (heal activities), so the column is headed Dice (0.55.0; it was Damage / Healing).
+  const dmg = {...C.damage, label: 'Dice'};
   const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery], mixedCols = [dmg, C.toHit, C.range, C.uses];
   const card = r => ({iconUse: !off, controls: useBtn(r, off), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`});
   const compact = !showItemDescriptions(), list = itemListFn(compact), late = cols => withLate(cols, ['properties', 'recovery'], compact);
@@ -195,7 +195,7 @@ function magicTab(ctx) {
     : s.canPrepare ? prepBtn(s) : long ? '' : '<span class="agch-prep agch-prep--none" aria-hidden="true"></span>';
   // Long rows keep 0.33.0's four fact columns, with the spell level and school beside the name (unless the list is grouped by them).
   const columns = long ? [C.castTime, C.range, C.duration, C.components] : SPELL_COLUMNS;
-  const spellBadges = r => long ? `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}` : flagBadges(r.facts).trim();
+  const spellBadges = r => long ? `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}` : `${flagBadges(r.facts).trim()}${castingException(r.facts)}`.trim();
   const list = long ? (rows, cols, o) => cardList(rows, cols, {...o, cls: 'agch-spelllist'}) : spellList;
   const castBtn = s => btn('item-use', 'Cast', {kind: 'sm', extra: long ? '' : 'agch-cast', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off});
   const card = s => ({iconUse: !off, controls: `${prep(s)}${castBtn(s)}`, star: starBtn(actor, s, off), badges: spellBadges(s)});

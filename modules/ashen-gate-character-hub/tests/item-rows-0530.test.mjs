@@ -94,7 +94,7 @@ test('every control of the long row is still in the compact row', async () => {
 test('Combat compact row: star, icon, name chips, columns and Use on the line', async () => {
   setup();
   const b = body((await render('combat')).html);
-  assert.match(b, /<span>Damage \/ Healing<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(b, /<span>Dice<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
   assert.match(b, /data-action="item-favorite" data-id="sw"/);
   assert.match(b, /data-action="item-use" data-id="sw" aria-label="Use \[TEST\] Longsword"/, 'icon');
   assert.match(b, /ag-btn--sm" data-action="item-use" data-id="sw"/, 'Use button');

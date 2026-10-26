@@ -13,18 +13,56 @@ export const DESCRIPTIONS_SETTING = 'showSpellDescriptions';
 const SPELL = {p: 'agch-spell', action: 'spell-expand'};
 
 /**
- * 0.55.0: every spell row is one line. The columns, in the order they drop as the Hub narrows (styles: container steps on the
- * Hub body): Components, then Casting, then Range (its place is taken by the short "Action · 30 ft" text), then that text.
- * School, Duration and the rest are in the open row; C / R badges beside the name carry concentration and ritual.
+ * 0.55.0: what a Magic row shows, by what players use at the table. ONE ordered list: the row always keeps ALWAYS; the optional
+ * columns are listed from the one that stays longest to the one that goes first as the Hub narrows. A dropped column moves
+ * into the open row. The CSS container steps (styles/character-hub.css, "0.55.0 Magic") mirror SPELL_STEPS; a test compares them.
  */
+export const SPELL_PRIORITY = Object.freeze({
+  always: Object.freeze(['star', 'icon', 'chevron', 'name', 'badges', 'prepare', 'cast']),
+  optional: Object.freeze(['dice', 'range', 'casting', 'components'])
+});
+/** The Hub body widths (px) at or below which each step applies, widest first, in the order columns drop (Components first). */
+export const SPELL_STEPS = Object.freeze([
+  Object.freeze({width: 680, hides: 'components'}),
+  Object.freeze({width: 590, hides: 'casting'}),
+  Object.freeze({width: 505, hides: 'range'}),
+  Object.freeze({width: 455, hides: 'dice-compact'}),
+  Object.freeze({width: 415, hides: 'dice'})
+]);
+/** Below this list width (px) the Hub body scrolls sideways; the buttons stay pinned on the right. */
+export const SPELL_MIN_LIST = 384;
+
+const str = v => (v === null || v === undefined ? '' : String(v)).trim();
+/** The spell's damage or healing dice, compact: "8d6 Fire" -> "8d6 fire", "2d8 + 3 Healing" -> "2d8+3 heal", parts joined with " + ". Base value (no upcast scaling). */
+export function diceText(facts) {
+  return str(facts?.damage).split(/,\s*/).filter(Boolean).map(p => p.replace(/\s*\+\s*/g, '+').replace(/temporary hit points/gi, 'temp HP').replace(/\bhealing\b/gi, 'heal').replace(/\b(?!HP\b)([A-Za-z]+)\b/g, w => (/^\d*d\d+$/i.test(w) ? w : w.toLowerCase()))).join(' + ');
+}
+/** The same in full, for the tooltip and the open row. */
+export const diceFull = facts => str(facts?.damage).split(/,\s*/).filter(Boolean).join(' + ');
+
+/** A casting time that is not a plain Action: a short word by the name ("Bonus", "Reaction", "1 min"), shown only while the Casting column is hidden. */
+export function castingShort(label) {
+  const t = str(label);
+  if (!t || /^(1 )?action$/i.test(t)) return '';
+  if (/bonus/i.test(t)) return 'Bonus';
+  if (/reaction/i.test(t)) return 'Reaction';
+  const m = t.match(/^(\d+)\s*(minute|hour|round|day)s?$/i);
+  return m ? `${m[1]} ${{minute: 'min', hour: 'hr', round: 'rd', day: 'day'}[m[2].toLowerCase()]}` : t;
+}
+export function castingException(facts) {
+  const short = castingShort(facts?.activation);
+  return short ? ` <span class="ag-badge agch-cast-ex" data-tooltip="${esc(`Casting time: ${facts.activation}`)}"><span aria-hidden="true">${esc(short)}</span><span class="ag-sr-only">${esc(`Casting time: ${facts.activation}`)}</span></span>` : '';
+}
+
+/** Columns in display order (Dice, Range, Casting, Components); they drop in the reverse order, see SPELL_PRIORITY. */
 export const SPELL_COLUMNS = Object.freeze([
-  Object.freeze({key: 'activation', label: 'Casting', cls: 'agch-sp-cast', tip: true}),
+  Object.freeze({key: 'dice', label: 'Dice', cls: 'agch-sp-dice', render: r => esc(diceText(r.facts)), tip: r => diceFull(r.facts)}),
   Object.freeze({key: 'range', label: 'Range', cls: 'agch-sp-range', tip: true}),
-  Object.freeze({key: 'components', label: 'Components', cls: 'agch-sp-comps', tip: true}),
-  Object.freeze({key: 'brief', label: 'Casting · Range', cls: 'agch-sp-brief', render: r => esc(`${r.facts?.activation || '—'} · ${r.facts?.range || '—'}`)})
+  Object.freeze({key: 'activation', label: 'Casting', cls: 'agch-sp-cast', tip: true}),
+  Object.freeze({key: 'components', label: 'Components', cls: 'agch-sp-comps', tip: true})
 ]);
 /** The open row's facts: everything the line does not show at some width. */
-export const spellFacts = r => [['Level', r.facts?.level || (r.level ? `Level ${r.level}` : 'Cantrip')], ['School', r.facts?.school], ['Casting', r.facts?.activation], ['Range', r.facts?.range], ['Duration', r.facts?.duration], ['Components', r.facts?.components]];
+export const spellFacts = r => [['Level', r.facts?.level || (r.level ? `Level ${r.level}` : 'Cantrip')], ['School', r.facts?.school], ['Casting', r.facts?.activation], ['Range', r.facts?.range], ['Dice', diceFull(r.facts)], ['Duration', r.facts?.duration], ['Components', r.facts?.components]];
 
 /** Per user (client scope), default off: off = compact rows with the description on demand, on = long rows. */
 export function registerSpellViewSetting(settings, onChange) {

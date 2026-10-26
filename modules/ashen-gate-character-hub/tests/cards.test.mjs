@@ -98,7 +98,7 @@ test('Combat: no initiative in the tab (it is on the left), weapons and actions 
   const {html} = await renderTab('combat');
   assert.doesNotMatch(body(html), /roll-initiative|Roll initiative/);
   assert.match(html, /agch-tile[^>]*data-config="initiative"[\s\S]*data-action="roll-initiative"/, 'initiative still on the character column');
-  assert.match(body(html), /<span>Damage \/ Healing<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(body(html), /<span>Dice<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
   assert.match(body(html), /data-action="item-use" data-id="sw"/);
   assert.match(body(html), /Not equipped/);
 });
