@@ -360,16 +360,22 @@ test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and
   // Swap keeps the socket; the old item comes out.
   await sock.swap(B,id,3,'L1');assert.deepEqual(sock.slots(B,id).slots.map(x=>[x.slot,x.itemId]),[[1,'L2'],[2,'L3'],[3,'L1']]);assert.equal(L4.flags[MOD].attachedTo,null);
   // The owner's request goes to the GM client, which re-checks; the GM lock and Player Access are enforced there.
-  game.user=bob;emitted.length=0;const pending=sock.detach(B,id,3);const msg=emitted.at(-1);assert.equal(msg.type,'cinder-socket');
+  game.user=bob;emitted.length=0;const pending=sock.swap(B,id,3,'L4');const msg=emitted.at(-1);assert.equal(msg.type,'cinder-socket');
   game.user=gm;for(const fn of socketHandlers)await fn(msg,'u2');const reply=emitted.at(-1);assert.equal(reply.ok,true,reply.message);
   game.user=bob;for(const fn of socketHandlers)await fn(reply,'gm');assert.equal((await pending).changed,true);
+  game.user=gm;await sock.swap(B,id,3,'L1'); // back to the earlier state
+  // 0.14.1: only the GM detaches. The owner is refused in the API and on the GM client (a forged request too); the GM, attach and swap are unchanged.
+  game.user=bob;emitted.length=0;await assert.rejects(sock.detach(B,id,3),/Only the GM can detach an item from a Cinder\./);assert.equal(emitted.length,0,'no request is sent');
+  assert.equal(sock.slots(B,id).canDetach,false);
+  game.user=gm;for(const fn of socketHandlers)await fn({...msg,requestId:'s0',op:{kind:'detach',slot:3}},'u2');assert.match(emitted.at(-1).message,/Only the GM can detach/,'a forged detach is refused on the GM client');
+  assert.ok(sock.slots(B,id).slots.some(x=>x.slot===3),'the item is still attached');assert.equal(sock.slots(B,id).canDetach,true);
   game.user=gm;for(const fn of socketHandlers)await fn({...msg,requestId:'s2',op:{kind:'attach',itemId:'L4'}},'u1');assert.match(emitted.at(-1).message,/do not own/,'Alice is not the owner');
   await sock.setLocked(id,true);
   game.user=bob;await assert.rejects(sock.attach(B,id,'L4'),/locked/);assert.equal(sock.slots(B,id).canEdit,false);
   game.user=gm;for(const fn of socketHandlers)await fn({...msg,requestId:'s3',op:{kind:'attach',itemId:'L4'}},'u2');assert.match(emitted.at(-1).message,/locked/,'a forged request is refused on the GM client too');
   await sock.attach(B,id,'L4');assert.ok(sock.slots(B,id).slots.some(x=>x.itemId==='L4'),'the GM is not locked out');
   await sock.setLocked(id,false);
-  saved.set('playerAccessEnabled',false);game.user=bob;try{assert.throws(()=>sock.hosts(B),/hidden/);await assert.rejects(sock.detach(B,id,1),/hidden/);}finally{saved.set('playerAccessEnabled',true);game.user=gm;}
+  saved.set('playerAccessEnabled',false);game.user=bob;try{assert.throws(()=>sock.hosts(B),/hidden/);await assert.rejects(sock.attach(B,id,'L4'),/hidden/);}finally{saved.set('playerAccessEnabled',true);game.user=gm;}
   game.user=alice;assert.throws(()=>sock.hosts(B),/Actor access denied/);game.user=gm;
   // Drop target: a world Item is copied to the bearer and attached.
   await sock.detach(B,id,0).catch(()=>{});await sock.detach(B,id,2);
