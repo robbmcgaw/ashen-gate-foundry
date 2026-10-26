@@ -10,6 +10,7 @@ import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {cardList, COLUMNS as C, containerLead, containerAttrs, flagBadges} from './cards.mjs';
+import {featureOrigins, hasPartnerOrigin, originGroups} from './feature-origin.mjs';
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
@@ -59,8 +60,8 @@ export const dropZone = (ctx, tab, html) => `<div class="agch-itemzone"${ctx.edi
 /** Search box for a tab (filters rows by name without a re-render; the text is kept per tab). */
 const searchBox = (ctx, what) => `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-filter data-tab="${esc(ctx.tab ?? '')}" placeholder="Search ${esc(what)}" aria-label="Search ${esc(what)}" value="${esc(ctx.sheet?.filters?.[ctx.tab] ?? '')}" data-ag-always></label>`;
 /** Group-by and sort selects for Combat, Magic and Features (remembered per user). Observers can use them too. */
-function organizeSelects(tab) {
-  const o = ORGANIZE[tab], c = listChoice(tab);
+function organizeSelects(tab, choice = null) {
+  const o = ORGANIZE[tab], c = choice ?? listChoice(tab);
   const sel = (field, label, list) => `<label class="agch-orgsel"><span>${label}</span><select data-edit="list-sort" data-tab="${tab}" data-field="${field}" data-ag-always aria-label="${label}">${list.map(([k, l]) => `<option value="${k}"${c[field] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
   return sel('group', 'Group', o.groups) + sel('sort', 'Sort', o.sorts);
 }
@@ -201,12 +202,12 @@ export const activeFilters = (tab, f = {}) => Object.entries(f).filter(([k, v]) 
  * the filters that are on. Clear filters sits beside it while any filter is on. The popover is a Hub menu
  * (sheet.menu 'filters:<tab>'), so a click outside or Escape closes it.
  */
-export function filtersControl(ctx, tab, chips, extra = '', {label = 'Filters', title = 'Group, sort and filter', icon = 'fa-filter'} = {}) {
+export function filtersControl(ctx, tab, chips, extra = '', {label = 'Filters', title = 'Group, sort and filter', icon = 'fa-filter', choice = null} = {}) {
   const f = ctx.sheet?.listFilters?.[tab] ?? {}, n = activeFilters(tab, f), open = ctx.sheet?.menu === `filters:${tab}`;
   const any = Object.values(f).some(isOn);
   const pop = open ? `<div class="agch-menu agch-filtermenu" role="group" aria-label="${esc(title)}">
       <header class="agch-menu__head"><strong>${esc(title)}</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>
-      ${ORGANIZE[tab] ? `<div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>` : ''}${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}${extra}</div>` : '';
+      ${ORGANIZE[tab] ? `<div class="agch-filtermenu__selects">${organizeSelects(tab, choice)}</div>` : ''}${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}${extra}</div>` : '';
   return `<span class="agch-filterwrap"><button type="button" class="ag-btn ag-btn--sm agch-filtersbtn${n ? ' is-on' : ''}" data-action="filters-menu" data-tab="${tab}" data-ag-always aria-haspopup="true" aria-expanded="${open}"><i class="fa-solid ${icon}" aria-hidden="true"></i><span>${esc(label)}${n ? ` (${n})` : ''}</span></button>${pop}</span>
     ${any ? `<button type="button" class="ag-chip agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
 }
@@ -253,18 +254,20 @@ function magicTab(ctx) {
 // ---------- Features ----------
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
-  const {group, sort} = listChoice('features'), f = sheet?.listFilters?.features ?? {};
+  const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label})));
+  const origins = featureOrigins(actor, all);   // 0.58.0: Origin grouping; the default is Origin only when a profession or Cinder feature is there
+  const {group, sort} = listChoice('features', {group: hasPartnerOrigin(origins) ? 'origin' : 'type'}), f = sheet?.listFilters?.features ?? {};
   const compact = !showItemDescriptions(), list = itemListFn(compact, 'features');
   const typeCol = {...C.type, render: r => esc(r.typeLabel || r.facts.type || '—'), tip: r => r.typeLabel || r.facts.type, fact: r => r.typeLabel || r.facts.type};
   const columns = itemCols([...(group === 'type' ? [] : [typeCol]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery], compact);
   const card = r => ({iconUse: !off, controls: useBtn(r, off, compact), star: starBtn(actor, r, off)});
-  const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label}))), shown = filterRows(all, f);
-  const groups = group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
+  const shown = filterRows(all, f);
+  const groups = group === 'origin' ? originGroups(sortRows(shown, sort), origins) : group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
   const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
   // Action-type buttons for the dnd5e activation types these features have.
   const actBtns = actionChips('features', all, f);
-  return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`, `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`)}${addEnd(ctx, 'features')}</div>`)}
+  return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`, `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`, {choice: {group, sort}})}${addEnd(ctx, 'features')}</div>`)}
     ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded, list)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
     <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. Add feature… picks a feature from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
