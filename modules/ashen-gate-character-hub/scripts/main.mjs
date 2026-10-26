@@ -11,6 +11,7 @@ import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, petSlotsFor, companionsData, eligibleCompanions, companionKindOf, registerPetSlotSource, unregisterPetSlotSource, migrateAllCompanionSlots} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
+import {registerBrowserSortSetting} from './browser-sort.mjs';
 import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket, registerMarkHooks} from './marks.mjs';
@@ -150,6 +151,8 @@ if (globalThis.Hooks) {
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.
     registerListSortSetting(game.settings);
+    // 0.52.0: the compendium picker's Sort by choice, spells and items separately.
+    registerBrowserSortSetting(game.settings);
     // 0.51.0: Show spell descriptions (per user) and the GM's Enforce spell preparation limits (world).
     registerSpellViewSetting(game.settings, () => renderAllHubs());
     registerPrepSettings(game.settings, () => renderAllHubs());
