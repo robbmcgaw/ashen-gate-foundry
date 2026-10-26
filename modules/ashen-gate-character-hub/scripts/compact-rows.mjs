@@ -29,12 +29,14 @@ const verb = open => (open ? 'Hide' : 'Show');
  * more classes and `attrs` more attributes on the li, `lead` HTML before the star (a container's fold toggle).
  * `expanded` is the sheet's Set of open detail keys.
  */
-export function compactRowHtml(row, columns, {p, action, controls = '', star = '', lead = '', badges = '', alt = false, expanded = null, listKey = '', iconUse = false, extra = '', attrs = ''} = {}) {
+export function compactRowHtml(row, columns, {p, action, controls = '', star = '', lead = '', badges = '', alt = false, expanded = null, listKey = '', iconUse = false, extra = '', attrs = '', facts = null} = {}) {
   const key = sectionKey('more', listKey, row.id), open = expanded?.has?.(key) === true;
   const tip = tooltipAttrs(row.uuid, row.summary ? `${row.name}: ${row.summary}` : row.name);
   const aria = `aria-expanded="${open}" aria-controls="${esc(key)}"`;
   const data = `data-action="${action}" data-id="${esc(row.id)}" data-key="${esc(key)}" data-ag-always`;
-  const late = columns.filter(c => c.late).map(c => `<div><dt>${esc(c.label)}</dt><dd>${c.render ? c.render(row) : esc(row.facts?.[c.key] || '—')}</dd></div>`).join('');
+  // `facts` (Magic, 0.55.0): [label, value] pairs that are always in the open row; otherwise the columns marked `late`.
+  const late = facts ? facts.map(([l, v]) => `<div><dt>${esc(l)}</dt><dd>${esc(v || '—')}</dd></div>`).join('')
+    : columns.filter(c => c.late).map(c => `<div><dt>${esc(c.label)}</dt><dd>${c.render ? c.render(row) : esc(row.facts?.[c.key] || '—')}</dd></div>`).join('');
   return `<li class="agch-card ${p}${alt ? ' is-alt' : ''}${open ? ' is-open' : ''}${extra}" data-item-id="${esc(row.id)}"${attrs}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>`
     + `<span class="agch-card__lead">${lead}${star}</span>${iconHtml(row, iconUse)}`
     + `<span class="agch-card__main"><button type="button" class="${p}__chev" ${data} ${aria} aria-label="${esc(`${verb(open)} description of ${row.name}`)}" data-tooltip="${verb(open)} description"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>`

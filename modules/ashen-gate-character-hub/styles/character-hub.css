@@ -45,7 +45,7 @@
 .agch-app .ag-header { background: transparent; }
 .agch-app .ag-card { background: var(--agch-bg-raised); }
 .agch-app .agch-root { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3); min-height: 0; flex: 1; overflow: hidden; }
-.agch-app .agch-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ag-space-2) var(--ag-space-1) 0 0; container-type: inline-size; }
+.agch-app .agch-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ag-space-2) var(--ag-space-1) 0 0; container: agch-body / inline-size; }
 .agch-app .agch-muted { color: var(--ag-muted); }
 
 /* Collapsible sections (headings, GM Setup cards, inventory containers, Other equipped) */
@@ -736,18 +736,60 @@
 /* 0.51.0 Magic: compact one-line spell rows, description on demand, pinned column headings, prepared count. */
 .agch-app .agch-spelllist > .agch-card__headrow { position: sticky; top: var(--agch-band-h, 0); z-index: 4; }
 .agch-app .agch-spells { --agch-icon-size: var(--ag-icon-chip); }
-.agch-app .agch-spell .agch-card__main { flex-wrap: wrap; align-items: center; }
 .agch-app .agch-spell__chev { flex: 0 0 auto; display: inline-grid; place-items: center; width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; background: none; color: var(--ag-muted); cursor: pointer; }
 .agch-app .agch-spell__chev:hover, .agch-app .agch-spell__chev:focus-visible { color: var(--ag-accent); }
 .agch-app .agch-spell__chev i { transition: rotate .15s; }
 .agch-app .agch-spell__chev[aria-expanded="true"] i { rotate: 90deg; }
 .agch-app .agch-spell__detail { white-space: normal; display: grid; gap: var(--ag-space-2); justify-items: start; }
 .agch-app .agch-spell__text { margin: 0; white-space: pre-line; }
-.agch-app .agch-spell__facts { display: none; margin: 0; gap: var(--ag-space-1) var(--ag-space-3); flex-wrap: wrap; }
+.agch-app .agch-spell__facts { display: flex; margin: 0; gap: var(--ag-space-1) var(--ag-space-3); flex-wrap: wrap; }
 .agch-app .agch-spell__facts > div { display: flex; gap: var(--ag-space-1); }
 .agch-app .agch-spell__facts dt { color: var(--ag-muted); }
 .agch-app .agch-spell__facts dt::after { content: ":"; }
 .agch-app .agch-spell__facts dd { margin: 0; }
+/* 0.55.0 Magic: every spell is exactly one line. Fixed column tracks (not content-driven), so every row and the heading line up.
+   As the Hub body narrows its columns drop in this order, each one moving into the open row: Components (760px), Casting (660px),
+   Range (560px, its place taken by the short "Action · 30 ft" text), that text (440px); at 380px Cast keeps only its icon. */
+.agch-app .agch-spells { --agch-sp-prep: 6.25rem; --agch-sp-cast: 4.75rem; --agch-sp-actions: calc(var(--agch-sp-prep) + var(--agch-sp-cast) + var(--ag-space-1)); }
+.agch-app .agch-spells.agch-cards { display: grid; grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 6.5rem 5rem 5.5rem var(--agch-sp-actions); }
+.agch-app .agch-spells.agch-cards > li { display: grid; grid-template-columns: subgrid; align-items: center; }
+.agch-app .agch-spells.agch-cards > .agch-card__headrow { display: grid; }
+.agch-app .agch-spells .agch-card__main { display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; flex: none; }
+.agch-app .agch-spell__name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.agch-app .agch-spells .agch-item__badges { flex: 0 0 auto; flex-wrap: nowrap; }
+.agch-app .agch-spells .agch-flag { padding-inline: var(--ag-space-1); justify-content: center; }
+.agch-app .agch-spells .agch-card__fact { min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agch-app .agch-spells .agch-card__fact::before { content: none; }
+.agch-app .agch-spells > .agch-card__headrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agch-app .agch-spells > .agch-card__headrow > span:last-child { text-align: end; }
+.agch-app .agch-spells .agch-sp-brief { display: none; }
+.agch-app .agch-spells .agch-card__actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--ag-space-1); width: var(--agch-sp-actions); }
+.agch-app .agch-spells .agch-prep { box-sizing: border-box; flex: 0 0 var(--agch-sp-prep); width: var(--agch-sp-prep); min-height: var(--ag-control-h-sm); padding-block: 0; padding-inline: var(--ag-space-3); justify-content: center; border-radius: var(--ag-radius-control); font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); white-space: nowrap; }
+.agch-app .agch-spells .agch-prep--always { cursor: default; }
+.agch-app .agch-spells .agch-prep--none { visibility: hidden; padding: 0; border: 0; }
+.agch-app .agch-spells .agch-cast { flex: 0 0 var(--agch-sp-cast); width: var(--agch-sp-cast); white-space: nowrap; }
+@container agch-body (max-width: 760px) {
+  .agch-app .agch-spells .agch-sp-comps { display: none; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 6.5rem 5rem var(--agch-sp-actions); }
+}
+@container agch-body (max-width: 660px) {
+  .agch-app .agch-spells .agch-sp-cast { display: none; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 5rem var(--agch-sp-actions); }
+}
+@container agch-body (max-width: 560px) {
+  .agch-app .agch-spells .agch-sp-range { display: none; }
+  .agch-app .agch-spells .agch-sp-brief { display: block; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) 8rem var(--agch-sp-actions); }
+}
+@container agch-body (max-width: 440px) {
+  .agch-app .agch-spells .agch-sp-brief { display: none; }
+  .agch-app .agch-spells.agch-cards { grid-template-columns: max(var(--ag-icon-chip), var(--ag-control-h-sm)) var(--agch-icon-size) minmax(6rem, 1fr) var(--agch-sp-actions); }
+}
+@container agch-body (max-width: 380px) {
+  .agch-app .agch-spells { --agch-sp-cast: var(--ag-control-h-sm); }
+  .agch-app .agch-spells .agch-cast { padding-inline: 0; }
+  .agch-app .agch-spells .agch-cast > span { position: absolute; width: 0; height: 0; overflow: hidden; white-space: nowrap; }
+}
 /* 0.53.0: Combat, Inventory and Features rows share Magic's one-line row styles (agch-crow = the item twin of agch-spell). */
 .agch-app .agch-crowlist:not(.agch-crowlist--nested) > .agch-card__headrow { position: sticky; top: var(--agch-band-h, 0); z-index: 4; }
 .agch-app .agch-crows { --agch-icon-size: var(--ag-icon-chip); }
@@ -769,12 +811,6 @@
 .agch-app .agch-prepcount.is-over { border-color: var(--ag-warn); }
 .agch-app .agch-filtermenu__opts { display: grid; gap: var(--ag-space-1); padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
 .agch-app .agch-switchrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
-@container (max-width: 640px) {
-  .agch-app .agch-spell .agch-card__fact--late { display: none; }
-  .agch-app .agch-spell__facts { display: flex; }
-  .agch-app .agch-spell .agch-card__actions { flex-basis: auto; margin-inline-start: auto; }
-  .agch-app .agch-spell .agch-card__main { flex: 1 1 8rem; }
-}
 @container (max-width: 640px) {
   .agch-app .agch-crow .agch-card__fact--late { display: none; }
   .agch-app .agch-crow__facts { display: flex; }

@@ -9,13 +9,13 @@ import {partyStashHtml, partyStashUsable, electrumHidden} from './partners.mjs';
 import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
-import {cardList, COLUMNS as C, containerLead, containerAttrs} from './cards.mjs';
+import {cardList, COLUMNS as C, containerLead, containerAttrs, flagBadges} from './cards.mjs';
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
 import {coinIcon} from './coins.mjs';
 import {ADD_LABELS, addReason} from './item-add.mjs';
-import {showDescriptions, descriptionsToggle, spellList, preparedIndicator} from './spell-rows.mjs';
+import {showDescriptions, descriptionsToggle, spellList, preparedIndicator, SPELL_COLUMNS} from './spell-rows.mjs';
 import {preparationSummary} from './spell-prep.mjs';
 import {showItemDescriptions, itemDescriptionsToggle, itemListFn, withLate} from './item-rows.mjs';
 
@@ -187,14 +187,18 @@ function magicTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = spellsData(actor), expanded = sheet?.expanded;
   if (!d.levels.length && !d.pact) return dropZone(ctx, 'magic', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${addEnd(ctx, 'magic')}</div>`)}${empty('No spells yet.', 'Add a spell, or drop one here.')}`);
   const {group, sort} = listChoice('magic'), f = sheet?.listFilters?.magic ?? {};
-  const prep = s => s.always ? '<span class="ag-badge" data-tooltip="Always prepared">Always</span>'
-    : s.canPrepare ? btn('spell-prepare', s.prepared ? 'Prepared' : 'Prepare', {kind: s.prepared ? 'primary' : 'sm', data: {id: s.id}, title: s.prepared ? 'Unprepare' : 'Prepare', disabled: off}) : '';
-  // 0.33.0 (CH-08): four fact columns; the spell level and school sit beside the name (unless the list is grouped by them).
-  const columns = [C.castTime, C.range, C.duration, C.components];
-  const spellBadges = r => `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}`;
   const long = showDescriptions();
+  // 0.55.0: in the one-line rows Prepare, Prepared and Always are the same size (only the colour and the text differ); a spell with
+  // nothing to prepare keeps an empty slot so Cast stays in its column.
+  const prepBtn = s => btn('spell-prepare', s.prepared ? 'Prepared' : 'Prepare', {kind: long ? (s.prepared ? 'primary' : 'sm') : 'sm', extra: long ? '' : `agch-prep${s.prepared ? ' ag-btn--primary is-prepared' : ''}`, data: {id: s.id}, title: s.prepared ? 'Unprepare' : 'Prepare', disabled: off});
+  const prep = s => s.always ? `<span class="ag-badge${long ? '' : ' agch-prep agch-prep--always'}" data-tooltip="Always prepared">Always</span>`
+    : s.canPrepare ? prepBtn(s) : long ? '' : '<span class="agch-prep agch-prep--none" aria-hidden="true"></span>';
+  // Long rows keep 0.33.0's four fact columns, with the spell level and school beside the name (unless the list is grouped by them).
+  const columns = long ? [C.castTime, C.range, C.duration, C.components] : SPELL_COLUMNS;
+  const spellBadges = r => long ? `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}` : flagBadges(r.facts).trim();
   const list = long ? (rows, cols, o) => cardList(rows, cols, {...o, cls: 'agch-spelllist'}) : spellList;
-  const card = s => ({iconUse: !off, controls: `${prep(s)}${btn('item-use', 'Cast', {kind: 'sm', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off})}`, star: starBtn(actor, s, off), badges: spellBadges(s)});
+  const castBtn = s => btn('item-use', 'Cast', {kind: 'sm', extra: long ? '' : 'agch-cast', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off});
+  const card = s => ({iconUse: !off, controls: `${prep(s)}${castBtn(s)}`, star: starBtn(actor, s, off), badges: spellBadges(s)});
   const all = d.levels.flatMap(l => l.spells), shown = filterRows(all, f, {slotsLeft: d.slotsLeft, pact: d.pact});
   const slotBadge = l => l.slots ? ` <span class="ag-badge" data-tooltip="Slots left">${pips(l.slots.value, l.slots.max)} slots</span>` : '';
   // Spell-level buttons (dnd5e's slots): click to show only that level, again to show all.

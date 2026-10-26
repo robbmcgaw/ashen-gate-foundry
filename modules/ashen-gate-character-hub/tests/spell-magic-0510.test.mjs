@@ -63,7 +63,7 @@ test('default: one-line rows, no description under the name; the long setting br
   assert.match(b, /data-action="item-sheet" data-id="w1" data-ag-always><span>Open \[TEST\] Alpha<\/span>/, 'the item sheet is one click from the detail row');
   assert.match(b, /data-action="item-use" data-id="w3"/, 'Cast kept');
   assert.match(b, /data-action="spell-prepare" data-id="w3"/);
-  assert.match(b, /<span class="ag-badge" data-tooltip="Always prepared">Always<\/span>/);
+  assert.match(b, /<span class="ag-badge agch-prep agch-prep--always" data-tooltip="Always prepared">Always<\/span>/);
   setup({settings: {showSpellDescriptions: true}});
   const long = body((await render(wizard())).html);
   assert.doesNotMatch(long, /agch-spell__chev|agch-spells"/);
@@ -125,14 +125,12 @@ test('the Filters popover carries the Show spell descriptions switch (applies no
 });
 const prep_n = (s, t) => s.split(t).length - 1;
 
-test('sticky headings and narrow layout (CSS text)', () => {
+test('sticky headings and reduced motion (CSS text); the column steps are tested in 0.55.0', () => {
   assert.match(CSS, /\.agch-app \.agch-spelllist > \.agch-card__headrow \{ position: sticky; top: var\(--agch-band-h, 0\); z-index: 4; \}/);
   assert.match(CSS, /\.agch-app \.agch-sticky \{ position: sticky; top: 0; z-index: 5;/, 'the toolbar band stays above the headings');
   const narrow = CSS.slice(CSS.indexOf('/* 0.51.0 Magic'), CSS.indexOf('/* Compact mode (0.29.0)'));
-  assert.match(narrow, /@container \(max-width: 640px\) \{[\s\S]*\.agch-spell \.agch-card__fact--late \{ display: none; \}[\s\S]*\.agch-spell__facts \{ display: flex; \}/, 'duration and components move into the expanded row');
+  assert.match(narrow, /\.agch-spell__facts \{ display: flex;/, 'the open row always shows its facts');
   assert.match(narrow, /prefers-reduced-motion/);
-  assert.doesNotMatch(narrow.replaceAll('(max-width: 640px)', '').replace(/1px solid/g, ''), /\d+px/, 'tokens only (the 640px breakpoint and 1px borders are the Hub\'s existing ones)');
-  assert.doesNotMatch(narrow, /overflow-x|white-space: nowrap/, 'nothing scrolls sideways or clips');
 });
 
 test('syncBandHeight pins the headings under the band, and follows its height', () => {

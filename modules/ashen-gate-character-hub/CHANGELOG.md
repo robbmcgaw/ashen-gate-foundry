@@ -1,3 +1,17 @@
+## 0.55.0 — 2026-10-26
+
+Magic: every spell is exactly one line, at every window width.
+
+- **One line, always.** The spell name never wraps: a long name is cut with an ellipsis (hover it for the full name and dnd5e's hover card). The school chip and the level chip no longer sit under or beside the name.
+- **Fewer columns.** The row is now Item (star, icon, chevron, name, and small **C** / **R** badges for concentration and ritual), **Casting**, **Range**, **Components** and the buttons. **Duration** and the school are gone from the line. "Casting time" is now **Casting** everywhere (heading, inline label).
+- **Aligned.** The columns have fixed widths, so every row and the heading line up and every row has the same height.
+- **Prepare, Prepared, Always.** All three are the same size; Prepared keeps the gold fill and its word, Always is a plain neutral pill. Cast sits beside it in a fixed width. The buttons never wrap.
+- **Columns drop as the Hub narrows**, each moving into the open row: Components (Hub body 760px wide or less), then Casting (660px), then Range, whose place is taken by a short "Action · 30 ft" text (560px), then that text (440px). At 380px Cast keeps only its icon (named and with a tooltip). The row never wraps and never scrolls sideways.
+- **The open row** (click the name or chevron) now has Level, School, Casting, Range, Duration and Components, then the description and the Open button, at any width.
+- Unchanged: group folds and slot badges, pinned headings, Prepare / Always, the preparation-limit prompt, the Prepared X/Y count, favourites, Cast, hover card, and **Show spell descriptions** (the long rows keep their chips and four fact columns; only the "Casting time" heading now reads "Casting"). Combat, Inventory and Features rows are unchanged.
+- Presentation only: no spell, character or world data changes, no migration.
+- Tests use mocked Foundry and prove the markup, logic and CSS text, not the live layout. Please check in Forge as described in the pull request.
+
 ## 0.54.1 — 2026-10-26
 
 Fixes a Foundry deprecation warning in the console.
