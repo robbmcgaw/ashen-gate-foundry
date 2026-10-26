@@ -8,7 +8,8 @@ import {runSupersede} from './supersede.mjs';
 import {definitionHash,replaceDelta} from './update.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
-import {standingView,markCurrent} from './standing-view.mjs';
+import {standingView,markCurrent,paragraphHTML} from './standing-view.mjs';
+import {getVow,canManageVow,swearVow,endVow,breakVow,migrateVows,VOW_BREAK_PENALTY} from './vow.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
@@ -191,7 +192,7 @@ function maskedFaction(f,group,personals,actorIds,user){
     individualTrack:{milestones:f.individual_track.milestones.map(m=>({id:m.id,name:m.name,threshold:m.threshold,selection_mode:m.selection_mode}))}};
 }
 const pantheonDamping=()=>{const v=Number(game.settings.get(MODULE_ID,'pantheonDamping'));return validDamping(v)?v:DAMPING_DEFAULT;};
-/** GM-only write of one character's favour with one deity. `link` marks knock-ons ({caused_by, source_deity}) and
+/** GM-only write of one character's piety with one deity. `link` marks knock-ons ({caused_by, source_deity}) and
  * undo entries ({reverses, source_deity}) on the new history entry. Never spreads to other deities. */
 async function writeFavour(deityId,actor,delta,reason,link={}){
   assertGM();const doc=definition(deityId),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Deity not found.');
@@ -239,7 +240,7 @@ async function projectAll(){assertGM();if(activeGM()?.id!==game.user.id)return;f
 }
 let projecting=false;
 async function reproject(){if(!game.user.isGM||activeGM()?.id!==game.user.id||projecting)return;projecting=true;try{await projectAll()}catch(e){notifyError(e)}finally{projecting=false;}}
-async function migrate(){assertGM();await folderRecord();for(const doc of defs()){
+async function migrate(){assertGM();await folderRecord();await migrateVows(game.actors?.contents??[...(game.actors??[])],MODULE_ID);for(const doc of defs()){
   const original=getFaction(doc),legacy=Boolean(original?.state?.party||!original?.discovery);
   let f=upgradeFaction(original);if(legacy&&doc.ownership.default>=OBS)f.discovery.party=true;
   const group=await ensureGroup(doc),{state,changed}=groupStateDefaults(getGroup(group),original.state?.party);if(changed)await group.setFlag(MODULE_ID,'groupClaims',state);
@@ -481,7 +482,7 @@ function filterRoster(root,q){
   return shown;
 }
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:980,height:760},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,checkRewardIds:Dashboard.checkRewardIds,fillRewardIds:Dashboard.fillRewardIds,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,editDeity:Dashboard.editDeity,openRecord:Dashboard.openRecord,goto:Dashboard.goto,toggleFolders:Dashboard.toggleFolders,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,deleteFolder:Dashboard.deleteFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,copyId:Dashboard.copyId,exportAll:Dashboard.exportAll}};
+  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:980,height:760},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,checkRewardIds:Dashboard.checkRewardIds,fillRewardIds:Dashboard.fillRewardIds,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,editDeity:Dashboard.editDeity,openRecord:Dashboard.openRecord,goto:Dashboard.goto,toggleFolders:Dashboard.toggleFolders,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,toggleVow:Dashboard.toggleVow,breakVow:Dashboard.breakVow,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,deleteFolder:Dashboard.deleteFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,copyId:Dashboard.copyId,exportAll:Dashboard.exportAll}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
   /** Compact size by default; Comfortable (General Manager → My Appearance) opens it 1.2x larger. An explicit position still wins. */
   constructor(options={}){
@@ -572,7 +573,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       backfill:isGM&&this.#tab==='setup'?backfillView(this.#backfill):null,canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
   }
   /** Pantheon tab (the view for everyone): symbol tiles grouped by tier and, when a deity is open, its card and this
-   * character's standing. The GM also adjusts favour and undoes changes here; deity authoring is in the Factions tab.
+   * character's standing. The GM also adjusts piety and undoes changes here; deity authoring is in the Factions tab.
    * Players only ever read their projected view (revealed deities only); the GM reads the definitions. */
   #pantheonContext(isGM){
     const actorId=this.#actor,actor=actorId?game.actors.get(actorId):null;
@@ -586,16 +587,21 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     const groups=DEITY_TIERS.map(t=>({tier:t,label:t==='major'?'Major deities':'Lesser deities',tiles:tiles.filter(x=>x.tier===t)})).filter(g=>g.tiles.length);
     const actorName=actor?.name??'',base={groups,count:tiles.length,actorName,open:null};
     const x=list.find(d=>d.id===this.#deity);if(!x)return base;
+    const vow=actor?getVow(actor,MODULE_ID):null,vowName=vow?(list.find(d=>d.id===vow.deity_id)?.name??null):null;
+    base.vow=vowName?{name:vowName,deityId:vow.deity_id}:null;
+    // The Seeker card (first rank) carries the Vow toggle once the character has reached it. The GM also gets Break Vow.
+    const vowInfo=deityId=>({show:Boolean(actor&&canManageVow(game.user,actor)),sworn:vow?.deity_id===deityId,canBreak:Boolean(isGM&&vow?.deity_id===deityId),deityId});
+    const withVowCard=(ms,info)=>ms.map((m,i)=>i===0&&info.show&&m.unlocked?{...m,vowToggle:info}:m);
     const event=e=>({...e,displayDelta:e.delta>0?`+${e.delta}`:`${e.delta}`});
     if(!isGM){
       const mine=x.personal?.[actorId];
       const ms=mine?.milestones??[],score=mine?.score??0;
       return{...base,open:{card:deityCard(x),known:Boolean(mine),score,rank:mine?.rank??'',view:standingView(ms,score),
-        milestones:decorateTrack(ms,score,FAVOUR_TRACK),history:[...(mine?.history??[])].reverse().slice(0,35).map(event),relations:x.relations??[],entries:x.entries??[],canShare:Boolean(x.canShare)}};
+        milestones:withVowCard(decorateTrack(ms,score,FAVOUR_TRACK),vowInfo(x.id)),history:[...(mine?.history??[])].reverse().slice(0,35).map(event),relations:x.relations??[],entries:x.entries??[],canShare:Boolean(x.canShare)}};
     }
     const st=gmState(x.id),score=st?.standing?.score??0,p=progressFor(x.individual_track,score),names=new Map(list.map(d=>[d.id,d.name]));
     const ms=milestoneProjection({faction:x,scope:'individual',score,claims:st?.claims??{},requests:st?.requests??{},uses:st?.uses??{},choices:st?.choices??{},gm:true});
-    return{...base,open:{card:deityCard(x),known:true,score,rank:p.rank.name,view:standingView(ms,score),milestones:decorateTrack(ms,score,FAVOUR_TRACK),awardTitle:`Adjust favour for ${actorName||'the selected character'}`,
+    return{...base,open:{card:deityCard(x),known:true,score,rank:p.rank.name,view:standingView(ms,score),milestones:withVowCard(decorateTrack(ms,score,FAVOUR_TRACK),vowInfo(x.id)),awardTitle:`Adjust piety for ${actorName||'the selected character'}`,
       history:(()=>{const ev=st?.standing?.events??[],undone=new Set(ev.map(e=>e.reverses).filter(Boolean));return[...ev].reverse().slice(0,35).map(e=>({...event(e),canUndo:!e.reverses&&!undone.has(e.id),undone:undone.has(e.id)}));})(),
       relations:visibleRelations(x,names),
       entries:x.entries.map(e=>({...e,discovered:Boolean(e.discovered_party||e.discovered_actors?.includes(actorId))}))}};
@@ -612,7 +618,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       levels:editorLevels(x.individual_track,x.rewards,null,await rewardLooks(x.rewards),st?.choices),
       relations:profile.relations.map(r=>{const label=relationLabel(r.resonance);return{...r,name:names.get(r.deity_id)??'Missing deity',label,preview:resonancePreview(r.resonance,pantheonDamping())};}),
       relationOptions:list.filter(d=>d.id!==x.id&&!profile.relations.some(r=>r.deity_id===d.id)).map(d=>({id:d.id,name:d.name})),damping:pantheonDamping(),
-      entries:entryRows(x.entries,actorId,who,'favour'),
+      entries:entryRows(x.entries,actorId,who,'piety'),
       queue:this.#queue(x),serviceRewards:x.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,audience:'individual',resetLabel:`Reset uses of ${r.name} for ${who}…`}))};
   }
   /** GM roster rows (Factions tab): every faction, or every deity, hidden or not. The search hides rows in place. */
@@ -724,16 +730,35 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   /** GM slider: one direction (this deity -> target), 0 Dissonance … 0.5 neutral … 1 Resonance. */
   async setResonance(target,value){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const v=Number(value);if(!validResonance(v))throw Error('Resonance must be between 0 and 1.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===target);if(!r)throw Error('Relation not found.');r.resonance=v;f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   /** Undo adds reversing entries (nothing is deleted): the chosen entry and, for a gain, the knock-ons it caused. Undo entries never spread. */
+  /** Seeker card: swear or end the Vow to this god. One Vow per character: swearing here ends a Vow to another god. */
+  static async toggleVow(e,t){try{
+    const actor=game.actors.get(this.#actor),deityId=t?.dataset?.deity||this.#deity;if(!actor)throw Error('Select a character.');
+    const names=id=>getVowGodName(id),cur=getVow(actor,MODULE_ID);
+    if(cur?.deity_id===deityId){await endVow({moduleId:MODULE_ID,actor,user:game.user});ui.notifications.info(`Your Vow to ${names(deityId)} has ended.`);}
+    else{
+      if(cur&&!await confirmDialog(`Swear a Vow to ${names(deityId)}? This ends your Vow to ${names(cur.deity_id)}.`,{title:`Swear a Vow to ${names(deityId)}?`,yes:'Swear Vow'}))return;
+      await swearVow({moduleId:MODULE_ID,actor,user:game.user,deityId,unlocked:vowUnlocked(actor,deityId)});ui.notifications.info(`You swore a Vow to ${names(deityId)}.`);
+    }
+    refreshEmbeds();await this.render({force:true});
+  }catch(err){notifyError(err)}}
+  /** GM only: the Vow was broken on purpose. Takes the penalty with that god and ends the Vow. */
+  static async breakVow(e,t){try{
+    assertGM();const actor=game.actors.get(this.#actor),cur=getVow(actor,MODULE_ID);if(!actor||!cur)throw Error('No Vow is sworn.');
+    const name=getVowGodName(cur.deity_id),score=getPersonal(personalDoc(cur.deity_id,actor.id))?.standing?.score??0;
+    if(!await confirmDialog(`Break ${actor.name}'s Vow to ${name}? This ends the Vow and takes ${Math.min(VOW_BREAK_PENALTY,score)} piety with ${name}. The history records it.`,{title:'Break Vow?',yes:'Break Vow',danger:true}))return;
+    await breakVow({moduleId:MODULE_ID,actor,user:game.user,score,writePiety:(id,delta,reason)=>writeFavour(id,actor,delta,reason)});
+    refreshEmbeds();await this.render({force:true});
+  }catch(err){notifyError(err)}}
   static async undoFavour(e,t){try{assertGM();const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select a character.');const id=t.dataset.event,own=getPersonal(personalDoc(this.#deity,actor.id)),ev=own?.standing?.events?.find(x=>x.id===id);if(!ev)throw Error('History entry not found.');
     const reversed=events=>new Set(events.map(x=>x.reverses).filter(Boolean));if(ev.reverses||reversed(own.standing.events).has(ev.id))throw Error('That entry is already an undo or has been undone.');
     const linked=deityDefs().map(d=>getFaction(d).id).filter(id=>id!==this.#deity).flatMap(did=>{const evs=getPersonal(personalDoc(did,actor.id))?.standing?.events??[],done=reversed(evs);return evs.filter(x=>x.caused_by===ev.id&&!done.has(x.id)).map(x=>({deityId:did,ev:x}));});
     const name=id=>getFaction(definition(id))?.name??'another deity',sign=n=>n>0?`+${n}`:`${n}`;
-    if(!await confirmDialog(`Undo "${ev.reason}" (${sign(ev.delta)}) for ${actor.name}?${linked.length?` This also undoes ${linked.map(l=>`${name(l.deityId)} ${sign(l.ev.delta)}`).join(', ')}.`:''} History keeps both entries.`,{title:'Undo this favour change?',yes:'Undo change'}))return;
+    if(!await confirmDialog(`Undo "${ev.reason}" (${sign(ev.delta)}) for ${actor.name}?${linked.length?` This also undoes ${linked.map(l=>`${name(l.deityId)} ${sign(l.ev.delta)}`).join(', ')}.`:''} History keeps both entries.`,{title:'Undo this piety change?',yes:'Undo change'}))return;
     for(const row of [{deityId:this.#deity,ev},...linked])await writeFavour(row.deityId,actor,-row.ev.delta,`Undo: ${row.ev.reason}`,{reverses:row.ev.id,...(row.ev.source_deity?{source_deity:row.ev.source_deity}:{})});
     await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async removeRelation(e,t){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===t.dataset.target);if(!r)throw Error('Relation not found.');const other=getFaction(definition(r.deity_id))?.name??'the missing deity';if(!await confirmDanger(`Gains with ${f.name} stop moving ${other}. Standing is not changed.`,{title:`Remove the relation to ${other}?`,yes:'Remove relation'}))return;d.relations=d.relations.filter(x=>x!==r);f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   static async create(){try{assertGM();const typed=await promptText('New faction','Faction name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;this.#foldersOpen=false;this.#subTab.faction='profile';await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the factions your party has met and the Renown the group and each character have earned with them.</p><h3>Group and Character</h3><ul><li><strong>Group</strong> shows the party's standing with the faction picked on the left, its milestones and what has been discovered.</li><li><strong>Character</strong> shows one character's personal Renown, information and rewards.${gm?'':' Use <em>Share with party</em> to share what you have discovered.'}</li></ul><h3>Pantheon</h3><p>The deities your character knows, each with its holy symbol, its card and that character's favour. Favour is per character, never shared by the group. Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you adjust favour and undo changes here; <em>Edit deity</em> opens it in the Factions tab.':''}</p>${gm?'<h3>Factions (GM)</h3><p>Every faction, or every deity (pick with <em>Show</em>), in the list on the left. Search filters as you type. Pick one to edit it on the right: <em>Profile</em> (name, folder and ranks), <em>Visibility</em> (reveal to the party or one character, placeholder, sharing, fields), <em>Information</em> or <em>Lore</em>, <em>Rewards</em>, <em>Requests</em>, and <em>Links</em> (factions) or <em>Relations</em> (deities). Profile and Visibility save with <em>Save Changes</em> at the bottom right; the other sections apply at once. Reward descriptions and rank benefits keep the line breaks you type (Edit… on a reward has a multi-line box). If you leave with unsaved edits, Renown asks first. <em>Manage folders</em> (add, rename or delete folders; deleting one moves its factions to Other factions, nothing is deleted), <em>Import…</em> (when the file has records already here you can also <em>update</em> them: definitions are rewritten from the file; Renown, claims, requests, choices, discovery and what the party learned are kept; a snapshot of the old definitions is saved first), Export and <em>New faction</em> or <em>New deity</em> are on the right of the toolbar.</p><p>Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.</p><h3>Requests (GM)</h3><p>Every open claim and service request from every faction and deity, with the number waiting on the tab.</p><h3>GM Setup</h3><p>The settings: Player access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom fill in permanent item ids and load [TEST] demo factions.</p><p>Removing an entry, reward, relation or objective reference, denying a request, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
+  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the factions your party has met and the Renown the group and each character have earned with them.</p><h3>Group and Character</h3><ul><li><strong>Group</strong> shows the party's standing with the faction picked on the left, its milestones and what has been discovered.</li><li><strong>Character</strong> shows one character's personal Renown, information and rewards.${gm?'':' Use <em>Share with party</em> to share what you have discovered.'}</li></ul><h3>Pantheon</h3><p>The deities your character knows, each with its holy symbol, its card and that character's piety. Piety is per character, never shared by the group. <strong>Vows:</strong> you hold one Vow at a time, to any god. Swear it aloud with a minute of prayer once you reach that god's Seeker rank; spending it strengthens one gift from that god and uses it up. Breaking it on purpose costs piety, and only the GM rules whether it was broken. On the first rank card of a god you have reached, <em>Swear Vow</em> records your Vow (swearing to another god ends the old one).${gm?' The GM can use <em>Break Vow…</em> to end it and take the piety penalty.':''} Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you adjust piety and undo changes here; <em>Edit deity</em> opens it in the Factions tab.':''}</p>${gm?'<h3>Factions (GM)</h3><p>Every faction, or every deity (pick with <em>Show</em>), in the list on the left. Search filters as you type. Pick one to edit it on the right: <em>Profile</em> (name, folder and ranks), <em>Visibility</em> (reveal to the party or one character, placeholder, sharing, fields), <em>Information</em> or <em>Lore</em>, <em>Rewards</em>, <em>Requests</em>, and <em>Links</em> (factions) or <em>Relations</em> (deities). Profile and Visibility save with <em>Save Changes</em> at the bottom right; the other sections apply at once. Reward descriptions and rank benefits keep the line breaks you type (Edit… on a reward has a multi-line box). If you leave with unsaved edits, Renown asks first. <em>Manage folders</em> (add, rename or delete folders; deleting one moves its factions to Other factions, nothing is deleted), <em>Import…</em> (when the file has records already here you can also <em>update</em> them: definitions are rewritten from the file; Renown, claims, requests, choices, discovery and what the party learned are kept; a snapshot of the old definitions is saved first), Export and <em>New faction</em> or <em>New deity</em> are on the right of the toolbar.</p><p>Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.</p><h3>Requests (GM)</h3><p>Every open claim and service request from every faction and deity, with the number waiting on the tab.</p><h3>GM Setup</h3><p>The settings: Player access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom fill in permanent item ids and load [TEST] demo factions.</p><p>Removing an entry, reward, relation or objective reference, denying a request, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
   static async seed(){try{assertGM();if(!await confirmDialog('Adds four synthetic [TEST] factions for trying Renown out. Existing names are skipped.',{title:'Add four [TEST] factions?',yes:'Add factions'}))return;let count=0;for(const g of TEST_FACTIONS_DEMO){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Synthetic [TEST] demo data'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${plural(count,'[TEST] faction')} added.`);await this.render({force:true});}catch(e){notifyError(e)}}
   /** Profile sub-tab: name, leader, description, folder, tags and both rank tracks. Discovery is on Visibility. */
   static async save(){try{assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Select a faction first.');const f=loadDef(doc),root=this.element;f.name=nameValue(root,'faction-name');f.leader=nameValue(root,'faction-leader');f.public_role=nameValue(root,'faction-role');f.folder_key=liveFolderKey(folderList(),selectedValue(root,'faction-folder'));f.tags=nameValue(root,'faction-tags').split(',').map(s=>s.trim()).filter(Boolean);
@@ -790,7 +815,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     let chosen=[];
     if(isDeity(f)&&result.after>result.before){
       const names=new Map(deityDefs().map(d=>[getFaction(d).id,getFaction(d).name])),ko=knockOns(f,result.after-result.before,pantheonDamping(),names).filter(k=>definition(k.deity_id));
-      if(ko.length){const picked=await checklistDialog('Related deities',`${actor.name} gains ${result.after-result.before} favour with ${f.name}. Also apply these? Untick any you do not want.`,ko.map(k=>({key:k.deity_id,label:`${k.name}: ${k.delta>0?'+':''}${k.delta} (${k.label})`,checked:true})),{ok:'Apply'});
+      if(ko.length){const picked=await checklistDialog('Related deities',`${actor.name} gains ${result.after-result.before} piety with ${f.name}. Also apply these? Untick any you do not want.`,ko.map(k=>({key:k.deity_id,label:`${k.name}: ${k.delta>0?'+':''}${k.delta} (${k.label})`,checked:true})),{ok:'Apply'});
         if(picked===null)return;chosen=ko.filter(k=>picked.includes(k.deity_id));}
     }
     state.standing=result.standing;await stateDoc.setFlag(MODULE_ID,key,state);
@@ -905,6 +930,15 @@ for(const [name,fn] of Object.entries(Dashboard.DEFAULT_OPTIONS.actions)){
 }
 /** One character's standing with every deity that character knows. Players: only characters they own, from their
  * projected view, so nothing unrevealed is ever read. GM: from the definitions. Returns [] when nothing is visible. */
+/** A god's name for Vow wording, from the same source the viewer already reads (definitions for the GM, the projected view for players). */
+const getVowGodName=id=>{const d=game.user.isGM?deityDefs().map(x=>getFaction(x)).find(x=>x?.id===id):(getView(userViewDoc(game.user))?.payload?.deities??[]).find(x=>x.id===id);return d?.name??'that god';};
+/** Whether this character has reached the god's first rank (the Seeker rank). Permission-checked data, not the button. */
+function vowUnlocked(actor,deityId){
+  const row=pantheonFor(actor).find(g=>g.id===deityId);if(!row)return false;
+  const list=game.user.isGM?deityDefs().map(d=>upgradeFaction(loadDef(d))):(getView(userViewDoc(game.user))?.payload?.deities??[]);
+  const f=list.find(x=>x.id===deityId),first=(f?.individual_track?.milestones??f?.ladder??[])[0];
+  return Boolean(first&&row.score>=first.threshold);
+}
 function pantheonFor(actorOrId){
   requirePlayerAccess();const actor=typeof actorOrId==='string'?game.actors.get(actorOrId):actorOrId;
   if(!actor?.id)return [];
@@ -953,10 +987,11 @@ function standingRows(actorId){
     const pms=mine?.milestones??f.individualTrack?.milestones??[],ps=mine?.score??0;
     return {id:f.id,name:f.name,group:{score:gs,rank:rankOf(gms,gs),next:nextOf(gms,gs)},personal:mine?{score:ps,rank:rankOf(pms,ps),next:nextOf(pms,ps)}:null};});
 }
+const embedVow=(actor,gods)=>{const v=actor?getVow(actor,MODULE_ID):null,g=v&&gods.find(x=>x.id===v.deity_id);return g?`<p class="agf-embed__vow">Vow: ${esc(g.name)}</p>`:'';};
 function embedHTML(ctrl){
   if(!playerMayOpen())return '<div class="ag-empty">The GM has hidden Renown.</div>';
   const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null,rows=standingRows(ctrl.actorId);
-  // 0.11.0: this character's favour with each deity they know (same permission path as api.getPantheon).
+  // 0.11.0: this character's piety with each deity they know (same permission path as api.getPantheon).
   const gods=actor?pantheonFor(actor):[];
   if(!rows.length&&!gods.length)return '<div class="ag-empty">No factions or deities known yet.</div>';
   const signed=n=>n>0?`+${n}`:String(n);
@@ -965,7 +1000,7 @@ function embedHTML(ctrl){
   return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||UNKNOWN_FACTION)}</strong>
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open" data-faction="${esc(r.id)}" data-tooltip="Open in Renown" data-tooltip-class="ag-tooltip">Open</button></header>
       <div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div></section>`).join('')}
-    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}${gods.length?`<h3 class="agf-embed__heading">Pantheon</h3>${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
+    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}${gods.length?`<h3 class="agf-embed__heading">Pantheon</h3>${embedVow(actor,gods)}${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open-deity" data-deity="${esc(g.id)}" data-tooltip="Open in Renown" data-tooltip-class="ag-tooltip">Open</button></header>
       <div class="agf-embed__cells">${cell(`${g.tierLabel} deity`,{score:g.score,rank:g.rank,next:g.next})}</div></section>`).join('')}`:''}</div>`;
 }
@@ -1020,6 +1055,7 @@ function accessSettingChanged(setting){
 Hooks.on('renderActorDirectory',(app,html)=>attachLauncher(app,html));
 Hooks.once('init',()=>{
   // {{#agfFold key title count hint open}}…{{/agfFold}}: the kit's fold() around template content (kit 2.2).
+  globalThis.Handlebars?.registerHelper?.('agfParas',(text,cls)=>new Handlebars.SafeString(paragraphHTML(text,typeof cls==='string'?cls:undefined)));
   globalThis.Handlebars?.registerHelper?.('agfFold',function(options){const h=options.hash??{};return new Handlebars.SafeString(fold({key:h.key,title:h.title,count:h.count,hint:h.hint,open:Boolean(h.open),body:options.fn(this)}));});
   game.settings.register(MODULE_ID,'groupName',{name:'Group display name',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'pantheonDamping',{name:'Pantheon knock-on damping',scope:'world',config:false,type:Number,default:DAMPING_DEFAULT});
@@ -1074,6 +1110,7 @@ Hooks.once('ready',()=>{
     refreshEmbeds();
     if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });
+  Hooks.on('updateActor',(actor,change)=>{if(change?.flags?.[MODULE_ID]&&('vow' in change.flags[MODULE_ID]||'-=vow' in change.flags[MODULE_ID])){refreshEmbeds();if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();}});
   Hooks.on('updateSetting',setting=>{
     refreshEmbeds();
     if(setting?.key===`${MODULE_ID}.playerAccessEnabled`){

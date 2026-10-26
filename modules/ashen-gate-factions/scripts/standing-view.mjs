@@ -20,3 +20,16 @@ export function markCurrent(milestones = [], score = 0) {
   const {currentId} = standingView(milestones, score);
   return (milestones ?? []).map(m => ({...m, isActive: currentId !== null && m.id === currentId}));
 }
+
+const escapeText = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Splits reward or rank text into paragraphs: a blank line (two or more line breaks) starts a new one. Single line breaks stay inside a paragraph. */
+export function paragraphsOf(text) {
+  return String(text ?? '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/).map(p => p.replace(/^\n+|\n+$/g, '')).filter(p => p.trim());
+}
+
+/** Escaped HTML for reward and rank text: one <p> per paragraph inside one wrapper (white-space: pre-line keeps single breaks). '' when empty. */
+export function paragraphHTML(text, cls = 'agf-reward__text') {
+  const paras = paragraphsOf(text);
+  return paras.length ? `<div class="agf-prose ${escapeText(cls)}">${paras.map(p => `<p>${escapeText(p)}</p>`).join('')}</div>` : '';
+}

@@ -7,7 +7,7 @@
   </div>
   <ol class="ag-steps" aria-label="Ranks">{{#each view.steps}}<li class="{{#if done}}is-done{{/if}}" {{#if current}}aria-current="step"{{/if}}><span class="agf-step__name">{{name}}</span><span class="agf-step__at">{{threshold}}</span></li>{{/each}}</ol>
 </div>{{/inline}}
-{{#*inline "agfReward"}}<div class="agf-reward {{#unless unlocked}}is-locked{{/unless}}"><strong class="agf-reward__name">{{name}}</strong>{{#if description}}<p class="agf-reward__text">{{description}}</p>{{/if}}
+{{#*inline "agfReward"}}<div class="agf-reward {{#unless unlocked}}is-locked{{/unless}}"><strong class="agf-reward__name">{{name}}</strong>{{{agfParas description "agf-reward__text"}}}
   <div class="agf-reward__state">
     {{#if passive}}<span class="ag-badge {{#if unlocked}}ag-badge--ok{{/if}}">{{#if unlocked}}{{passiveLabel}}{{else}}Locked{{/if}}</span>{{/if}}
     {{#if isClaimed}}<span class="ag-badge ag-badge--ok">Claimed</span>{{/if}}
@@ -24,8 +24,8 @@
 </div>{{/inline}}
 {{#*inline "agfMilestones"}}<div class="agf-milestones">{{#each ms}}<article class="agf-milestone {{#if unlocked}}is-unlocked{{/if}} {{#if isActive}}is-active{{/if}}">
   <header class="agf-milestone__head"><span class="agf-milestone__name">{{name}}</span><span class="ag-badge {{#if unlocked}}ag-badge--ok{{/if}}">{{#if unlocked}}Unlocked{{else}}{{threshold}} {{../unit}}{{/if}}</span></header>
-  {{#if benefit}}<p class="agf-milestone__text">{{benefit}}</p>{{/if}}
-  {{#each rewards}}{{> agfReward}}{{/each}}
+  {{{agfParas benefit "agf-milestone__text"}}}
+  {{#each rewards}}{{> agfReward}}{{/each}}{{#if vowToggle}}<div class="agf-vowbar"><button type="button" class="ag-btn ag-btn--sm {{#if vowToggle.sworn}}is-on{{/if}}" data-action="toggleVow" data-deity="{{vowToggle.deityId}}" aria-pressed="{{#if vowToggle.sworn}}true{{else}}false{{/if}}"><i class="fa-solid {{#if vowToggle.sworn}}fa-check{{else}}fa-hands-praying{{/if}}" aria-hidden="true"></i> {{#if vowToggle.sworn}}Vow sworn{{else}}Swear Vow{{/if}}</button>{{#if vowToggle.canBreak}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="breakVow">Break Vow…</button>{{/if}}</div>{{/if}}{{#unless benefit}}{{#unless rewards.length}}{{#unless vowToggle}}<p class="agf-hint agf-milestone__empty">Nothing to claim at this rank.</p>{{/unless}}{{/unless}}{{/unless}}
 </article>{{/each}}</div>{{/inline}}
 {{#*inline "agfAward"}}<section class="ag-section agf-award" data-award-scope="{{scope}}"><div class="ag-section__head"><h3 class="ag-section__title">{{title}}</h3><span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></div>
   <div class="agf-award__row"><label class="ag-field agf-award__delta">Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label class="ag-field agf-award__reason">Reason<input name="renown-reason" maxlength="400" placeholder="{{placeholder}}"></label><button type="button" class="ag-btn" data-action="award" data-scope="{{scope}}">Record</button></div>
@@ -237,9 +237,9 @@
             {{/if}}
             {{#if ../sub.lore}}
               <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Lore entries</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
-                <p class="agf-hint">Reveal by hand or by this character's favour. Linked documents keep their own Foundry permissions.</p>
-                {{> agfEntryEditor entries=entries unit="favour"}}
-                <details class="agf-drop" data-agf-draft data-entry-drop data-info-editor><summary>Add a lore entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Myth, rite, shrine"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="individual_renown">Character favour</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add lore</button></details>
+                <p class="agf-hint">Reveal by hand or by this character's piety. Linked documents keep their own Foundry permissions.</p>
+                {{> agfEntryEditor entries=entries unit="piety"}}
+                <details class="agf-drop" data-agf-draft data-entry-drop data-info-editor><summary>Add a lore entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Myth, rite, shrine"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="individual_renown">Character piety</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add lore</button></details>
               </section>
             {{/if}}
             {{#if ../sub.rewards}}
@@ -297,6 +297,14 @@
         <div class="ag-toolbar__filters">{{> agfPicker}}</div>
         {{#if isGM}}{{#if pantheon.open}}<div class="ag-toolbar__end"><button type="button" class="ag-btn" data-action="editDeity" data-id="{{pantheon.open.card.id}}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit deity</button></div>{{/if}}{{/if}}
       </div>
+      <div class="ag-notice ag-notice--info agf-vows" role="note"><i class="fa-solid fa-hands-praying" aria-hidden="true"></i><div><strong>How Vows work</strong>
+        <ul class="agf-vows__list">
+          <li>You hold one Vow at a time, to any god.</li>
+          <li>Swear it aloud with a minute of prayer. A god's Vow is unlocked at your Seeker rank with that god.</li>
+          <li>Spending the Vow strengthens one gift from that god, then it is used up.</li>
+          <li>Breaking it on purpose costs piety. Only the GM rules whether it was broken.</li>
+        </ul></div></div>
+      {{#if pantheon.actorName}}<p class="agf-vow-status" role="status"><strong>{{#if pantheon.vow}}Vow: {{pantheon.vow.name}}{{else}}No Vow sworn{{/if}}</strong> <span class="agf-hint">{{pantheon.actorName}}</span></p>{{/if}}
       {{#unless pantheon.open}}
         {{#each pantheon.groups}}
           <section class="ag-section agf-pantheon-group"><h2 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{tiles.length}}</span></h2><div class="ag-card-grid agf-deity-grid">
@@ -330,14 +338,14 @@
           {{#unless @root.isGM}}{{#if canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party…</button>{{/if}}{{/unless}}
         </article>
         {{#if known}}
-          <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Favour</h3></div>
-            {{> agfStanding view=view unit="favour" label="Favour"}}
-            {{> agfMilestones ms=milestones unit="favour"}}
+          <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Piety</h3></div>
+            {{> agfStanding view=view unit="piety" label="Piety"}}
+            {{> agfMilestones ms=milestones unit="piety"}}
           </section>
           {{#if @root.isGM}}{{> agfAward scope="individual" title=awardTitle placeholder="Deed, offering or transgression"}}{{/if}}
-          <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Favour history</h3></div>
+          <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Piety history</h3></div>
             {{#if history.length}}<ol class="ag-rows agf-history">{{#each history}}<li class="ag-row"><strong class="agf-history__delta">{{displayDelta}}</strong><span class="ag-row__main"><span class="ag-row__title">{{reason}}</span>{{#if undone}}<span class="ag-row__meta">Undone</span>{{/if}}</span><span class="ag-row__end agf-history__score">{{previous_score}} → {{score_after}}{{#if @root.isGM}}{{#if canUndo}}<button type="button" class="ag-btn ag-btn--sm" data-action="undoFavour" data-event="{{id}}" aria-label="Undo {{reason}}…">Undo…</button>{{/if}}{{/if}}</span></li>{{/each}}</ol>
-            {{else}}<div class="ag-empty"><p class="ag-empty__title">No changes yet.</p><p class="ag-empty__text">Favour changes show here as they are recorded.</p></div>{{/if}}
+            {{else}}<div class="ag-empty"><p class="ag-empty__title">No changes yet.</p><p class="ag-empty__text">Piety changes show here as they are recorded.</p></div>{{/if}}
           </section>
         {{else}}
           <div class="ag-empty"><p class="ag-empty__title">Not known yet</p><p class="ag-empty__text">This character hasn't discovered this deity yet.</p></div>
@@ -362,7 +370,7 @@
     </section>
     <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Pantheon knock-on damping</h3></div>
       <label class="ag-field agf-narrow">Damping<input name="pantheon-damping" type="number" min="0" max="{{pantheonDampingMax}}" step="0.05" value="{{pantheonDamping}}"><span class="ag-field__hint">From 0 to {{pantheonDampingMax}}.</span></label>
-      <p class="agf-hint">When a character gains favour with a deity, related deities change by gain × slider strength × this number. At 0.5, a fully resonant deity gains half as much and a fully dissonant one loses half as much. You still confirm each change.</p>
+      <p class="agf-hint">When a character gains piety with a deity, related deities change by gain × slider strength × this number. At 0.5, a fully resonant deity gains half as much and a fully dissonant one loses half as much. You still confirm each change.</p>
     </section>
     <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Group display name</h3></div>
       <label class="ag-field ag-field--inline"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use a custom group name</label>

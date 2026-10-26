@@ -1,3 +1,14 @@
+## 0.19.0 — 2026-10-26
+
+Pantheon: Piety, paragraphs and a Vows note.
+
+- The deity score is now called **Piety** everywhere a person reads it: Pantheon tab (rank meter, rank badges, heading, history, award box), the character's Pantheon section, the deity editor, dialogs and Help. Faction and Group tabs keep Renown. Display wording only; ids, flags, settings, API names and saved data are unchanged.
+- Reward descriptions and rank benefits now show a blank line as a paragraph gap (single line breaks are still kept), on Pantheon cards and on the Group and Character tabs.
+- A short **How Vows work** note sits at the top of the Pantheon tab (also in Help).
+- A rank with a reward but no written description now shows the reward's teaser instead of an empty card; a rank with neither shows "Nothing to claim at this rank."
+- **Vows.** The first rank card of a god the character has reached has a **Swear Vow** / **Vow sworn** toggle (text and pressed state, keyboard accessible) for the character's owner and the GM. One Vow per character across all gods: swearing to another god asks "Swear a Vow to <god>? This ends your Vow to <other>.". The GM also gets **Break Vow…** (confirmation, danger button), which ends the Vow, takes 3 piety with that god (never below 0) and logs it in the piety history. The sworn Vow shows above the Pantheon cards and in the character embed ("Vow: <god>").
+- Saved data: the Vow is a new Actor flag (`flags.ashen-gate-factions.vow`); a re-runnable repair runs with the GM's usual startup migration and touches only actors that already have the flag. Nothing is written on import. Tested with mocked data and a headless-browser layout check, not the live Forge UI.
+
 ## 0.18.2 — 2026-10-26
 
 Renown ignores Manager bulk writes (Sync, Import) while they run and redraws once when they finish. No change to saved data.
