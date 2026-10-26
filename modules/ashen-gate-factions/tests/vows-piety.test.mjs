@@ -73,7 +73,7 @@ test('Break Vow: GM only, takes the penalty from a constant, never below 0, logs
   a=actor();await swearVow({moduleId:MOD,actor:a,user:gm,deityId:'D',unlocked:true});
   r=await breakVow({moduleId:MOD,actor:a,user:gm,score:0,writePiety:w});assert.equal(r.lost,0);assert.equal(writes.length,2);assert.equal(getVow(a,MOD),null);
   await assert.rejects(breakVow({moduleId:MOD,actor:a,user:gm,score:5,writePiety:w}),/No Vow/);
-  assert.match(src,/Break Vow\?',yes:'Break Vow',danger:true/);assert.ok(src.split('VOW_BREAK_PENALTY').length>2);assert.doesNotMatch(src,/-3\b.*Vow|Vow.*-3\b/);
+  assert.match(src,/Break Vow\?',yes:'Break Vow'\}/);assert.ok(src.split('VOW_BREAK_PENALTY').length>2);assert.doesNotMatch(src,/-3\b.*Vow|Vow.*-3\b/);
 });
 test('absent actor and bad input are refused cleanly',async()=>{
   await assert.rejects(swearVow({moduleId:MOD,actor:null,user:gm,deityId:'D',unlocked:true}),/Select a character/);
@@ -101,4 +101,10 @@ test('Vow UI: accessible toggle on the first rank card, status line, embed line'
 test('0.19.1: deity notifications and errors say Piety, factions keep Renown',()=>{
   assert.match(src,/\$\{isDeity\(f\)\?'Piety':'Renown'\}: \$\{result\.before\}/);
   assert.match(src,/\$\{isDeity\(f\)\?'Piety':'Renown'\} no longer qualifies/);
+});
+
+test('0.19.1: Break Vow uses the danger confirmation (Cancel is the default)',()=>{
+  const at=src.indexOf("Break ${actor.name}'s Vow");
+  assert.match(src.slice(at-30,at),/confirmDanger\(/);
+  assert.match(src.slice(at,at+400),/title:'Break Vow\?',yes:'Break Vow'\}/);
 });

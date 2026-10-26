@@ -745,7 +745,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async breakVow(e,t){try{
     assertGM();const actor=game.actors.get(this.#actor),cur=getVow(actor,MODULE_ID);if(!actor||!cur)throw Error('No Vow is sworn.');
     const name=getVowGodName(cur.deity_id),score=getPersonal(personalDoc(cur.deity_id,actor.id))?.standing?.score??0;
-    if(!await confirmDialog(`Break ${actor.name}'s Vow to ${name}? This ends the Vow and takes ${Math.min(VOW_BREAK_PENALTY,score)} piety with ${name}. The history records it.`,{title:'Break Vow?',yes:'Break Vow',danger:true}))return;
+    if(!await confirmDanger(`Break ${actor.name}'s Vow to ${name}? This ends the Vow and takes ${Math.min(VOW_BREAK_PENALTY,score)} piety with ${name}. The history records it.`,{title:'Break Vow?',yes:'Break Vow'}))return;
     await breakVow({moduleId:MODULE_ID,actor,user:game.user,score,writePiety:(id,delta,reason)=>writeFavour(id,actor,delta,reason)});
     refreshEmbeds();await this.render({force:true});
   }catch(err){notifyError(err)}}
