@@ -1,3 +1,10 @@
+## 0.70.8 — 2026-10-26
+
+Recipes show their one requirement: a tool or a station.
+
+- **Workstation:** a recipe record with `workstation` now shows "Workstation: <name>" in the preview and Browse, and never its tools. A recipe with `required_tools` shows "Tools: A or B" (any one of them, for crafts as well as activities; crafts used to be joined with commas). A recipe with neither shows "Tools: Profession default" (the Ledger's configured tool). If a record carries both (a content mistake) the station is shown.
+- **Nothing is dropped on import:** Manager stores the whole record in the source flag, so `workstation` reaches the Ledger as written; a test now proves it. No change to saved data.
+
 ## 0.70.7 — 2026-10-26
 
 Import tab: **Clear inputs…**, and a tidier page (three steps, one scroll area).

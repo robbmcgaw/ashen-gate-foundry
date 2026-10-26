@@ -8,6 +8,9 @@
  *    as its recipe Item (the learnable item). For an activity `required_tools` are alternatives (any one).
  *  - 0.49.0 (Ledger 0.29.0), optional and display only: an activity's `effect_note` (or `effectNote`; up to 400 characters,
  *    a boon the GM decides) and a profession's `recipeLabel` / `recipeLabelPlural` (1–30 characters; its word for a recipe).
+ *  - 0.70.8 (supplement recipes carry `required_tools` XOR `workstation`): a recipe shows ONE requirement row. A `workstation` shows
+ *    "Workstation: <name>" and never the tools; tools show "Tools: A or B" (any-of, for crafts and activities alike); a recipe with
+ *    neither shows "Tools: Profession default" (the Ledger's configured tool). Both present is a content defect: the station wins.
  *  - "Any musical instrument" (also "Musical instrument", "music") is a tool group. Manager does not check tool names
  *    (the Ledger resolves them), so a group passes import like any other text.
  */
@@ -65,16 +68,23 @@ export function recipeLabelText(record) {
  * {label: 'Activity' | 'Craft' | 'Creative' | ... | null, fields: [[label, value]], summary: 'Activity · Short effort · Apprentice',
  *  chips: [...], searchText: [...]}
  */
+/** The one requirement row of a Recipe record: ['Workstation', name] or ['Tools', 'A or B' | 'Profession default']. */
+export function recipeRequirement(record) {
+  const f = professionFacts({...record, entity_type: 'Recipe'});
+  return f?.fields.find(([k]) => k === 'Workstation' || k === 'Tools') ?? null;
+}
 export function professionFacts(record) {
   if (isRecipeRecord(record)) {
     const activity = isActivityRecipe(record);
     const label = activity ? 'Activity' : 'Craft';
     const effort = effortLabel(record.effort), tier = tierLabel(record.tier);
     const tools = Array.isArray(record.required_tools) ? record.required_tools.filter(t => typeof t === 'string' && t.trim()) : [];
+    const station = typeof record.workstation === 'string' && record.workstation.trim() ? record.workstation.trim() : null;
+    const requirement = station ? ['Workstation', station] : ['Tools', tools.length ? tools.map(t => t.trim()).join(' or ') : 'Profession default'];
     // 0.49.0: only activities carry an effect note (the Ledger shows it nowhere else).
     const note = activity ? effectNoteOf(record) : null;
     const fields = [['Recipe kind', label], ['Effort', effort], ['Tier', tier],
-      ['Tools', tools.length ? tools.join(activity ? ' or ' : ', ') : null], ['Effect note', note]].filter(([, v]) => v);
+      requirement, ['Effect note', note]].filter(([, v]) => v);
     return {label, fields, summary: [label, effort ? `${effort} effort` : null, tier, note ? 'Effect note' : null].filter(Boolean).join(' · '),
       chips: [label, note ? 'Effect note' : null].filter(Boolean), searchText: [label, note].filter(Boolean)};
   }
