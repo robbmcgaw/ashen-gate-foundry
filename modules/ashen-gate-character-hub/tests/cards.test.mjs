@@ -98,7 +98,7 @@ test('Combat: no initiative in the tab (it is on the left), weapons and actions 
   const {html} = await renderTab('combat');
   assert.doesNotMatch(body(html), /roll-initiative|Roll initiative/);
   assert.match(html, /agch-tile[^>]*data-config="initiative"[\s\S]*data-action="roll-initiative"/, 'initiative still on the character column');
-  assert.match(body(html), /<span>Damage \/ Healing<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(body(html), /<span>Dice<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
   assert.match(body(html), /data-action="item-use" data-id="sw"/);
   assert.match(body(html), /Not equipped/);
 });
@@ -134,8 +134,8 @@ test('group and sort choices: per user, safe defaults, unknown values refused', 
   assert.ok(ORGANIZE.magic.sorts.some(([k]) => k === 'school') && ORGANIZE.features.groups.length === 5);
 });
 
-test('Magic: toolbar with search, group and sort; group by school; columns follow the grouping', async () => {
-  installGlobals({user: users.owner, settings: {}});
+test('Magic (long rows): toolbar with search, group and sort; group by school; columns follow the grouping', async () => {
+  installGlobals({user: users.owner, settings: {showSpellDescriptions: true}});
   let {sheet, html} = await renderTab('magic');
   let b = body(html);
   assert.match(b, /data-filter data-tab="magic" placeholder="Search spells"/);
@@ -145,7 +145,7 @@ test('Magic: toolbar with search, group and sort; group by school; columns follo
   assert.match(body(await sheet._renderHTML()), /agch-filtermenu[\s\S]*data-edit="list-sort" data-tab="magic" data-field="group" data-ag-always/);
   sheet.menu = null;
   assert.match(b, /data-key="magic:0"[\s\S]*data-key="magic:1"/, 'spell levels as folding groups');
-  assert.match(b, /<span>Casting time<\/span><span>Range<\/span><span>Duration<\/span><span>Components<\/span>/, '0.33.0 (CH-08): four fact columns');
+  assert.match(b, /<span>Casting<\/span><span>Range<\/span><span>Duration<\/span><span>Components<\/span>/, '0.33.0 (CH-08): four fact columns');
   assert.match(b, /\[TEST\] Bless<\/button><span class="agch-item__badges"><span class="ag-badge">Enchantment<\/span>/, 'the school sits beside the name (grouped by level: no level badge)');
   assert.match(b, /1 Minute <span class="ag-badge agch-flag" data-tooltip="Concentration"><span aria-hidden="true">C<\/span><span class="ag-sr-only">Concentration<\/span><\/span>/);
   assert.match(b, /data-tooltip="Ritual"><span aria-hidden="true">R</);
@@ -153,7 +153,7 @@ test('Magic: toolbar with search, group and sort; group by school; columns follo
   await EDITS['list-sort'](sheet, {dataset: {tab: 'magic', field: 'group'}, value: 'school'});
   b = body(await sheet._renderHTML());
   assert.match(b, /data-key="magic:school:Abjuration"[\s\S]*data-key="magic:school:Enchantment"[\s\S]*data-key="magic:school:Evocation"/);
-  assert.match(b, /<span>Casting time<\/span>/);
+  assert.match(b, /<span>Casting<\/span>/);
   assert.doesNotMatch(b, /<span class="ag-badge">Enchantment<\/span>/, 'grouped by school: no school badge');
   assert.match(b, /\[TEST\] Bless<\/button><span class="agch-item__badges"><span class="ag-badge">1st Level<\/span>/, 'the level (dnd5e label) sits beside the name');
   assert.match(b, /agch-slotstrip/, 'slots still shown when not grouped by level');

@@ -91,7 +91,7 @@ export const COLUMNS = {
   recovery: {key: 'recovery', label: 'Recovery'},
   level: {key: 'level', label: 'Level'},
   school: {key: 'school', label: 'School'},
-  castTime: {key: 'activation', label: 'Casting time'},
+  castTime: {key: 'activation', label: 'Casting'},
   duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${flagBadges(r.facts)}`, late: true},
   components: {key: 'components', label: 'Components', late: true},
   quantity: {key: 'quantity', label: 'Qty'},
@@ -100,7 +100,9 @@ export const COLUMNS = {
   type: {key: 'type', label: 'Type'}
 };
 
-export const cell = (col, row) => `<span class="agch-card__fact${col.late ? ' agch-card__fact--late' : ''}" data-label="${esc(col.label)}">${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
+/** `col.cls` adds a class (Magic's fixed-width columns, 0.55.0); `col.tip` puts the plain value in a tooltip, since the cell may be cut with an ellipsis. */
+const tipOf = (col, row) => (typeof col.tip === 'function' ? col.tip(row) : col.tip ? row.facts?.[col.key] : '');
+export const cell = (col, row) => `<span class="agch-card__fact${col.late ? ' agch-card__fact--late' : ''}${col.cls ? ` ${col.cls}` : ''}" data-label="${esc(col.label)}"${tipOf(col, row) ? ` data-tooltip="${esc(tipOf(col, row))}"` : ''}>${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
 
 /**
  * One item card. `expanded` (Set of item ids) keeps "More" open across re-renders. `lead` is HTML before the image
@@ -136,7 +138,7 @@ export function cardHtml(row, columns, {controls = '', lead = '', star = '', bad
 }
 
 /** Column header row for a list. */
-export const headHtml = columns => `<li class="agch-card__headrow" aria-hidden="true"><span></span><span></span><span>Item</span>${columns.map(c => `<span>${esc(c.label)}</span>`).join('')}<span>Actions</span></li>`;
+export const headHtml = columns => `<li class="agch-card__headrow" aria-hidden="true"><span></span><span></span><span>Item</span>${columns.map(c => `<span${c.cls ? ` class="${c.cls}"` : ''}>${esc(c.label)}</span>`).join('')}<span>Actions</span></li>`;
 
 /**
  * A list of cards with a header row and stripes. `card(row, i)` returns a row's card options; `after(row)` adds HTML

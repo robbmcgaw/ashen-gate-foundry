@@ -1,3 +1,17 @@
+## 0.55.0 — 2026-10-26
+
+Magic: every spell is exactly one line, at every window width.
+
+- **One line, always.** The spell name never wraps: a long name is cut with an ellipsis (hover it for the full name and dnd5e's hover card). The school chip and the level chip no longer sit under or beside the name.
+- **Columns, by what players use.** The row is Item (star, icon, chevron, name, and small **C** / **R** badges), **Dice**, **Range**, **Casting**, **Components** and the buttons. **Dice** is new: the spell's damage or healing dice at base value ("8d6 fire", "2d8+3 heal", several parts joined with " + ", full text in a tooltip, empty when there are none), from the same labels as Combat's column, which is now headed **Dice** instead of Damage / Healing. Duration and the school are off the line. "Casting time" is now **Casting** everywhere.
+- **Aligned.** Fixed column widths, so every row and the heading line up, with a uniform height. The actions column (Prepare, Prepared or Always, and Cast) has a fixed width plus a small gutter and right padding, so the data columns never shift with the button text; the buttons are pinned to the right.
+- **Prepare, Prepared, Always** are the same size; Prepared keeps the gold fill and its word, Always is a neutral pill. Cast has a fixed width. Nothing wraps.
+- **Columns drop as the Hub narrows**, last-used first, each moving into the open row: Components (Hub body 680px wide or less), Casting (590px), Range (505px), Dice shrinks (455px) and goes (415px). Always shown: star, icon, chevron, name, C / R, the buttons. When Casting is hidden, a casting time that is not a plain Action keeps a short badge by the name (Bonus, Reaction, 1 min). Below 384px wide the list scrolls sideways with the buttons pinned. The row never wraps.
+- **The open row** (click the name or chevron) now has Level, School, Casting, Range, Dice, Duration and Components, then the description and the Open button, at any width.
+- Unchanged: group folds and slot badges, pinned headings, Prepare / Always, the preparation-limit prompt, the Prepared X/Y count, favourites, Cast, hover card, and **Show spell descriptions** (the long rows keep their chips and four fact columns; only the "Casting time" heading now reads "Casting"). Combat, Inventory and Features rows are unchanged.
+- Presentation only: no spell, character or world data changes, no migration.
+- Tests use mocked Foundry and prove the markup, logic and CSS text, not the live layout. Please check in Forge as described in the pull request.
+
 ## 0.54.1 — 2026-10-26
 
 Fixes a Foundry deprecation warning in the console.
