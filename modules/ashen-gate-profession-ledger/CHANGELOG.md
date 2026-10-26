@@ -1,3 +1,7 @@
+## 0.33.2 — 2026-10-26
+
+Fix: Assign (and the skill/tool proficiency badges) counted half proficiency as proficient, so a Bard with Jack of All Trades was given professions they did not qualify for. Only full proficiency (1) and Expertise (2) count now. No change to saved data; existing assignments are not touched (use Refresh… to correct a character).
+
 ## 0.33.1 — 2026-10-26
 
 The Ledger window and embeds ignore Manager bulk writes (Sync, Import) while they run and refresh once when they finish; before, every updated Item redrew them. No change to saved data.

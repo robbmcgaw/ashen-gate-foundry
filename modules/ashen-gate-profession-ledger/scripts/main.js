@@ -24,7 +24,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.1';
+const VERSION='0.33.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -3660,7 +3660,7 @@ Hooks.once('ready',()=>{
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
-  // 0.33.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
+  // 0.33.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
   const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();});
   Hooks.on('ashenGate.bulkFinished',()=>refresh());

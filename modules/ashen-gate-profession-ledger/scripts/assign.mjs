@@ -77,7 +77,7 @@ export function catalogCrosswalk(definitions=[]){
 /** Professions with no qualifying skill, tool or item in this crosswalk: nobody can be proposed for them. */
 export const unmappedProfessions=map=>allProfessionKeys().filter(k=>!(map.qualifySkills[k]?.length||map.qualifyTools[k]?.length||map.items?.[k]?.length)).map(professionTitle);
 
-const skillProficient=(actor,key)=>Number(actor?.system?.skills?.[key]?.value??0)>0;
+const skillProficient=(actor,key)=>Number(actor?.system?.skills?.[key]?.value??0)>=1;
 /** [{key, profession, reason}] for each profession the character qualifies for, e.g. "Herbalism Kit + Nature → Herbalism"
  * or, from a legacy items list, "Fishing Tackle (carried) → Fishing". */
 export function qualifications(actor,map){
