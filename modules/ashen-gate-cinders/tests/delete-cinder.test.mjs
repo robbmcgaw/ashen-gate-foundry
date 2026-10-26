@@ -171,7 +171,7 @@ test('a Cinder whose bearer is no longer in this world can be deleted',async()=>
 test('Manage: every row has Delete Cinder…; the dialog lists what goes, Cancel is the default, Delete <Cinder> is the danger action; a bound Cinder gets an explanation, not a confirm',async()=>{
   game.user=gm;
   const hbs=fs.readFileSync(new URL('../templates/cinders.hbs',import.meta.url),'utf8');
-  assert.match(hbs,/data-act="cinder-delete" data-instance="\{\{instanceId\}\}"[^>]*><i[^>]*><\/i> Delete Cinder…<\/button>/);
+  assert.match(hbs,/data-act="cinder-delete" data-instance="\{\{instanceId\}\}"[^>]*><i[^>]*><\/i><span class="agc-lab ag-sr-only"> Delete Cinder…<\/span><\/button>/);
   const c=await cinder.create(DEF);const app=api.open();app.tab='manage';
   let seen=await withDialogs(()=>app._act({dataset:{act:'cinder-delete',instance:c.instanceId}}),o=>o.buttons.find(b=>b.action==='cancel').callback());
   assert.equal(seen.length,1);const d=seen[0];
@@ -192,4 +192,11 @@ test('no machine ids in the dialog text a GM reads',async()=>{
   const {assertNoMachineText}=await import('../../../scripts/test-helpers/no-ids.mjs');
   const record={instanceId:'cinst_AAAAAAAA1',definitionId:'MUT-TEST-EMBER',status:'unbound',bearer:null,progression:{awarded:2,unlocks:['N1']},sockets:{attached:[{slot:0,itemId:'x'}]},art:'a.png',artStages:null};
   assertNoMachineText(confirmText(planCinderDelete({instanceId:record.instanceId,record,name:'[TEST] Ember',leftovers:{links:[{actorName:'[TEST] A'}],bearerItems:[{actorName:'[TEST] A',itemName:'[TEST] Passive'}],marks:[{actorName:'[TEST] A',itemName:'[TEST] Ring'}]}})),'delete dialog');
+});
+test('Manage Cinders rows (0.15.0): one line, icon buttons with names, steps by window width',()=>{
+  const hbs=fs.readFileSync(new URL('../templates/cinders.hbs',import.meta.url),'utf8'),css=fs.readFileSync(new URL('../styles/cinders.css',import.meta.url),'utf8');
+  for(const a of ['cinder-transfer','cinder-unbind','cinder-bind','cinder-delete'])assert.match(hbs,new RegExp(`data-act="${a}"[^>]*aria-label="[^"]+…"[^>]*data-tooltip="`),a);
+  assert.match(hbs,/class="agc-sub agc-meta"/,'Points and Powers have a fallback line');
+  for(const w of ['30rem','40rem','52rem'])assert.match(css,new RegExp(`@container \\(min-width:${w}\\)`),w);
+  assert.match(css,/\.agc-manage-table tr\{display:grid/);assert.doesNotMatch(css,/data-label/);
 });

@@ -110,15 +110,34 @@ button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surfac
 .agc-band-edit .ag-field{margin:0}
 .agc-schedule{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:0 var(--ag-space-2)}
 .agc-actions-start{justify-content:flex-start}
-/* Narrow window: the Manage table becomes labelled stacked rows. */
-@container (max-width: 40rem){
-  .agc-manage-table thead{display:none}
-  .agc-manage-table,.agc-manage-table tbody,.agc-manage-table tr,.agc-manage-table td{display:block;box-sizing:border-box;width:auto}
-  .agc-manage-table tr{padding:var(--ag-space-2) var(--ag-space-3);border-bottom:1px solid var(--ag-border)}
-  .ag-table.agc-manage-table td{padding:var(--ag-space-1) 0;text-align:left;white-space:normal}
-  .agc-manage-table td::before{content:attr(data-label);display:block;color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:650;letter-spacing:.05em;text-transform:uppercase}
-  .agc-manage-table td .ag-badge{white-space:normal}
-  .agc-manage-table .agc-row-actions{justify-content:flex-start}
+/* Manage → Cinders (0.15.0): one line per Cinder, like the Hub's rows. Rows are grids that share the heading's columns. Always: the bearer
+   (an ellipsis when long) and the actions, pinned at the right as icons with an aria-label and tooltip (words from 52rem). The window's
+   width adds Points (30rem) and Powers (40rem); below 30rem both sit in a small second line under the bearer instead. */
+.agc-manage-table,.agc-manage-table tbody{display:block}
+.agc-manage-table thead{display:none}
+.agc-manage-table tr{display:grid;grid-template-columns:minmax(0,1fr) 7.25rem;align-items:center;column-gap:var(--ag-space-2);padding:var(--ag-space-1) var(--ag-space-3);border-bottom:1px solid var(--ag-border)}
+.ag-table.agc-manage-table td{padding:var(--ag-space-1) 0}
+.agc-manage-table .agc-c-points,.agc-manage-table .agc-c-powers{display:none;white-space:nowrap}
+.agc-manage-table .agc-c-bearer{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--ag-space-2);min-width:0}
+.agc-manage-table .agc-bearer{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agc-manage-table .agc-sub{flex:1 0 100%}
+.agc-manage-table .agc-c-actions,.agc-manage-table th.is-actions{width:auto;min-width:0}
+.agc-manage-table .agc-row-actions{display:flex;flex-wrap:nowrap;justify-content:flex-end;gap:var(--ag-space-1)}
+@container (min-width:30rem){
+  .agc-manage-table thead{display:block}
+  .agc-manage-table thead tr{border-bottom:1px solid var(--ag-border-strong)}
+  .agc-manage-table tr{grid-template-columns:minmax(0,1fr) 9.5rem 7.25rem}
+  .agc-manage-table .agc-c-points{display:block}
+  .agc-manage-table .agc-sub{display:none}
+  .agc-manage-table th:nth-child(3){display:none}
+}
+@container (min-width:40rem){
+  .agc-manage-table tr{grid-template-columns:minmax(0,1fr) 9.5rem 7rem 7.25rem}
+  .agc-manage-table .agc-c-powers,.agc-manage-table th:nth-child(3){display:block}
+}
+@container (min-width:52rem){
+  .agc-manage-table tr{grid-template-columns:minmax(0,1fr) 9.5rem 7rem 24rem}
+  .agc-manage-table .agc-lab{position:static !important;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none}
 }
 /* Chat card (outside the window): :root tokens from the kit, so it reads with or without General Manager. */
 .agc-chat h3{margin:0 0 var(--ag-space-1)}
