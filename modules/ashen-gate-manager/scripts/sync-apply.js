@@ -383,7 +383,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
     const LEDGER_KINDS = new Set(['Location', 'Route', 'Shop', 'Service', 'MerchantList', 'Quest', 'Skill Tree', 'Facility', 'Faction', 'Deity', 'Strain config']);
     for (const x of log) if (x.status === 'ok' && ['create', 'update'].includes(x.action) && LEDGER_KINDS.has(x.kind)) {
       const row = externalById.get(x.id);
-      if (row) ledgerAdds.push({key: row.specialist ? ledgerKey(null, row.specialist) : ledgerKey(row.line), id: row.id, info: {kind: row.kind, module: row.module, name: row.name}});
+      if (row) ledgerAdds.push({key: row.specialist ? ledgerKey(null, row.specialist) : ledgerKey(row.line), id: row.id, info: {kind: row.kind, module: row.module, name: row.name, ...(row.fp ? {fp: row.fp} : {}), ...(adapter.heldFingerprint?.(row) ? {held: adapter.heldFingerprint(row)} : {})}});
     }
     if (ledgerAdds.length) await guard(adapter.saveLedger?.(ledgerAdds));
   }
