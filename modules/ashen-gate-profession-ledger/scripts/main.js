@@ -27,7 +27,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.34.0';
+const VERSION='0.34.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1029,14 +1029,17 @@ function craftRequirement(recipe,actor=null){
   const activity=isActivity(recipe),access=activityAccess(recipe);
   // The recipe's own tools: its single tool field plus every required_tools entry (all are needed for a craft).
   // 0.28.0: an activity's tools, and the tools in its access list, are alternatives: any one of them will do.
-  const own=[toolRef(recipe?.tool),...(recipe?.tools??[]).map(requiredToolRef),...access.tools.map(requiredToolRef)].filter(Boolean)
-    .filter((ref,i,list)=>list.findIndex(r=>toolRefLabel(r)===toolRefLabel(ref))===i);
+  // 0.34.1: when the recipe has a workstation, its access tools are CHECK-ONLY roll choices: not shown as "Uses", never missing, never blocking.
+  const dedupe=list=>list.filter((ref,i)=>list.findIndex(r=>toolRefLabel(r)===toolRefLabel(ref))===i);
+  const accessRefs=access.tools.map(requiredToolRef).filter(Boolean),checkOnly=Boolean(recipe?.workstation);
+  const own=dedupe([toolRef(recipe?.tool),...(recipe?.tools??[]).map(requiredToolRef),...(checkOnly?[]:accessRefs)].filter(Boolean));
   const profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
+  const rollOwn=checkOnly&&accessRefs.length?dedupe([...(profTool?[profTool]:[]),...own,...accessRefs]):own; // the discipline's tool leads the roll
   const tools=own.length?own:recipe?.workstation||!profTool?[]:[profTool];
   // 0.32.2: one tool requirement that is the profession's own (or one of its allowed tools) is met by ANY tool GM Setup
   // allows for that profession (Inscription: Calligrapher's Supplies, Cartographer's Tools or Painter's Supplies).
   const anyOf=activity?null:alternativeTools(tools,profLabel,{fromProfession:!own.length});
-  const checks=own.length?own:profTool?[profTool]:[];
+  const checks=rollOwn.length?rollOwn:profTool?[profTool]:[];
   const usable=ref=>heldTool(actor,ref)||(ref.key&&toolProficiencyMatches(actor,ref.key).length);
   const carriedRef=!actor||!anyOf?null:anyOf.find(ref=>heldTool(actor,ref))??null,carried=carriedRef;
   const missing=!actor?[]:activity?(tools.some(usable)?[]:tools):anyOf?(carried?[]:anyOf):tools.filter(ref=>!heldTool(actor,ref));

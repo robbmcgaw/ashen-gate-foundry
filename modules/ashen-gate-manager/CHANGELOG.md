@@ -1,4 +1,4 @@
-## 0.70.6 — 2026-10-26
+## 0.70.7 — 2026-10-26
 
 Import tab: **Clear inputs…**, and a tidier page (three steps, one scroll area).
 
@@ -8,6 +8,13 @@ Import tab: **Clear inputs…**, and a tidier page (three steps, one scroll area
 - **Advanced:** the Load details (package, version, schema, ZIP portrait upload) and the Options (profile, update toggles, icons) are one **Advanced** fold in Import. In Sync, the three "Also…" switches (delete records not in the files, overwrite edited records, replace art) are one **Advanced** fold that opens by itself while any is on and says which are on when closed.
 - Nothing was removed: modes, Sync rows (Overwrite, Unchanged, Kept), staged art, progress, Cancel and resume work as before.
 - No change to saved data.
+
+## 0.70.6 — 2026-10-26
+
+Help catches up with 0.68 to 0.70.5. No behaviour change, no saved-data change.
+
+- **Sync from package** now explains the hand-off rows: a record that has not changed is listed as "Already matches the package" and is not passed on again; the first Sync after 0.70.5 says "No earlier import is recorded for this record" and passes it on once; a record edited in the other module's own window is "Kept: edited in <module>" until you tick "Also overwrite records I edited".
+- **Reference links** (`@AGRef[id]{Label}`, 0.68.0) have a Help paragraph: names not ids, handout Item twin, what players may open, how the GM opens a person.
 
 ## 0.70.5 — 2026-10-26
 

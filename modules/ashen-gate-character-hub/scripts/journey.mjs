@@ -26,8 +26,10 @@ import {isBackup} from './level-backup.mjs';
 export const JOURNEY_FLAG = 'journey';
 export const JOURNEY_CAP = 300;
 export const TEXT_MAX = 500;
-export const TYPES = {level: 'Level up', renown: 'Renown', quest: 'Quest', reward: 'Reward', cinder: 'Cinder', manual: 'Note'};
-const AUTO_TYPES = new Set(['level', 'renown', 'quest', 'reward', 'cinder']);
+/** The entry's type as shown: deity rank changes saved before 0.58.1 are type 'renown' with a ':deity' key; they read Piety too. */
+export const displayType = e => e?.type === 'renown' && typeof e.data?.key === 'string' && e.data.key.endsWith(':deity') ? 'piety' : e?.type;
+export const TYPES = {level: 'Level up', renown: 'Renown', piety: 'Piety', quest: 'Quest', reward: 'Reward', cinder: 'Cinder', manual: 'Note'};
+const AUTO_TYPES = new Set(['level', 'renown', 'piety', 'quest', 'reward', 'cinder']);
 const HIDDEN_FLAG = 'journeyHidden', STORE_FLAG = 'journeyStore', QUEST_SEEN = 'journeyQuestSeen';
 const refuse = error => ({ok: false, error});
 const isGM = (user = globalThis.game?.user) => user?.isGM === true;
@@ -108,7 +110,7 @@ export function levelEntries(actor, j = readJourney(actor)) {
 const rankAt = (milestones, score) => [...(milestones ?? [])].filter(m => Number(score) >= Number(m.threshold)).pop() ?? null;
 /**
  * Renown tier changes from Renown's own public read API (what this user is allowed to see): this character's personal
- * rank and the party's rank with each faction, and its standing with each deity (getPantheon). The entry id is
+ * rank and the party's rank with each faction, and its Piety with each deity (getPantheon; recorded as 'piety' entries). The entry id is
  * tied to the rank reached plus the last history event, so a re-fire doesn't duplicate.
  */
 export function renownEntries(actor, api, j = readJourney(actor)) {
@@ -116,9 +118,9 @@ export function renownEntries(actor, api, j = readJourney(actor)) {
   let factions = [], deities = [];
   try { factions = api?.getFactions?.() ?? []; } catch { factions = []; }
   try { deities = typeof api?.getPantheon === 'function' ? api.getPantheon(actor) ?? [] : []; } catch { deities = []; }
-  const note = (key, rank, text, lastEvent) => {
+  const note = (key, rank, text, lastEvent, type = 'renown') => {
     next[key] = rank;
-    if (seenR && key in seenR && seenR[key] !== rank && rank) entries.push({id: `renown-${key}-${rank}-${lastEvent ?? 'x'}`.replace(/[^A-Za-z0-9:_-]/g, ''), type: 'renown', text, at, data: {key, from: seenR[key], to: rank}});
+    if (seenR && key in seenR && seenR[key] !== rank && rank) entries.push({id: `${type}-${key}-${rank}-${lastEvent ?? 'x'}`.replace(/[^A-Za-z0-9:_-]/g, ''), type, text, at, data: {key, from: seenR[key], to: rank}});
   };
   for (const f of factions) {
     const mine = f.personal?.[actor.id];
@@ -131,7 +133,7 @@ export function renownEntries(actor, api, j = readJourney(actor)) {
       if (r) note(`${f.id}:party`, r.id ?? r.name, `The party reached ${r.name} with ${f.name}`, f.group.history?.at?.(-1)?.id);
     }
   }
-  for (const d of deities) if (d?.id && d.rank) note(`${d.id}:deity`, d.rank, `Reached ${d.rank} with ${d.name ?? 'a deity'}`, d.score);
+  for (const d of deities) if (d?.id && d.rank) note(`${d.id}:deity`, d.rank, `Reached ${d.rank} with ${d.name ?? 'a deity'}`, d.score, 'piety');
   return {entries, seen: {renown: {...(seenR ?? {}), ...next}}};
 }
 
