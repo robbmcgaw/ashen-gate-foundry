@@ -8,7 +8,7 @@ import {bindSkinPicker} from '../scripts/skin-picker.js';
 import {windowSize,COMFORTABLE_SCALE} from '../scripts/ag-html.mjs';
 
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const VERSION='0.71.1';
+const VERSION='0.71.2';
 
 // One browser: client settings live per device, world/user settings are shared.
 function device(user,{world=new Map([['worldSkin','ag-default']]),client=new Map()}={}){

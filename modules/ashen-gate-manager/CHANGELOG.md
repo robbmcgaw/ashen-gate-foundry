@@ -1,4 +1,4 @@
-## 0.71.1 — 2026-10-26
+## 0.71.2 — 2026-10-26
 
 Narrow-window fixes (shared kit 2.4.0).
 
@@ -6,6 +6,14 @@ Narrow-window fixes (shared kit 2.4.0).
 - Items > Records and NPC Codex: the record rows lose their 20 rem scroll box when the window is narrow.
 - **Tab rows that scroll sideways now show it.** When tabs are cut off at the edge of a narrow window, that edge fades out, and the selected tab is scrolled into view when the window opens (before, the last tabs, such as GM Setup, could be hidden with no sign that more existed). Arrow keys and Tab bring a hidden tab into view. Nothing animates.
 - No change to saved data. Check in Forge: Items > Records, then narrow the window to about 600 px: the record list runs full length and the details follow it.
+
+## 0.71.1 — 2026-10-26
+
+Creatures move into Ashen Gate/Bestiary.
+
+- The creature pack now files its Actors under "Ashen Gate/Bestiary/Frontier Creatures" and "Ashen Gate/Bestiary/Ashen Additions", but Sync never re-files documents already in your world. Manager now moves the creatures it imported (records whose id starts `CRE-`) out of the old top-level Actor folders "Draft Frontier Creatures" and "Draft Ashen Additions" into the new folders, once, when the world opens (GM only; also before an Import or Sync).
+- **Safe:** only Manager-imported creatures in those exact folders move; anything else in them, a folder you renamed or filed elsewhere, and everything else stays. The new folders are created if missing and reused if they exist (no duplicates). No folder is ever deleted: the old Draft folders are left empty for you to remove. Running it again changes nothing.
+- No change to saved data beyond the existing "folder renames done" record.
 
 ## 0.71.0 — 2026-10-26
 
