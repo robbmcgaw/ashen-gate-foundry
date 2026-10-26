@@ -11,13 +11,13 @@ import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEn
 export const CODEX_QUERY = 'ashen-gate-manager.codexForPlayer';
 export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
 const RENOWN = 'ashen-gate-factions';
-/** Renown's player view names a discovered faction whose name is not revealed like this; the Codex shows Unknown. */
-const RENOWN_MASKED = 'Unknown Organization';
+/** Renown's player view names a discovered faction whose name is not revealed 'Unknown faction' (core.mjs UNKNOWN_FACTION; 'Unknown Organization' is its older wording); the Codex shows Unknown. */
+const RENOWN_MASKED = new Set(['Unknown faction', 'Unknown Organization']);
 /** 0.41.1: where a player's own client reads the records it can see, by link kind (owning module, API, filter). */
 const PLAYER_SOURCES = [
   {kind: 'location', module: 'ashen-gate-locations', fn: 'listLocations'},
   {kind: 'quest', module: 'ashen-gate-quest-manager', fn: 'listVisible'},
-  {kind: 'renown', module: RENOWN, fn: 'getFactions', ok: f => f.name !== RENOWN_MASKED}
+  {kind: 'renown', module: RENOWN, fn: 'getFactions', ok: f => !RENOWN_MASKED.has(f.name)}
 ];
 const CLAIM_KINDS = new Set(PLAYER_SOURCES.map(p => p.kind));
 const MAX_CLAIMS = 5000;

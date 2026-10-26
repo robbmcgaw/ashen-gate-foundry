@@ -12,8 +12,8 @@ import {createCodexService} from '../scripts/codex-service.js';
 const read = rel => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
 const M = 'ashen-gate-manager', L = 'ashen-gate-locations', Q = 'ashen-gate-quest-manager', R = 'ashen-gate-factions';
 const LINKS = ['LOC-TEST-SEEN', 'LOC-TEST-SECRET', 'QUEST-TEST-SEEN', 'QUEST-TEST-SECRET', 'FAC-TEST-SEEN', 'FAC-TEST-SECRET',
-  'FAC-TEST-MASKED', 'NPC-TEST-FRIEND', 'NPC-TEST-SECRET', 'DEITY-TEST-SECRET'];
-const SECRETS = ['LOC-TEST-SECRET', 'QUEST-TEST-SECRET', 'FAC-TEST-SECRET', 'FAC-TEST-MASKED', 'NPC-TEST-SECRET', 'DEITY-TEST-SECRET', 'SECRET-'];
+  'FAC-TEST-MASKED', 'FAC-TEST-MASKED-NOW', 'NPC-TEST-FRIEND', 'NPC-TEST-SECRET', 'DEITY-TEST-SECRET'];
+const SECRETS = ['LOC-TEST-SECRET', 'QUEST-TEST-SECRET', 'FAC-TEST-SECRET', 'FAC-TEST-MASKED', 'FAC-TEST-MASKED-NOW', 'NPC-TEST-SECRET', 'DEITY-TEST-SECRET', 'SECRET-'];
 const revealed = (links = true) => {
   let s = setReveal(normalizeState(null), 'discovery', {mode: 'party'});
   return links ? setReveal(s, 'links', {mode: 'party'}) : s;
@@ -26,7 +26,7 @@ function partners(game, {fail = false} = {}) {
   const boom = () => { if (fail) throw new Error('partner broke'); };
   const locs = [{id: 'LOC-TEST-SEEN', name: '[TEST] Seen Gate'}, {id: 'LOC-TEST-SECRET', name: 'SECRET-LOC'}];
   const quests = [{id: 'QUEST-TEST-SEEN', name: '[TEST] Seen Errand'}, {id: 'QUEST-TEST-SECRET', name: 'SECRET-QUEST'}];
-  const facs = [{id: 'FAC-TEST-SEEN', name: '[TEST] Seen Guild'}, {id: 'FAC-TEST-SECRET', name: 'SECRET-FAC'}, {id: 'FAC-TEST-MASKED', name: 'SECRET-MASKED'}];
+  const facs = [{id: 'FAC-TEST-SEEN', name: '[TEST] Seen Guild'}, {id: 'FAC-TEST-SECRET', name: 'SECRET-FAC'}, {id: 'FAC-TEST-MASKED', name: 'SECRET-MASKED'}, {id: 'FAC-TEST-MASKED-NOW', name: 'SECRET-MASKED-NOW'}];
   return new Map([
     [L, {active: true, api: {
       getLocation: id => { boom(); return gm() ? locs.find(l => l.id === id) ?? null : id === 'LOC-TEST-SEEN' ? locs[0] : null; },
@@ -35,7 +35,7 @@ function partners(game, {fail = false} = {}) {
       listQuests: () => { boom(); if (!gm()) throw new Error('GM only'); return quests; },
       listVisible: () => { boom(); return gm() ? quests : [quests[0]]; }}}],
     [R, {active: true, api: {
-      getFactions: () => { boom(); return gm() ? facs : [facs[0], {id: 'FAC-TEST-MASKED', name: 'Unknown Organization'}]; },
+      getFactions: () => { boom(); return gm() ? facs : [facs[0], {id: 'FAC-TEST-MASKED', name: 'Unknown Organization'}, {id: 'FAC-TEST-MASKED-NOW', name: 'Unknown faction'}]; },
       getDeities: () => { boom(); return gm() ? [{id: 'DEITY-TEST-SECRET', name: 'SECRET-DEITY'}] : []; },
       getPantheon: () => { boom(); return []; }}}],
     [M, {active: true}]
@@ -94,7 +94,7 @@ test('player end to end: names come from the player\'s own Locations, Quest Log 
   const links = linksOfEntry(entries);
   assert.deepEqual(links.filter(l => !l.unknown).map(l => l.name).sort(),
     ['[TEST] Friend', '[TEST] Seen Errand', '[TEST] Seen Gate', '[TEST] Seen Guild']);
-  assert.equal(links.filter(l => l.unknown).length, 6, 'secret loc, quest, faction, masked faction, npc and deity');
+  assert.equal(links.filter(l => l.unknown).length, 7, 'secret loc, quest, faction, both masked wordings of a faction, npc and deity');
   const html = renderPlayerCodexHtml(entries);
   noSecret(html, 'player html');
   assert.match(html, /agm-codex-link is-unknown[^>]*>Unknown</);
