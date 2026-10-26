@@ -1,3 +1,11 @@
+## 0.27.1 — 2026-10-26
+
+Fix: the objective rows in the quest editor ran off the right edge when the window was a little narrower than its default.
+
+- **Why:** each objective row (Key, Objective, Shown, Progress, Revealed) wanted about 41rem, but the editor sits beside the quest list, so between a window width of about 640 and 880px the editor scrolled sideways and Progress and Revealed were cut off. The row now wraps onto a second line from 60rem of window width and into one column from 40rem, as before. Measured in a headless browser at 500, 640, 700, 800, 900, 940, 1000 and 1200px: no sideways scroll at any of them.
+- README: the held reward copies folder is **Ashen Gate / Backups / Quest Rewards** (it still said the old name). The module description no longer uses internal terms.
+- Presentation only: no saved data changes. Check in Forge: GM > Quests > open a quest > Objectives, then drag the window narrower; nothing scrolls sideways.
+
 ## 0.27.0 — 2026-10-26
 
 Held reward copies (GM-only Items made when a reward is dropped from a character) now sit in **Ashen Gate / Backups / Quest Rewards** instead of a second top-level Item folder. On the first GM login after updating, Quest Log moves its own held copies from **Ashen Gate Rewards (Quest Log)**; anything you filed elsewhere stays. Quest journals stay in **Ashen Gate / Quests**, now looked up with the shared race-safe folder helper. Nothing is deleted and no ownership or permission changes.

@@ -148,6 +148,10 @@
 .agq-grant__choices .ag-field { margin: 0; }
 .agq-rewards-view { margin-top: var(--ag-space-4); }
 .agq-rewards-view .ag-row { gap: var(--ag-space-2); }
+/* The query measures the whole window, but the editor sits beside the list, so rows wrap well before the window is narrow. */
+@container (max-width: 60rem) {
+  .agq-srcobj { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+}
 @container (max-width: 40rem) {
   .agq-srcobj { grid-template-columns: minmax(0, 1fr); }
   .agq-srcobj__reveal { padding-bottom: 0; }
