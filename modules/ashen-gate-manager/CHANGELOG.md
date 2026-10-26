@@ -1,3 +1,11 @@
+## 0.71.1 — 2026-10-26
+
+Creatures move into Ashen Gate/Bestiary.
+
+- The creature pack now files its Actors under "Ashen Gate/Bestiary/Frontier Creatures" and "Ashen Gate/Bestiary/Ashen Additions", but Sync never re-files documents already in your world. Manager now moves the creatures it imported (records whose id starts `CRE-`) out of the old top-level Actor folders "Draft Frontier Creatures" and "Draft Ashen Additions" into the new folders, once, when the world opens (GM only; also before an Import or Sync).
+- **Safe:** only Manager-imported creatures in those exact folders move; anything else in them, a folder you renamed or filed elsewhere, and everything else stays. The new folders are created if missing and reused if they exist (no duplicates). No folder is ever deleted: the old Draft folders are left empty for you to remove. Running it again changes nothing.
+- No change to saved data beyond the existing "folder renames done" record.
+
 ## 0.71.0 — 2026-10-26
 
 Item activities can point at their effects.
