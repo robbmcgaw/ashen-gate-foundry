@@ -115,6 +115,6 @@ test('0.71.0 wiring: create strips the raw link, Import refreshes a stale link, 
   const main = read('../scripts/main.js');
   assert.match(main, /data\.system=withoutActivityEffectRefs\(data\.system\)/);
   assert.match(main, /activityLinksNeeded\(record,matches\[0\]\.doc/);
-  assert.equal(JSON.parse(read('../module.json')).version, '0.71.0');
-  assert.match(read('../CHANGELOG.md'), /^## 0\.71\.0 /); assert.match(read('../README.md'), /eff_id/);
+  assert.equal(JSON.parse(read('../module.json')).version, '0.71.1');
+  assert.match(read('../CHANGELOG.md'), /^## 0\.71\.0 /m); assert.match(read('../README.md'), /eff_id/);
 });

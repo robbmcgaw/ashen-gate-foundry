@@ -96,3 +96,40 @@ export async function renameManagerFolders({folders, done={}, update=(folder,dat
   }
   return {renamed,notes,done:{...done,...finished}};
 }
+
+/**
+ * 0.71.1: folder MOVES, for packs that moved a record type to a new folder_path (Sync never re-files existing documents). The creature
+ * Actors imported under "Draft Frontier Creatures" / "Draft Ashen Additions" now belong under "Ashen Gate/Bestiary/...". Only Actor folders found
+ * by their exact old name at the top level, and only the documents in them that Manager imported as that kind of record (`isOwn`, a source id
+ * starting CRE-), are moved; anything else in the folder stays, a folder the GM renamed or filed elsewhere is never found, and no folder is
+ * ever deleted (the old one is simply left empty). The destination is created when missing and reused when it exists (a merge, no duplicates).
+ */
+const CREATURE = doc => { const s = doc?.flags?.[MODULE_ID]?.source ?? (typeof doc?.getFlag === 'function' ? doc.getFlag(MODULE_ID, 'source') : null); return /^CRE-/.test(String(s?.sourceId ?? '')); };
+export const FOLDER_MOVES = Object.freeze([
+  Object.freeze({key: 'bestiaryFrontier', type: 'Actor', from: Object.freeze(['Draft Frontier Creatures']), to: Object.freeze(['Ashen Gate', 'Bestiary', 'Frontier Creatures']), isOwn: CREATURE}),
+  Object.freeze({key: 'bestiaryAshen', type: 'Actor', from: Object.freeze(['Draft Ashen Additions']), to: Object.freeze(['Ashen Gate', 'Bestiary', 'Ashen Additions']), isOwn: CREATURE})
+]);
+/** `moveDocs(docs, folderId)` and `create(data)` are injected (Foundry writes); returns {moved, notes, done}. */
+export async function moveManagerFolders({folders, done = {}, create, moveDocs, report = () => {}}) {
+  const list = [...(folders?.contents ?? folders ?? [])];
+  const byId = new Map(list.map(f => [f.id, f]));
+  const pathOf = f => { const names = []; for (let x = f, n = 0; x && n < 10; x = byId.get(parentOf(x)), n++) names.unshift(x.name); return names; };
+  const moved = [], notes = [], finished = {};
+  for (const m of FOLDER_MOVES) {
+    if (done[m.key]) continue;
+    let ok = true;
+    const old = list.filter(f => f.type === m.type && f.name === m.from.at(-1) && pathOf(f).join('/') === m.from.join('/'));
+    const owned = old.map(f => ({folder: f, docs: [...(f.contents ?? [])].filter(m.isOwn)})).filter(x => x.docs.length);
+    if (owned.length) {
+      try {
+        const dest = await ensureFolder(m.type, m.to.join('/'), {folders: {filter: fn => list.filter(fn), get: id => byId.get(id) ?? list.find(f => f.id === id)}, create: async data => { const f = await create(data); list.push(f); byId.set(f.id, f); return f; }, report});
+        for (const {folder, docs} of owned) {
+          await moveDocs(docs, dest.id);
+          moved.push({from: m.from.join('/'), to: m.to.join('/'), count: docs.length, left: Math.max(0, (folder.contents?.length ?? docs.length) - docs.length)});
+        }
+      } catch (error) { ok = false; notes.push(`${m.from.join('/')} (${m.type}) was not moved: ${String(error?.message ?? error)}`); }
+    }
+    if (ok) finished[m.key] = true;
+  }
+  return {moved, notes, done: {...done, ...finished}};
+}
