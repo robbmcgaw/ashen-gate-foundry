@@ -319,7 +319,7 @@ test('the click: picks (several copies), then a labelled red confirmation; Cance
   assert.deepEqual(offered, ['[TEST] Hero - level 4', '[TEST] Hero - level 3']);
   assert.equal(asked.o.danger, true); assert.equal(asked.o.yes, 'Restore from backup'); assert.equal(asked.o.title, 'Restore [TEST] Hero?');
   assert.match(asked.m, /Restore \[TEST\] Hero to "\[TEST\] Hero - level 3" \(level 3, saved 2026-10-01\)\?/);
-  assert.match(asked.m, /as it is now \(level 4\) is saved as a new copy in Ashen Gate \/ Level backups/);
+  assert.match(asked.m, /as it is now \(level 4\) is saved as a new copy in Ashen Gate \/ Backups/);
   assert.match(asked.m, /name, portrait, owners and token stay/);
   assert.equal(live.system.details.level, 4); assert.equal(actors.length, 3);
   // Confirmed from the copy's own Hub: no pick step.

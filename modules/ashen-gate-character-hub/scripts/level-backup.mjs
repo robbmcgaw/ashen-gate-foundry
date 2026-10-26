@@ -3,7 +3,7 @@
  * "<name> - level X" (X = the character level before; " (2)", " (3)" … when that name is taken).
  *
  *   - The snapshot is actor.toObject() at click time; the copy is created only after the level change succeeded.
- *   - Copies go in the Actor folder "Ashen Gate / Level backups", GM-only (default ownership None, no owners).
+ *   - Copies go in the Actor folder "Ashen Gate / Backups" (earlier versions: "Ashen Gate / Level backups"; folder-nesting.mjs moves them), GM-only (default ownership None, no owners).
  *   - Only GMs can create Actors: the GM's own level-ups create the copy directly; a player's goes to the coordinating
  *     GM client through the Hub's socket (marks.mjs), which checks the player owns the character. With no GM
  *     connected (or no answer) it is queued on the character (flag levelBackupQueue) and made when a GM is next on.
@@ -21,9 +21,10 @@
 import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {GM_HANDLERS, requestGM} from './marks.mjs';
+import {backupsFolder, BACKUPS_PATH} from './folder-nesting.mjs';
 
 export const BACKUP_FLAG = 'levelBackup', QUEUE_FLAG = 'levelBackupQueue', QUEUE_MAX = 5;
-export const FOLDER_PATH = ['Ashen Gate', 'Level backups'];
+export const FOLDER_PATH = BACKUPS_PATH;
 const KEEP_SCOPES = new Set(['ashen-gate-manager']);
 const refuse = error => ({ok: false, error});
 const isGM = (user = globalThis.game?.user) => user?.isGM === true;
@@ -71,17 +72,6 @@ export function backupName(name, levelBefore, actors = globalThis.game?.actors ?
   return `${base} (${n})`;
 }
 
-/** The "Ashen Gate / Level backups" Actor folder, created when missing (GM only). */
-async function ensureFolder() {
-  const g = globalThis.game, Folder = globalThis.Folder ?? globalThis.foundry?.documents?.Folder;
-  let parent = null;
-  for (const name of FOLDER_PATH) {
-    const found = [...(g.folders ?? [])].find(f => f.type === 'Actor' && f.name === name && (f.folder?.id ?? f.folder ?? null) === (parent?.id ?? null));
-    parent = found ?? await Folder.create({name, type: 'Actor', folder: parent?.id ?? null});
-  }
-  return parent;
-}
-
 /**
  * GM: makes the copy (or returns the one this opId already made). `snapshot` is the source's toObject() before the
  * level change; `meta` = {sourceId, levelBefore, opId, by, date?}.
@@ -95,7 +85,7 @@ export async function createBackup(snapshot, meta) {
   // A queued snapshot was made inert when queued; its archive travels with it in meta.
   const archivedFlags = Object.keys(split.archived).length ? split.archived : meta.archivedFlags ?? {};
   for (const k of ['_id', '_stats', 'sort']) delete data[k];
-  const folder = await ensureFolder();
+  const folder = await backupsFolder();
   const flag = {sourceId: meta.sourceId, sourceName: snapshot.name, levelBefore: meta.levelBefore, date: meta.date ?? new Date().toISOString().slice(0, 10), opId: meta.opId, by: meta.by ?? g.user?.id ?? null,
     classesBefore: meta.classesBefore ?? classesBefore(snapshot), archivedFlags, ...(meta.reason ? {reason: String(meta.reason)} : {})};
   Object.assign(data, {name: backupName(snapshot.name, meta.levelBefore), folder: folder?.id ?? null, ownership: {default: 0}});

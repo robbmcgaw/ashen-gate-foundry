@@ -232,13 +232,13 @@ test('this dnd5e lacks the level-up API: the native sheet opens instead', async 
 
 // ---------- The backup copy ----------
 
-test('the copy: GM-only, in Ashen Gate / Level backups, marked, inert for Ashen Gate, dnd5e kept', async () => {
+test('the copy: GM-only, in Ashen Gate / Backups, marked, inert for Ashen Gate, dnd5e kept', async () => {
   const {actor, folders} = setup({user: users.gm, steps: 0});
   actor.items.get('fig').flags = {'ashen-gate-cinders': {attachedTo: {instanceId: 'i1', slot: 1}}, 'ashen-gate-manager': {source: {id: 'REC-1'}}, dnd5e: {x: 1}};
   await startLevelUp(actor, {choose: pickClass('fig')});
   const [copy] = copies();
   assert.deepEqual(copy.ownership, {default: 0});
-  assert.deepEqual(folders.map(f => [f.name, f.folder]), [['Ashen Gate', null], ['Level backups', 'f1']]);
+  assert.deepEqual(folders.map(f => [f.name, f.folder]), [['Ashen Gate', null], ['Backups', 'f1']]);
   assert.equal(copy.folder, 'f2');
   const flag = copy.flags[MODULE_ID].levelBackup;
   assert.equal(flag.sourceId, 'actor1'); assert.equal(flag.levelBefore, 3); assert.match(flag.date, /^\d{4}-\d{2}-\d{2}$/); assert.ok(flag.opId);

@@ -235,7 +235,7 @@ export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDan
   if (!actor) { n?.warn?.('The character this backup was made from is gone.'); return null; }
   if (!await confirm(restoreLines(backup, actor).join('\n'), {title: `Restore ${actor.name}?`, yes: 'Restore from backup', danger: true})) return null;   // confirmDanger: Cancel is the default (0.33.0)
   const r = await restoreBackup(backup);
-  if (r.ok) { n?.info?.(`${actor.name} was restored from "${backup.name}". The character as it was is kept as a new copy in Ashen Gate / Level backups.`); if (r.warning) n?.warn?.(r.warning); }
+  if (r.ok) { n?.info?.(`${actor.name} was restored from "${backup.name}". The character as it was is kept as a new copy in Ashen Gate / Backups.`); if (r.warning) n?.warn?.(r.warning); }
   else n?.error?.(r.error);
   return r;
 }
