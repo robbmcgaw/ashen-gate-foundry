@@ -1,3 +1,7 @@
+## 0.33.3 — 2026-10-26
+
+Refresh… can now remove what it cannot identify. Every row under **Can't tell, left alone** has an *Also remove* tick box, unticked by default: known recipes the recipe catalog does not have (including old entries that are not recipe ids at all, or not text), signature perks with no grant record, and profession features with no grant record. **Select all that I can't identify** ticks the whole group (and **Clear all that I can't identify** undoes it). Ticked rows appear under *Will remove* with "Ticked by you: …", are counted in the confirmation, and are saved in the snapshot Journal (previous flags and removed Items) first. Removing an unrecognised recipe takes its entry out of the character's known recipes (and its granted-recipe record); removing a perk or profession feature deletes that Item. Unrecognised recipes show as "Unrecognised recipe 1, 2…", never as ids. Nothing unticked is ever removed. API: `refreshProfessions` takes `alsoRemoveRecipes` (the `optInRecipe` values of `cantTell` rows); `alsoRemove` also covers unidentified perks. No change to saved data.
+
 ## 0.33.2 — 2026-10-26
 
 Fix: Assign (and the skill/tool proficiency badges) counted half proficiency as proficient, so a Bard with Jack of All Trades was given professions they did not qualify for. Only full proficiency (1) and Expertise (2) count now. No change to saved data; existing assignments are not touched (use Refresh… to correct a character).

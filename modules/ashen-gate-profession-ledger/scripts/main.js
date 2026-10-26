@@ -15,7 +15,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
   TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
-import {planRefresh,REFRESH_SNAPSHOT_SCHEMA} from './refresh.mjs';
+import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -24,7 +24,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.2';
+const VERSION='0.33.3';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -915,7 +915,7 @@ function refreshActor(actorId){
   return a;
 }
 /** Everything planRefresh needs, read from the sheet and the world. */
-function refreshInputs(actor,{removeProgress=[],alsoRemove=[]}={}){
+function refreshInputs(actor,{removeProgress=[],alsoRemove=[],alsoRemoveRecipes=[]}={}){
   const info=crosswalkInfo(),defsByKey=new Map();
   for(const d of info.defs)if(d.key){if(!defsByKey.has(d.key))defsByKey.set(d.key,[]);defsByKey.get(d.key).push({sourceId:d.sourceId,name:d.name});}
   const items=Array.from(actor.items??[]);
@@ -932,7 +932,11 @@ function refreshInputs(actor,{removeProgress=[],alsoRemove=[]}={}){
     .map(r=>({id:r.perkId,name:r.perkName,professionId:r.professionId,tier:r.tier}));
   return {qualifying:qualifications(actor,info.map),defsByKey,held,perks,known:knownRecipesOf(actor),grantedRecipes:grantedRecipesOf(actor),
     recipes:lib.recipes,progress,progressUnreadable,crafted,perkAdds,unreleased:startingUnreleased,
-    removeProgress:new Set(removeProgress),alsoRemove:new Set(alsoRemove)};
+    removeProgress:new Set(removeProgress),alsoRemove:new Set(alsoRemove),
+    // 0.33.3: the flag as stored (the plan lists entries the catalog-id filter drops), names from recipe Items on the sheet, and the GM's ticks.
+    knownRaw:Array.isArray(actor.flags?.[ID]?.knownRecipes)?actor.flags[ID].knownRecipes:null,
+    recipeNames:new Map(items.filter(i=>classify(i)==='Recipe'&&agSourceId(i)).map(i=>[agSourceId(i),String(i.name??'').replace(/^Recipe:\s*/,'')])),
+    alsoRemoveRecipes:new Set((Array.isArray(alsoRemoveRecipes)?alsoRemoveRecipes:[]).map(String))};
 }
 const refreshPlanFor=(actor,opts)=>planRefresh(refreshInputs(actor,opts));
 /** Saves the GM-only snapshot Journal. Throws (so the refresh stops before any change) if it cannot be saved. */
@@ -944,7 +948,7 @@ async function saveRefreshSnapshot(actor,plan){
     removedItems:Array.from(actor.items??[]).filter(i=>ids.has(i.id)).map(i=>i.toObject?.()??structuredClone(i)),
     flagsBefore:{knownRecipes:structuredClone(actor.flags?.[ID]?.knownRecipes??null),grantedRecipes:structuredClone(actor.flags?.[ID]?.grantedRecipes??null),
       professionProgress:structuredClone(actor.flags?.[ID]?.professionProgress??null)},
-    plan:{removed:plan.willRemove.map(r=>({kind:r.kind,name:r.name,why:r.why})),added:plan.willAdd.map(r=>({kind:r.kind,name:r.name}))}};
+    plan:{removed:plan.willRemove.map(r=>({kind:r.kind,name:r.name,why:r.why,...(r.recipeId?{recipeId:r.recipeId}:{})})),added:plan.willAdd.map(r=>({kind:r.kind,name:r.name}))}};
   const name=`Profession Refresh: ${actor.name} (${data.takenAt.slice(0,16).replace('T',' ')})`;
   const html=`<p>Taken before Refresh changed ${esc(actor.name)}. To undo by hand: create the Items in <code>removedItems</code> on the character again (Item data can be pasted into a new Item with Import Data), and put <code>flagsBefore</code> back with <code>actor.setFlag</code>. GM only.</p><pre>${esc(JSON.stringify(data,null,2))}</pre>`;
   let doc;
@@ -958,12 +962,13 @@ async function saveRefreshSnapshot(actor,plan){
  * GM only. `preview` (default) writes nothing and returns {preview:true, actor, willAdd, willKeep, willRemove, cantTell, blocked, notes,
  * needsTypedConfirmation, counts}. `preview:false` needs `confirmName` (the character's name) only when progress is being removed;
  * `removeProgress` lists profession keys ticked "Also remove <profession> progress", `alsoRemove` lists Item ids of profession
- * features Assign has no record of, ticked by the GM. Order: snapshot (abort if it fails) -> flags -> remove Items -> Assign add path.
+ * features and signature perks Assign has no record of, ticked by the GM; `alsoRemoveRecipes` (0.33.3) lists known-recipe ids from `cantTell` rows
+ * (optInRecipe) ticked by the GM; unticked ids are never touched. Order: snapshot (abort if it fails) -> flags -> remove Items -> Assign add path.
  */
-async function refreshProfessions({actorId,preview=true,removeProgress=[],alsoRemove=[],confirmName=''}={}){
+async function refreshProfessions({actorId,preview=true,removeProgress=[],alsoRemove=[],alsoRemoveRecipes=[],confirmName=''}={}){
   requireRefreshGM();
   const actor=refreshActor(actorId);
-  const plan=refreshPlanFor(actor,{removeProgress,alsoRemove});
+  const plan=refreshPlanFor(actor,{removeProgress,alsoRemove,alsoRemoveRecipes});
   const summary={actor:{id:actor.id,name:actor.name},...plan};
   if(preview!==false)return {preview:true,...summary};
   if(plan.needsTypedConfirmation&&String(confirmName)!==actor.name)throw Error(`Removing progress needs the character's name typed to confirm (${actor.name}).`);
@@ -975,11 +980,12 @@ async function refreshProfessions({actorId,preview=true,removeProgress=[],alsoRe
       snapshot=await saveRefreshSnapshot(actor,plan);
       const itemIds=plan.willRemove.filter(r=>r.itemId).map(r=>r.itemId);
       const goneRecipes=new Set(plan.willRemove.filter(r=>r.kind==='recipe').map(r=>r.recipeId));
+      const gone=id=>goneRecipes.has(typeof id==='string'?id:RECIPE_NON_TEXT);
       const before={knownRecipes:actor.flags?.[ID]?.knownRecipes,grantedRecipes:actor.flags?.[ID]?.grantedRecipes,professionProgress:actor.flags?.[ID]?.professionProgress};
       const next={};
       if(goneRecipes.size){
-        next.knownRecipes=(Array.isArray(before.knownRecipes)?before.knownRecipes:[]).filter(id=>!goneRecipes.has(id));
-        if(Array.isArray(before.grantedRecipes))next.grantedRecipes=before.grantedRecipes.filter(id=>!goneRecipes.has(id));
+        next.knownRecipes=(Array.isArray(before.knownRecipes)?before.knownRecipes:[]).filter(id=>!gone(id));
+        if(Array.isArray(before.grantedRecipes))next.grantedRecipes=before.grantedRecipes.filter(id=>!gone(id));
       }
       const goneProgress=plan.willRemove.filter(r=>r.kind==='progress').map(r=>r.professionId);
       if(goneProgress.length&&before.professionProgress){
@@ -1005,7 +1011,7 @@ async function refreshProfessions({actorId,preview=true,removeProgress=[],alsoRe
     }catch(err){
       throw Error(`Removed ${removed}${snapshot?` (snapshot "${snapshot.name}")`:''}, but adding failed: ${err?.message??err}. Run Refresh again to finish.`);
     }
-    const after=refreshPlanFor(actor,{removeProgress,alsoRemove});
+    const after=refreshPlanFor(actor,{removeProgress,alsoRemove,alsoRemoveRecipes});
     return {preview:false,actor:summary.actor,removed,added,kept:after.counts.keep,snapshot,blocked:after.blocked,cantTell:after.cantTell,notes:after.notes};
   }finally{refreshLocks.delete(actor.id);}
 }
@@ -2576,8 +2582,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       ${result}${body}</section>`;
   }
   /** GM: recompute the open Refresh preview with the current ticks. */
-  _refreshReplan(){const r=this.refreshState;if(!r)return;
-    r.preview=(()=>{requireRefreshGM();const actor=refreshActor(r.actorId);return {actor:{id:actor.id,name:actor.name},...refreshPlanFor(actor,{removeProgress:[...r.removeProgress],alsoRemove:[...r.alsoRemove]})};})();}
+  _refreshReplan(){const r=this.refreshState;if(!r)return;r.alsoRemoveRecipes??=new Set();
+    r.preview=(()=>{requireRefreshGM();const actor=refreshActor(r.actorId);return {actor:{id:actor.id,name:actor.name},...refreshPlanFor(actor,{removeProgress:[...r.removeProgress],alsoRemove:[...r.alsoRemove],alsoRemoveRecipes:[...r.alsoRemoveRecipes]})};})();}
   /** GM: the Refresh preview, in place of the Assign table (one primary button: Refresh <name>…). */
   _refreshView(){
     const r=this.refreshState,p=r.preview,name=esc(p.actor.name);
@@ -2588,7 +2594,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const blocked=p.blocked.map(b=>`<li class="agl-refresh-progress"><strong>This character has progress in ${esc(b.name)}</strong> (${esc(b.reasons.join('; '))}). It is kept unless you tick the box.
       <label class="ag-field ag-field--inline"><input type="checkbox" data-refresh-progress="${esc(b.key)}" ${r.removeProgress.has(b.key)?'checked':''}> Also remove ${esc(b.name)} progress</label></li>`).join('');
     const ticked=p.willRemove.filter(x=>x.kind==='profession'&&r.removeProgress.has(x.key)).map(x=>`<li class="agl-refresh-progress"><label class="ag-field ag-field--inline"><input type="checkbox" data-refresh-progress="${esc(x.key)}" checked> Also remove ${esc(x.name)} progress</label></li>`).join('');
-    const cant=p.cantTell.map(c=>`<li>${esc(c.name)}: ${esc(c.why)}${c.optIn?` <label class="ag-field ag-field--inline"><input type="checkbox" data-refresh-also="${esc(c.optIn)}" ${r.alsoRemove.has(c.optIn)?'checked':''}> Also remove ${esc(c.name)}</label>`:''}</li>`).join('');
+    const cant=p.cantTell.map(c=>{const tick=c.optInRecipe!=null?`data-refresh-also-recipe="${esc(c.optInRecipe)}" ${r.alsoRemoveRecipes.has(c.optInRecipe)?'checked':''}`:c.optIn?`data-refresh-also="${esc(c.optIn)}" ${r.alsoRemove.has(c.optIn)?'checked':''}`:'';
+      return `<li>${esc(c.name)}: ${esc(c.why)}${tick?` <label class="ag-field ag-field--inline"><input type="checkbox" ${tick}> Also remove ${esc(c.name)}</label>`:''}</li>`;}).join('');
+    const tokens=cantTellTokens(p),allTicked=tokens.items.every(i=>r.alsoRemove.has(i))&&tokens.recipes.every(i=>r.alsoRemoveRecipes.has(i));
+    const pickAll=tokens.items.length+tokens.recipes.length?`<p><button type="button" class="ag-btn ag-btn--sm" data-action="refresh-select-cant" data-id="${allTicked?'none':'all'}">${allTicked?'Clear all that I can’t identify':'Select all that I can’t identify'}</button></p>`:'';
     const nothing=!p.counts.add&&!p.counts.remove&&!p.counts.progress;
     return `<section class="ag-card agl-panel" aria-labelledby="agl-refresh-h"><h2 id="agl-refresh-h">Refresh ${name}</h2>
       <p class="agl-sub">Nothing changes until you press Refresh ${name}…. Only things the Ledger can show it added are removed; a snapshot is saved first.</p>
@@ -2597,7 +2606,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <h3>Will keep (${p.willKeep.length})</h3>${keepSummary?`<ul class="agl-refresh-list">${keepSummary}</ul>`:'<p class="agl-sub">Nothing.</p>'}
       <h3>Will remove (${p.willRemove.length})</h3>${list(p.willRemove,'Nothing to remove.',x=>`<li>${badge(kindWord[x.kind],'warn')} ${esc(x.name)} <span class="agl-sub">${esc(x.why)}</span></li>`)}
       ${blocked||ticked?`<ul class="agl-refresh-list">${blocked}${ticked}</ul>`:''}
-      <h3>Can’t tell, left alone (${p.cantTell.length})</h3>${cant?`<ul class="agl-refresh-list">${cant}</ul>`:'<p class="agl-sub">Nothing.</p>'}
+      <h3>Can’t tell, left alone (${p.cantTell.length})</h3>${pickAll}${cant?`<ul class="agl-refresh-list">${cant}</ul>`:'<p class="agl-sub">Nothing.</p>'}
       ${nothing?'<p class="agl-sub">Nothing to change.</p>':''}
       <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="refresh-cancel">Cancel</button>
         <button type="button" class="ag-btn ag-btn--primary" data-action="refresh-apply" ${nothing?'disabled':''}>Refresh ${name}…</button></div></section>`;
@@ -2648,7 +2657,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
-    ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
+    ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
@@ -3064,7 +3073,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-map-cell]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
       if(e.target?.matches?.('[data-assign-target]')&&game.user.isGM){this.assignState={target:e.target.value,preview:null,selected:new Set()};this.refreshState=null;this.render();return;}
-      if(e.target?.matches?.('[data-refresh-progress],[data-refresh-also]')&&game.user.isGM&&this.refreshState){const r=this.refreshState,k=e.target.dataset.refreshProgress??e.target.dataset.refreshAlso,set=e.target.dataset.refreshProgress!==undefined?r.removeProgress:r.alsoRemove;
+      if(e.target?.matches?.('[data-refresh-progress],[data-refresh-also],[data-refresh-also-recipe]')&&game.user.isGM&&this.refreshState){const r=this.refreshState,d=e.target.dataset,k=d.refreshProgress??d.refreshAlso??d.refreshAlsoRecipe,set=d.refreshProgress!==undefined?r.removeProgress:d.refreshAlsoRecipe!==undefined?r.alsoRemoveRecipes:r.alsoRemove;
         if(e.target.checked)set.add(k);else set.delete(k);this._refreshReplan();this.render();return;}
       if(e.target?.matches?.('[data-assign-row]')&&game.user.isGM){const id=e.target.dataset.assignRow;if(e.target.checked)this.assignState.selected.add(id);else this.assignState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-grant-target]')&&game.user.isGM){this.grantState={target:e.target.value,preview:null,selected:new Set(),result:null};this.render();return;}
@@ -3186,10 +3195,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set();
         this.notice=`Added ${plural(out.added.length,'profession feature')}${out.skipped.length?`; ${out.skipped.length} skipped (already there)`:''}.`;this.render();say(this.notice);return;}
       if(action==='refresh-preview'){requireAssignGM();const a=this.assignState;if(a.target==='party')throw Error('Choose one character to refresh');
-        this.refreshState={actorId:a.target,preview:null,removeProgress:new Set(),alsoRemove:new Set()};this._refreshReplan();this.render();return;}
+        this.refreshState={actorId:a.target,preview:null,removeProgress:new Set(),alsoRemove:new Set(),alsoRemoveRecipes:new Set()};this._refreshReplan();this.render();return;}
+      if(action==='refresh-select-cant'){requireAssignGM();const r=this.refreshState;if(!r?.preview)return;const t=cantTellTokens(r.preview);
+        if(id==='none'){r.alsoRemove.clear();r.alsoRemoveRecipes.clear();}else{t.items.forEach(i=>r.alsoRemove.add(i));t.recipes.forEach(i=>r.alsoRemoveRecipes.add(i));}
+        this._refreshReplan();this.render();return;}
       if(action==='refresh-cancel'){requireAssignGM();this.refreshState=null;this.render();return;}
       if(action==='refresh-apply'){requireAssignGM();const r=this.refreshState;if(!r?.preview)throw Error('Preview first');
-        const p=r.preview,name=p.actor.name,opts={actorId:r.actorId,removeProgress:[...r.removeProgress],alsoRemove:[...r.alsoRemove]};
+        const p=r.preview,name=p.actor.name,opts={actorId:r.actorId,removeProgress:[...r.removeProgress],alsoRemove:[...r.alsoRemove],alsoRemoveRecipes:[...r.alsoRemoveRecipes]};
         const lines=[...p.willRemove.map(x=>`Remove: ${x.name}`),...p.willAdd.map(x=>`Add: ${x.name}`)].join('\n');
         let confirmName='';
         if(p.counts.remove||p.counts.progress){
