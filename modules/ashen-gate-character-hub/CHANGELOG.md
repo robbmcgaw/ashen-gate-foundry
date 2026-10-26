@@ -1,3 +1,7 @@
+## 0.59.0 — 2026-10-26
+
+Level backup copies now go in **Ashen Gate / Backups** (Actors), together with the other modules' backups, and the GM-only Journey journal is filed in **Ashen Gate / Character Hub** instead of loose at the top. On the first GM login after updating, the Hub moves its own backups from **Ashen Gate / Level backups** and its loose Journey journal; anything you filed elsewhere stays. The old folder is left (empty) for you to delete. Nothing is deleted and no ownership or permission changes.
+
 ## 0.58.4 — 2026-10-26
 
 Cinder sockets: Detach is for the GM, and the professions note is accurate.

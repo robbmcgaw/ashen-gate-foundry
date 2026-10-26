@@ -2,6 +2,7 @@
  * Ashen Gate | Character Hub: registers an alternative dnd5e character sheet (not the default)
  * and a small public API. The Actor stays the only store of character data.
  */
+import {migrateFolders, SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {MODULE_ID, VERSION, SHEET_LABEL, COMPACT_SETTING} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
@@ -161,6 +162,8 @@ if (globalThis.Hooks) {
     // 0.31.0: the built-in look (per user) and its world default, used while General Manager's appearance is absent.
     registerLookSettings(game.settings, () => renderAllHubs());
     journey.registerJourneySettings(game.settings);
+    // 1 once the Hub has filed its own documents under Ashen Gate (folder-nesting.mjs); config:false.
+    game.settings.register(MODULE_ID, FOLDER_SETTING, {scope: 'world', config: false, type: String, default: ''});
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
     // Quick bar keys (0.29.4, quick-keys.mjs): 1-9 and 0 use the open Hub's quick bar; without a Hub they stay Foundry's.
@@ -186,6 +189,7 @@ if (globalThis.Hooks) {
   for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
+  Hooks.once('ready', () => { void migrateFolders().catch(err => console.warn(`${MODULE_ID} | could not file documents under Ashen Gate`, err)); });
   // 0.51.0: a player preparing a spell past their class's limit from any sheet is stopped (spell-prep.mjs; never throws).
   Hooks.on('preUpdateItem', (item, changes, options, userId) => guardPrepareUpdate(item, changes, options, userId));
   // 0.47.0: the GM's client builds companionSlots from the old companions list (idempotent; the old flag stays).

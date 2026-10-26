@@ -22,6 +22,7 @@
 import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {isBackup} from './level-backup.mjs';
+import {journeyFolderId} from './folder-nesting.mjs';
 
 export const JOURNEY_FLAG = 'journey';
 export const JOURNEY_CAP = 300;
@@ -57,7 +58,7 @@ export function hiddenStore() { return [...(globalThis.game?.journal ?? [])].fin
 async function ensureHiddenStore() {
   const found = hiddenStore(); if (found) return found;
   const JE = globalThis.JournalEntry;
-  return JE.create({name: 'Ashen Gate Hub • Journey (GM only)', ownership: {default: 0}, flags: {[MODULE_ID]: {[STORE_FLAG]: true, [HIDDEN_FLAG]: {}}}});
+  return JE.create({name: 'Ashen Gate Hub • Journey (GM only)', folder: await journeyFolderId(), ownership: {default: 0}, flags: {[MODULE_ID]: {[STORE_FLAG]: true, [HIDDEN_FLAG]: {}}}});
 }
 const hiddenFor = actorId => (hiddenStore()?.flags?.[MODULE_ID]?.[HIDDEN_FLAG]?.[actorId] ?? []).map(cleanEntry).filter(Boolean);
 async function writeHidden(actorId, list) {

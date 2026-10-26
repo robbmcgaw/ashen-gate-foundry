@@ -2,6 +2,8 @@
 
 An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes the **real** Actor: there is no separate character data, so the standard dnd5e sheet and the Hub always agree. Rolls, item use, rests, advancement and item configuration go through dnd5e's own dialogs.
 
+**Sidebar folders.** Level backups file under **Ashen Gate / Backups**, the Journey journal under **Ashen Gate / Character Hub**; see docs/folder-convention.md.
+
 ## Open it
 Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the header's **⋯** menu opens the standard dnd5e sheet at any time. **Level up** (an icon button in the header beside Compact since 0.46.0; in the ⋯ menu from 0.34.0, under the name before) starts dnd5e's own level-up, or adds a class through dnd5e's class browser (it adds no rules of its own). Each level-up keeps a GM-only copy of the character as it was, named `<name> - level X`, in the Actor folder Ashen Gate / Level backups.
 
@@ -193,7 +195,7 @@ Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement
 `node scripts/check.mjs ashen-gate-character-hub`. Tests use mocked Foundry: they prove logic and calls, not the live Foundry UI.
 
 ## Level backups (0.27.0)
-Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Level backups**. Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. The removed flags are kept (0.28.0 Restore uses them):
+Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Backups** (versions before 0.59.0 used **Ashen Gate / Level backups**; they are moved on the next GM login unless you filed them somewhere else). Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. The removed flags are kept (0.28.0 Restore uses them):
 
 ```
 flags['ashen-gate-character-hub'].levelBackup = {
