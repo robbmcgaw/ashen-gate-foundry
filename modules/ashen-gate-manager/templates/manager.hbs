@@ -961,10 +961,11 @@
           <span class="agmanager-tiny">One click:</span>
           <button type="button" class="ag-btn ag-btn--sm" data-ag-action="codex-preset-basics" data-ag-codex-preset {{#unless presetsOk}}disabled{{/unless}}>Reveal basics</button>
           <button type="button" class="ag-btn ag-btn--sm" data-ag-action="codex-preset-everything" data-ag-codex-preset {{#unless presetsOk}}disabled{{/unless}}>Reveal everything player-safe</button>
+          <span class="agcodex-reason" data-ag-codex-reason {{#if presetsOk}}hidden{{/if}}>These need an audience: choose Whole party, or tick at least one character.</span>
           <button type="button" class="ag-btn ag-btn--primary aglib-end" data-ag-action="codex-bulk-apply" data-ag-codex-apply aria-describedby="agcodex-bulk-hint" {{#if applyDisabled}}disabled{{/if}}>{{applyLabel}}</button>
         </div>
         <p class="agmanager-tiny" id="agcodex-bulk-hint" data-ag-codex-bulk-hint>{{hint}}</p>
-        <p class="agcodex-note" role="status" aria-live="polite" data-ag-codex-note>{{note}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="codex-undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last reveal</button>{{/if}}</p>
+        <p class="agcodex-note{{#if noteWarn}} agcodex-note--warn{{/if}}" role="status" aria-live="polite" data-ag-codex-note>{{#if noteWarn}}<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{/if}}{{note}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="codex-undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last reveal</button>{{/if}}</p>
       </section>
       {{/with}}
       <div class="agcodex-field agcodex-field--discovery">

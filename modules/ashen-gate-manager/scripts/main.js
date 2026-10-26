@@ -12,7 +12,7 @@ import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, g
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
 import {renderPlayerCodexHtml, isNpcDefinition} from "./codex.js";
-import {askRevealTo, bulkStatus} from "./codex-reveal-dialog.mjs";
+import {askRevealTo, bulkStatus, runBulkReveal} from "./codex-reveal-dialog.mjs";
 import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibraryRows, groupLibraryRows} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
@@ -309,7 +309,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     position: {width:1020, height:820}
   };
   // One scroll region per pane (header and tabs stay put); the Items list column scrolls on its own. Both keep their place on re-render.
-  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows", ".agm-drawer__body", ".agm-preview-table"]}};
+  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows", ".ag-split__detail", ".agm-drawer__body", ".agm-preview-table"]}};
 
   constructor(options={}) {
     // Kit 2: the default size grows with the Comfortable size set (read when the window is created).
@@ -1024,7 +1024,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Focus survives a re-render (guidelines §9.6): the control that asked for it is matched again by selector. */
   #restoreFocus(root) {
     const selector=this.focusAfterRender;this.focusAfterRender=null;
-    if(selector)root.querySelector(selector)?.focus?.();
+    // 0.70.2: a Codex change re-renders the window; the detail pane keeps its scroll and an open Characters menu stays open.
+    const kept=this.codexScroll!=null;
+    if(kept){const pane=root.querySelector('.agcodex .ag-split__detail');if(pane)pane.scrollTop=this.codexScroll;this.codexScroll=null;}
+    if(this.codexReopen){root.querySelector(`[data-ag-codex-actor="${this.codexReopen}"]`)?.closest('details')?.setAttribute('open','');this.codexReopen=null;}
+    if(selector)root.querySelector(selector)?.focus?.(kept?{preventScroll:true}:undefined);
   }
   /** Leaving with unsaved GM Setup or NPC Codex notes asks first (kit guardDirty). Resolves true to go on. */
   async #confirmDiscard() {
@@ -1310,7 +1314,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async #action(name) {
     if(!game.user?.isGM) throw new Error('Only GMs can operate the General Manager.');
-    if (this.busy || this.zipBundle?.autoRunning) return;
+    // 0.70.2: Codex reveals only write NPC flags and must never be swallowed by an unrelated busy import.
+    if ((this.busy || this.zipBundle?.autoRunning) && !String(name).startsWith('codex-')) return;
     switch(name) {
       case "demo": {
         const response = await fetch(`modules/${MODULE_ID}/samples/demo-package.json`, {cache:"no-store"});
@@ -3614,6 +3619,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       playerAccess:Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))};
   }
   /** 0.67.0: per-NPC ticks for the multi-field panel (selections, not saved data). */
+  /** Re-render after a Codex change without losing the detail pane's scroll position. */
+  #renderCodex() {
+    const pane=this.element?.querySelector?.('.agcodex .ag-split__detail');
+    this.codexScroll=pane?pane.scrollTop:null;
+    return this.render();
+  }
   #bulkFor(id) {
     let b=this.codexBulk.get(id);
     if(!b){b={keys:new Set(),mode:'party',chars:new Set()};this.codexBulk.set(id,b);}
@@ -3625,13 +3636,13 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const rows=[{key:'discovery',label:'Name and portrait',empty:false},...detail.fields.map(f=>({key:f.key,label:f.label,empty:f.empty}))];
     for(const r of rows)if(r.empty)b.keys.delete(r.key);
     const st=bulkStatus({count:b.keys.size,mode:b.mode,charCount:b.chars.size});
-    const note=this.codexNote?.id===detail.id?this.codexNote.text:'';
+    const note=this.codexNote?.id===detail.id?this.codexNote.text:'',noteTone=this.codexNote?.id===detail.id?(this.codexNote.tone??'ok'):'ok';
     let canUndo=false;try{canUndo=codexService().canUndoReveal(detail.id);}catch{/* not a GM */}
     return {fields:rows.map(r=>({...r,checked:b.keys.has(r.key)})),
       isHidden:b.mode==='hidden',isParty:b.mode==='party',isActors:b.mode==='actors',
       hiddenTab:b.mode==='hidden'?0:-1,partyTab:b.mode==='party'?0:-1,actorsTab:b.mode==='actors'?0:-1,
       chars:chars.map(c=>({id:c.id,name:c.name,ownerText:(c.owners??[]).join(', '),checked:b.chars.has(c.id)})),
-      applyLabel:st.label,applyDisabled:st.disabled,presetsOk:st.presetsOk,hint:st.hint,note,canUndo};
+      applyLabel:st.label,applyDisabled:st.disabled,presetsOk:st.presetsOk,hint:st.hint,note,noteWarn:noteTone==='warn'||noteTone==='danger',canUndo};
   }
   /** Reflects the panel's ticks into the open window without a re-render, so focus and scroll stay put. */
   #syncBulk(root) {
@@ -3642,6 +3653,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     panel.querySelectorAll('[data-ag-codex-bulk-char]').forEach(el=>{el.checked=b.chars.has(el.value);});
     const apply=panel.querySelector('[data-ag-codex-apply]');if(apply){apply.textContent=st.label;apply.disabled=st.disabled;}
     panel.querySelectorAll('[data-ag-codex-preset]').forEach(el=>{el.disabled=!st.presetsOk;});
+    const why=panel.querySelector('[data-ag-codex-reason]');if(why)why.hidden=st.presetsOk;
     const hint=panel.querySelector('[data-ag-codex-bulk-hint]');if(hint)hint.textContent=st.hint;
   }
   #bindCodex(root) {
@@ -3654,7 +3666,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     root.querySelectorAll('[data-ag-codex-seg]').forEach(group=>bindSkinPicker(group,mode=>run(async()=>{
       await codexService().setReveal(this.codexFocus,group.dataset.agCodexSeg,{mode});
       this.focusAfterRender=`[data-ag-codex-seg="${group.dataset.agCodexSeg}"] [data-mode="${mode}"]`;
-      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();}),{valueKey:'mode'}));
+      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.#renderCodex();}),{valueKey:'mode'}));
     const form=root.querySelector('[data-ag-codex-form]');
     if(form){
       const note=()=>{this.codexDraft={id:this.codexFocus,learned:form.querySelector('[data-ag-codex-learned]')?.value??'',
@@ -3663,8 +3675,9 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       this.codexGuard.watch(form);
     }
     root.querySelectorAll('[data-ag-codex-actor]').forEach(el=>el.addEventListener('change',e=>{run(async()=>{
+      this.focusAfterRender=`[data-ag-codex-actor="${el.dataset.agCodexActor}"][value="${el.value}"]`;this.codexReopen=el.dataset.agCodexActor;
       await codexService().setReveal(this.codexFocus,el.dataset.agCodexActor,{mode:'actor',actorId:el.value,on:el.checked});
-      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
+      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.#renderCodex();});}));
     // 0.67.0: Reveal to... on a list row and on the open NPC; the focus returns to the button that opened it.
     root.querySelectorAll('[data-ag-codex-revealto]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
       run(()=>this.#revealToDialog(el.dataset.agCodexRevealto,el));}));
@@ -3697,9 +3710,9 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const svc=codexService();
     const pick=await askRevealTo({entry:svc.get(id),characters:svc.characters()});
     this.focusAfterRender=`[data-ag-codex-revealto="${id}"]`;
-    if(!pick){await this.render();return;}
+    if(!pick){await this.#renderCodex();return;}
     const result=await svc.setRevealMany(id,{fields:pick.fields,mode:pick.mode,characters:pick.characters});
-    this.#noteReveal(id,result);toast(result.message);await this.render();
+    this.#noteReveal(id,result);toast(result.message);await this.#renderCodex();
   }
   async #codexAction(name) {
     const svc=codexService();
@@ -3723,29 +3736,29 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         this.codexMessage=`${entry.name} is hidden from players.`;break;
       }
       case 'codex-bulk-apply': case 'codex-preset-basics': case 'codex-preset-everything': {
-        const b=this.#bulkFor(this.codexFocus),preset=name==='codex-preset-basics'?'basics':name==='codex-preset-everything'?'everything':null;
-        const mode=b.mode,opts={mode,characters:[...b.chars],...(preset?{preset}:{fields:[...b.keys]})};
+        const b=this.#bulkFor(this.codexFocus),id=this.codexFocus,preset=name==='codex-preset-basics'?'basics':name==='codex-preset-everything'?'everything':null;
         this.focusAfterRender=`[data-ag-action="${name}"]`;
-        if(mode==='hidden'){
-          const entry=svc.get(this.codexFocus);
-          const yes=await confirmDanger(`Hide ${b.keys.size} field${b.keys.size===1?'':'s'} of ${entry.name} from all players? The Undo button stays available right after.`,
-            {title:'Hide these fields from players?',yes:`Hide ${b.keys.size} field${b.keys.size===1?'':'s'}`});
-          if(!yes)return;
-        }
-        const result=await svc.setRevealMany(this.codexFocus,opts);
-        this.#noteReveal(this.codexFocus,result);toast(result.message);break;
+        // 0.70.2: always answers on screen (done, nothing to do, or why not); see runBulkReveal.
+        const out=await runBulkReveal({svc,id,bulk:b,preset,confirmHide:()=>confirmDanger(
+          `Hide ${b.keys.size} field${b.keys.size===1?'':'s'} of ${svc.get(id).name} from all players? The Undo button stays available right after.`,
+          {title:'Hide these fields from players?',yes:`Hide ${b.keys.size} field${b.keys.size===1?'':'s'}`})});
+        if(out.cancelled)return;
+        this.codexNote={id,text:out.message,tone:out.tone};this.codexMessage=out.ok?'Saved.':out.message;
+        toast(out.message,out.tone==='danger'||out.tone==='warn');break;
       }
       case 'codex-undo': {
         this.focusAfterRender='[data-ag-codex-apply]';
-        const result=await svc.undoReveal(this.codexFocus);
-        this.codexNote={id:this.codexFocus,text:result.message};this.codexMessage='Saved.';toast(result.message);break;
+        try{const result=await svc.undoReveal(this.codexFocus);
+          this.codexNote={id:this.codexFocus,text:result.message,tone:'ok'};this.codexMessage='Saved.';toast(result.message);}
+        catch(error){this.codexNote={id:this.codexFocus,text:error.message,tone:'warn'};toast(error.message,true);}
+        break;
       }
       case 'codex-export': downloadJson(`AG_NPC_Codex_${new Date().toISOString().slice(0,10)}.json`,svc.exportAll());
         this.codexMessage='Codex exported (GM file: it contains GM-only fields).';break;
       case 'codex-player-view': await openCodexPlayerView();return;
       case 'codex-open-actor': {const uuid=svc.get(this.codexFocus).uuid;const doc=uuid?await (globalThis.fromUuid??foundry.utils.fromUuid)(uuid):null;doc?.sheet?.render?.({force:true});return;}
     }
-    await this.render();
+    await this.#renderCodex();
   }
   /** Picks an NPC in the Codex list; unsaved notes for another NPC ask first. */
   async #focusCodex(id) {

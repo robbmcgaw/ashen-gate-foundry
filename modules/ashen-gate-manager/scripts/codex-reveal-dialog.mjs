@@ -141,3 +141,32 @@ export function bulkStatus({count = 0, mode = 'party', charCount = 0} = {}) {
       : 'Applies at once. You can undo it right after.'
   };
 }
+
+export const NO_AUDIENCE = 'Choose who can see it first: whole party or characters.';
+export const NO_FIELDS = 'Tick at least one field first.';
+/** Why a bulk reveal (a preset when `preset` is set) cannot run from this panel state, or '' when it can. */
+export function bulkProblem({mode = 'party', charCount = 0, count = 0, preset = null} = {}) {
+  if (mode === 'actors' && !charCount) return NO_AUDIENCE;
+  if (mode === 'hidden' && preset) return NO_AUDIENCE;
+  if (!preset && !count) return NO_FIELDS;
+  return '';
+}
+/**
+ * The Reveals panel's Apply and preset buttons, end to end, and always with something to tell the GM:
+ * {ok, tone: 'ok'|'info'|'warn'|'danger', message, result?, cancelled?}. Never throws.
+ * bulk: {keys: Set, mode, chars: Set}. confirmHide() is asked first when hiding.
+ */
+export async function runBulkReveal({svc, id, bulk, preset = null, confirmHide = async () => true} = {}) {
+  const problem = bulkProblem({mode: bulk.mode, charCount: bulk.chars.size, count: bulk.keys.size, preset});
+  if (problem) return {ok: false, tone: 'warn', message: problem};
+  if (bulk.mode === 'hidden' && !(await confirmHide())) return {ok: false, cancelled: true, tone: 'info', message: ''};
+  let result;
+  try {
+    result = await svc.setRevealMany(id, {mode: bulk.mode, characters: [...bulk.chars], ...(preset ? {preset} : {fields: [...bulk.keys]})});
+  } catch (error) {
+    return {ok: false, tone: 'danger', message: `Nothing was changed: ${error?.message ?? error}`};
+  }
+  if (!result.changed.length) return {ok: true, tone: 'info', result, message: bulk.mode === 'hidden'
+    ? 'Nothing to hide: those fields are already hidden.' : 'Nothing to reveal: those fields are already revealed or empty.'};
+  return {ok: true, tone: 'ok', result, message: result.message};
+}

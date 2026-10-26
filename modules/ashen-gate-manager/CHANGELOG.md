@@ -1,3 +1,12 @@
+## 0.70.2 — 2026-10-26
+
+NPC Codex: the bulk reveal panel and its one-click presets always answer, and changing a reveal no longer scrolls the page to the top.
+
+- **Every outcome is now visible.** Reveal basics, Reveal everything player-safe and Apply to N fields show a line under the buttons: what was revealed ("Revealed 3 fields to Aldric and Merra."), "Nothing to reveal: those fields are already revealed or empty.", or why nothing happened ("Choose who can see it first: whole party or characters." / "Tick at least one field first."). Failures show "Nothing was changed: <reason>" in red with a warning icon, and as a notification. The preset buttons stay greyed out until an audience is chosen, and a red line next to them says why. Presets never pick an audience for you.
+- **The panel's buttons were silently ignored while Manager thought it was busy** (an import, sync or other long job). Codex actions are no longer held back by that, since they only write NPC reveal flags.
+- **No more jump to the top.** The Codex detail pane keeps its scroll position when a reveal changes (per-field Hidden / Party / Characters, the Characters menu, the multi-field panel, Reveal to…, Undo). The Characters menu stays open and focus stays on the box you ticked.
+- Saved data: no change, no migration.
+
 ## 0.70.1 — 2026-10-26
 
 Sync from package no longer stalls on "Binding links between records…", says what it is doing, and survives a dropped connection.
