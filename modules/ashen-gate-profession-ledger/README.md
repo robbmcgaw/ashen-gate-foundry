@@ -2,6 +2,8 @@
 
 Module ID `ashen-gate-profession-ledger` · Foundry V14 · dnd5e. Owns each character's profession progression (XP, level) and known recipes, stored on Actor flags. Open it from **Actors sidebar → Professions** (players when **GM Setup → Player Access** is on).
 
+**Sidebar folders.** Journals file under **Ashen Gate / Professions** (GM Data) and **Ashen Gate / Backups** (Refresh snapshots); see docs/folder-convention.md.
+
 ## Tabs
 
 - **Individual:** a character's crafting bench: professions with level and XP, materials, recipe items to **Learn**, and known recipes to **Craft**. If a craft needs a party member's materials, that character's owner gets an Allow/Decline popup (the GM's client coordinates; any decline cancels). Each profession card has a GM-only **GM: XP** section: **Award** or **Adjust** (add, subtract or set, with a reason), and the XP history.

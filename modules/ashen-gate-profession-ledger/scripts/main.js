@@ -9,6 +9,7 @@ import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierL
 import {tierBadge} from './tier-style.mjs';
 import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {journalFolderId,backupsFolderId,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {confirmDialog,confirmDanger,formDialog,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,looseToolName,
@@ -27,7 +28,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.34.1';
+const VERSION='0.35.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -958,7 +959,7 @@ async function saveRefreshSnapshot(actor,plan){
   const name=`Profession Refresh: ${actor.name} (${data.takenAt.slice(0,16).replace('T',' ')})`;
   const html=`<p>Taken before Refresh changed ${esc(actor.name)}. To undo by hand: create the Items in <code>removedItems</code> on the character again (Item data can be pasted into a new Item with Import Data), and put <code>flagsBefore</code> back with <code>actor.setFlag</code>. GM only.</p><pre>${esc(JSON.stringify(data,null,2))}</pre>`;
   let doc;
-  try{doc=await create.call(globalThis.JournalEntry,{name,ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},
+  try{doc=await create.call(globalThis.JournalEntry,{name,folder:await backupsFolderId(),ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},
     flags:{[ID]:{role:REFRESH_JOURNAL_ROLE,snapshot:data}},pages:[{name:'Snapshot',type:'text',text:{content:html,format:1}}]});}
   catch(err){throw Error(`Refresh cancelled: the snapshot could not be saved (${err?.message??err}). Nothing was changed.`);}
   if(!doc?.id)throw Error('Refresh cancelled: the snapshot could not be saved. Nothing was changed.');
@@ -2268,7 +2269,7 @@ function writeNodeStore(store){
     if(doc)await doc.update({[`flags.${ID}.${NODE_FLAG}`]:data});
     else{
       if(typeof globalThis.JournalEntry?.create!=='function')throw Error('Foundry cannot create the Profession Ledger GM Data journal here');
-      await globalThis.JournalEntry.create({name:GM_JOURNAL_NAME,ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},
+      await globalThis.JournalEntry.create({name:GM_JOURNAL_NAME,folder:await journalFolderId(),ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},
         flags:{[ID]:{role:'gm-data',[NODE_FLAG]:data}}});
     }
     refreshLedger();
@@ -3780,6 +3781,8 @@ Hooks.once('init',()=>{
   // Existing player-facing installations stay visible on upgrade (PA-01).
   game.settings.register(ID,PLAYER_ACCESS_SETTING,{name:'Player Access — Profession Ledger',hint:'GM only: reveal or hide the player Ledger interface; does not disable Profession mechanics or erase character data.',scope:'world',config:true,type:Boolean,default:true,
     onChange:value=>syncLedgerPlayerAccess(value)});
+  // 1 once the Ledger has filed its own journals under Ashen Gate (folder-nesting.mjs); config:false.
+  game.settings.register(ID,FOLDER_SETTING,{name:'Profession Ledger folder nesting',scope:'world',config:false,type:String,default:''});
   game.settings.register(ID,'libraryData',{name:'Profession Ledger catalog',scope:'world',config:false,type:Object,
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
   game.settings.register(ID,CORE_AWARD_SETTING,{name:'Award linked core items when crafting',scope:'world',config:false,type:Boolean,default:true});
@@ -3797,6 +3800,7 @@ Hooks.once('init',()=>{
 });
 Hooks.once('ready',()=>{
   const module=game.modules.get(ID);if(!module)return;
+  void migrateFolders().catch(e=>console.warn(`${ID} | could not file journals under Ashen Gate`,e));
   module.api={playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,ID),setEnabled:enabled=>setPlayerAccess(game,ID,enabled)},
     open:({actorId=null,view=null}={})=>{checkPlayerLedger();current??=new LedgerApp();if(actorId)current.actorId=actorId;
       if(view){const next=LEGACY_VIEWS[view]??view;current.view=!game.user.isGM&&GM_VIEWS.has(next)?'individual':next;}
