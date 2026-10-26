@@ -198,7 +198,8 @@ export function toolBonus(actor,key){
   const n=Number(t?.total);if(Number.isFinite(n))return n;
   return abilityMod(actor,t?.ability??dnd5eTools()[key]?.ability??TOOL_ABILITY[key]);
 }
-export const toolProficient=(actor,key)=>Number(actor?.system?.tools?.[key]?.value??actor?.system?.tools?.[key]?.effectValue??0)>0;
+/** 0.33.2: half proficiency (0.5, Jack of All Trades) is not proficiency; 1 (proficient) and 2 (expertise) are. */
+export const toolProficient=(actor,key)=>Number(actor?.system?.tools?.[key]?.value??actor?.system?.tools?.[key]?.effectValue??0)>=1;
 /** 0.28.0: proficiency for a crosswalk tool value: a tool key as toolProficient; a group (music) when the character is
  * proficient with any tool in it (or with the whole group). Returns the tool keys that matched ([] for none). */
 export function toolProficiencyMatches(actor,key){
@@ -281,7 +282,7 @@ export function expandToolGroups(actor,refs=[]){
 }
 /** One check option: {kind:'skill'|'tool', key, label, bonus, proficient, held}. */
 export function checkOption(actor,{kind,key,ref=null}){
-  if(kind==='skill')return {kind,key,label:skillLabel(key),bonus:skillBonus(actor,key),proficient:Number(actor?.system?.skills?.[key]?.value??0)>0,held:null};
+  if(kind==='skill')return {kind,key,label:skillLabel(key),bonus:skillBonus(actor,key),proficient:Number(actor?.system?.skills?.[key]?.value??0)>=1,held:null};
   const tool=ref??{key,uuid:null,name:null};
   const held=heldTool(actor,tool);
   const k=tool.key??held?.system?.type?.baseItem??null;
