@@ -853,8 +853,10 @@
 /* The Equip / Equipped and Attune / Attuned toggles: one size in both states (like Magic's Prepare / Prepared), gold fill when on. */
 .agch-app .agch-crows .agch-tog.ag-btn { min-height: var(--ag-control-h-sm); padding-block: 0; font: 500 var(--ag-text-sm)/1.25 var(--ag-font-body); }
 .agch-app .agch-crow__qtyrow { display: flex; align-items: center; gap: var(--ag-space-1); }
-.agch-app .agch-crow__qtyrow > span { color: var(--ag-muted); margin-inline-end: var(--ag-space-1); }
-.agch-app .agch-crow__qtyrow > span::after { content: ":"; }
+.agch-app .agch-crow__qtyrow > span:first-child { color: var(--ag-muted); margin-inline-end: var(--ag-space-1); }
+.agch-app .agch-crow__qtyfield { display: none; }
+.agch-app .agch-crow__qtyfield input { width: 3rem; min-width: 0; padding-inline: var(--ag-space-1); text-align: center; }
+.agch-app .agch-crow__qtyrow > span:first-child::after { content: ":"; }
 @container agch-body (max-width: 480px) {
   .agch-app .agch-crows .agch-sbadge__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* ag-lint-allow: visually hidden label, the same idiom as .ag-sr-only */
 }
@@ -919,8 +921,9 @@
   .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem 3rem var(--agch-ic-track); }
 }
 @container agch-body (max-width: 490px) {
-  /* Inventory: Uses moves into the open row */
-  .agch-app .agch-crows--inventory .agch-ic-uses { display: none; }
+  /* Inventory: Quantity (its field joins minus and plus) moves into the open row */
+  .agch-app .agch-crows--inventory .agch-ic-qty { display: none; }
+  .agch-app .agch-crows--inventory .agch-crow__qtyfield { display: inline-block; }
   .agch-app .agch-crows--inventory.agch-set-all.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(9rem, 1fr) 3rem var(--agch-ic-track); }
 }
 @container agch-body (max-width: 590px) {

@@ -138,10 +138,11 @@ function purseHtml(ctx, d) {
 function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   const {actor, editable, sheet} = ctx, off = !editable, toParty = partyStashUsable(), expanded = sheet?.expanded;
   const qtyField = r => `<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>`;
-  const stepBtns = r => `${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}`;
+  const minusBtn = r => btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0});
+  const plusBtn = r => btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off});
   const compact = !showItemDescriptions(), list = itemListFn(compact, 'inventory');
-  // 0.57.0: on the one-line row Quantity is just the number field (typing works as before); minus and plus are in the open row at every width.
-  const qty = {...C.quantity, fact: r => String(r.quantity), render: r => compact ? `<span class="agch-qty">${qtyField(r)}</span>` : `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}${qtyField(r)}${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
+  // 0.57.0: on the one-line row Quantity is just the number field (typing works as before); minus and plus are in the open row at every width (0.57.1: and the field too, once Qty has left the line).
+  const qty = {...C.quantity, fact: r => String(r.quantity), render: r => compact ? `<span class="agch-qty">${qtyField(r)}</span>` : `<span class="agch-qty">${minusBtn(r)}${qtyField(r)}${plusBtn(r)}</span>`};
   const columns = itemCols([qty, C.weight, C.value, C.uses], compact);
   // 0.56.0: the one-line rows give each action a fixed slot (Use, Equip / Unequip, Attune, Move to stash), empty when it does not apply,
   // so the buttons line up in every row. They are labelled when the Hub is wide and an icon cluster (aria-label and tooltip kept) below that.
@@ -160,7 +161,8 @@ function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
     r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
     toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
-  const qtyRow = r => `<div class="agch-crow__qtyrow"><span>Quantity</span>${stepBtns(r)}</div>`;
+  // 0.57.1: minus and plus are always here; the number field joins them once Qty has left the line (CSS shows agch-crow__qtyfield at that step).
+  const qtyRow = r => `<div class="agch-crow__qtyrow"><span>Quantity</span>${minusBtn(r)}<span class="agch-crow__qtyfield">${qtyField(r)}</span>${plusBtn(r)}</div>`;
   const card = r => ({iconUse: !off, controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off),
     badges: compact ? '' : `${masteryBadge(r)}${attunedBadge(r)}`,
     extraFacts: [...itemExtraFacts(r), ...(r.canAttune ? [['Attunement', r.attuned ? 'Attuned' : r.attunement === 'optional' ? 'Optional, not attuned' : 'Required, not attuned']] : [])], ...(compact ? {detailExtra: qtyRow(r)} : {})});

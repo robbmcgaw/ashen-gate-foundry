@@ -47,18 +47,19 @@ export const COMBAT_STEPS = Object.freeze([
 /**
  * Inventory (0.57.0): the name keeps a generous minimum width and nothing sits beside it. The actions are pinned and never hidden:
  * Use, the Equip / Equipped and Attune / Attuned toggles (like Magic's Prepare / Prepared) and Move to party stash; at the first step
- * they become icons. Quantity is only its number field on the line (minus and plus are in the open row at every width) and stays
- * longest. Weight and Value are low priority and go first, then Uses.
+ * they become icons. Quantity is only its number field on the line (minus and plus are in the open row at every width). Weight and
+ * Value are low priority and go first, then Qty (its field moves into the open row beside minus and plus); Uses stays longest, right
+ * before the actions (0.57.1).
  */
 export const INVENTORY_PRIORITY = Object.freeze({
   always: Object.freeze(['fold', 'star', 'icon', 'chevron', 'name', 'actions']),
-  optional: Object.freeze(['qty', 'uses', 'value', 'weight'])
+  optional: Object.freeze(['uses', 'qty', 'value', 'weight'])
 });
 export const INVENTORY_STEPS = Object.freeze([
   Object.freeze({width: 775, hides: 'action-labels'}),
   Object.freeze({width: 615, hides: 'weight'}),
   Object.freeze({width: 555, hides: 'value'}),
-  Object.freeze({width: 490, hides: 'uses'})
+  Object.freeze({width: 490, hides: 'qty'})
 ]);
 /** Inventory's list scrolls sideways below this width (px): its name track is wider than the other tabs'. */
 export const INVENTORY_MIN_LIST = 416;

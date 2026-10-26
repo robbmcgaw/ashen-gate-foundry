@@ -55,11 +55,11 @@ test('each tab has one ordered priority list: always shown, then optional column
   assert.deepEqual(COMBAT_PRIORITY.always, ['star', 'icon', 'chevron', 'name', 'badges', 'use']);
   assert.deepEqual(COMBAT_PRIORITY.optional, ['tohit', 'dice', 'range', 'uses', 'recovery', 'properties']);
   assert.deepEqual(INVENTORY_PRIORITY.always, ['fold', 'star', 'icon', 'chevron', 'name', 'actions']);
-  assert.deepEqual(INVENTORY_PRIORITY.optional, ['qty', 'uses', 'value', 'weight']);
+  assert.deepEqual(INVENTORY_PRIORITY.optional, ['uses', 'qty', 'value', 'weight']);
   assert.deepEqual(FEATURES_PRIORITY.always, ['star', 'icon', 'chevron', 'name', 'use']);
   assert.deepEqual(FEATURES_PRIORITY.optional, ['uses', 'recovery', 'activation', 'type']);
   assert.deepEqual(dropOrder(COMBAT_PRIORITY), ['properties', 'recovery', 'uses', 'range', 'dice', 'tohit']);
-  assert.deepEqual(dropOrder(INVENTORY_PRIORITY), ['weight', 'value', 'uses', 'qty']);
+  assert.deepEqual(dropOrder(INVENTORY_PRIORITY), ['weight', 'value', 'qty', 'uses']);
   assert.deepEqual(dropOrder(FEATURES_PRIORITY), ['type', 'activation', 'recovery', 'uses']);
   assert.deepEqual(dropOrder(SPELL_PRIORITY), ['components', 'casting', 'range', 'dice'], 'Magic reads the same way');
   assert.ok(Object.isFrozen(COMBAT_PRIORITY) && Object.isFrozen(COMBAT_PRIORITY.optional) && Object.isFrozen(ITEM_STEPS.combat[0]));
@@ -68,7 +68,7 @@ test('each tab has one ordered priority list: always shown, then optional column
 test('steps: columns drop in the reverse of the priority list, widest first, each above the sideways-scroll minimum', () => {
   const dropped = steps => steps.map(s => s.hides).filter(h => h !== 'action-labels');
   assert.deepEqual(dropped(COMBAT_STEPS), dropOrder(COMBAT_PRIORITY));
-  assert.deepEqual(dropped(INVENTORY_STEPS), dropOrder(INVENTORY_PRIORITY).filter(c => c !== 'qty'), 'Quantity is never dropped from the line');
+  assert.deepEqual(dropped(INVENTORY_STEPS), dropOrder(INVENTORY_PRIORITY).filter(c => c !== 'uses'), 'Uses is never dropped from the line: the last state is name, Uses and the actions');
   assert.deepEqual(dropped(FEATURES_STEPS), dropOrder(FEATURES_PRIORITY));
   assert.equal(INVENTORY_STEPS[0].hides, 'action-labels', 'Inventory first folds its action labels into an icon cluster');
   for (const t of TABS) {
@@ -230,6 +230,17 @@ test('Inventory quantity: only the number field on the line; minus and plus are 
   assert.match(css56, /\.agch-crow__qtyrow \{ display: flex; align-items: center;/, 'shown at every width');
   assert.match(css56, /\.agch-crows \.agch-qty input \{ width: 3rem;/);
   assert.doesNotMatch(css56, /qty-compact|iq-qty/);
+  assert.match(css56, /\.agch-crow__qtyfield \{ display: none; \}/, 'the open row field is hidden while Qty is on the line');
+  assert.match(css56, /agch-ic-qty \{ display: none; \}\n  \.agch-app \.agch-crows--inventory \.agch-crow__qtyfield \{ display: inline-block; \}/, 'and shown once Qty leaves the line');
+});
+
+test('Inventory last state is name + Uses + actions; it fits the 416px minimum at the 9rem name floor; the open row can type or step the quantity', async () => {
+  const L = ITEM_LAYOUT.inventory;
+  const last = rowNeed({metrics: {...ITEM_METRICS, main: 144}, lead: L.lead, track: L.track, cols: L.sets.all, hidden: ['weight', 'value', 'qty'], widths: {...L.widths}});
+  assert.equal(last, 404); assert.ok(last <= INVENTORY_MIN_LIST);
+  setup();
+  const d = detailOf(rowOf(await render('inventory'), 'pot'));
+  assert.match(d, /<div class="agch-crow__qtyrow"><span>Quantity<\/span><button[^>]*data-step="-1"[^>]*><i[^>]*><\/i><\/button><span class="agch-crow__qtyfield"><input type="number" min="0" step="1" data-edit="item-qty" data-id="pot" value="3"[^>]*><\/span><button[^>]*data-step="1"/);
 });
 
 test('the name keeps a generous minimum and nothing sits beside it in Inventory', async () => {
@@ -302,10 +313,10 @@ test('Magic: only its pinned actions background changed (follows striping and ho
 });
 
 test('README, Help and CHANGELOG describe the single line, the priorities and the steps', () => {
-  assert.match(CHANGELOG, /^## 0\.57\.0/m);
+  assert.match(CHANGELOG, /^## 0\.57\.1/m);
   assert.match(README, /single line since 0\.56\.0/);
   assert.match(README, /Properties at 575px[\s\S]*Recovery at 565px[\s\S]*Uses at 535px[\s\S]*Range at 475px[\s\S]*Dice at 400px[\s\S]*To hit at 390px/);
-  assert.match(README, /icons at 775px[\s\S]*Weight at 615px[\s\S]*Value at 555px[\s\S]*Uses at 490px/);
+  assert.match(README, /icons at 775px[\s\S]*Weight at 615px[\s\S]*Value at 555px[\s\S]*Qty at 490px/);
   assert.match(README, /Type at 590px[\s\S]*Use time at 490px[\s\S]*Recovery at 400px[\s\S]*Uses at 390px/);
   assert.match(HELP_HTML, /Combat, Inventory and Features[\s\S]*exactly one line/);
 });

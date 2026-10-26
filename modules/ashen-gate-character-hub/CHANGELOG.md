@@ -1,3 +1,12 @@
+## 0.57.1 — 2026-10-26
+
+Inventory: Uses is kept longer than Quantity as the Hub narrows.
+
+- **New drop order:** Weight (615px or less), then Value (555px), then Quantity (490px). Uses stays on the line to the end, right before the pinned Use / Equip / Attune / stash actions, so the narrowest line is name, Uses and actions. The action labels still fold into icons at 775px.
+- **Quantity in the open row.** When the Qty number leaves the line, the open row shows the number field beside the minus and plus buttons (the same quantity actions), so you can still type or step it. The minus and plus are there at every width, as in 0.57.0.
+- The name floor (9rem) and the 26rem (416px) sideways-scroll minimum are unchanged; the narrowest line needs 404px at the name floor. Presentation only; no data changes.
+- Tests use mocked Foundry and prove markup and CSS text, not the live layout.
+
 ## 0.57.0 — 2026-10-26
 
 Inventory rows: the name is never clipped, Equip and Attune are toggle buttons, the quantity is just a number field.
