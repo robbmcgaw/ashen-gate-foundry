@@ -23,12 +23,13 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGa
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
+import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
   duplicateTemplate,removeTemplate,templateReferences,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
-  exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
+  exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.35.0';
+const VERSION='0.35.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1631,7 +1632,9 @@ const prefersReducedMotion=()=>reducedMotionOverride??(globalThis.matchMedia?.('
 let lastPlayerResult=null;            // player client: the last revealed gather, kept until the next one
 const worldMaterial=id=>id?materialChoices().find(i=>agSourceId(i)===id)??null:null;
 /** Machine-readable metadata of an awardable world material (Manager's definition), or null. */
-const worldMaterialMeta=id=>{const item=worldMaterial(id);return item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;};
+/** Material metadata of a world Item, tolerant of older or thinner imports (see materialMetaOfSource). */
+const metaOfItem=item=>item?materialMetaOfSource(item.flags?.['ashen-gate-manager']?.source,{name:item.name,description:item.system?.description?.value}):null;
+const worldMaterialMeta=id=>metaOfItem(worldMaterial(id));
 /** 0.25.0 GM: a MAT-* id's state: ok (awardable: approved, player-visible), missing (not imported), draft (not approved),
  * gm-only, not-visible, duplicate or retired; `status` is its Manager status. Draft, gm-only and not-visible can be used anyway. */
 function materialState(id){
@@ -1654,8 +1657,15 @@ function draftMaterial(id){
   return (game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i))??null;
 }
 /** The world Material to award: an awardable one, or (GM "use anyway" only) a draft/unreleased one. */
-const awardMaterial=(id,allowDraft=false)=>worldMaterial(id)??(allowDraft?draftMaterial(id):null);
-const itemMeta=item=>item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;
+/** 0.35.1: states a GM round may give without "use anyway": released (approved, player-visible) materials, even when the world Item itself is
+ * not Observer for every player (a permission detail: the Item given to a character is a copy, so nobody needs the world Item). */
+const releasedState=state=>state==='ok'||state==='not-visible';
+function releasedMaterial(id){
+  if(!game.user?.isGM||materialState(id).state!=='not-visible')return null;
+  return (game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i))??null;
+}
+const awardMaterial=(id,allowDraft=false)=>worldMaterial(id)??releasedMaterial(id)??(allowDraft?draftMaterial(id):null);
+const itemMeta=metaOfItem;
 /** Exotic metadata lookup for a gather: awardable materials, plus draft/unreleased ones when the GM uses them anyway. */
 const metaFor=allowDraft=>id=>worldMaterialMeta(id)??(allowDraft?itemMeta(draftMaterial(id)):null);
 /** GM: why a MAT-* cannot be awarded ('' when it can), named after what the GM fixes in General Manager. 0.25.0: "not imported" vs "draft/unreleased". */
@@ -1671,7 +1681,7 @@ function materialCatalog(){
   const out=new Map();
   for(const item of game.items?.contents??[]){
     const id=agSourceId(item);if(!id?.startsWith('MAT-')||out.has(id))continue;
-    const meta=materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name});
+    const meta=metaOfItem(item);
     if(meta){const s=materialState(id);out.set(id,{...meta,unavailable:materialUnavailable(id),state:s.state,status:s.status,draft:usableAnyway(s.state)});}
   }
   return [...out.values()];
@@ -1709,7 +1719,7 @@ function materialBadge(id){
 /** GM: the first material problem of a node (its common table), as startBlocker/nodeBlocker options. */
 function nodeMaterialCheck(node,allowDraft=false){
   const ids=[...new Set([node?.materialId,...(node?.tables?.common??[]).map(e=>e.materialId)].filter(Boolean))];
-  for(const id of ids){const s=materialState(id);if(s.state!=='ok'&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,materialName:materialName(id),allowDraft};}
+  for(const id of ids){const s=materialState(id);if(!releasedState(s.state)&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,materialName:materialName(id),allowDraft};}
   return {materialFound:true,materialState:'ok',allowDraft};
 }
 /** A skip reason with the specific Manager fix when the material is not awardable. */
@@ -1926,14 +1936,47 @@ async function receiveGatherRoll(message,senderId){
   recordRoll(round.id,{actorId:roller.actorId,total:message.total,choice:message.choice,mode:message.mode,by:sender.name});
   return true;
 }
-const materialShow=(round,id)=>{const item=awardMaterial(id,round.allowDraft);return {name:item?.name??materialName(id),img:item?.img||'',released:materialState(id).state==='ok'};};
+const materialShow=(round,id)=>{const item=awardMaterial(id,round.allowDraft);return {name:item?.name??materialName(id),img:item?.img||'',released:releasedState(materialState(id).state)};};
 /** GM: the materials this round can give, awardable only (a draft one only when the GM allowed drafts). */
 function buildRoundPool(round){
   const ok=id=>Boolean(awardMaterial(id,round.allowDraft)),keep=t=>t.filter(e=>ok(e.materialId));
   if(round.poolSource==='node'){const p=nodePool(round.node);return {common:keep(p.common),rare:keep(p.rare),exotics:[]};}
   const c=catalogPool(materialCatalog(),{professions:round.professions,tiers:round.tiers,keyOf:professionKeyOfId,
-    usable:m=>m.state==='ok'||(round.allowDraft&&usableAnyway(m.state))});
+    usable:m=>releasedState(m.state)||(round.allowDraft&&usableAnyway(m.state))});
   return {common:keep(c.common),rare:keep(c.rare),exotics:c.exotics.filter(e=>ok(e.materialId))};
+}
+/** GM: imported Materials the Ledger cannot read a quality, tier or gathering profession for (an older or thinner import). */
+function unreadableMaterials(){
+  const out=[];
+  for(const item of game.items?.contents??[]){
+    const id=agSourceId(item);if(!/^MAT-[A-Z0-9-]+$/.test(id??'')||classify(item)!=='Material')continue;
+    const m=metaOfItem(item);
+    if(!m||!m.quality||m.tier==null||!materialProfessionKeys(m,professionKeyOfId).length)out.push(item.name);
+  }
+  return out;
+}
+/** GM: why a pool has no <kind> material, in plain words with the fix. Players never see this. */
+function poolReason(round,kind){
+  const label=kind[0].toUpperCase()+kind.slice(1);
+  if(round.poolSource==='node'){
+    const table=nodePool(round.node)[kind];
+    if(!table.length)return `This spot lists no ${label} material.`;
+    const why=[...new Set(table.map(e=>materialUnavailable(e.materialId)).filter(Boolean))];
+    return `The ${label} material this spot lists can’t be given: ${why.join('; ')||'it is not an imported, released material'}.`;
+  }
+  const profs=round.professions.map(professionTitle).join(', '),where=`${profs}, ${tiersText(round.tiers).toLowerCase()}`;
+  const wanted=new Set(round.professions),tierSet=new Set(round.tiers);
+  const rows=materialCatalog().filter(m=>norm(m.quality)===kind&&tierSet.has(m.tier)&&materialProfessionKeys(m,professionKeyOfId).some(k=>wanted.has(k)));
+  const usable=rows.filter(m=>releasedState(m.state)||(round.allowDraft&&usableAnyway(m.state)));
+  const blocked=rows.filter(m=>!usable.includes(m)),parts=[];
+  const count=(state,words)=>{const n=blocked.filter(m=>m.state===state).length;if(n)parts.push(`${n} ${label} ${n===1?'material matches':'materials match'} ${where} but ${words}`);};
+  count('draft','is draft/unreleased: approve it in General Manager, or tick Use draft materials anyway');
+  count('gm-only','is GM-only: make it player-visible in General Manager, or tick Use draft materials anyway');
+  count('duplicate','is imported more than once: remove the duplicate in General Manager');
+  count('retired','is retired or superseded: restore it in General Manager');
+  if(parts.length)return `${parts.join('. ')}.`;
+  const bad=unreadableMaterials();
+  return `No imported ${label} materials for ${where}. Import them with General Manager.${bad.length?` ${bad.length} imported ${bad.length===1?'material has':'materials have'} no readable quality, tier or profession (an older import): re-import ${bad.length===1?'it':'them'} with General Manager.`:''}`;
 }
 /** GM: stop taking rolls and settle every result now. Nothing is given yet; the result is final before any animation. */
 function revealRound(roundId){
@@ -1950,6 +1993,8 @@ function revealRound(roundId){
     percent:exoticPercent(),metaOf:metaFor(round.allowDraft),keyOf:professionKeyOfId});
   round.result={rows:plan.rows.map(r=>({...r,handed:[]})),skipped:plan.skipped,unrolled:round.rollers.filter(r=>!r.rolled).map(r=>r.actorName),
     best:bestResult(plan.rows),needsManual:needsManual(plan.rows),revealedAt:Date.now()};
+  const reasons={};
+  for(const row of round.result.rows)if(row.undetermined.length){const k=row.undetermined[0];row.reason=reasons[k]??=poolReason(round,k);}
   round.status='revealed';
   const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
   const notes=plan.skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??materialName(x.materialId)} skipped: ${skipReason(x.materialId,x.reason)}.`);
@@ -1966,7 +2011,7 @@ function roundView(round,{players=false}={}){
     drops:r.drops.map(d=>{const m=materialShow(round,d.materialId),hidden=players&&!m.released&&!d.given;
       // A player's copy never carries an unreleased material's name, picture or id.
       return hidden?{name:'',img:'',quantity:d.quantity,kind:d.kind,hidden:true}:{...(players?{}:{materialId:d.materialId}),name:m.name,img:m.img,quantity:d.quantity,kind:d.kind,hidden:false};}),
-    undetermined:r.undetermined.length>0}));
+    undetermined:r.undetermined.length>0,...(players?{}:{reason:r.reason??''})}));
   const ids=new Set([...(round.poolIds??[])]);
   const reel=[];
   for(const id of ids){const m=materialShow(round,id);if(players&&!m.released)continue;reel.push({img:m.img,name:m.name});}
@@ -1989,6 +2034,7 @@ async function giveByHand(roundId,actorId,materialId,quantity=1){
   const kind=row.undetermined.shift()??(row.result==='rare'?'rare':'common');
   row.drops.push({materialId,quantity:qty,kind,given:true,hand:true,name:item.name,img:item.img});
   row.handed.push(materialId);
+  try{await globalThis.ChatMessage?.create?.({content:`<div class="agl-chat-card"><p><strong>${esc(actor.name)}</strong> was given ${qty} × ${esc(item.name)} by the GM.</p></div>`});}catch(err){console.warn(`[${ID}] hand-out chat card failed`,err);}
   round.result.needsManual=needsManual(round.result.rows);
   refreshLedger();
   return {actorId,materialId,name:item.name,total:out.total};
@@ -2090,22 +2136,25 @@ function handoutRows(round){
   return round.result.rows.map(r=>{
     const given=r.drops.map(d=>d.name??materialShow(round,d.materialId).name);
     return {actorId:r.actorId,name:r.actorName,total:r.total,dc:r.dc,met:r.result!=='fail',result:r.result,verdict:verdictOf(r.result),mayReceive:[...r.mayReceive],
-      picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`:`The Ledger picked ${given.join(' and ')}`};
+      picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?(r.reason?`${r.reason} Give it by hand.`:`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`):`The Ledger picked ${given.join(' and ')}`};
   });
 }
 /** GM: materials a character may be given by hand for this row, matching its quality, the round's professions and tiers (all of that quality if none match). */
 function giveChoices(round,row,{query=''}={}){
   const qualities=new Set((row?.mayReceive?.length?row.mayReceive:['Common','Rare','Exotic']).map(q=>q.toLowerCase()));
-  const usable=m=>m.state==='ok'||usableAnyway(m.state);
+  const usable=m=>releasedState(m.state)||usableAnyway(m.state);
   const all=materialCatalog().filter(m=>usable(m)&&qualities.has(norm(m.quality)));
   const fit=all.filter(m=>m.tier!=null&&round.tiers.includes(m.tier)&&materialProfessionKeys(m,professionKeyOfId).some(k=>round.professions.includes(k)));
   const q=norm(query),list=(fit.length?fit:all).filter(m=>!q||norm(m.name).includes(q));
   return {matching:fit.length>0,materials:list.sort((a,b)=>(a.tier??9)-(b.tier??9)||a.name.localeCompare(b.name)).slice(0,60).map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,draft:m.draft}))};
 }
-function bindClicks(dialog,selector,attr,fn){
-  const el=dialog?.element;
-  el?.querySelectorAll?.(selector)?.forEach(b=>b.addEventListener('click',()=>fn(b.dataset[attr],b)));
-}
+/**
+ * A non-modal DialogV2 whose content buttons (`data-action="name"`) run `handlers[name](dataset, element)`. 0.35.1: the buttons did nothing in
+ * Forge when they were wired only from the dialog's `render` callback. They are now reached three ways, each safe to run alongside the others
+ * (one click is handled once): ApplicationV2's own `actions` for `data-action` elements, the `render` callback, and a click listener put on the
+ * dialog element once it has rendered. Nothing relies on inline handlers.
+ */
+const actionDialog=options=>makeActionDialog(DialogV2,{...options,onError:err=>say(`Profession Ledger: ${err.message}`,true)});
 /** GM pop-up: the Ledger could not settle every drop (or the GM wants to add one). One Give… button per character who met the DC. */
 async function openHandoutDialog(roundId){
   if(!canRunGathering(game.user))throw Error('Only the GM can hand out gathering loot');
@@ -2118,13 +2167,12 @@ async function openHandoutDialog(roundId){
     <ul class="ag-rows">${rows.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span>
       <span class="ag-row__meta">${r.total} vs DC ${r.dc} · ${r.met?'Met the DC':'Did not meet the DC'} · ${r.met?`May receive: ${esc(r.mayReceive.join(' / ')||'nothing')}`:'Nothing'}</span>
       <span class="ag-row__meta">${esc(r.status)}</span></span>
-      <span class="ag-row__end">${r.met?`<button type="button" class="ag-btn ag-btn--sm" data-handout-give="${esc(r.actorId)}">Give…</button>`:''}</span></li>`).join('')}</ul></div>`;
+      <span class="ag-row__end">${r.met?`<button type="button" class="ag-btn ag-btn--sm" data-action="agl-handout-give" data-actor="${esc(r.actorId)}">Give…</button>`:''}</span></li>`).join('')}</ul></div>`;
   try{
-    const dialog=new DialogV2({id:`agl-handout-${roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Hand out loot'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
-      content,buttons:[{action:'close',label:'Close',icon:'fa-solid fa-xmark',default:true}],
-      render:(event,d)=>bindClicks(d,'[data-handout-give]','handoutGive',actorId=>{void openGiveDialog(roundId,actorId).catch(err=>say(`Profession Ledger: ${err.message}`,true));})});
+    const {dialog,attach}=actionDialog({id:`agl-handout-${roundId}`,title:'Hand out loot',content,buttons:[{action:'close',label:'Close',icon:'fa-solid fa-xmark',default:true}],
+      handlers:{'agl-handout-give':data=>openGiveDialog(roundId,data.actor)}});
     gatherDialogs.set(key,dialog);
-    await dialog.render({force:true});
+    await dialog.render({force:true});attach(dialog);
     return dialog;
   }catch(err){console.error(`[${ID}] hand-out dialog`,err);return null;}
 }
@@ -2138,14 +2186,17 @@ async function openGiveDialog(roundId,actorId){
   gatherDialogs.get(key)?.close?.();
   const content=`<div class="agl-give"><p>Give ${esc(row.actorName)} a material (${esc(row.mayReceive.join(' / ')||'any')}).${matching?'':' None match the chosen professions and tiers, so every material of that quality is listed.'}</p>
     ${materials.length?`<ul class="ag-rows">${materials.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta">Tier ${m.tier??'—'}${m.draft?' · unreleased':''}</span></span>
-      <span class="ag-row__end">${qualityBadge(m.quality)}<button type="button" class="ag-btn ag-btn--sm" data-give-material="${esc(m.id)}">Add</button></span></li>`).join('')}</ul>`:'<p class="agl-sub">No imported material of that quality can be given.</p>'}</div>`;
-  const dialog=new DialogV2({id:`agl-give-${roundId}-${actorId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:`Give loot — ${row.actorName}`},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
-    content,buttons:[{action:'close',label:'Done',icon:'fa-solid fa-check',default:true}],
-    render:(event,d)=>bindClicks(d,'[data-give-material]','giveMaterial',(materialId,button)=>{
-      void giveByHand(roundId,actorId,materialId,1).then(out=>{say(`${row.actorName} received ${out.name}.`);if(button){button.textContent='Added';button.disabled=true;}})
-        .catch(err=>say(`Profession Ledger: ${err.message}`,true));})});
+      <span class="ag-row__end">${qualityBadge(m.quality)}<button type="button" class="ag-btn ag-btn--sm" data-action="agl-give-material" data-material="${esc(m.id)}">Add</button></span></li>`).join('')}</ul>`:'<p class="agl-sub">No imported material of that quality can be given.</p>'}</div>`;
+  const {dialog,attach}=actionDialog({id:`agl-give-${roundId}-${actorId}`,title:`Give loot — ${row.actorName}`,content,buttons:[{action:'close',label:'Done',icon:'fa-solid fa-check',default:true}],
+    handlers:{'agl-give-material':async(data,button)=>{
+      const out=await giveByHand(roundId,actorId,data.material,1);
+      say(`${row.actorName} received ${out.name}.`);
+      if(button){button.textContent='Added';button.disabled=true;}
+      // The hand-out list shows the row as given now.
+      if(gatherDialogs.has(`handout:${roundId}`))void openHandoutDialog(roundId);
+    }}});
   gatherDialogs.set(key,dialog);
-  await dialog.render({force:true});
+  await dialog.render({force:true});attach(dialog);
   return dialog;
 }
 
@@ -3092,7 +3143,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     }
     const res=round.result,view=roundView(round,{players:false});
     const wins=res.rows.filter(r=>r.result!=='fail');
-    const lines=wins.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.actorName)}</span><span class="ag-row__meta">${r.undetermined.length&&!r.drops.length?`The Ledger can’t pick a ${esc(r.undetermined.join(' / '))} material: give it by hand`:'May receive '+esc(r.mayReceive.join(' / '))}</span></span>
+    const lines=wins.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.actorName)}</span><span class="ag-row__meta">${r.undetermined.length&&!r.drops.length?(r.reason?`${esc(r.reason)} Give it by hand.`:`The Ledger can’t pick a ${esc(r.undetermined.join(' / '))} material: give it by hand`):'May receive '+esc(r.mayReceive.join(' / '))}</span></span>
       <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="gather-give-open" data-id="${esc(r.actorId)}">Give…</button></span></li>`).join('');
     const pending=res.rows.reduce((n,r)=>n+r.drops.filter(d=>!d.given).length,0);
     return `<section class="ag-card agl-panel agl-round">${head}
@@ -3948,7 +3999,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
+  actionDialog,poolReason,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

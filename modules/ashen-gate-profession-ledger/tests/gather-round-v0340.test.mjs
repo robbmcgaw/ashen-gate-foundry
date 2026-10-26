@@ -116,7 +116,7 @@ const H=['herbalism','[TEST] Herbalism'],M=['mining','[TEST] Mining'],F=['fishin
 const ana=makeActor('ana','[TEST] Ana','u1',[H,M]),bo=makeActor('bo','[TEST] Bo','u2',[H]),cy=makeActor('cy','[TEST] Cy','u3',[M]),dee=makeActor('dee','[TEST] Dee','u1',[]),
   eli=makeActor('eli','[TEST] Eli','u2',[A]),fay=makeActor('fay','[TEST] Fay','u3',[H]),gus=makeActor('gus','[TEST] Gus','u2',[F]);
 const all=[ana,bo,cy,dee,eli,fay,gus];
-const ledgerModule={active:true,version:'0.35.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.35.1',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
  actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:(name,msg)=>sent.push(msg),on:()=>{}},
  modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -238,20 +238,31 @@ test('fallback: when tier and DC cannot settle a drop, the GM gets who rolled, w
  await app._click('gather-reveal',round.id);
  const rows=_test.handoutRows(_test.openRound());
  assert.deepEqual(rows.map(r=>({n:r.name,met:r.met,may:r.mayReceive,hand:r.needsHand,total:r.total,dc:r.dc})),[{n:'[TEST] Gus',met:true,may:['Common'],hand:true,total:14,dc:10}]);
- assert.match(rows[0].status,/can’t pick a common material: give it by hand/);
+ assert.match(rows[0].status,/No imported Common materials for Fishing, tier 1\. Import them with General Manager\. Give it by hand\./,'a specific reason, not a generic line');
  const pop=dialogs.find(d=>d.opts.window?.title==='Hand out loot');
- assert.ok(pop,'the pop-up opens by itself');assert.match(pop.opts.content,/\[TEST\] Gus/);assert.match(pop.opts.content,/14 vs DC 10 · Met the DC · May receive: Common/);assert.match(pop.opts.content,/data-handout-give="gus">Give…</);
+ assert.ok(pop,'the pop-up opens by itself');assert.match(pop.opts.content,/\[TEST\] Gus/);assert.match(pop.opts.content,/14 vs DC 10 · Met the DC · May receive: Common/);assert.match(pop.opts.content,/data-action="agl-handout-give" data-actor="gus">Give…</);
  const view=await html();assert.match(view,/could not settle every drop/);assert.match(view,/data-action="gather-give-open" data-id="gus">Give…</);
  // The Add flow: materials of that quality, matching professions and tiers first, otherwise all of that quality.
  const give=_test.giveChoices(_test.openRound(),_test.openRound().result.rows[0]);
  assert.equal(give.matching,false);assert.ok(give.materials.every(m=>m.quality==='Common'));assert.ok(give.materials.some(m=>m.id==='MAT-TG-H1'));assert.ok(!give.materials.some(m=>m.id==='MAT-TG-HR'),'no Rare for a Common-only row');
- const dlg=await _test.openGiveDialog(round.id,'gus');assert.match(dlg.opts.content,/data-give-material="MAT-TG-H1">Add</);
+ const dlg=await _test.openGiveDialog(round.id,'gus');assert.match(dlg.opts.content,/data-action="agl-give-material" data-material="MAT-TG-H1">Add</);
  game.user=bob;await assert.rejects(()=>_test.giveByHand(round.id,'gus','MAT-TG-H1',1),/Only the GM/);await assert.rejects(()=>_test.openHandoutDialog(round.id),/Only the GM/);game.user=gm;
  await assert.rejects(()=>_test.giveByHand(round.id,'ana','MAT-TG-H1',1),/did not meet the DC|Reveal/,'only a character who met the DC');
  await assert.rejects(()=>_test.giveByHand(round.id,'gus','MAT-TG-GONE',1),/Not imported in this world/);
- await api.gathering.giveByHand(round.id,'gus','MAT-TG-H1',1);
- assert.equal(of(gus,'MAT-TG-H1'),1);assert.equal(_test.handoutRows(_test.openRound())[0].needsHand,false);
- await api.gathering.give(round.id);
+ // The buttons really work: ApplicationV2 routes a click on [data-action] to options.actions (what Foundry does), with no render callback needed.
+ const click=(dialog,action,data)=>{const el={dataset:{action,...data},closest:()=>el};dialog.opts.actions[action]({preventDefault(){}},el);return el;};
+ const before=chats.length;
+ const giveDlg=dialogs.length;click(pop,'agl-handout-give',{actor:'gus'});await flush();
+ assert.equal(dialogs.length,giveDlg+1,'Give… in the pop-up opens the Add picker');
+ const picker=dialogs.at(-1);assert.match(picker.opts.window.title,/Give loot — \[TEST\] Gus/);
+ const addBtn=click(picker,'agl-give-material',{material:'MAT-TG-H1'});await flush();await flush();
+ assert.equal(of(gus,'MAT-TG-H1'),1,'Add gives the item to that character');assert.equal(addBtn.disabled,true);
+ assert.match(chats.at(-1).content,/\[TEST\] Gus<\/strong> was given 1 × \[TEST\] Moss by the GM/);assert.ok(chats.length>before);
+ const row=_test.openRound().result.rows[0];assert.equal(row.drops.at(-1).given,true);assert.equal(_test.handoutRows(_test.openRound())[0].needsHand,false,'the row is marked as given');
+ assert.match(dialogs.at(-1).opts.content,/The Ledger picked/,'the hand-out list refreshed itself');
+ game.user=bob;const bad=click(picker,'agl-give-material',{material:'MAT-TG-H2'});await flush();await flush();assert.equal(of(gus,'MAT-TG-H2'),0,'a player cannot give');game.user=gm;
+ await api.gathering.giveByHand(round.id,'gus','MAT-TG-H2',1);
+ assert.equal(of(gus,'MAT-TG-H2'),1);await api.gathering.give(round.id);
  assert.match(chats.at(-1).content,/\[TEST\] Gus gathered 1 × \[TEST\] Moss/);
  assert.equal(_test.gatherRounds.size,0);
 });
@@ -352,4 +363,61 @@ test('no lead: old callers still work (leadId, helperIds ignored), an old rememb
  const solo=await api.gathering.start({node:adhoc,professions:['fishing'],tiers:[1],dc:10});
  assert.equal(api.gathering.resolve(solo.id,{total:12}).total,12);
  api.gathering.cancel(solo.id);
+});
+
+/* ---- 0.35.1: why a pool was empty, and older or thinner imports ------------------------------- */
+const withWorld=async(docs,fn)=>{world.push(...docs);try{return await fn();}finally{for(const d of docs)world.splice(world.indexOf(d),1);}};
+const fishRound=async(allowDraft=false)=>{
+ const round=await _test.startRound({node:nodeOf('adhoc-f'),professions:['fishing'],tiers:[1],dc:10,allowDraft});
+ _test.recordRoll(round.id,{actorId:'gus',total:14});
+ const out=_test.revealRound(round.id);_test.cancelRound(round.id);return out;
+};
+const withDesc=(doc,html)=>{doc.system={description:{value:html}};return doc;};
+
+test('an import with only the flag envelope still matches: quality, tier and profession come from the flag refs and the description line',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ const thin=withDesc(worldDoc('wthin','[TEST] Reedfin',{'ashen-gate-manager':{source:{sourceId:'MAT-TG-THIN',entityType:'Material',status:'approved',visibility:'player',refs:[{relation:'gathered_by',target_id:'PROF-TG-FISHING',mode:'required'}]}}},'icons/thin.webp'),
+  '<section><h2>Reedfin</h2><p><em>common · Apprentice · Fishing</em></p></section>');
+ await withWorld([thin],async()=>{
+  const out=await fishRound();
+  assert.deepEqual(out.rows[0].drops.map(d=>d.materialId),['MAT-TG-THIN'],'a thin import is found by its refs and description line, case aside');
+  assert.equal(out.needsManual,false);
+ });
+});
+
+test('a released material the world Item is not Observer for every player is still given by the GM (a permission detail, not a release state)',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ const hidden=matDoc('MAT-TG-F1','[TEST] Reedfin',{prof:'PROF-TG-FISHING'});hidden.testUserPermission=u=>u.isGM;
+ await withWorld([hidden],async()=>{
+  assert.equal(_test.materialState('MAT-TG-F1').state,'not-visible');
+  const round=await _test.startRound({node:nodeOf('adhoc-nv'),professions:['fishing'],tiers:[1],dc:10});
+  _test.recordRoll(round.id,{actorId:'gus',total:14});
+  const out=_test.revealRound(round.id);
+  assert.equal(out.rows[0].drops[0].materialId,'MAT-TG-F1');
+  assert.ok(_test.roundView(_test.openRound(),{players:true}).rows[0].drops.every(d=>!d.hidden),'released by status and visibility, so players may see it');
+  await _test.giveRound(round.id);assert.equal(of(gus,'MAT-TG-F1'),1);
+ });
+});
+
+test('an empty pool says exactly why: nothing imported, draft only, duplicate, or unreadable imports',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ const reason=async(allow=false)=>(await fishRound(allow)).rows[0].reason;
+ assert.equal(await reason(),'No imported Common materials for Fishing, tier 1. Import them with General Manager.');
+ const draft=matDoc('MAT-TG-F2','[TEST] Draft Carp',{prof:'PROF-TG-FISHING'},{status:'draft'});
+ await withWorld([draft],async()=>{
+  assert.equal(await reason(),'1 Common material matches Fishing, tier 1 but is draft/unreleased: approve it in General Manager, or tick Use draft materials anyway.');
+  const out=await fishRound(true);assert.deepEqual(out.rows[0].drops.map(d=>d.materialId),['MAT-TG-F2'],'ticking Use draft materials anyway uses it');
+ });
+ const a=matDoc('MAT-TG-F3','[TEST] Carp',{prof:'PROF-TG-FISHING'}),b=matDoc('MAT-TG-F3','[TEST] Carp again',{prof:'PROF-TG-FISHING'});b.id='wdup2';
+ await withWorld([a,b],async()=>assert.match(await reason(),/1 Common material matches Fishing, tier 1 but is imported more than once: remove the duplicate in General Manager\./));
+ const odd=worldDoc('wodd','[TEST] Mystery',{'ashen-gate-manager':{source:{sourceId:'MAT-TG-ODD',entityType:'Material',status:'approved',visibility:'player',definition:{id:'MAT-TG-ODD',entity_type:'Material',name:'[TEST] Mystery'}}}});
+ await withWorld([odd],async()=>assert.match(await reason(),/^No imported Common materials for Fishing, tier 1\. Import them with General Manager\. 1 imported material has no readable quality, tier or profession \(an older import\): re-import it with General Manager\.$/));
+ // A saved spot with no Common material of its own says so.
+ const round=await _test.startRound({node:nodeOf('adhoc-s',{materialId:'MAT-TG-H1'}),professions:['fishing'],tiers:[1],dc:10});
+ assert.equal(_test.poolReason(round,'rare'),'This spot lists no Rare material.');
+ _test.cancelRound(round.id);
+ const view=await (async()=>{const r=await _test.startRound({node:nodeOf('adhoc-v'),professions:['fishing'],tiers:[1],dc:10});_test.recordRoll(r.id,{actorId:'gus',total:14});_test.revealRound(r.id);return _test.roundView(_test.openRound(),{players:false});})();
+ assert.match(view.rows[0].reason,/No imported Common materials for Fishing/);
+ assert.match(await html(),/No imported Common materials for Fishing, tier 1\. Import them with General Manager\. Give it by hand\./,'shown on the Gather panel');
+ assert.doesNotMatch(JSON.stringify(_test.roundView(_test.openRound(),{players:true})),/Import them|reason/,'players never get the reason');
 });
