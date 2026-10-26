@@ -46,6 +46,9 @@ import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
 import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, ledgerKey} from './sync.js';
 import {executeSync, buildSyncBackup, writeRebind} from './sync-apply.js';
+import {bindPackageLinks} from './link-binding.js';
+import {createConnection, isInterruption} from './sync-connection.js';
+import {createProgress, HEARTBEAT_MS, STALL_MS} from './sync-progress.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
 import {syncView} from './sync-view.js';
 import * as github from './github-pull.js';
@@ -294,7 +297,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
   '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order, but starts unticked: tick it only if you want it. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
-  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included (but never your art: a portrait, token image or token ring you set yourself, for example with Link files to records, is always kept, never makes a record count as edited, and is listed under <em>Keeping your art</em>; only the separate, off-by-default <strong>Also replace art I set</strong> replaces it), and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. Locations, shops, quests, trees, factions and deities and the like go to their own modules in update mode (Renown shows what it will update per record, saves a snapshot of the old definitions first, keeps standings, claims, requests, choices and what the party learned, and keeps a definition you edited in Renown unless you tick <strong>Also overwrite records I edited</strong>; an older Renown only adds new ones and the preview says it needs an update); ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
+  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included (but never your art: a portrait, token image or token ring you set yourself, for example with Link files to records, is always kept, never makes a record count as edited, and is listed under <em>Keeping your art</em>; only the separate, off-by-default <strong>Also replace art I set</strong> replaces it), and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. The progress line names the step, the record and the time; if nothing moves for 60 s it says so, <strong>Cancel sync</strong> stops between chunks, and if your connection drops Sync stops with a message: reload the page and run the same Sync again, it resumes without repeating what is done. Locations, shops, quests, trees, factions and deities and the like go to their own modules in update mode (Renown shows what it will update per record, saves a snapshot of the old definitions first, keeps standings, claims, requests, choices and what the party learned, and keeps a definition you edited in Renown unless you tick <strong>Also overwrite records I edited</strong>; an older Renown only adds new ones and the preview says it needs an update); ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p><strong>Replacing a record</strong> (<code>supersedes</code>): when a new record says it replaces an old permanent id and that old document is in your world, the preview shows <em>Replaces &lt;old name&gt;</em> with <strong>Yes, replace it</strong>, <strong>No, add separately</strong> or <strong>Skip</strong>. Yes keeps the same document (tokens, ownership, folder, links, Codex notes) and gives it the new name and content; items and pages you added, current HP and a token ring that is already on stay. A backup of the old documents downloads first; Sync also never deletes a document whose id is replaced. Renown and Quest Log are asked to move their saved ids to the new ones, keeping progress.</p>',
   '<p><strong>Related lists</strong>: an Item whose <em>refs</em> point at a person, a handout or a quest, order or contract ends with a short <strong>Related</strong> list (up to 5 links: handouts, then people, then quests). Import and Sync from package write it and keep it up to date; gear, materials, recipes, shops and locations get none, and an Item you edited in Foundry is left alone. Players see names and only the links they may open.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
@@ -2700,6 +2703,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const before=ordered.filter(r=>r.action==='update').map(row=>foundDocuments(row.id)[0]).filter(Boolean);
       if(before.length) this.#downloadSnapshots(before,`before-import-${Date.now()}`);
       const plans=new Map();
+      let importPresent=null;
       // 0.64.0 `supersedes`: replace-in-place first, so the new ids exist before anything links to them.
       await this.#applyRebinds(ordered.filter(r=>r.action==='rebind'),{log,plans,originalMediaPaths});
       for (const row of ordered.filter(r=>r.action!=='rebind')) {
@@ -2711,7 +2715,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           continue;
         }
         try {
-          const present=new Set(existingSourceIndex().keys());
+          const present=importPresent??=new Set(existingSourceIndex().keys()); // 0.70.1: built once per import, not once per record (the argument is only passed through)
           present.add(record.id);
           for (const child of record.resource_opportunities??[]) present.add(child.id);
           // Never mutate the canonical source record. Only the Foundry write copy gets uploaded asset paths.
@@ -4135,17 +4139,24 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     if(!yes)return;
     const set=this.sync.set, controller=new AbortController();
     Object.assign(this.sync,{abort:controller,stopping:false,result:null,progress:{pct:0,label:'Starting…'}});
-    this.busy=true;await this.render();
+    this.busy=true;bulkWork.sync=true;await this.render();
     const results=[];
-    const paint=({phase,label,done,total})=>{
-      const pct=total?Math.min(1,done/total):1;
-      this.sync.progress={pct,label:`${phase==='backup'?'Backup':phase==='check'?'Checking':'Sync'}: ${label}${total&&phase!=='backup'&&phase!=='check'?` (${done} of ${total})`:''}`};
-      const bar=this.element?.querySelector('[data-ag-sync-bar]');if(bar)bar.value=pct;
-      const el=this.element?.querySelector('[data-ag-sync-status]');if(el&&!this.sync.stopping)el.textContent=this.sync.progress.label;
-    };
+    // 0.70.1: one line that always moves: counts per chunk, the sub-step and record being written, elapsed time, a heartbeat every
+    // few seconds even when no count moved, and a plain warning (also in the console) when nothing has moved for a minute.
+    const progress=createProgress({
+      isStopping:()=>this.sync.stopping,
+      warn:text=>console.warn(`[${MODULE_ID}] ${text}`),
+      paint:({pct,label,stalled})=>{
+        this.sync.progress={pct,label,stalled};
+        const bar=this.element?.querySelector('[data-ag-sync-bar]');if(bar)bar.value=pct;
+        const el=this.element?.querySelector('[data-ag-sync-status]');if(el)el.textContent=label;
+      }});
+    const paint=event=>progress.report(event);
+    const heartbeat=setInterval(()=>{try{progress.beat();}catch{/* the line is cosmetic */}},HEARTBEAT_MS);
     const log={at:new Date().toISOString(),packageId:`${SYNC_NAME}: ${plan.scope.lines.map(l=>l.packageId).join(', ')||'specialist files'}`,packageVersion:plan.scope.lines.flatMap(l=>l.versions).join(', ')||'—',results:[]};
     let outcome=null,failure=null;
     try {
+      await legacyRun; // a reference update still running steps aside at its next chunk (bulkWork.sync is set); never two bulk writers at once
       await runFolderRenames();
       outcome=await executeSync(plan,this.#syncAdapter(set,results),{user:game.user,confirmation:this.sync.phrase,signal:controller.signal,onProgress:paint,chunk:20});
       log.results.push(...outcome.log.filter(r=>r.status!=='note'||r.message));
@@ -4154,25 +4165,40 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       console.error(`[${MODULE_ID}] ${SYNC_NAME} failed`,error);
       log.results.push({action:'sync-aborted',status:'error',message:failure,id:'—'});
     } finally {
-      this.busy=false;this.sync.abort=null;this.sync.progress=null;this.sync.stopping=false;
-      const prior=game.settings.get(MODULE_ID,'importHistory')??[];
-      await game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40));
+      clearInterval(heartbeat);
+      this.sync.connection?.dispose?.();this.sync.connection=null;
+      this.busy=false;bulkWork.sync=false;this.sync.abort=null;this.sync.progress=null;this.sync.stopping=false;
+      // The history entry is a world setting write: with a dead connection it would never answer, so it may not hold the window.
+      try {
+        const prior=game.settings.get(MODULE_ID,'importHistory')??[];
+        await Promise.race([game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40)),new Promise((_,reject)=>setTimeout(()=>reject(new Error('no answer from the server')),30000))]);
+      } catch(error) { console.warn(`[${MODULE_ID}] Sync history not saved`,error); }
+      void maybeResumeLegacy();
     }
     const k=outcome?.counts;
+    const named=r=>`${r.name??r.id??''} ${r.action??''}: ${r.message??r.status}`;
     const lines=failure?[`${SYNC_NAME} stopped before finishing: ${failure}`,'Anything already written stays; the sync is safe to run again.']
+      :outcome.interrupted?[outcome.interrupted.message,`So far: ${k.created} created, ${k.updated} overwritten, ${k.deleted} deleted. Nothing is half-written that the same sync does not finish.`]
       :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
         ...(outcome.cancelled?['Run the same files again to finish; what is already done is not repeated.']:[]),
-        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)).slice(0,8).map(r=>`${r.id??''} ${r.action??''}: ${r.message??r.status}`)];
+        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)).slice(0,8).map(named)];
     await this.#syncPreview();
-    this.sync.result={tone:failure||k?.failed?'danger':outcome?.cancelled||k?.skipped?'warn':'ok',lines};
-    toast(lines[0],Boolean(failure||k?.failed));
+    this.sync.result={tone:failure||k?.failed||outcome?.interrupted?'danger':outcome?.cancelled||k?.skipped?'warn':'ok',lines};
+    toast(lines[0],Boolean(failure||k?.failed||outcome?.interrupted));
     await this.render();
   }
   /** The Foundry-specific half of a sync run (the planner and executor are tested without Foundry). */
   #syncAdapter(set,results) {
     const records=[...set.records.values()].map(r=>r.record);
-    const present=id=>{const ids=new Set(existingSourceIndex().keys());ids.add(id);return ids;};
+    // 0.70.1: the id set was rebuilt from the whole world (3 times) for every record; the argument is only passed through, so one set serves the run.
+    let presentIds=null;
+    const present=id=>{presentIds??=new Set(existingSourceIndex().keys());presentIds.add(id);return presentIds;};
+    const connection=createConnection(game.socket?.io);
+    this.sync.connection=connection;
     return {
+      connection,
+      docsById:()=>{const map=new Map();for(const doc of allBoundDocuments()){const id=sourceFlag(doc)?.sourceId;if(id)(map.get(id)??map.set(id,[]).get(id)).push(doc);}return map;},
+      updateDocuments:(name,updates,opts)=>({Item,JournalEntry,Actor,RollTable,Macro}[name]).updateDocuments(updates,opts),
       backup: async plan=>{ downloadJson(`AG_Sync_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,this.#syncBackupData(plan)); },
       replan: async ()=>{ const ctx=this.#syncPlanContext(); return planSync(set,this.#syncWorld(ctx),ctx); },
       uploadArt: async rows=>{
@@ -4204,9 +4230,11 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         const file=set.specialistFiles.find(f=>f.filename===sp.filename);
         return applyPartners(game,sp.map,{user:game.user,definitions:file?.supersedes?.definitions});
       },
-      bindLinks: async (rows,log)=>{
+      bindLinks: async (rows,log,{signal,guard,onStep,chunk,pause}={})=>{
         const plans=new Map(rows.filter(r=>r.kind==='Actor'&&['overwrite','rebind'].includes(r.group)).map(r=>[r.id,{patch:{touched:(r.ops.items?.create?.length||r.ops.items?.update?.length)?itemKeys(r.record.foundry.data.items??[]):[]}}]));
-        await resolvePackageLinks({pkg:{records},rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':r.group==='rebind'?'rebind':'update',kind:r.kind})),log:{results:log},plans});
+        return bindPackageLinks({records,rows:rows.map(r=>({id:r.id,action:r.group==='create'?'create':r.group==='rebind'?'rebind':'update',kind:r.kind})),log:{results:log},plans,signal,guard,onStep,chunk,pause,
+          world:{moduleId:MODULE_ID,itemFlag:ITEM_FLAG,documents:allBoundDocuments,sourceFlag,moduleRecord:moduleRecordLookup(game),
+            updateDocuments:(name,updates,opts)=>({Item,JournalEntry,Actor,RollTable,Macro}[name]).updateDocuments(updates,opts)}});
       },
       apis: {locations:locationsApi(game),routes:routesApi(game),shops:shopsApi(game),specialist:kind=>specialistApi(game,kind)},
       retire: async ids=>{ const prior=new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]);for(const id of ids)prior.add(id);await game.settings.set(MODULE_ID,SYNC_RETIRED_SETTING,[...prior].sort()); },
@@ -4314,102 +4342,13 @@ class AshenGateCodexPlayer extends ApplicationV2 {
  * stored baseline. Shared by Import and Sync from package (0.56.0). `rows` are the written rows ({id, action}); plans holds each
  * Actor row's plan (its touched Items).
  */
-async function resolvePackageLinks({pkg,rows,log,plans}) {
-  // Complete-world UUID index: only actual saved documents are addressable.
-  // Resolve after the *whole* batch; record order and reference cycles do not matter.
-  const uuidIndex=buildUuidIndex(allBoundDocuments());
-  // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
-  const moduleRecord=moduleRecordLookup(game);
-  for(const row of rows) {
-    if(!log.results.some(r=>r.id===row.id && ['create','update','metadata','rebind'].includes(r.action) && r.status==='ok')) continue;
-    const fresh=row.action==='create'||row.action==='rebind';
-    const record=pkg.records.find(r=>r.id===row.id);
-    const doc=foundDocuments(row.id)[0];
-    if(!doc) continue;
-    const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
-    for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
-    if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
-    const updates={};
-    const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
-    const source=sourceFlag(doc)??{};
-    const currentIds=new Set(uuidIndex.keys());
-    updates[`flags.${MODULE_ID}.source.refs`]=projectedReferences(record.refs,currentIds);
-    const newFields={...(source.managedFields??{})};
-    updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
-    updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
-    updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
-    // Only source-provided rich-text paths receive AGREF substitution. 0.60.3: a cell marked data-ag-ref="<relation>" becomes
-    // a content link to that typed ref's target (plain text when it is missing or not player-visible); nothing else is appended.
-    const hostVisibility=record.visibility;
-    const refCells=text=>stripReferenceBlock(resolveRefCells(text,bindings,{
-      nameOf:id=>uuidIndex.get(id)?.[0]?.name??'',
-      canLink:id=>hostVisibility==='gm'||sourceFlag(foundDocuments(id)[0])?.visibility==='player'}));
-    if(doc.documentName==='Item') {
-      const original=record.foundry.data?.system?.description?.value;
-      if(typeof original==='string') {
-        const linked=resolveRichText(typeof original==='string'?original:'',uuidIndex);
-        // 0.69.0: the Related list (people, handouts, quests this Item points to) is Manager's own section at the end; a record
-        // that no longer qualifies loses it here. Nothing else in the description changes.
-        const final=withRelated(refCells(linked.text),relatedFor(record));
-        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-        // Unedited = created this run, or the live description equals the last-imported baseline (so a legacy
-        // References section is cleaned up, and a cell re-resolved, only on documents nobody has changed since the import).
-        const live=doc.system?.description?.value, baseline=source.managedFields?.['system.description.value'];
-        if(fresh||live===final||live===baseline) {
-          if(live!==final) updates['system.description.value']=final;
-          newFields['system.description.value']=final;
-        }
-        log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length});
-      }
-    } else if(doc.documentName==='Actor') {
-      // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
-      const created=fresh, touched=new Set(plans.get(row.id)?.patch?.touched??[]);
-      const keys=itemKeys(record.foundry.data?.items??[]);
-      const bio=record.foundry.data?.system?.details?.biography?.value;
-      if(created && typeof bio==='string') {
-        const resolved=resolveRichText(bio,uuidIndex);
-        updates['system.details.biography.value']=refCells(resolved.text);
-        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
-      }
-      for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
-        if(!created&&!touched.has(keys[i])) continue;
-        const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
-        if(typeof html!=='string'||!embedded) continue;
-        const resolved=resolveRichText(html,uuidIndex);
-        for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
-        if(embedded.system?.description?.value!==resolved.text) try{await embedded.update({'system.description.value':resolved.text});}catch(e){log.results.push({id:row.id,action:'actor-item-link',status:'error',message:String(e.message??e)});}
-      }
-    } else if(doc.documentName==='RollTable') {
-      const text=record.foundry.data?.description;
-      if(typeof text==='string') {
-        const resolved=resolveRichText(text,uuidIndex);
-        updates.description=refCells(resolved.text);
-        for(const issue of resolved.issues)log.results.push({id:row.id,action:'table-link',status:'error',message:issue.message});
-      }
-    } else if(doc.documentName==='JournalEntry') {
-      const pages=record.foundry.data?.pages??[];
-      for(const [pi,pageDef] of pages.entries()) {
-        // Sync from package (0.56.0): pages are found by name when the name is unique (a sync can add or drop pages), else by position.
-        const named=doc.pages?.contents?.filter(p=>p.name===pageDef.name)??[];
-        const page=named.length===1?named[0]:doc.pages?.contents?.[pi];
-        if(!page || typeof pageDef.text?.content!=='string') continue;
-        const linked=resolveRichText(pageDef.text.content,uuidIndex);
-        const final=refCells(linked.text);
-        for(const issue of linked.issues) log.results.push({id:row.id,action:'rich-text-link',status:'error',message:issue.message});
-        try{
-          // Rewrite only a page nobody edited: created this run, or equal to the new text once a legacy References section is removed.
-          if(page.text?.content!==final&&(fresh||stripReferenceBlock(page.text?.content)===final||page.text?.content===undefined)) await page.update({'text.content':final});
-          log.results.push({id:row.id,action:'rich-text-link',status:'ok',page:page.name,resolved:linked.resolved.length});
-        }catch(e){log.results.push({id:row.id,action:'rich-text-link',status:'error',message:`Page ${page.name}: ${e.message??e}`});}
-      }
-    }
-    updates[`flags.${MODULE_ID}.source.managedFields`]=newFields;
-    try{
-      await doc.update(updates);
-      if(bindings.length) log.results.push({id:row.id,action:'uuid-bind',status:'ok',bindings:bindings.length});
-    }catch(e){log.results.push({id:row.id,action:'link-sync',status:'error',message:`UUID binding update failed: ${e.message??e}`});}
-  }
+async function resolvePackageLinks({pkg,rows,log,plans,signal=null,onStep=null,guard=undefined}) {
+  // 0.70.1: link-binding.js builds every lookup once and writes in chunks (it used to scan the whole world for every record).
+  return bindPackageLinks({records:pkg.records,rows,log,plans,signal,onStep:onStep??undefined,guard,pause:yieldToBrowser,
+    world:{moduleId:MODULE_ID,itemFlag:ITEM_FLAG,documents:allBoundDocuments,sourceFlag,moduleRecord:moduleRecordLookup(game),
+      updateDocuments:(name,updates,opts)=>({Item,JournalEntry,Actor,RollTable,Macro}[name]).updateDocuments(updates,opts)}});
 }
+const yieldToBrowser=()=>new Promise(resolve=>setTimeout(resolve,0));
 /** Sync from package (0.56.0): ZIP artwork cannot be uploaded when the GM turned that off, so a record keeps its current image instead of a broken path. */
 function withoutBundledArt(record,assets) {
   const data=record.foundry?.data;
@@ -4503,25 +4442,71 @@ function legacyRefTargets(doc){
  * list of reference links. Touches only the section Manager marked; a description that was unedited since import stays
  * unedited (its baseline moves with it), so a later import still cleans it up as before.
  */
-async function convertLegacyReferenceBlocks(){
+const LEGACY_REFS_SETTING='legacyReferencesDone';
+/** Who else is writing in bulk right now (Sync from package, or an Import in the Manager window). Legacy conversion yields to them. */
+const bulkWork={sync:false};
+let legacyRun=null, legacyPaused=false;
+const sleepMs=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const bulkBusy=()=>bulkWork.sync||Boolean(activeApp?.busy);
+/** Re-start a conversion that stepped aside for a Sync or an Import (called when one ends). */
+function maybeResumeLegacy(){
+  if(!legacyPaused||legacyRun||bulkBusy()||!game.user?.isGM)return;
+  legacyPaused=false;
+  void convertLegacyReferenceBlocks().catch(error=>console.warn(`[${MODULE_ID}] References sections not updated`,error));
+}
+/**
+ * 0.68.0, active GM only, re-runnable: turns an older import's "References" section (raw ids, @UUID links) into a "Related"
+ * list of reference links. Touches only the section Manager marked; a description that was unedited since import stayed
+ * unedited (its baseline moves with it), so a later import still cleans it up as before.
+ * 0.70.1: it used to await one update per document (1391 of them) on every world load, in the background and unannounced, which
+ * could saturate The Forge's connection. Now: one quiet notice, chunks of 50 written with updateDocuments (render:false), a pause
+ * between chunks, a stop at the next chunk when a Sync or Import starts (it resumes when that ends), and a world setting
+ * (legacyReferencesDone) recording that the whole world was converted, so later loads skip the scan. Safe to interrupt at any point.
+ */
+async function convertLegacyReferenceBlocks({chunk=50}={}){
   if(!game.user?.isGM)throw new Error('Only a GM can update references.');
-  let changed=0;
-  for(const doc of allBoundDocuments()){
-    for(const {page,path} of legacyRefTargets(doc)){
-      const target=page??doc, old=getPath(target,path);
-      if(typeof old!=='string'||!old.includes('data-ag-managed-links'))continue;
-      const next=convertLegacyBlock(old,relationLabel);
-      if(next===old)continue;
-      try{
+  if(legacyRun)return legacyRun;
+  if(game.settings.get(MODULE_ID,LEGACY_REFS_SETTING))return {changed:0,done:true};
+  legacyRun=(async()=>{
+    const work=[];
+    for(const doc of allBoundDocuments()){
+      for(const {page,path} of legacyRefTargets(doc)){
+        const target=page??doc, old=getPath(target,path);
+        if(typeof old!=='string'||!old.includes('data-ag-managed-links'))continue;
+        const next=convertLegacyBlock(old,relationLabel);
+        if(next===old)continue;
         const updates={[path]:next};
         if(!page){const fields={...(sourceFlag(doc)?.managedFields??{})};
           if(fields[path]===old){fields[path]=next;updates[`flags.${MODULE_ID}.source.managedFields`]=fields;}}
-        await target.update(updates);changed++;
-      }catch(error){console.warn(`[${MODULE_ID}] References section not updated on ${doc.name}`,error);}
+        work.push({doc,page,target,updates});
+      }
     }
-  }
-  if(changed)console.info(`[${MODULE_ID}] Updated ${changed} older References section(s) to name-based links.`);
-  return {changed};
+    if(!work.length){await game.settings.set(MODULE_ID,LEGACY_REFS_SETTING,true);return {changed:0,done:true};}
+    ui.notifications?.info?.(`Ashen Gate | Manager is updating ${work.length} older References section(s) in the background. It pauses while you run Sync or Import.`);
+    const write=promise=>Promise.race([promise,sleepMs(60000).then(()=>{throw new Error('no answer from the server');})]);
+    const classOf={Item,JournalEntry,Actor,RollTable,Macro};
+    let changed=0, errors=0;
+    for(let i=0;i<work.length;i+=chunk){
+      if(bulkBusy()||!game.user?.isGM){legacyPaused=true;console.info(`[${MODULE_ID}] References update paused at ${i} of ${work.length}; it resumes when Sync or Import finishes.`);return {changed,paused:true};}
+      const part=work.slice(i,i+chunk), docs=part.filter(w=>!w.page), pages=part.filter(w=>w.page);
+      try {
+        for(const [name,list] of new Map([...docs].map(w=>[w.doc.documentName,docs.filter(x=>x.doc.documentName===w.doc.documentName)]))) {
+          try{await write(classOf[name].updateDocuments(list.map(w=>({_id:w.doc.id,...w.updates})),{render:false}));changed+=list.length;}
+          catch(batchError){
+            for(const w of list)try{await write(w.doc.update(w.updates,{render:false}));changed++;}
+            catch(error){errors++;console.warn(`[${MODULE_ID}] References section not updated on ${w.doc.name}`,error);}
+          }
+        }
+        for(const w of pages)try{await write(w.page.update(w.updates,{render:false}));changed++;}
+        catch(error){errors++;console.warn(`[${MODULE_ID}] References section not updated on ${w.doc.name}`,error);}
+      } catch(error){errors++;console.warn(`[${MODULE_ID}] References update stopped`,error);return {changed,errors};}
+      await sleepMs(20);
+    }
+    if(!errors)await game.settings.set(MODULE_ID,LEGACY_REFS_SETTING,true);
+    if(changed)console.info(`[${MODULE_ID}] Updated ${changed} older References section(s) to name-based links.`);
+    return {changed,errors};
+  })().finally(()=>{legacyRun=null;});
+  return legacyRun;
 }
 let appearanceController=null;
 let definitionsReader=null;
@@ -4561,6 +4546,7 @@ Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value,userId)=>appearanceController?.noteChange(key,value,userId)});
   game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,LEGACY_REFS_SETTING,{name:"Older References sections converted",scope:"world",config:false,type:Boolean,default:false});
   game.settings.register(MODULE_ID,SYNC_RETIRED_SETTING,{name:"Ids retired by Sync from package",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,HANDOFF_LEDGER_SETTING,{name:"Records handed to other modules",scope:"world",config:false,type:Object,default:{}});
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.

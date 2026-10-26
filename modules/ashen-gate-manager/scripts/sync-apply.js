@@ -15,6 +15,7 @@ import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
 import {applyShops} from './shop-handoff.js';
 import {applySpecialist} from './specialist-handoff.js';
+import {ConnectionLost, isInterruption} from './sync-connection.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk} from './sync.js';
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -100,7 +101,9 @@ export async function writeRebind(doc, row, {user, flag, extra = {}, replaceArt 
  * After a write (and after links are bound): remember, per path, where Foundry stores something other than the package
  * text (rich-text links, normalised numbers), so the next preview calls that field unchanged. JSON text, one write.
  */
-export async function stampDoc(doc, record) {
+export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record)); }
+/** The one update stampDoc writes ({flag path: JSON text}); sync, so a run can batch many documents into one write. */
+export function stampUpdate(doc, record) {
   const raw = doc.toObject();
   const memo = {};
   for (const [path, incoming] of Object.entries(incomingFields(record))) {
@@ -134,7 +137,7 @@ export async function stampDoc(doc, record) {
       }
     }
   }
-  await doc.update({[`flags.${MODULE_ID}.source.${MEMO_KEY}`]: JSON.stringify(memo)});
+  return {[`flags.${MODULE_ID}.source.${MEMO_KEY}`]: JSON.stringify(memo)};
 }
 function nameKeysOf(names) { const seen = new Map(); return names.map(n => { const c = (seen.get(n) ?? 0) + 1; seen.set(n, c); return c === 1 ? n : `${n}#${c}`; }); }
 
@@ -162,11 +165,13 @@ export function buildSyncBackup(plan, {world = null, now = new Date(), modules =
 }
 
 // ---------- the run ----------
-const chunked = async (list, size, signal, run, pause, progress) => {
+/** Chunks of `size`; checks `signal` and the connection between chunks, guards each item so a dead socket cannot hang it. */
+const chunked = async (list, size, signal, run, pause, progress, {guard = p => p, ensure = async () => {}} = {}) => {
   let done = 0;
   for (let i = 0; i < list.length; i += size) {
     if (signal?.aborted) return {cancelled: true, done};
-    for (const item of list.slice(i, i + size)) { await run(item); done++; }
+    await ensure();
+    for (const item of list.slice(i, i + size)) { await guard(run(item)); done++; }
     progress?.(done);
     await pause?.();
   }
@@ -176,16 +181,36 @@ const chunked = async (list, size, signal, run, pause, progress) => {
 /**
  * Runs a previewed plan. `adapter` supplies the Foundry-specific parts:
  *   [extraUpdate(doc, row) → fields written with the document, e.g. the ownership rule], backup(plan), uploadArt(rows), replan() → plan, create(row) → doc, docFor(row) → doc, buildFlag(row) → flag,
- *   bindLinks(rows, log), apis → {locations, routes, shops, specialist(kind)}, retire(ids), saveLedger(entries), pause()
- * Returns {cancelled, log, counts, completed}. The log's counts equal the preview's when nothing fails.
+ *   bindLinks(rows, log, {signal, onStep, guard, chunk}) → {cancelled}, apis → {locations, routes, shops, specialist(kind)}, retire(ids), saveLedger(entries), pause(),
+ *   [docsById() → Map id→[docs], read once after the links are bound], [updateDocuments(documentName, updates, options)], [connection → sync-connection.js]
+ * onProgress receives {phase, label, done, total} plus, inside a long phase, {step, stepDone, stepTotal, name}.
+ * Returns {cancelled, log, counts, completed, interrupted?}. The log's counts equal the preview's when nothing fails.
+ * 0.70.1: a lost connection (or a server that stops answering) ends the run with `interrupted` set and the same sync resumes it.
  */
-export async function executeSync(plan, adapter, {user, confirmation, signal, onProgress, chunk = 20} = {}) {
+export async function executeSync(plan, adapter, options = {}) {
+  const log = [], state = {phase: '', label: '', done: 0, total: 0};
+  try { return await runSync(plan, adapter, options, log, state); }
+  catch (e) {
+    if (!isInterruption(e)) throw e;
+    const where = state.step ? `${state.label.replace(/…$/, '')}, ${state.stepDone} of ${state.stepTotal}` : `${state.label.replace(/…$/, '')}${state.total ? `, ${state.done} of ${state.total}` : ''}`;
+    const why = e instanceof ConnectionLost ? 'Connection lost' : 'No answer from the server';
+    const message = `${why} during ${where}. Reload the page and run the same Sync again; it resumes and does not repeat what is already done. Nothing was deleted unless it was listed as deleted.`;
+    log.push({action: 'sync-interrupted', status: 'error', id: '—', message});
+    console.warn(`[${MODULE_ID}] Sync interrupted at ${where}`, e);
+    return {...result(plan, log, true), interrupted: {phase: state.phase, message}};
+  }
+}
+
+async function runSync(plan, adapter, {user, confirmation, signal, onProgress, chunk = 20} = {}, log, state) {
   if (!user?.isGM) throw new Error('Only a GM can run Sync from package.');
   if (!phraseOk(confirmation)) throw new Error(`Type "${SYNC_PHRASE}" to confirm.`);
   if (!plan?.ok) throw new Error('This sync has errors; fix them and preview again. Nothing was changed.');
-  const log = [], say = (phase, label, done, total) => onProgress?.({phase, label, done, total});
-  const ok = (row, action, extra = {}) => log.push({id: row.id, kind: row.kind, action, status: 'ok', ...extra});
-  const fail = (row, action, error) => log.push({id: row.id, kind: row.kind, action, status: 'error', message: String(error?.message ?? error)});
+  const say = (phase, label, done, total, extra = {}) => { Object.assign(state, {phase, label, done, total, step: null, stepDone: 0, stepTotal: 0}, extra); onProgress?.({phase, label, done, total, ...extra}); };
+  const conn = adapter.connection ?? null;
+  const guard = p => conn ? conn.race(p) : p;
+  const ensure = async () => { if (conn && !(await conn.ready(() => say(state.phase, 'Connection lost: waiting for Foundry to reconnect…', state.done, state.total)))) throw new ConnectionLost(); };
+  const ok = (row, action, extra = {}) => log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'ok', ...extra});
+  const fail = (row, action, error) => log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'error', message: String(error?.message ?? error)});
   const creates = plan.rows.filter(r => r.group === 'create' && !r.external);
   const overwrites = plan.rows.filter(r => r.group === 'overwrite' && !r.external);
   const rebinds = plan.rows.filter(r => r.group === 'rebind');
@@ -195,14 +220,16 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   const total = rebinds.length + creates.length + overwrites.length + external.length + deletes.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
+  const co = {guard, ensure};
 
   say('backup', 'Downloading the backup of everything that will change…', 0, total);
   await adapter.backup(plan); // throws → nothing has been written
   if (signal?.aborted) return {cancelled: true, log, completed: 0};
   say('check', 'Checking the world has not changed since the preview…', 0, total);
-  const fresh = await adapter.replan();
+  await ensure();
+  const fresh = await guard(adapter.replan());
   if (fresh.fingerprint !== plan.fingerprint) throw new Error('The world or the files changed since the preview. Preview again; nothing was changed.');
-  if (adapter.uploadArt) await adapter.uploadArt([...rebinds, ...creates, ...overwrites]);
+  if (adapter.uploadArt) await guard(adapter.uploadArt([...rebinds, ...creates, ...overwrites]));
 
   const touched = [];
   const mark = (phase, label) => tick(phase, label);
@@ -214,42 +241,83 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
       touched.push(row); ok(row, 'rebind', {oldId: row.supersedes.oldId, uuid: doc.uuid});
     } catch (e) { fail(row, 'rebind', e); }
     mark('rebind', row.name)();
-  }, adapter.pause);
+  }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
   const reboundOk = rebinds.filter(row => log.some(l => l.id === row.id && l.action === 'rebind' && l.status === 'ok'));
   if (reboundOk.length && adapter.afterRebind) {
-    try { for (const entry of await adapter.afterRebind(Object.fromEntries(reboundOk.map(row => [row.supersedes.oldId, row.id])), reboundOk)) log.push(entry); }
-    catch (e) { log.push({action: 'supersede-ids', status: 'error', id: '—', message: String(e?.message ?? e)}); }
+    try { for (const entry of await guard(adapter.afterRebind(Object.fromEntries(reboundOk.map(row => [row.supersedes.oldId, row.id])), reboundOk))) log.push(entry); }
+    catch (e) { if (isInterruption(e)) throw e; log.push({action: 'supersede-ids', status: 'error', id: '—', message: String(e?.message ?? e)}); }
   }
   if (specialistSupersedes.length && adapter.supersedeSpecialist && !signal?.aborted) {
     for (const sp of specialistSupersedes) {
-      try { for (const entry of await adapter.supersedeSpecialist(sp)) log.push(entry); }
-      catch (e) { log.push({action: 'supersede-ids', status: 'error', id: sp.filename, message: String(e?.message ?? e)}); }
+      try { for (const entry of await guard(adapter.supersedeSpecialist(sp))) log.push(entry); }
+      catch (e) { if (isInterruption(e)) throw e; log.push({action: 'supersede-ids', status: 'error', id: sp.filename, message: String(e?.message ?? e)}); }
     }
   }
   r = await chunked(creates, chunk, signal, async row => {
     try { const doc = await adapter.create(row); if (!doc) throw new Error('Foundry did not return a saved document.'); touched.push(row); ok(row, 'create', {uuid: doc.uuid}); } catch (e) { fail(row, 'create', e); }
     mark('create', row.name)();
-  }, adapter.pause);
+  }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
   r = await chunked(overwrites, chunk, signal, async row => {
     try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
     mark('overwrite', row.name)();
-  }, adapter.pause);
+  }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
 
-  say('links', 'Binding links between records…', finished, total);
-  try { await adapter.bindLinks(touched.filter(t => log.some(l => l.id === t.id && l.status === 'ok')), log); } catch (e) { log.push({action: 'link-sync', status: 'error', message: String(e?.message ?? e)}); }
-  for (const row of touched) {
-    if (!log.some(l => l.id === row.id && l.status === 'ok' && l.action !== 'link-sync')) continue;
-    try { await stampDoc(adapter.docFor(row), row.record); } catch (e) { log.push({id: row.id, kind: row.kind, action: 'stamp', status: 'error', message: String(e?.message ?? e)}); }
+  // Link binding: one pass with every lookup built once, written in chunks (link-binding.js). Reports its own sub-steps.
+  const LINKS = 'Binding links between records…';
+  const okIds = new Set(log.filter(l => l.status === 'ok' && l.action !== 'link-sync').map(l => l.id));
+  const written = touched.filter(t => okIds.has(t.id));
+  say('links', LINKS, finished, total, {step: 'Preparing', stepDone: 0, stepTotal: written.length});
+  await ensure();
+  try {
+    const bound = await adapter.bindLinks(written, log, {signal, guard, chunk: 50, pause: adapter.pause, onStep: s => say('links', LINKS, finished, total, s)});
+    if (bound?.cancelled) return result(plan, log, true);
+  } catch (e) {
+    if (isInterruption(e)) throw e;
+    console.warn(`[${MODULE_ID}] Binding links failed`, e);
+    log.push({action: 'link-sync', status: 'error', id: '—', message: `Binding links stopped: ${String(e?.message ?? e)}`});
+  }
+  // Remember how Foundry stores each written field (stampDoc), in chunks; one write per document type per chunk.
+  const STAMP = 'Remembering what was written…';
+  const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind'].includes(l.action)).map(l => l.id));
+  const stampable = touched.filter(row => wroteIds.has(row.id));
+  const docsById = adapter.docsById?.() ?? null;
+  const docOf = row => docsById ? docsById.get(row.id)?.[0] : adapter.docFor(row);
+  for (let i = 0; i < stampable.length; i += 50) {
+    if (signal?.aborted) return result(plan, log, true);
+    await ensure();
+    const part = stampable.slice(i, i + 50);
+    say('stamp', STAMP, finished, total, {step: 'Recording', stepDone: i, stepTotal: stampable.length, name: part[0]?.name});
+    const batch = [];
+    for (const row of part) {
+      try {
+        const doc = docOf(row);
+        if (!doc) continue;
+        if (adapter.updateDocuments) batch.push({row, doc, update: stampUpdate(doc, row.record)});
+        else await guard(stampDoc(doc, row.record));
+      } catch (e) { if (isInterruption(e)) throw e; log.push({id: row.id, kind: row.kind, name: row.name, action: 'stamp', status: 'error', message: String(e?.message ?? e)}); }
+    }
+    const changed = batch.filter(b => { const [key] = Object.keys(b.update); return !same(get(b.doc, key), b.update[key]); });
+    for (const [name, list] of groupBy(changed, b => b.doc.documentName)) {
+      try { await guard(adapter.updateDocuments(name, list.map(b => ({_id: b.doc.id, ...b.update})), {render: false})); }
+      catch (batchError) {
+        if (isInterruption(batchError)) throw batchError;
+        for (const b of list) try { await guard(b.doc.update(b.update, {render: false})); }
+        catch (e) { if (isInterruption(e)) throw e; log.push({id: b.row.id, kind: b.row.kind, name: b.row.name, action: 'stamp', status: 'error', message: String(e?.message ?? e)}); }
+      }
+    }
+    await adapter.pause?.();
   }
 
   // Other modules' records: their own import APIs, update mode, in dependency order (locations, routes, shops, specialist files).
   const apis = adapter.apis ?? {};
   const pass = async (rows, runner, kind) => {
     if (!rows.length) return;
-    const results = await runner(rows.map(x => x.record), apis);
+    say('modules', `Handing ${rows.length} ${kind} record${rows.length === 1 ? '' : 's'} to ${kind}…`, finished, total);
+    await ensure();
+    const results = await guard(runner(rows.map(x => x.record), apis));
     for (const res of results) {
       log.push(res); finished++;
     }
@@ -264,15 +332,19 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
     for (const file of plan.set.specialistFiles) {
       const rows = external.filter(x => x.specialist === file.kind && x.filename === file.filename);
       if (!rows.length) continue;
-      const res = await applySpecialist(file.kind, file.payload, apis.specialist?.(file.kind) ?? null, {ids: rows.map(x => x.id), updateExisting: true, overwriteEdited: Boolean(plan.overwriteEdited)});
+      say('modules', `Handing ${rows.length} record${rows.length === 1 ? '' : 's'} to ${file.filename}…`, finished, total);
+      await ensure();
+      const res = await guard(applySpecialist(file.kind, file.payload, apis.specialist?.(file.kind) ?? null, {ids: rows.map(x => x.id), updateExisting: true, overwriteEdited: Boolean(plan.overwriteEdited)}));
       for (const x of res) { log.push(x); finished++; }
       say('modules', file.filename, finished, total);
     }
-    for (const x of log) if (x.status === 'ok' && ['create', 'update'].includes(x.action) && ['Location', 'Route', 'Shop', 'Service', 'MerchantList', 'Quest', 'Skill Tree', 'Facility', 'Faction', 'Deity', 'Strain config'].includes(x.kind)) {
-      const row = external.find(e => e.id === x.id);
+    const externalById = new Map(external.map(e => [e.id, e]));
+    const LEDGER_KINDS = new Set(['Location', 'Route', 'Shop', 'Service', 'MerchantList', 'Quest', 'Skill Tree', 'Facility', 'Faction', 'Deity', 'Strain config']);
+    for (const x of log) if (x.status === 'ok' && ['create', 'update'].includes(x.action) && LEDGER_KINDS.has(x.kind)) {
+      const row = externalById.get(x.id);
       if (row) ledgerAdds.push({key: row.specialist ? ledgerKey(null, row.specialist) : ledgerKey(row.line), id: row.id, info: {kind: row.kind, module: row.module, name: row.name}});
     }
-    if (ledgerAdds.length) await adapter.saveLedger?.(ledgerAdds);
+    if (ledgerAdds.length) await guard(adapter.saveLedger?.(ledgerAdds));
   }
   if (signal?.aborted) return result(plan, log, true);
 
@@ -281,7 +353,8 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
   if (deletes.length && failedBefore) {
     log.push({action: 'delete', status: 'skipped', message: `${deletes.length} deletion(s) were not run because ${failedBefore} earlier step(s) failed. Fix the errors and run the same sync again.`});
   } else if (deletes.length) {
-    await adapter.retire(deletes.map(d => d.id)); // written before any delete, so a re-run still treats the id as retired
+    await ensure();
+    await guard(adapter.retire(deletes.map(d => d.id))); // written before any delete, so a re-run still treats the id as retired
     r = await chunked(deletes, chunk, signal, async row => {
       try {
         // Data-layer guard: an id a package record supersedes is never deleted by Sync, whatever the plan said.
@@ -289,11 +362,12 @@ export async function executeSync(plan, adapter, {user, confirmation, signal, on
         await removeDoc(row.snap?.doc ?? adapter.docFor(row), row, {user}); ok(row, 'delete');
       } catch (e) { fail(row, 'delete', e); }
       mark('delete', row.name)();
-    }, adapter.pause);
+    }, adapter.pause, null, co);
     if (r.cancelled) return result(plan, log, true);
   }
   return result(plan, log, false);
 }
+const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { const k = keyOf(x); (m.get(k) ?? m.set(k, []).get(k)).push(x); } return m; };
 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
