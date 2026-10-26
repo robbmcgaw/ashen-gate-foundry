@@ -1,3 +1,9 @@
+## 0.35.2 — 2026-10-27
+
+- **Shared-material crafts no longer leave you waiting.** If the GM's client hit an error while coordinating a craft that uses another character's materials, the requester now gets a failure message straight away instead of waiting out the three-minute timeout. If the GM never answers, the message now reads "The GM did not respond. Check whether any items were used before trying again." (it used to say nothing was used, which could be untrue).
+- **Smaller window.** The Ledger opens at 1000 x 760 (was 1180 x 800); the layout is fluid, so the same content fits.
+- **Wording.** README and a code comment now state that the recipe catalog is a world setting readable from the browser console; fine for this table.
+
 ## 0.35.1 — 2026-10-27
 
 Fixes for gathering found in a live Forge test.

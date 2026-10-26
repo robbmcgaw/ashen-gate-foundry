@@ -29,7 +29,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.35.1';
+const VERSION='0.35.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -446,6 +446,7 @@ function draftBadge(status,visibility){
   if(visibility==='reveal_gated')out.push(badge('Reveal gated','warn'));
   return out.join(' ');
 }
+// `libraryData` is a world setting: every client receives it, so player views filter it in code and the raw copy is readable from a player's browser console.
 function catalog(){
   const stored=game.settings.get(ID,'libraryData');
   // Native world definitions override cached catalogue snapshots. A stale
@@ -1350,7 +1351,13 @@ async function onSocket(message,senderId){
   const from=typeof senderId==='string'?senderId:message.userId;
   try{
     switch(message.type){
-      case 'craft-request': if(game.user.isGM&&activeGM()?.id===game.user.id&&from!==game.user.id)await orchestrateCraft(message,from);return;
+      case 'craft-request': if(game.user.isGM&&activeGM()?.id===game.user.id&&from!==game.user.id){
+        try{await orchestrateCraft(message,from);}
+        catch(err){ // Tell the requester now instead of leaving them to wait for the timeout.
+          console.error(`[${ID}] shared-material craft failed on the GM client`,err);
+          if(typeof message.requestId==='string'&&typeof message.requesterId==='string')sendSocket({type:'craft-result',requestId:message.requestId,toUserId:message.requesterId,ok:false,message:'The GM’s client hit an error while handling this craft. Check whether any items were used before trying again.'});
+        }
+      }return;
       case 'craft-result': {if(message.toUserId!==game.user.id)return;const wait=pendingCrafts.get(message.requestId);if(wait){pendingCrafts.delete(message.requestId);wait(message);}return;}
       case 'consent-request': if(Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id))await showConsent(message);return;
       case 'consent-response': if(game.user.isGM)getBroker().deliver(message,from);return;
@@ -1541,7 +1548,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
   if(game.user.isGM)return orchestrateCraft(request,game.user.id);
   if(!activeGM())throw Error('Using another character’s materials needs the GM to be online');
   const outcome=new Promise(resolve=>{
-    const timer=setTimeout(()=>{pendingCrafts.delete(request.requestId);resolve({ok:false,message:'No answer from the party in time. Nothing was used.'});},180000);
+    const timer=setTimeout(()=>{pendingCrafts.delete(request.requestId);resolve({ok:false,message:'The GM did not respond. Check whether any items were used before trying again.'});},180000);
     pendingCrafts.set(request.requestId,message=>{clearTimeout(timer);resolve({ok:message.ok,message:message.message});});
   });
   sendSocket(request);
@@ -1657,7 +1664,7 @@ function draftMaterial(id){
   return (game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i))??null;
 }
 /** The world Material to award: an awardable one, or (GM "use anyway" only) a draft/unreleased one. */
-/** 0.35.1: states a GM round may give without "use anyway": released (approved, player-visible) materials, even when the world Item itself is
+/** 0.35.2: states a GM round may give without "use anyway": released (approved, player-visible) materials, even when the world Item itself is
  * not Observer for every player (a permission detail: the Item given to a character is a copy, so nobody needs the world Item). */
 const releasedState=state=>state==='ok'||state==='not-visible';
 function releasedMaterial(id){
@@ -2149,7 +2156,7 @@ function giveChoices(round,row,{query=''}={}){
   return {matching:fit.length>0,materials:list.sort((a,b)=>(a.tier??9)-(b.tier??9)||a.name.localeCompare(b.name)).slice(0,60).map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,draft:m.draft}))};
 }
 /**
- * A non-modal DialogV2 whose content buttons (`data-action="name"`) run `handlers[name](dataset, element)`. 0.35.1: the buttons did nothing in
+ * A non-modal DialogV2 whose content buttons (`data-action="name"`) run `handlers[name](dataset, element)`. 0.35.2: the buttons did nothing in
  * Forge when they were wired only from the dialog's `render` callback. They are now reached three ways, each safe to run alongside the others
  * (one click is handled once): ApplicationV2's own `actions` for `data-action` elements, the `render` callback, and a click listener put on the
  * dialog element once it has rendered. Nothing relies on inline handlers.
@@ -2553,7 +2560,7 @@ function draftTemplate(d,taken){
 
 const portrait=(a)=>a?.img?`<img class="agl-avatar" src="${esc(a.img)}" alt="">`:`<span class="agl-avatar">${esc((a?.name||'?').slice(0,1))}</span>`;
 class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1180,height:800}};
+  static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1000,height:760}};
   static PARTS={main:{template:`modules/${ID}/templates/ledger.hbs`}};
   render(options){checkPlayerLedger();return super.render(options);}
   // Compact size; Comfortable scales it when the window is created (windowSize). A size the user resized to is kept by Foundry.

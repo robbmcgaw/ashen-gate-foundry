@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-// 0.35.1: the Give… buttons in the hand-out pop-ups did nothing in Forge. This drives the real click path in a real browser DOM
+// 0.35.2: the Give… buttons in the hand-out pop-ups did nothing in Forge. This drives the real click path in a real browser DOM
 // (headless Chromium) against stand-ins for the ways a DialogV2 can deliver a click. It is skipped where Playwright is not installed.
 const here=path.dirname(fileURLToPath(import.meta.url));
 let chromium=null;
