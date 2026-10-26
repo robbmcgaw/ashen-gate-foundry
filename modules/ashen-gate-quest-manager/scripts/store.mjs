@@ -1,6 +1,7 @@
 import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport,itemRewardIds,isLevelBackup,LEVEL_BACKUP_ERROR} from './core.mjs';
 import {listAssignments} from './assignments.mjs';
 import {worldItemById} from './ag-item-drop.mjs';
+import {questFolderId} from './folder-nesting.mjs';
 const FLAG = `flags.${MOD}`;
 const GM_ONLY = {default:0};
 const FLAGROOT = `flags.${MOD}`;
@@ -9,14 +10,9 @@ const QUIET = {renderSheet:false};
 // Imported rewards are named from the world Item bound to their permanent id; none bound -> left out of the player view.
 const itemById=id=>{const item=worldItemById(id);return item?{name:item.name,img:item.img}:null;};
 export async function ensureFolder(segment){
+  // Journal folder Ashen Gate / Quests / <segment>, found or created once (shared lock; see ag-folders.mjs). Null if Foundry cannot.
   if(typeof Folder==='undefined'||!game.folders)return null;
-  let parent=null;
-  for(const name of ['Ashen Gate','Quests',segment]){
-    let folder=[...game.folders].find(f=>f.type==='JournalEntry'&&f.name===name&&(f.folder?.id||f.folder||null)===(parent?.id||null));
-    if(!folder)folder=await Folder.create({name,type:'JournalEntry',folder:parent?.id||null});
-    parent=folder;
-  }
-  return parent?.id||null;
+  return questFolderId(segment);
 }
 function gmEntries(){assertGM(game.user);return [...game.journal].filter(j=>j.getFlag(MOD,'private')===true);}
 export function getPrivate(id){assertGM(game.user);const matches=gmEntries().filter(j=>j.getFlag(MOD,'source')?.id===id);if(matches.length>1)throw new Error(`Duplicate Quest source ID ${id}`);return matches[0]||null;}

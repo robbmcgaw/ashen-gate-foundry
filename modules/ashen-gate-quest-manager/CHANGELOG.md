@@ -1,3 +1,7 @@
+## 0.27.0 — 2026-10-26
+
+Held reward copies (GM-only Items made when a reward is dropped from a character) now sit in **Ashen Gate / Backups / Quest Rewards** instead of a second top-level Item folder. On the first GM login after updating, Quest Log moves its own held copies from **Ashen Gate Rewards (Quest Log)**; anything you filed elsewhere stays. Quest journals stay in **Ashen Gate / Quests**, now looked up with the shared race-safe folder helper. Nothing is deleted and no ownership or permission changes.
+
 ## 0.26.0 — 2026-10-26
 
 GM Quests list: every quest is one line, like the Character Hub's rows.

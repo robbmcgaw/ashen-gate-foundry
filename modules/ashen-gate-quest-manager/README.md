@@ -2,6 +2,8 @@
 
 Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order and Contract objectives with a Party log and per-character Individual logs, GM-driven reveal, progress and rewards, and GM-only Assignment records. Open it from **Actors sidebar → Quest Log** (players when **GM Setup → Player Access** is on).
 
+**Sidebar folders.** Held reward copies file under **Ashen Gate / Backups / Quest Rewards**; quest journals under **Ashen Gate / Quests**; see docs/folder-convention.md.
+
 ## Tabs
 
 - **Party** and **Individual:** what players can see. Tick **Track** on a quest, then **Show objectives overlay** (right end of the toolbar) for a small on-screen tracker (display only; it does not change progress). Individual is scoped to the character's owner.
