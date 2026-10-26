@@ -9,6 +9,7 @@ import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,
 import {cleanArt,artInput,resolveArt} from './orb.mjs';
 import {stageState,stagesInput,holdInput} from './stages.mjs';
 import {matchCinder,planCinderDelete,boundMessage} from './cinder-delete.mjs';
+import {journalFolderId} from './folder-nesting.mjs';
 import {DEFINITION_ART_SETTING,cleanOverrides,withOverride,resolveStages,matchDefinition} from './definition-art.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
@@ -39,7 +40,7 @@ export function createCinders(deps){
   const store=()=>game.user?.isGM?game.journal?.contents?.find(d=>d.flags?.[module]?.[STORE_FLAG]===true)??null:null;
   const readRegistry=()=>{requireGM();return normalizeRegistry(store()?.flags?.[module]?.registry);};
   async function createStore(){
-    const d=await JournalEntry.create({name:'[AG] Cinders — GM Records',ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},
+    const d=await JournalEntry.create({name:'[AG] Cinders — GM Records',folder:await journalFolderId(),ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},
       flags:{[module]:{[STORE_FLAG]:true,registry:{schema:'ag-cinder-instances/1',instances:[]}}}});
     if(!d)throw Error('Unable to create the GM-only Cinders Journal');
     return d;

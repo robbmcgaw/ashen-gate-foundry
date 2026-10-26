@@ -4,6 +4,7 @@ import {createStrain} from './strain-runtime.mjs';
 import {createStrainChip} from './strain-chip.mjs';
 import {createCinders,CINDER_HOOK,MAX_CINDERS_SETTING,INITIAL_POINTS_SETTING,SOCKETS_SETTING} from './cinder-runtime.mjs';
 import {isLevelBackup,CINDER_WALLET_CAP} from './cinder.mjs';
+import {migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {MAX_SOCKETS} from './sockets.mjs';
 import {CHIP_SETTING} from './strain-chip.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
@@ -18,7 +19,7 @@ import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.14.1';
+const VERSION='0.15.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -672,6 +673,8 @@ Hooks.once('init',()=>{
   cinders.register();
   game.settings.register(MODULE,PLAYER_ACCESS_SETTING,{name:'Player Access — Cinders',hint:'GM only: show or hide the Cinders window and launcher for players. Strain and Cinders are unchanged.',scope:'world',config:true,type:Boolean,default:true,
     onChange:()=>{const d=globalThis.ui?.actors;if(d?.element)addDirectoryLauncher(d,d.element);if(!game.user?.isGM&&!playerAccess()){globalThis.document?.querySelectorAll?.(`[data-ag-launcher="${MODULE}"]`)?.forEach(b=>b.remove());app?.close?.();}rerender();}});
+  // 1 once Cinders has filed its own journal under Ashen Gate (folder-nesting.mjs); config:false.
+  game.settings.register(MODULE,FOLDER_SETTING,{scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE,ADOPTED_SETTING,{scope:'world',config:false,type:Boolean,default:false});
   // Shown in GM Setup and the Cinders tab, not Configure Settings (players see no Cinders settings there).
   game.settings.register(MODULE,ROTATE_SETTING,{scope:'world',config:false,type:Boolean,default:true,onChange:rerender});
@@ -691,6 +694,7 @@ Hooks.once('setup',()=>{chip.registerStatuses();hideSettingsFromPlayers(game,MOD
 Hooks.once('ready',()=>{
   const mod=game.modules.get(MODULE);if(!mod)return;
   hideSettingsFromPlayers(game,MODULE);
+  void migrateFolders().catch(e=>console.warn(`${MODULE} | could not file the journal under Ashen Gate`,e));
   mod.api={
     version:VERSION,open,
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},
