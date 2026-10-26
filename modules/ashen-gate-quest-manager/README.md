@@ -29,7 +29,7 @@ Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting, productio
 
 In the quest editor (Quests tab), **Item rewards** sits in the *Rewards* section. Drop items on it from a character or NPC sheet, a compendium or the Items sidebar; each change saves at once.
 - Per row: quantity, **Shown to players** (after it's completed, the default; while the quest is visible; never), and **Goes to** (one chosen character, the default; each character; split). Goes to is fixed on individual quests.
-- An item dropped from a sheet is copied into a GM-only Items folder, **Ashen Gate Rewards (Quest Log)**; the character or NPC keeps its item. Removing the row (asks first) deletes that held copy.
+- An item dropped from a sheet is copied into a GM-only Items folder, **Ashen Gate / Backups / Quest Rewards**; the character or NPC keeps its item. Removing the row (asks first) deletes that held copy.
 - Folders are refused ("Drop items one at a time."), and so is anything that isn't an item.
 - Players see the rewards their row allows (name, picture and quantity only) under **Rewards** in the quest.
 - *Rewards handled outside Quest Log* is the old checkbox, unchanged.
