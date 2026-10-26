@@ -1,3 +1,13 @@
+## 0.32.0 — 2026-10-26
+
+Shops (GM): each shop and service is one line, like the Character Hub's rows.
+
+- **Why:** a row was an avatar, a title, two meta lines and a wrapping group of buttons: 64px at a wide window, 80px at 640px and about 126px at 360px, where the buttons dropped under the text and some sat off the right edge. 32 shops took 2,100px at the widest and 4,100px at the narrowest. Now every row is 38px and 32 shops take about 1,270px at any width.
+- **One line, always.** Always shown: the picture, the name (a long one ends in an ellipsis; hover for the full name), who it is shown to (an eye icon, the words from 66rem), the chevron, **Edit** and **Present…** / **Open** / **Stop showing**, which are pinned at the right (labels from 72rem, icons with an aria-label and tooltip below). Columns are added by the window's width, last-used first: items (30rem), merchant (38rem), place (46rem), cash (56rem). A service shows its type where a shop shows its items.
+- **Nothing is lost.** The chevron opens, in place with no redraw, the full name and every fact: merchant, place, items or type, cash, who it is shown to. It stays open while the window is open.
+- Presentation only: no shop, service, list or setting data changes. The party stash, the player shop views and the shop editor are unchanged (the stash keeps its 64px pictures from 0.30.4; its rows read fine, see the pull request).
+- Tests use mocked Foundry and prove markup and CSS text. Widths were checked in a real browser with 32 shops.
+
 ## 0.31.1 — 2026-10-26
 
 Conditions, Party stash and Shops ignore Manager bulk writes (Sync, Import) while they run and refresh once when they finish. No change to saved data.

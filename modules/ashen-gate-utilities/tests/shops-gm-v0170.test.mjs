@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // 0.17.0: the GM's Shops tab. Storage in a GM-only Journal found by flag, GM-only API, drops (folder, container, non-Item),
 // duplicate, delete with retired ids, the shop purse, electrum, and the list and editor markup.
 // Mocked Foundry globals: proves the logic and the markup, not the live Foundry UI or layout.
@@ -231,7 +232,7 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
  assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><span class="ag-btn-group"><span class="ag-file" data-shop-import=""><button type="button" class="ag-btn ag-btn--sm" data-ag-file-button><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON…<\/button><input type="file" class="ag-file__input ag-sr-only"[^>]*accept=".json,application\/json"><\/span><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="shop-new-service"[\s\S]*?New Bank \(deprecated\)<\/button><button type="button" class="ag-btn" data-action="shop-new"/,'0.26.0: Import JSON (a kit file button) and Export grouped, then New Bank (deprecated), then New shop');
  assert.match(html,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>[\s\S]*<h3 class="ag-eyebrow">No location · 1<\/h3>/);
  assert.match(html,/<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">BT<\/span>/);
- assert.match(html,/\[TEST\] Brin Tallow · \[TEST\] Market Ward · 7 items<\/span>/);assert.doesNotMatch(html,/<code>SHOP-/);
+ assert.match(html,/agu-sc--merchant"><span class="ag-sr-only">Merchant: <\/span>\[TEST\] Brin Tallow<\/span>/);assert.match(html,/agu-sc--place"><span class="ag-sr-only">Place: <\/span>\[TEST\] Market Ward<\/span>/);assert.match(html,/agu-sc--items">7 items<\/span>/);assert.doesNotMatch(html,/<code>SHOP-/);
  assert.match(html,/Unlimited cash/);
  assert.match(html,/data-action="shop-edit" data-shop="SHOP-TEST-THE-COPPER-KETTLE" aria-label="Edit \[TEST\] The Copper Kettle"/);
  assert.doesNotMatch(html,/data-action="shop-duplicate"/,'0.26.0: Duplicate is in the editor head, not the row');
@@ -304,4 +305,17 @@ test('a saved shop or an electrum change re-renders the open Shops tab',async()=
  Hooks.callAll('updateJournalEntryPage',journals[0].pages[0]);Hooks.callAll('updateJournalEntryPage',{parent:{flags:{}}});
  Hooks.callAll(`${ID}.electrumChanged`,true);
  assert.equal(renders,2);
+});
+test('list rows (0.32.0): one line, the chevron opens every fact, CSS steps and no ellipsis except name and small cells',async()=>{
+ const {html}=await render();
+ assert.equal((html.match(/class="agu-srow__line"/g)||[]).length,(html.match(/data-shop-row=/g)||[]).length,'one line per row');
+ assert.match(html,/class="ag-btn ag-btn--sm ag-btn--ghost agu-srow__chev" data-shop-more="agu-more-[a-z0-9]+" aria-expanded="false" aria-controls="agu-more-[a-z0-9]+" aria-label="Show details of \[TEST\]/);
+ assert.match(html,/<dl class="agu-srow__detail" id="agu-more-[a-z0-9]+" role="region" aria-label="Details of [^"]+" hidden>/);
+ assert.match(html,/<dt>Merchant<\/dt><dd>/);assert.match(html,/<dt>Items<\/dt><dd>7 items<\/dd>/);assert.match(html,/<dt>Cash<\/dt>/);
+ assert.doesNotMatch(html.replace(/data-shop(-row)?="[^"]*"/g,'').replace(/id="agu-more-[^"]*"|aria-controls="[^"]*"|data-shop-more="[^"]*"/g,''),/SHOP-TEST/);
+ const css=fs.readFileSync(new URL('../styles/utilities.css',import.meta.url),'utf8');
+ for(const w of ['30rem','38rem','46rem','56rem','66rem','72rem'])assert.match(css,new RegExp(`@container \\(min-width:${w}\\)`),`step ${w}`);
+ assert.match(css,/\.agu-srow__name \{[^}]*text-overflow:ellipsis;white-space:nowrap/);
+ const src=fs.readFileSync(new URL('../scripts/shops.mjs',import.meta.url),'utf8');
+ assert.match(src,/for\(const b of root\.querySelectorAll\('\[data-shop-more\]'\)\)/);assert.match(src,/app\.shopOpen\?\.has\?\.\(s\.id\)===true/);
 });

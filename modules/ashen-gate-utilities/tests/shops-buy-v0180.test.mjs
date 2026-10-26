@@ -329,7 +329,7 @@ test('GM list rows: Present… on a hidden shop; Shown badge, Open and Stop show
  assert.match(html,/data-action="shop-present" data-shop="SHOP-TEST-THE-COPPER-KETTLE"/);
  await api.present(SHOP,{mode:'users',userIds:['alice','bob']});
  html=await render(gm,'shops');
- assert.match(html,/<span class="ag-badge ag-badge--ok"><i class="fa-solid fa-eye" aria-hidden="true"><\/i> Shown to 2 players<\/span>/);
+ assert.match(html,/<span class="ag-badge ag-badge--ok" data-tooltip="Shown to 2 players"[^>]*><i class="fa-solid fa-eye" aria-hidden="true"><\/i><span class="agu-sc__txt ag-sr-only">Shown to 2 players<\/span><\/span>/);
  assert.match(html,/data-action="shop-view"[\s\S]*data-action="shop-stop"/);
  const player=await render(alice,'shops');
  assert.match(player,/<h3 class="ag-eyebrow">Open shops · 1<\/h3>[\s\S]*data-action="shop-view" data-shop="SHOP-TEST-THE-COPPER-KETTLE"/);
