@@ -87,10 +87,11 @@ test('0.44.3: SHOP- is owned by Utilities and informational in the preview too',
 
 test('0.44.3: apply pass uses the lookup, logs notes, and keeps pending ids as unresolved optional refs',()=>{
   const main=read('../scripts/main.js');
-  assert.match(main,/const moduleRecord=moduleRecordLookup\(game\);/);
-  assert.match(main,/resolveTypedRefs\(record\.refs,uuidIndex,\[\],moduleRecord\)/);
-  assert.match(main,/issue\.level==='info'\?'note'/);
-  assert.match(main,/unresolvedOptionalRefs`\]=issues\.filter\(i=>i\.level==='warning'\|\|i\.level==='info'\)/);
+  const binding=read('../scripts/link-binding.js'); // 0.70.1: the binding pass moved out of main.js
+  assert.match(main,/moduleRecord:moduleRecordLookup\(game\)/);
+  assert.match(binding,/resolveTypedRefs\(record\.refs, uuidIndex, \[\], moduleRecord\)/);
+  assert.match(binding,/i\.level === 'info' \? 'note'/);
+  assert.match(binding,/unresolvedOptionalRefs`\] = issues\.filter\(i => i\.level === 'warning' \|\| i\.level === 'info'\)/);
   // The lookup comes after Locations/Routes/Shops are handed off in the same run.
   assert.ok(main.indexOf('applyShops(shopRows')<main.indexOf('moduleRecordLookup(game)'));
   // Feature-detected through public APIs only.

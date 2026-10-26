@@ -1,3 +1,16 @@
+## 0.70.1 — 2026-10-26
+
+Sync from package no longer stalls on "Binding links between records…", says what it is doing, and survives a dropped connection.
+
+- **Cause:** for every record, the link step searched every Manager document in the world (and rebuilt the id set, and searched the package's record list), so the work grew with the square of the number of records; with about 2,100 records that is millions of lookups and minutes of a frozen window. The step before it (and a normal Import) rebuilt the same id set three times per record. Writes were one document at a time, awaited, each firing every module's update hooks and a redraw.
+- **Fix:** every lookup is built once per run; links are written in chunks of 50 (one request per document type, one for each Actor's Items, one for each Journal's pages, with no redraw); a record whose links are already bound is not written again, so a re-run after Cancel only does what is left. The "remember how Foundry stored it" step is chunked and batched the same way.
+- **Progress you can read:** the line shows the step and its own count, the record being written, the elapsed time and a heartbeat every 2 s. After 60 s with no movement it says "Sync has not moved for 60 s: <step>, <n of N>. Wait, or Cancel; running the same sync again resumes" and logs the record name to the console. Cancel works while links are bound (it stops between chunks). Handing records to Locations, Quests and the other modules now says which module and how many records.
+- **Lost connection:** a write the server never answers no longer hangs the window. Sync stops with "Connection lost during <step>, n of N. Reload the page and run the same Sync again; it resumes". The history entry is written with a time limit. Nothing is half-deleted: deletes run last and only after every earlier step worked.
+- **Errors by name:** a link or write error in the result names the record, never only an id, and is never swallowed.
+- **Older References sections (0.68.0 conversion):** it used to run on every world load, one awaited update per description (1,391 of them), unannounced, and could overlap a Sync. It now shows one notice, writes 50 at a time without redraws, steps aside while a Sync or Import runs (and resumes after), and records in a world setting that the world is done so later loads skip it.
+- Import: the id set is built once per import instead of once per record.
+- No change to saved data beyond one new yes/no world setting; no migration.
+
 ## 0.70.0 — 2026-10-26
 
 Art is always yours: a portrait, token image or token ring you set yourself no longer holds a record back in Sync, and is never overwritten.
