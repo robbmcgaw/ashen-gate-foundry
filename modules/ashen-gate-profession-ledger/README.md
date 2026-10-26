@@ -21,6 +21,10 @@ XP is never automatic: the GM awards it from the Individual tab (**GM: XP**) or 
 
 A *Professions* tab is added to the character sheet when Tidy5e Sheet is active.
 
+## Where data is kept
+
+The recipe and material catalog (`libraryData`) is a world setting, and so are other Ledger records. World settings are sent to every connected browser, so the windows and the API show players only what they may see, but a player who opens the browser console could read the raw catalog, including recipes not yet released. That is fine for this table; it is not a secret store.
+
 ## Relation to other modules
 
 Independent: it opens without any other Ashen Gate module. General Manager imports recipes (`REC-*`), materials (`MAT-*`), professions (`PROF-*`) and crafted items (`ITEM-*`); a craft copies the recipe's `result_item_id` world Item. A recipe may set `tool` (dnd5e tool key, tool Item UUID or name) or `workstation`; otherwise it needs its profession's tool, and crafting rolls a tool check shown on the card. Gathering nodes come from Locations when it is active. Skill Trees reads but never changes profession progress; profession perk choices stay here.

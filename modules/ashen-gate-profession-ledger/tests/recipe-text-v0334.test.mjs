@@ -25,7 +25,7 @@ world.get=id=>world.find(x=>x.id===id);
 const values={partyRoster:['belwar','cara'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
 const mk=(id,name,known)=>({id,name,type:'character',hasPlayerOwner:true,items:Object.assign([],{get:()=>null}),flags:{'ashen-gate-profession-ledger':{knownRecipes:known}},testUserPermission:()=>true});
 const belwar=mk('belwar','[TEST] Belwar',defs.map(d=>d.id)),cara=mk('cara','[TEST] Cara',['REC-TEST-SAME']);
-const moduleObj={active:true,version:'0.35.1',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.35.2',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:[gm,alice],get:id=>[gm,alice].find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar,cara],get:id=>[belwar,cara].find(a=>a.id===id)},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async()=>{}}};

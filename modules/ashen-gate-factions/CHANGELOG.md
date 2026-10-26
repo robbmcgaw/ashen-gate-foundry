@@ -1,3 +1,7 @@
+## 0.20.2 — 2026-10-26
+
+- **Fix:** asking again for a reward that is already waiting (a one-time claim still pending or approved, or a repeatable service already requested or approved) is no longer treated as an error. The player gets "Renown request received by GM." and the GM does not get a red "Reward not available for request" notice. The GM is still told only once, when the first request arrives. A reward that was already delivered, or is out of uses, is still refused as before.
+
 ## 0.20.1 — 2026-10-26
 
 - **Fix:** when two players share the same faction at about the same time (or a Share arrives after the party already knows it), Renown now answers "Discovery shared with party." Before, the player got the red "Renown request was not accepted" notice although nothing was wrong.

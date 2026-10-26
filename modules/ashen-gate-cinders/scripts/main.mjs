@@ -19,7 +19,7 @@ import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.16.0';
+const VERSION='0.16.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -53,8 +53,10 @@ export async function offerPush({ability,modes}){
   const line=m=>`+${m.cost} Strain, Backfire ${m.chance}%${m.guaranteed?' (guaranteed)':''}`;
   const mods=m=>m.modifiers?.length?`Modifiers: ${m.modifiers.map(x=>`${x.label} (${x.value>0?'+':''}${x.value})`).join(', ')}`:'';
   if(modes.length===1){const m=modes[0];
-    return await confirmDialog([`${ability.name}: ${m.label}`,m.effect,`${line(m)}. Strain after: ${m.after}.`,mods(m),'Every Push gains Strain. The result is posted to chat.'].filter(Boolean).join('\n'),
-      {title:`Push ${m.label}?`,yes:'Push',no:'Use without Push',danger:m.guaranteed})?m.id:null;}
+    const text=[`${ability.name}: ${m.label}`,m.effect,`${line(m)}. Strain after: ${m.after}.`,mods(m),'Every Push gains Strain. The result is posted to chat.'].filter(Boolean).join('\n');
+    const opts={title:`Push ${m.label}?`,yes:'Push',no:'Use without Push'};
+    // A guaranteed Backfire is a danger confirm: "Use without Push" is the default button, never Push.
+    return (m.guaranteed?await confirmDanger(text,opts):await confirmDialog(text,opts))?m.id:null;}
   const rows=modes.map(m=>`<li><strong>${esc(m.label)}</strong>: ${esc(line(m))}${m.effect?`<br>${esc(m.effect)}`:''}${mods(m)?`<br><small>${esc(mods(m))}</small>`:''}</li>`).join('');
   return choiceDialog(`Push ${ability.name}?`,`<p>${esc(ability.name)} was used. Push it? Every Push gains Strain; the result is posted to chat.</p><ul>${rows}</ul>`,
     modes.map(m=>({action:m.id,label:`Push ${m.label} (${line(m)})`,icon:'fa-solid fa-fire',danger:m.guaranteed})),{cancel:'Use without Push'});

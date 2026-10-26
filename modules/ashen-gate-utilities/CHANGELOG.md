@@ -1,3 +1,9 @@
+## 0.33.1 — 2026-10-26
+
+Wording fix. No behaviour or saved data changed.
+
+- A code comment said nothing secret is written to synced settings. That was not accurate: the Party Stash history (GM-only gold awards and coin totals) is a world setting, and any world setting can be read from a player's browser console. The comment and the README now say so. The windows and API still show players only what they may see.
+
 ## 0.33.0 — 2026-10-26
 
 The shop journals and the Party Stash now sit under the **Ashen Gate** folder: **Ashen Gate / Shops** (Journals, including *Utilities Shops (Player View)*, which used to sit loose at the top) and **Ashen Gate / Party** (the Party Stash character). On the first GM login after updating, Utilities moves its own loose documents there; anything you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.

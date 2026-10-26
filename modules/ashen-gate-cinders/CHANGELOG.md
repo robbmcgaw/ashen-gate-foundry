@@ -1,3 +1,8 @@
+## 0.16.1 — 2026-10-26
+
+- **Safer Push confirm when Backfire is guaranteed.** The one-mode Push confirm now uses the danger confirm: **Use without Push** is the default button (Enter and first focus choose it), and Push is a red button you have to pick on purpose. Closing the window never Pushes.
+- Module description rewritten in plain words (no internal contract names).
+
 ## 0.16.0 — 2026-10-26
 
 The GM-only records journal is filed in **Ashen Gate / Cinders** instead of loose at the top of the Journal sidebar. On the first GM login after updating, Cinders moves its own loose journal there; one you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
