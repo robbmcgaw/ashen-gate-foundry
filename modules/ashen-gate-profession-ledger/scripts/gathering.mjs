@@ -1,11 +1,12 @@
 /** Ashen Gate Profession Ledger gathering rules (0.10.0; DC defaults and Exotic candidates 0.15.0).
- * One lead gatherer, one check per node for the party. Eligible helpers with suitable tools give advantage,
- * not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead.
- * A success may also find one Exotic (exotic.mjs). Failure exhausts the node. No Foundry globals are read here.
+ * Each check: success gives one common bundle; success by 5+ gives one rare bundle instead. A success may also find
+ * one Exotic (exotic.mjs). A finite spot is spent by a gather; a gather nobody passes exhausts any spot.
+ * 0.34.0: no lead gatherer; a gather is a round of rolls by every holder of a chosen profession (round.mjs).
+ * No Foundry globals are read here.
  */
 import {norm,quantity} from './core.mjs';
 import {TIERS} from './progression.mjs';
-import {heldTool,professionKey,SKILL_IDS} from './checks.mjs';
+import {professionKey,SKILL_IDS} from './checks.mjs';
 import {normalizeExotics} from './exotic.mjs';
 
 /** Kept equal to Locations' GATHERING.dcByTier (a Locations test checks both). A node's own DC always wins. */
@@ -83,7 +84,7 @@ export function pickTableEntry(table,roll){
   for(let i=0;i<table.length;i++){top+=weights[i];if(r<=top)return {entry:table[i],roll:r,faces};}
   return {entry:table.at(-1),roll:r,faces};
 }
-/** What the lead receives: one bundle, rare instead of common on success by 5+. A node without a rare material gives its common one.
+/** What one successful check receives: one bundle, rare instead of common on success by 5+. A node without a rare material gives its common one.
  * 0.25.0: a template node with a table of several materials picks one of them with `roll` (tableRoll says which die). */
 export function gatherReward(node,outcome,{roll}={}){
   if(!node||outcome?.result==='fail'||!outcome)return null;
@@ -98,21 +99,6 @@ export function gatherReward(node,outcome,{roll}={}){
 export const exhaustsNode=(node,outcome)=>Boolean(node?.finite)||outcome?.result==='fail';
 
 /**
- * A helper is eligible when they are a different character who carries a suitable tool (the
- * profession's tool or the check's tool) or, if no tool applies, has the gathering profession.
- */
-export function helperEligibility(helper,{leadId,toolRefs=[],hasProfession=()=>false}){
-  if(!helper)return {eligible:false,reason:'Not available'};
-  if(helper.id===leadId)return {eligible:false,reason:'The lead gatherer can’t also assist'};
-  const refs=toolRefs.filter(Boolean);
-  if(refs.length){
-    const tool=refs.map(r=>heldTool(helper,r)).find(Boolean);
-    return tool?{eligible:true,reason:`Carries ${tool.name}`}:{eligible:false,reason:'Carries no suitable tool'};
-  }
-  return hasProfession(helper)?{eligible:true,reason:'Has the gathering profession'}:{eligible:false,reason:'Lacks the gathering profession'};
-}
-
-/**
  * Player-requested gathering. The GM client checks this against its full (GM) Locations record, so a
  * player can never request an unrevealed location or a hidden node. One message for "unknown" and
  * "hidden" so a refusal does not confirm that something exists.
@@ -125,7 +111,7 @@ export function checkGatherRequest({ownsActor,inParty,location,node,busy=false})
   if(!node.gatherable)return {ok:false,reason:nodeBlocker(node,{forPlayer:true})||node.why||'That gathering spot is not available'};
   return {ok:true};
 }
-/** Only a GM may approve, decline or start gathering. */
+/** Only a GM may approve, decline, start, reveal or give gathering. */
 export const canRunGathering=user=>user?.isGM===true;
 
 /**
@@ -165,8 +151,10 @@ export const GATHER_FIX=Object.freeze({
   playerNoSpots:'No gathering spots yet: the GM must reveal a location that has gathering resources.',
   useDraft:'tick “Use draft materials anyway” (GM only) to award it now',
   noNode:'Choose a gathering node first.',
-  noLead:'Choose a lead gatherer from the party.',
-  busy:'That node is already being gathered: finish or cancel the open check first.'});
+  noProfession:'Choose which professions can roll.',
+  noTier:'Choose at least one tier.',
+  noHolder:'No party character holds any of the chosen professions',
+  busy:'A gather is already open: reveal it and give its loot, or cancel it first.'});
 /** Why a MAT-* is not awardable, by its state (0.25.0): names "not imported" apart from "draft/unreleased". '' for ok.
  * States: ok, missing (not imported), draft (status not approved), gm-only, not-visible, duplicate, retired. `allowDraft` (GM
  * "use anyway") turns draft, gm-only and not-visible into ok. */
@@ -200,11 +188,10 @@ export function nodeBlocker(node,{materialFound=true,materialState=null,material
   const state=materialState??(materialFound?'ok':'missing');
   return materialProblem(materialId??node.materialId,state,{forPlayer,status:materialStatus,allowDraft,name:materialName});
 }
-/** GM start: first thing that blocks, in the order a GM would fix them. */
-export function startBlocker({rosterCount=0,partyCount=0,leadInParty=false,node=null,materialFound=true,materialState=null,materialStatus='draft',materialId=null,materialName='',allowDraft=false,busy=false}={}){
+/** First thing that blocks a player's request being queued (GM approval starts the round), in the order a GM would fix them. */
+export function startBlocker({rosterCount=0,partyCount=0,node=null,materialFound=true,materialState=null,materialStatus='draft',materialId=null,materialName='',allowDraft=false,busy=false}={}){
   if(!rosterCount)return GATHER_FIX.noParty;
   if(!partyCount)return GATHER_FIX.partyMissing;
-  if(!leadInParty)return GATHER_FIX.noLead;
   const why=nodeBlocker(node,{materialFound,materialState,materialStatus,materialId,materialName,allowDraft});
   if(why)return why;
   return busy?GATHER_FIX.busy:'';

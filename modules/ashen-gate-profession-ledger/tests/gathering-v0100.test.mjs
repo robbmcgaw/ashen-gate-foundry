@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,helperEligibility,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
+import {nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
 import {effectiveMapping,toolRef,rollModeFor,checkOption,professionKey} from '../scripts/checks.mjs';
 import {xpForLevel} from '../scripts/progression.mjs';
 // 0.10.0: node-based gathering (Locations), player requests with GM approval, tool requirement on recipes, XP from chat cards.
@@ -127,12 +127,7 @@ test('request rules: owner, party member, revealed location, visible and availab
  assert.equal(canRunGathering(gm),true);assert.equal(canRunGathering(alice),false);assert.equal(canRunGathering(null),false);
 });
 
-test('helpers: a different character carrying a suitable tool gives advantage, preset with the sheet',()=>{
- const refs=[{key:'herb'}];
- assert.deepEqual(helperEligibility(tarra,{leadId:'belwar',toolRefs:refs}),{eligible:true,reason:'Carries Herbalism Kit'});
- assert.equal(helperEligibility(vex,{leadId:'belwar',toolRefs:refs}).eligible,false);
- assert.equal(helperEligibility(belwar,{leadId:'belwar',toolRefs:refs}).eligible,false,'the lead cannot assist themself');
- assert.equal(helperEligibility(vex,{leadId:'belwar',hasProfession:()=>true}).eligible,true,'no tool applies: the profession counts');
+test('check options: advantage presets from the sheet and tool; unproficient tool checks use the ability modifier',()=>{
  assert.deepEqual(rollModeFor(belwar,{kind:'skill',key:'nat'},{assists:['[TEST] Tarra']}),{mode:1,sources:['Advantage: assisted by [TEST] Tarra']});
  const dis={...belwar,system:{...belwar.system,skills:{nat:{total:3,roll:{mode:-1}}}}};
  assert.equal(rollModeFor(dis,{kind:'skill',key:'nat'},{assists:['T']}).mode,0,'advantage and disadvantage cancel');
@@ -158,8 +153,8 @@ test('player view: only revealed locations and visible nodes; no GM controls; pl
  assert.match(h,/value="LOC-TG-MEADOW\|n3"\s+disabled/,'exhausted spots are shown but cannot be picked');
  const reeds=h.slice(h.indexOf('Endless reeds'),h.indexOf('</label>',h.indexOf('Endless reeds')));
  assert.match(reeds,/Tier 3/);assert.doesNotMatch(reeds,/DC/,'a DC the GM has not shown stays hidden');
- await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n1'),leadId:'belwar'}),/Only the GM/);
- await assert.rejects(()=>_test.resolveGather('nope',{total:20}),/Only the GM/);
+ await assert.rejects(()=>_test.startRound({node:nodeOf('LOC-TG-MEADOW','n1'),leadId:'belwar'}),/Only the GM/);
+ assert.throws(()=>_test.recordRoll('nope',{total:20}),/Only the GM/);
  await assert.rejects(()=>api.gathering.start({locationId:'LOC-TG-MEADOW',nodeId:'n1',leadId:'belwar'}),/Only the GM/);
 });
 
@@ -177,21 +172,21 @@ test('player requests: unrevealed, hidden, foreign and exhausted are refused wit
  assert.equal(nextSent('gather-request-result')?.toUserId,'u1');
 });
 
-test('player request → GM queue (0.21.0): decline with a reason tells the player; one per character, rate limited; approve sends the roll prompt to the lead’s owner',async()=>{
+test('player request → GM queue (0.21.0): decline with a reason tells the player; one per character, rate limited; approve opens a gather round for every holder of the profession',async()=>{
  _test.setGatherRequestCooldown(0);
- const ask=async()=>{game.user=alice;sent.length=0;const pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
+ const ask=async()=>{game.user=alice;sent.length=0;const pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1'});await flush();
   const req=nextSent('gather-request');game.user=gm;await _test.onSocket(req,'u1');const res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');return {res,out:await pending};};
  // Queued: no popup, the player is told it waits, the GM sees it in the Gathering tab.
  const popups=dialogs.length;
  let {res,out}=await ask();
  assert.equal(dialogs.length,popups,'no approval popup any more');
  assert.equal(res.status,'queued');assert.equal(out.ok,true);assert.equal(out.status,'queued');
- assert.match(await html('gathering'),/\[TEST\] Belwar’s request \(Herb patch at \[TEST\] Meadow\) is waiting for the GM/);
+ assert.match(await html('gathering'),/Your request \(Herb patch at \[TEST\] Meadow\) is waiting for the GM/);
  assert.match(await html('gathering'),/data-action="gather-request" disabled/);
  assert.deepEqual(await api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1'}),{ok:false,status:'refused',message:'[TEST] Belwar already has a gathering request waiting for the GM.'});
  game.user=gm;
  let h=await html('gathering');
- assert.match(h,/Alice<\/strong> asks for <strong>\[TEST\] Belwar<\/strong> to gather/);assert.match(h,/\[TEST\] Tarra \(Carries Herbalism Kit — gives advantage\)/);
+ assert.match(h,/Alice<\/strong> asks to gather/);assert.match(h,/Can roll: \[TEST\] Belwar/);
  assert.match(h,/data-action="gather-approve"/);assert.match(h,/data-action="gather-decline"/);
  const [q]=api.gathering.requests();assert.deepEqual([q.actorName,q.requesterName,q.title],['[TEST] Belwar','Alice','Herb patch']);
  assert.equal((await _test.handleGatherRequest({type:'gather-request',requestId:'dup',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1'},'u1')).ok,false,'a forged second request is refused on the GM side too');
@@ -204,7 +199,7 @@ test('player request → GM queue (0.21.0): decline with a reason tells the play
  await app._click('gather-decline',q.requestId);
  res=nextSent('gather-request-result');
  assert.deepEqual([res.toUserId,res.status,res.ok],['u1','declined',false]);assert.equal(res.message,'The GM declined [TEST] Belwar’s gathering request: Not btonight/b');
- assert.deepEqual(api.gathering.requests(),[],'cleared when handled');assert.equal(_test.gatherSessions.size,0);
+ assert.deepEqual(api.gathering.requests(),[],'cleared when handled');assert.equal(_test.gatherRounds.size,0);
  game.user=alice;await _test.onSocket({...res,message:'forged'},'u2');assert.equal(_test.myGatherRequests.size,1,'a result from a player is ignored');
  errors.length=0;await _test.onSocket(res,'gm');
  assert.equal(_test.myGatherRequests.size,0);assert.ok(errors.includes(res.message),'the player is notified');
@@ -212,45 +207,47 @@ test('player request → GM queue (0.21.0): decline with a reason tells the play
  _test.setGatherRequestCooldown(60000);
  ({res,out}=await ask());assert.equal(out.ok,false);assert.match(out.message,/Wait \d+ s before asking again for \[TEST\] Belwar/);
  _test.setGatherRequestCooldown(0);
- // Approve: starts the gather exactly like the GM's Start.
+ // Approve: opens a gather round exactly like the GM's Start gather. Only holders of the profession are asked to roll.
  ({res,out}=await ask());assert.equal(out.status,'queued');
  game.user=gm;sent.length=0;
  await app._click('gather-approve',api.gathering.requests()[0].requestId);
- assert.equal(_test.gatherSessions.size,1);assert.deepEqual(api.gathering.requests(),[]);
- const prompt=nextSent('gather-roll');assert.deepEqual(prompt.toUserIds,['u1'],'only Belwar’s owner is asked to roll');
- assert.equal(prompt.title,'Herb patch at [TEST] Meadow');assert.equal(prompt.dc,10);assert.deepEqual(prompt.assists,['[TEST] Tarra']);
- assert.equal(prompt.selected,'skill:nat','no herbalism kit on Belwar: Nature is preselected');
+ assert.equal(_test.gatherRounds.size,1);assert.deepEqual(api.gathering.requests(),[]);
+ const prompt=nextSent('gather-round');assert.deepEqual(prompt.toUserIds,['u1'],'only Belwar’s owner is asked: nobody else holds Herbalism');
+ assert.equal(prompt.title,'Herb patch at [TEST] Meadow');assert.equal(prompt.dc,10);assert.equal(prompt.rollers.length,1);
+ assert.equal(prompt.rollers[0].selected,'skill:nat','no herbalism kit on Belwar: Nature is preselected');
  res=nextSent('gather-request-result');assert.equal(res.status,'approved');
  game.user=alice;infos.length=0;await _test.onSocket(res,'gm');
- assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/Approved\. \[TEST\] Belwar’s gathering check is ready to roll/.test(m)));
+ assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/Approved\. The gather at Herb patch at \[TEST\] Meadow is open/.test(m)));
  // Bob is not addressed and gets no popup; Alice does.
  game.user=bob;const n=dialogs.length;await _test.onSocket(prompt,'gm');assert.equal(dialogs.length,n);
  game.user=alice;await _test.onSocket(prompt,'gm');
- const rollDialog=dialogs.at(-1);assert.match(rollDialog.opts.content,/Nature/);assert.match(rollDialog.opts.content,/assisted by \[TEST\] Tarra/);
- assert.match(rollDialog.opts.content,/<option value="1" selected>Advantage/,'advantage preselected from the helper');
- assert.match(await html('gathering'),/Your gathering check/);
- // A forged roll from Bob is ignored; Alice's roll resolves (12 vs DC 10: success, common bundle).
+ const rollDialog=dialogs.at(-1);assert.match(rollDialog.opts.content,/\[TEST\] Belwar \(\[TEST\] Herbalism\) can roll/);
+ assert.match(await html('gathering'),/Gather at Herb patch/);
+ // A forged roll from Bob is ignored; Alice's roll is recorded (12 vs DC 10).
  game.user=gm;
- assert.equal(await _test.receiveGatherRoll({type:'gather-rolled',sessionId:prompt.sessionId,actorId:'belwar',total:30,choice:'skill:nat',mode:1},'u2'),false);
- assert.equal(_test.gatherSessions.size,1);
+ assert.equal(await _test.receiveGatherRoll({type:'gather-rolled',roundId:prompt.roundId,actorId:'belwar',total:30,choice:'skill:nat',mode:1},'u2'),false);
+ assert.equal(_test.openRound().rollers[0].rolled,null);
  game.user=alice;belwar.nextRoll=12;rolls.length=0;sent.length=0;
- rollDialog.click('roll',{check:{value:'skill:nat'},mode:{value:'1'}});await flush();await flush();
- assert.deepEqual(rolls.at(-1),{actor:'belwar',skill:'nat',advantage:true,disadvantage:false},'native dnd5e roll with advantage');
+ rollDialog.click('roll:belwar');await flush();await flush();
+ assert.deepEqual(rolls.at(-1),{actor:'belwar',skill:'nat',advantage:false,disadvantage:false},'native dnd5e roll');
  const rolled=nextSent('gather-rolled');assert.equal(rolled.total,12);
  game.user=gm;const before=herbTotal(belwar),chatCount=chats.length;
  await _test.onSocket(rolled,'u1');
- assert.equal(_test.gatherSessions.size,0);
+ assert.equal(_test.gatherRounds.size,1,'the round stays open until the GM reveals it');assert.equal(herbTotal(belwar),before,'nothing is given by rolling');
+ api.gathering.reveal(prompt.roundId);assert.equal(herbTotal(belwar),before,'nor by revealing');
+ await api.gathering.give(prompt.roundId);
+ assert.equal(_test.gatherRounds.size,0);
  assert.equal(herbTotal(belwar),before+2,'2 × common herb');
  assert.equal(belwar.items.filter(i=>i.name==='[TEST] Herb').length,2,'stacked onto an existing Item, no new Item');
  assert.deepEqual(exhaustCalls.at(-1),['LOC-TG-MEADOW','n1',true],'finite node exhausted through the Locations API');
  const card=chats[chatCount];
  assert.equal(card.whisper,undefined,'gather card is for everyone');
- assert.match(card.content,/\[TEST\] Belwar gathered 2 × \[TEST\] Herb/);assert.match(card.content,/Nature check:<\/strong> 12 with advantage vs DC 10 — <strong>Success/);
- assert.match(card.content,/Assisted by \[TEST\] Tarra/);assert.match(card.content,/now exhausted/);
+ assert.match(card.content,/\[TEST\] Belwar gathered 2 × \[TEST\] Herb/);assert.match(card.content,/Nature check:<\/strong> 12 vs DC 10 — <strong>Success/);
+ assert.match(card.content,/now exhausted/);
  assert.deepEqual({...card.flags['ashen-gate-profession-ledger'].xp},{kind:'gather',actorId:'belwar',actorName:'[TEST] Belwar',professionId:'PROF-TG-HERBALISM',professionName:'[TEST] Herbalism',suggested:1,awarded:null});
  assert.equal(xpHooks.at(-1).name,'ashenGateLedger.xpOpportunity');assert.equal(xpHooks.at(-1).data.outcome,'common');
  // The spent node cannot be requested or started again.
- await assert.rejects(()=>_test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n1'),leadId:'belwar'}),/exhausted|already/);
+ await assert.rejects(()=>_test.startRound({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n1')}),/exhausted|already/);
 });
 
 test('XP from a card: no automatic award, GM-only button, one award per card',async()=>{
@@ -325,51 +322,56 @@ test('0.12.0: undo award, adjust/set XP, perks kept and flagged, history GM-only
  assert.ok(api.getProfessionXPHistory(belwar,P).at(-1).reason==='' && api.getProfessionXPHistory(belwar,P).at(-1).kind==='set');
 });
 
-test('GM-initiated: success by 5+ gives the rare bundle instead; failure gives nothing and exhausts a renewable node',async()=>{
+// A gather round for the Node suite: open it, record each total, reveal, then give.
+const playRound=async(node,totals,options={})=>{
+ const round=await _test.startRound({node,...options});
+ for(const [actorId,total] of Object.entries(totals))_test.recordRoll(round.id,{actorId,total});
+ const revealed=_test.revealRound(round.id);
+ const given=await _test.giveRound(round.id);
+ return {round,revealed,given,row:id=>revealed.rows.find(r=>r.actorId===id)};
+};
+test('GM round: success by 5+ gives the rare bundle instead; failure gives nothing and exhausts a renewable node',async()=>{
  game.user=gm;
- let s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n5'),leadId:'tarra'});
- assert.equal(s.plan.selected,'tool:herb','Tarra carries a herbalism kit: the tool check is preselected');
- let out=await _test.resolveGather(s.id,{total:16,choice:'tool:herb'});
- assert.equal(out.outcome.result,'rare');assert.equal(out.reward.noRareFallback,true);assert.equal(herbTotal(tarra),1);
- assert.match(chats.at(-1).content,/no rare material, so it gave its common bundle/);
+ tarra.items.push(profItem('tprof','[TEST] Herbalism','PROF-TG-HERBALISM'));
+ const node=id=>_test.gatherLocations().locations[0].nodes.find(x=>x.id===id);
+ let r=await playRound(node('n5'),{tarra:16},{professions:['herbalism']});
+ assert.equal(r.row('tarra').result,'rare');assert.equal(r.row('tarra').noRareFallback,true);assert.equal(herbTotal(tarra),1);
+ assert.match(chats.at(-1).content,/there is no rare material for this gather, so it gave a common one/);
  assert.match(chats.at(-1).content,/Success by 5\+<\/strong> <span class="ag-rarity-badge" data-rarity="common">Quality: Common<\/span>/,'D6: the common bundle it gave is badged Common');
- assert.doesNotMatch(chats.at(-1).content,/rare bundle\)/);
  // Rare bundle replaces the common one.
  locs[0].resources.push({id:'n6',label:'Rich patch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:3,rareQuantity:1,finite:true,visible:true});
- s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n6'),leadId:'tarra'});
- out=await _test.resolveGather(s.id,{total:17,choice:'tool:herb'});
- assert.equal(out.outcome.result,'rare');assert.equal(herbTotal(tarra),1,'no common herb as well');
+ r=await playRound(node('n6'),{tarra:17},{professions:['herbalism']});
+ assert.equal(r.row('tarra').result,'rare');assert.equal(herbTotal(tarra),1,'no common herb as well');
  assert.equal(tarra.items.find(i=>i.name==='[TEST] Rare Herb').system.quantity,1);
  assert.match(chats.at(-1).content,/<span class="ag-rarity-badge" data-rarity="rare">Quality: Rare<\/span>/,'D6: a rare bundle uses the rare colour');
  // Failure on a non-finite node.
- const n4=_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n4');
- s=await _test.startGather({node:n4,leadId:'tarra'});
  const items=tarra.items.length;
- out=await _test.resolveGather(s.id,{total:5,choice:'tool:herb'});
- assert.equal(out.outcome.result,'fail');assert.equal(out.award,null);assert.equal(tarra.items.length,items);
+ r=await playRound(node('n4'),{tarra:5},{professions:['herbalism']});
+ assert.equal(r.row('tarra').result,'fail');assert.deepEqual(r.row('tarra').drops,[]);assert.equal(tarra.items.length,items);
  assert.notDeepEqual(exhaustCalls.at(-1),['LOC-TG-MEADOW','n4',true],'Locations cannot exhaust a renewable node');
  assert.match(chats.at(-1).content,/used up for now/);assert.doesNotMatch(chats.at(-1).content,/vs DC/,'a hidden DC stays off the public card');
- await assert.rejects(()=>_test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n4'),leadId:'tarra'}),/exhausted/,'blocked for this session');
+ await assert.rejects(()=>_test.startRound({node:node('n4'),professions:['herbalism']}),/exhausted/,'blocked for this session');
  assert.match(chats.at(-1).content,/found nothing usable/);assert.match(chats.at(-1).content,/Failed/);
- await assert.rejects(()=>_test.resolveGather(s.id,{total:20}),/no longer open/,'one check per node');
+ await assert.rejects(()=>Promise.resolve().then(()=>_test.recordRoll(r.round.id,{actorId:'tarra',total:20})),/no longer open/,'one gather, one roll each');
 });
 
-test('unrevealed location in a public card is not named; ad-hoc node works without Locations',async()=>{
+test('unrevealed location in a public card is not named; ad-hoc gather works without Locations',async()=>{
  game.user=gm;
  sent.length=0;
  const cave=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-CAVE').nodes[0];
- let s=await _test.startGather({node:cave,leadId:'belwar'});
- assert.equal(nextSent('gather-roll').title,'a gathering spot');
- await _test.resolveGather(s.id,{total:11,choice:'skill:nat'});
+ const r=await playRound(cave,{belwar:11},{professions:['herbalism']});
+ assert.equal(nextSent('gather-round').title,'a gathering spot');
+ assert.equal(r.row('belwar').result,'common');
  assert.doesNotMatch(chats.at(-1).content,/Cave/);
  modules['ashen-gate-locations']=undefined;
  assert.equal(_test.gatherLocations().ok,false);
- assert.match(await html('gathering'),/Ad-hoc node/);
- s=await api.gathering.start({node:{label:'[TEST] Ditch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB'},leadId:'belwar'});
- assert.equal(s.node.dc,12,'ad-hoc DC defaults by tier');
- await assert.rejects(()=>api.gathering.start({node:{label:'x',tier:1,materialId:'MAT-TG-SECRET'},leadId:'belwar'}),/player-visible/);
- assert.equal(_test.cancelGather(s.id),true);assert.equal(_test.gatherSessions.size,0);
+ assert.match(await html('gathering'),/Start gather…/);
+ await assert.rejects(()=>api.gathering.start({node:{label:'x',tier:1,materialId:'MAT-TG-SECRET'},professions:['herbalism'],leadId:'belwar'}),/player-visible/);
+ const s=await api.gathering.start({node:{label:'[TEST] Ditch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB'},leadId:'belwar'});
+ assert.equal(s.dc,12,'ad-hoc DC defaults by tier');
+ assert.equal(api.gathering.cancel(s.id),true);assert.equal(_test.gatherRounds.size,0);
  modules['ashen-gate-locations']={active:true,api:locApi};
+ tarra.items.splice(tarra.items.findIndex(i=>i.id==='tprof'),1);// Tarra holds no profession again for the later tests
 });
 
 test('recipes: tool, workstation or the profession’s tool; warning when not carried; craft rolls the tool check',async()=>{
@@ -469,20 +471,19 @@ test('craft: the check picked in the dialog is rolled and recorded; no pick keep
 test('gathering blockers: pure reasons, each with its fix',()=>{
  assert.match(startBlocker({rosterCount:0}),/^No party set: Ledger > GM Setup > tick the characters/);
  assert.match(startBlocker({rosterCount:2,partyCount:0}),/party characters were not found/);
- assert.match(startBlocker({rosterCount:2,partyCount:2,leadInParty:false}),/Choose a lead gatherer/);
  const ok=normalizeNode({id:'x',tier:1,materialId:'MAT-A-B'});
- assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:null}),/Choose a gathering node/);
+ assert.match(startBlocker({rosterCount:1,partyCount:1,node:null}),/Choose a gathering node/);
  // 0.25.0: the reason names "not imported" apart from "draft/unreleased" (which the GM may use anyway).
- assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:false}),'This material is not imported in this world: import it with General Manager.');
- assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'missing'}),'This material is not imported in this world: import it with General Manager.');
- assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'draft',materialStatus:'proposed'}),/^This material is draft\/unreleased \(status: proposed\): approve it in General Manager, or tick “Use draft materials anyway”/);
- assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'gm-only'}),/unreleased \(GM-only\)/);
- assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'draft',allowDraft:true}),'','the GM uses it anyway');
- assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'missing',allowDraft:true}),/not imported/,'use anyway never covers a missing material');
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,node:ok,materialFound:false}),'This material is not imported in this world: import it with General Manager.');
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,node:ok,materialState:'missing'}),'This material is not imported in this world: import it with General Manager.');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,node:ok,materialState:'draft',materialStatus:'proposed'}),/^This material is draft\/unreleased \(status: proposed\): approve it in General Manager, or tick “Use draft materials anyway”/);
+ assert.match(startBlocker({rosterCount:1,partyCount:1,node:ok,materialState:'gm-only'}),/unreleased \(GM-only\)/);
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,node:ok,materialState:'draft',allowDraft:true}),'','the GM uses it anyway');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,node:ok,materialState:'missing',allowDraft:true}),/not imported/,'use anyway never covers a missing material');
  assert.equal(nodeBlocker(ok,{materialState:'draft',forPlayer:true}),'The GM has not released this material yet.');
  assert.equal(nodeBlocker(ok,{materialState:'missing',forPlayer:true}),'The GM has not imported this material yet.');
- assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true}),'');
- assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true,busy:true}),/already being gathered/);
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,node:ok,materialFound:true}),'');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,node:ok,materialFound:true,busy:true}),/gather is already open/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1})),/^No material set: award by hand.*Locations/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',exhausted:true})),/exhausted.*untick Exhausted in Locations/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',available:false})),/tick Available/);
@@ -503,7 +504,7 @@ test('gathering blockers in Forge: GM tab, GM start and player tab each name the
  values.partyRoster=[];game.user=gm;
  let h=await html('gathering');
  assert.match(h,/No party set: Ledger > GM Setup > tick the characters/);
- await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/No party set: Ledger > GM Setup > tick the characters/);
+ await assert.rejects(()=>_test.startRound({node:nodeOf('LOC-TG-MEADOW','n9')}),/No party set: Ledger > GM Setup > tick the characters/);
  game.user=alice;h=await html('gathering');
  assert.match(h,/The GM has not set the party yet/);
  // A party the player has no character in.
@@ -517,7 +518,7 @@ test('gathering blockers in Forge: GM tab, GM start and player tab each name the
   h=await html('gathering');
   assert.match(h,/Material “Tg Herb” is not imported in this world: import it with General Manager/);
   assert.match(h,/data-action="gather-start" disabled/);
-  await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/Material “Tg Herb” is not imported in this world/);
+  await assert.rejects(()=>_test.startRound({node:nodeOf('LOC-TG-MEADOW','n9')}),/Material “Tg Herb” is not imported in this world/);
   // A player request is refused before the GM is bothered; the player gets no id, the GM gets the exact fix.
   const before=dialogs.length;errors.length=0;sent.length=0;
   const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rm',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n9'},'u1');
@@ -576,11 +577,13 @@ test('0.14.1: a Locations node with no material reads "award by hand" for the GM
   game.user=gm;app.gather.source='location';app.gather.nodeRef='';
   let h=await html('gathering');
   const opt=h.match(new RegExp(`<option value="LOC-TG-WOODS\\|${raw.id}"[^>]*>[^<]*</option>`))[0];
-  assert.doesNotMatch(opt,/disabled/,'the GM can pick it to read why');assert.match(opt,/no material: award by hand/);
+  assert.doesNotMatch(opt,/disabled/,'the GM can pick it');assert.match(opt,/no material: hand out/);
   app.gather.nodeRef=`LOC-TG-WOODS|${raw.id}`;h=await html('gathering');
-  assert.match(h,/No material set: award by hand\. \[TEST\] skin it, award by hand \(To let the Ledger award it/);
-  assert.match(h,/data-action="gather-start" disabled/);
-  await assert.rejects(()=>_test.startGather({node:normalizeNode(raw,{locationId:'LOC-TG-WOODS'}),leadId:'belwar'}),/award by hand/);
+  assert.doesNotMatch(h,/No material set: award by hand/,'a spot with no material is no longer a block for the GM: the GM hands it out');
+  assert.match(h,/No party character holds any of the chosen professions/);assert.match(h,/data-action="gather-start" disabled/);
+  await assert.rejects(()=>_test.startRound({node:normalizeNode(raw,{locationId:'LOC-TG-WOODS'})}),/No party character holds any of the chosen professions/);
+  const open=await _test.startRound({node:normalizeNode(raw,{locationId:'LOC-TG-WOODS'}),professions:['herbalism']});
+  assert.equal(open.rollers.some(x=>x.actorId==='belwar'),true);_test.cancelRound(open.id);
   game.user=alice;h=await html('gathering');
   assert.match(h,/The GM handles this spot at the table: ask them\./);
   assert.match(h,/\[TEST\] Hunter remains/,'free-text skill does not break the list');
@@ -594,9 +597,9 @@ test('0.14.1: a Locations node with no material reads "award by hand" for the GM
 
 test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a GM reload clears players’ waiting requests',async()=>{
  locs[0].resources.push({id:'n10',label:'Late patch',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',finite:true,visible:true});
- game.user=gm;for(const id of [..._test.gatherSessions.keys()])_test.cancelGather(id);_test.resetGatherRequests();_test.setGatherRequestCooldown(0);
+ game.user=gm;for(const id of [..._test.gatherRounds.keys()])_test.cancelRound(id);_test.resetGatherRequests();_test.setGatherRequestCooldown(0);
  app.gather.source='location';app.gather.actorId='belwar';app.gather.nodeRef='LOC-TG-MEADOW|n10';
- assert.match(await html('gathering'),/Send gathering check to Alice/);
+ assert.match(await html('gathering'),/Start gather…/);
  await assert.rejects(api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n10'}),/The GM starts gathering directly/);
  sent.length=0;
  const q=await _test.handleGatherRequest({type:'gather-request',requestId:'stale',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n10'},'u1');
@@ -604,7 +607,7 @@ test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a G
  values.partyRoster=['tarra'];
  try{await assert.rejects(api.gathering.approve('stale'),/Request removed: That character is not in the party/);}
  finally{values.partyRoster=['belwar','tarra'];}
- assert.deepEqual(api.gathering.requests(),[]);assert.equal(_test.gatherSessions.size,0);
+ assert.deepEqual(api.gathering.requests(),[]);assert.equal(_test.gatherRounds.size,0);
  assert.equal(sent.filter(s=>s.msg.type==='gather-request-result').at(-1).msg.status,'declined','the player is told it cannot go ahead');
  game.user=alice;_test.myGatherRequests.set('belwar',{requestId:'x',title:'t'});infos.length=0;
  await _test.onSocket({type:'gather-requests-cleared'},'u2');assert.equal(_test.myGatherRequests.size,1,'only the GM can clear');

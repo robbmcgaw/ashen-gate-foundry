@@ -18,14 +18,16 @@ import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
-import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
+import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
+import {planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
+import {revealHtml} from './reel.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
   duplicateTemplate,removeTemplate,templateReferences,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.4';
+const VERSION='0.34.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -138,7 +140,7 @@ const itemStatus=item=>item?.flags?.['ashen-gate-manager']?.source?.status??'app
 const GM_VIEWS=new Set(['gm','assign','nodes']);
 /** 0.26.0 sub-tabs (kit 2.2). The chosen one is remembered per user on this device (uiState), never in world data. */
 const GM_SETUP_TABS=[{id:'party',label:'Party'},{id:'tools',label:'Tools and checks'},{id:'gather',label:'Gathering & crafting'},{id:'access',label:'Player Access'}];
-const GATHER_TAB_IDS=['requests','active','start'];
+const GATHER_TAB_IDS=['requests','start'];
 /** Assign sub-tabs (0.30.0 Starting recipes, 0.31.0 Signature perks). */
 const ASSIGN_TABS=[{id:'professions',label:'Professions'},{id:'recipes',label:'Starting recipes'},{id:'signature',label:'Signature perks'}];
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
@@ -1351,9 +1353,16 @@ async function onSocket(message,senderId){
       case 'gather-request': if(game.user.isGM&&activeGM()?.id===game.user.id&&from!==game.user.id)await handleGatherRequest(message,from);return;
       case 'gather-request-result': {if(message.toUserId!==game.user.id||!userById(from)?.isGM)return;receiveGatherRequestResult(message);return;}
       case 'gather-requests-cleared': if(!game.user.isGM&&userById(from)?.isGM&&myGatherRequests.size){myGatherRequests.clear();say('The GM reloaded: gathering requests that were waiting were cleared. Ask again if you still want to gather.');refreshLedger();}return;
-      case 'gather-roll': if(!game.user.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id))await showGatherRoll(message);return;
+      case 'gather-round': if(!game.user.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)&&userById(from)?.isGM)await showGatherRound(message);return;
       case 'gather-rolled': if(game.user.isGM&&activeGM()?.id===game.user.id)await receiveGatherRoll(message,from);return;
-      case 'gather-closed': if(incomingRolls.delete(message.sessionId)||gatherDialogs.has(`roll:${message.sessionId}`)){closeGatherDialogs(`roll:${message.sessionId}`);if(message.reason&&!game.user.isGM)say(message.reason);refreshLedger();}return;
+      case 'gather-round-progress': if(!game.user.isGM&&userById(from)?.isGM){const r=incomingRounds.get(message.roundId);if(r){for(const p of r.rollers)if(Array.isArray(message.rolledIds)&&message.rolledIds.includes(p.actorId)&&p.rolled==null)p.rolled='';refreshLedger();}}return;
+      case 'gather-round-reveal': if(!game.user.isGM&&userById(from)?.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)&&incomingRounds.has(message.roundId)){
+        playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');refreshLedger();}return;
+      case 'gather-round-closed': if(!game.user.isGM&&userById(from)?.isGM&&(incomingRounds.has(message.roundId)||gatherDialogs.has(`roll:${message.roundId}`))){
+        closeGatherDialogs(`roll:${message.roundId}`);const had=playerResults.has(message.roundId);incomingRounds.delete(message.roundId);
+        if(message.reason&&!had){playerResults.delete(message.roundId);say(message.reason);}
+        else if(had){lastPlayerResult=playerResults.get(message.roundId);playerResults.delete(message.roundId);}
+        refreshLedger();}return;
     }
   }catch(err){console.error(`[${ID}] socket ${message.type}`,err);}
 }
@@ -1598,18 +1607,24 @@ async function completeActivity(actor,recipeId,{confirm=true}={}){
 
 /* ---- Gathering ---------------------------------------------------------------------------------
  * The GM client runs every gathering check. Nodes come from the Locations module (feature-detected)
- * or are ad-hoc. One lead, one check per node; eligible helpers give advantage, not another attempt. */
+ * or are ad-hoc. One round per gather: each holder of a chosen profession rolls once. */
 const locationsApi=()=>{const m=game.modules?.get?.(LOCATIONS_ID);return m?.active&&m.api?m.api:null;};
-const gatherSessions=new Map();       // GM client: sessionId → session awaiting its roll
+const gatherRounds=new Map();         // GM client: roundId → the one open gather round (0.34.0)
 const gatherRequests=new Map();       // GM client: requestId → player request waiting in the Gathering tab queue (0.21.0)
 const pendingGatherRequests=new Map();// player client: requestId → resolve(first reply: queued or refused)
 const myGatherRequests=new Map();     // player client: actorId → {requestId, title} while the GM has not answered
 const lastGatherRequestAt=new Map();  // GM client: actorId → when its last request was queued (rate limit)
 let gatherRequestCooldownMs=30000;
-const incomingRolls=new Map();        // roller client: sessionId → roll prompt
+const incomingRounds=new Map();       // player client: roundId → the round's public details and your rollers
+const playerResults=new Map();        // player client: roundId → the revealed results (public view)
 const gatherDialogs=new Map();        // any client: key → open DialogV2
 const exhaustedHere=new Set();        // node keys spent in this GM session, even if Locations could not record it
 let lastGather=null;
+const reelSkipped=new Set();          // client: reveals whose animation the user skipped
+let reducedMotionOverride=null;       // test seam
+/** Respect the user's reduced-motion setting: the reveal is then a plain list, no reel. */
+const prefersReducedMotion=()=>reducedMotionOverride??(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true);
+let lastPlayerResult=null;            // player client: the last revealed gather, kept until the next one
 const worldMaterial=id=>id?materialChoices().find(i=>agSourceId(i)===id)??null:null;
 /** Machine-readable metadata of an awardable world material (Manager's definition), or null. */
 const worldMaterialMeta=id=>{const item=worldMaterial(id);return item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;};
@@ -1710,7 +1725,7 @@ const requireGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can read Exoti
 let exoticRoll=defaultRoll;
 const materialName=id=>worldMaterial(id)?.name??humanizeId(id);
 const refreshLedger=()=>{if(current?.rendered)current.render();};
-const nodeBusy=key=>[...gatherSessions.values()].some(s=>s.node.key===key)||[...gatherRequests.values()].some(r=>r.node.key===key);
+const nodeBusy=key=>[...gatherRounds.values()].some(s=>s.node.key===key)||[...gatherRequests.values()].some(r=>r.node.key===key);
 const closeGatherDialogs=prefix=>{for(const [key,dialog] of gatherDialogs)if(key.startsWith(prefix)){gatherDialogs.delete(key);dialog?.close?.();}};
 
 /** Gathering nodes the current user may see: GM every location, a player revealed ones (Locations sanitizes them). */
@@ -1753,10 +1768,10 @@ const publicNodeTitle=n=>!n.visible||!n.locationRevealed?'a gathering spot':`${n
 /** `forPlayers` hides a DC the GM has not shown in Locations. */
 const nodeSummary=(n,{forPlayers=false}={})=>[skillText(n.skill),n.tier?`Tier ${n.tier} (${tierName(n.tier)})`:'',Number.isInteger(n.dc)&&(!forPlayers||n.dcVisible)?`DC ${n.dc}`:''].filter(Boolean).join(' · ');
 
-/** Which check the lead can roll: the profession's tool and/or skill, then any other skill. */
-function gatherCheckPlan(lead,node){
-  // 0.25.0: a template may allow several gathering professions; the lead uses the first one they have (else the first listed).
-  const listed=node.professions?.length>1?node.professions.find(k=>professionItems(lead).some(i=>professionKey(professionDisplayName(i))===k))??node.professions[0]:null;
+/** Which check one character rolls for a round: the profession's tool and/or skill, then any other skill. */
+function gatherCheckPlan(actor,node){
+  // A round hands this the character's held profession as the node's only profession; a template with several still picks the first one the character has.
+  const listed=node.professions?.length>1?node.professions.find(k=>professionItems(actor).some(i=>professionKey(professionDisplayName(i))===k))??node.professions[0]:null;
   const raw=listed?professionTitle(listed):node.skill;
   const skillKey=SKILL_IDS.includes(raw)?raw:SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(raw))??null;
   const toolDirect=!skillKey&&toolKeys().includes(raw)?raw:null;
@@ -1768,47 +1783,83 @@ function gatherCheckPlan(lead,node){
   const options=[...(toolKey?[{kind:'tool',key:toolKey}]:[]),...(skill?[{kind:'skill',key:skill}]:[]),
     ...SKILL_IDS.filter(k=>k!==skill).map(key=>({kind:'skill',key}))];
   const tool=toolKey?{key:toolKey,uuid:null,name:null}:null;
-  const hasTool=tool&&(heldTool(lead,tool)||checkOption(lead,{kind:'tool',key:toolKey}).proficient);
+  const hasTool=tool&&(heldTool(actor,tool)||checkOption(actor,{kind:'tool',key:toolKey}).proficient);
   const first=hasTool||!skill?options[0]:options.find(o=>o.kind==='skill'&&o.key===skill);
-  const profItem=pk?professionItems(lead).find(i=>professionKey(professionDisplayName(i))===pk):null;
+  const profItem=pk?professionItems(actor).find(i=>professionKey(professionDisplayName(i))===pk):null;
   return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:advantageToolsOf(map,pk),advantageItems:advantageItemsOf(map,pk),
     professionId:profItem?agSourceId(profItem):null,professionName:profItem?professionDisplayName(profItem):profession};
 }
 const parseChoice=(plan,choice)=>plan.options.find(o=>`${o.kind}:${o.key}`===choice)??null;
-function helperInfo(helpers,lead,plan){
-  return helpers.map(h=>({id:h.id,name:h.name,...helperEligibility(h,{leadId:lead.id,toolRefs:plan.toolKey?[{key:plan.toolKey}]:[],
-    hasProfession:a=>Boolean(plan.professionKey)&&professionItems(a).some(i=>professionKey(professionDisplayName(i))===plan.professionKey)})}));
-}
-/** The roll prompt sent to whoever rolls for the lead. Only public node details. */
-function gatherProjection(session){
-  return {sessionId:session.id,actorId:session.leadId,actorName:session.leadName,title:publicNodeTitle(session.node),
-    summary:nodeSummary(session.node,{forPlayers:true}),dc:session.node.dcVisible?session.node.dc:null,options:session.plan.options,selected:session.plan.selected,advantageTools:session.plan.advantageTools??[],advantageItems:session.plan.advantageItems??[],
-    assists:session.helpers.filter(h=>h.eligible).map(h=>h.name)};
-}
 
-/** GM: start a gathering check for a node (Locations or ad-hoc). The lead's owner gets the roll prompt. */
-async function startGather({node,leadId,helperIds=[],requesterId=null,allowDraft=false}){
-  if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
-  const party=partyActors(),lead=actorById(leadId);
-  // allowDraft (0.25.0): the GM uses draft/unreleased materials anyway for this one check.
-  const blocked=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:Boolean(lead)&&party.some(a=>a.id===lead.id),node,
-    ...nodeMaterialCheck(node,allowDraft===true),busy:Boolean(node)&&[...gatherSessions.values()].some(s=>s.node.key===node.key)});
-  if(blocked)throw Error(blocked);
-  if(exhaustedHere.has(node.key))throw Error(nodeBlocker({...node,exhausted:true}));
-  const plan=gatherCheckPlan(lead,node);
-  const helpers=helperInfo([...new Set(helperIds)].map(id=>game.actors.get(id)).filter(a=>a&&a.id!==lead.id&&party.some(p=>p.id===a.id)),lead,plan);
-  const session={id:newId(),node,leadId:lead.id,leadName:lead.name,helpers,plan,requesterId,allowDraft:allowDraft===true,status:'rolling',createdAt:Date.now()};
-  session.rollerIds=allUsers().filter(u=>u.active&&!u.isGM&&lead.testUserPermission?.(u,'OWNER')).map(u=>u.id);
-  gatherSessions.set(session.id,session);
-  if(session.rollerIds.length)sendSocket({type:'gather-roll',toUserIds:session.rollerIds,...gatherProjection(session)});
-  refreshLedger();
-  return session;
+/* ---- The gather round (0.34.0) ---------------------------------------------------------------------
+ * No lead gatherer. The GM picks the professions that may roll, the tier(s) and the DC. Every party character who holds one of
+ * those professions rolls once with their own check. The GM then reveals the results: the Ledger has already settled every
+ * drop (round.mjs) before any animation starts, and nothing is given until the GM presses Give loot. */
+const hasOwnMaterials=node=>Boolean(node?.materialId||node?.tables?.common?.length||node?.rareMaterialId);
+/** The professions a saved node allows, as gathering keys. */
+const nodeProfessionDefaults=node=>selectionKeys(node?.professions?.length?node.professions:[node?.skill]);
+const gatherPhone=(round,roller)=>({roundId:round.id,actorId:roller.actorId,actorName:roller.actorName,professionName:roller.professionName,options:roller.plan.options,
+  selected:roller.plan.selected,advantageTools:roller.plan.advantageTools??[],advantageItems:roller.plan.advantageItems??[],assists:[]});
+const rollerProjection=gatherPhone;
+const roundTitle=round=>publicNodeTitle(round.node);
+const roundDcText=(round,{players=false}={})=>(!players||round.node.dcVisible)?`DC ${round.dc}`:'';
+/** What a player may read about an open round: no pool, no unrevealed materials, the DC only when the GM shows it. */
+function roundPublic(round,roller){
+  return {roundId:round.id,title:roundTitle(round),summary:[tiersText(round.tiers),round.node.dcVisible?`DC ${round.dc}`:''].filter(Boolean).join(' · '),
+    professions:round.professions.map(professionTitle),dc:round.node.dcVisible?round.dc:null,rollers:roller};
 }
-function cancelGather(sessionId){
+const roundOwnerIds=actor=>allUsers().filter(u=>u.active&&!u.isGM&&actor?.testUserPermission?.(u,'OWNER')).map(u=>u.id);
+function openRound(){return [...gatherRounds.values()][0]??null;}
+/** A round as plain data for the API (GM only): who may roll and who has, never the pool. */
+const roundSummary=round=>({id:round.id,status:round.status,professions:[...round.professions],tiers:[...round.tiers],dc:round.dc,title:roundTitle(round),
+  rollers:round.rollers.map(r=>({actorId:r.actorId,actorName:r.actorName,professionKey:r.professionKey,rolled:r.rolled?r.rolled.total:null})),
+  result:round.result?{needsManual:round.result.needsManual,rows:structuredClone(round.result.rows)}:null});
+/** GM: the first problem that stops a saved node being gathered ('' when none). A node with no material is fine: the GM hands it out. */
+function roundNodeProblem(node,allowDraft){
+  if(node.missingTemplate||node.exhausted||!node.available)return nodeBlocker({...node,dc:node.dc??1});
+  if(hasOwnMaterials(node)){const m=nodeMaterialCheck(node,allowDraft);if(!m.materialFound)return nodeBlocker({...node,dc:node.dc??1},m);}
+  return '';
+}
+/** GM: who could roll for these professions right now (party characters that hold one). */
+const roundCandidates=professions=>eligibleRollers(partyActors().filter(a=>!isLevelBackup(a)),professions,heldProfessionKeys);
+
+/** GM: open a gather round. Needs professions, tier(s) and a DC (a saved node fills in its own). A leadId or helperIds from an older caller are ignored. */
+async function startRound(options={}){
+  const {node:rawNode,professions,tiers,dc,allowDraft=false,requesterId=null}=stripLead(options);
+  if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
+  if(!rosterIds().length)throw Error(GATHER_FIX.noParty);
+  if(!partyActors().length)throw Error(GATHER_FIX.partyMissing);
+  if(!rawNode)throw Error(GATHER_FIX.noNode);
+  if(gatherRounds.size)throw Error(GATHER_FIX.busy);
+  const draftOk=allowDraft===true,node=rawNode;
+  const problem=roundNodeProblem(node,draftOk);if(problem)throw Error(problem);
+  if(exhaustedHere.has(node.key))throw Error(nodeBlocker({...node,exhausted:true}));
+  const keys=selectionKeys(professions?.length?professions:nodeProfessionDefaults(node));
+  if(!keys.length)throw Error(GATHER_FIX.noProfession);
+  const poolSource=hasOwnMaterials(node)?'node':'catalog';
+  const tierList=selectionTiers(tiers?.length||tiers?.min!=null?tiers:[node.tier]);
+  if(!tierList.length)throw Error(GATHER_FIX.noTier);
+  const useDc=roundDC(dc??node.dc,tierList);
+  if(!Number.isInteger(useDc))throw Error('Set a DC for this gather.');
+  const candidates=roundCandidates(keys);
+  if(!candidates.length)throw Error(`${GATHER_FIX.noHolder} (${keys.map(professionTitle).join(', ')})`);
+  const round={id:newId(),node,poolSource,professions:keys,tiers:tierList,dc:useDc,allowDraft:draftOk,requesterId,status:'rolling',createdAt:Date.now(),result:null,
+    rollers:candidates.map(({actor,professionKey:key})=>{
+      const plan=gatherCheckPlan(actor,{...node,professions:[key],skill:professionTitle(key)});
+      return {actorId:actor.id,actorName:actor.name,professionKey:key,professionName:plan.professionName||professionTitle(key),professionId:plan.professionId,plan,rolled:null};})};
+  gatherRounds.set(round.id,round);
+  for(const user of allUsers().filter(u=>u.active&&!u.isGM)){
+    const mine=round.rollers.filter(r=>userOwns(user,game.actors.get(r.actorId)));
+    if(mine.length)sendSocket({type:'gather-round',toUserIds:[user.id],...roundPublic(round,mine.map(r=>gatherPhone(round,r)))});
+  }
+  refreshLedger();
+  return round;
+}
+function cancelRound(roundId){
   if(!canRunGathering(game.user))throw Error('Only the GM can cancel gathering');
-  const session=gatherSessions.get(sessionId);if(!session)return false;
-  gatherSessions.delete(sessionId);
-  sendSocket({type:'gather-closed',sessionId,toUserIds:session.rollerIds??[],reason:'The GM cancelled this gathering check.'});
+  const round=gatherRounds.get(roundId);if(!round)return false;
+  gatherRounds.delete(roundId);
+  sendSocket({type:'gather-round-closed',roundId,reason:'The GM cancelled this gather.'});
   refreshLedger();return true;
 }
 async function exhaustInLocations(node){
@@ -1819,78 +1870,181 @@ async function exhaustInLocations(node){
   try{await api.markNodeExhausted(node.locationId,node.id,true);return 'recorded';}
   catch(err){console.warn(`[${ID}] Locations could not mark ${node.locationId}/${node.id} exhausted`,err);return 'manual';}
 }
-/** GM: resolve the one check. Awards the bundle (stacking), exhausts the node, posts a card for everyone. */
-async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
+const nonGmUserIds=()=>allUsers().filter(u=>u.active&&!u.isGM).map(u=>u.id);
+/** GM: write one character's total into the open round. Players reach this only through receiveGatherRoll, which checks ownership. */
+function recordRoll(roundId,{actorId,total,choice,mode=0,by=''}={}){
   if(!canRunGathering(game.user))throw Error('Only the GM resolves gathering');
-  const session=gatherSessions.get(sessionId);
-  if(!session||session.status!=='rolling')throw Error('This gathering check is no longer open');
+  const round=gatherRounds.get(roundId);
+  if(!round||round.status!=='rolling')throw Error('This gather is no longer open for rolls');
+  const roller=actorId?round.rollers.find(r=>r.actorId===actorId)
+    :round.rollers.filter(r=>!r.rolled).length===1?round.rollers.find(r=>!r.rolled):null;
+  if(!roller)throw Error(actorId?'That character does not hold a profession for this gather':'Say which character this roll is for');
+  if(roller.rolled)throw Error(`${roller.actorName} has already rolled for this gather`);
   const n=Number(total);if(!Number.isSafeInteger(n)||n<-20||n>100)throw Error('Enter the check total (−20 to 100)');
-  const lead=game.actors.get(session.leadId);if(!lead)throw Error(`${session.leadName} is no longer in this world`);
-  const option=parseChoice(session.plan,choice)??parseChoice(session.plan,session.plan.selected);
-  session.status='resolving';
-  const {node}=session;
-  let award=null,reward=null,exoticAward=null,exoticNote='';
-  const outcome=gatherOutcome(n,node.dc);
-  // Shared resolver: the Common/Rare bundle, then at most one Exotic roll (Location and ad-hoc nodes alike).
-  let rewards;
-  try{rewards=resolveGatherRewards({node,outcome,percent:exoticPercent(),roll:exoticRoll,metaOf:metaFor(session.allowDraft),keyOf:professionKeyOfId});}
-  catch(err){session.status='rolling';throw err;}
-  const exotic=rewards.exotic;
-  try{
-    reward=rewards.base;
-    if(reward){
-      let item=awardMaterial(reward.materialId,session.allowDraft);
-      if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=awardMaterial(node.materialId,session.allowDraft);}
-      if(!item)throw Error(materialUnavailable(reward.materialId)?`${materialName(reward.materialId)}: ${materialUnavailable(reward.materialId)}`:`The material “${materialName(reward.materialId)}” is not an imported, player-visible world material`);
-      award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity,quality:reward.rare?'rare':'common'};
-    }
-  }catch(err){session.status='rolling';throw err;}
-  if(exotic.materialId){
-    // The normal bundle is already given; an Exotic that cannot be written is reported to the GM, never retried.
-    const item=awardMaterial(exotic.materialId,session.allowDraft);
-    try{
-      if(!item)throw Error('not an imported, player-visible world material');
-      exoticAward={...await stackMaterial(lead,item,1,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:1,materialId:exotic.materialId};
-    }catch(err){console.warn(`[${ID}] Exotic ${exotic.materialId} could not be given`,err);exoticNote=`Exotic ${item?.name??materialName(exotic.materialId)} was found but could not be given (${err.message}). Give it by hand.`;}
-  }
-  gatherSessions.delete(sessionId);
-  let exhausted=null;
-  if(exhaustsNode(node,outcome)){exhaustedHere.add(node.key);exhausted=await exhaustInLocations(node);}
-  sendSocket({type:'gather-closed',sessionId,toUserIds:session.rollerIds??[]});
-  const check={label:option?checkOption(lead,option).label:'Check',total:n,mode:Math.sign(Number(mode)||0)};
-  const verdict=outcome.result==='rare'?'Success by 5+':outcome.result==='common'?'Success':'Failed';
-  const assists=session.helpers.filter(h=>h.eligible).map(h=>h.name);
-  // Only awarded materials are named; candidates, chances and the d100 stay with the GM.
-  const got=[award,exoticAward].filter(Boolean);
-  const head=got.length?`${lead.name} gathered ${got.map(a=>`${a.quantity} × ${a.name}`).join(' and ')}`:`${lead.name} found nothing usable`;
-  const lines=[`<p><strong>${esc(check.label)} check:</strong> ${n}${modeText(check.mode)}${node.dcVisible?` vs DC ${node.dc}`:''} — <strong>${verdict}</strong>${award?` ${qualityBadge(award.quality)}`:''}</p>`,
-    exoticAward?`<p class="agl-exotic-find"><strong>Exotic find:</strong> ${exoticAward.quantity} × ${esc(exoticAward.name)} ${qualityBadge('exotic')}</p>`:'',
-    assists.length?`<p>Assisted by ${esc(assists.join(', '))} (advantage, not another attempt).</p>`:'',
-    reward?.noRareFallback?'<p class="agl-chat-note">Success by 5+, but this node has no rare material, so it gave its common bundle.</p>':'',
-    exhausted==='session'?'<p class="agl-chat-note">This gathering spot is used up for now.</p>':exhausted?'<p class="agl-chat-note">This gathering spot is now exhausted.</p>':''];
-  try{await postXpCard({speaker:ChatMessage.getSpeaker?.({actor:lead}),content:`<div class="agl-chat-card agl-gather-card">
-    <header>${award?.img?`<img src="${esc(award.img)}" alt="" width="36" height="36">`:''}<div><strong>${esc(head)}</strong><span>Gathering · ${esc(publicNodeTitle(node))}${node.tier?` · Tier ${node.tier}`:''}</span></div></header>
-    ${lines.join('')}<div class="agl-xp-slot" data-agl-xp></div></div>`},
-    xpFlag('gather',lead,{professionId:session.plan.professionId,professionName:session.plan.professionName,suggested:outcome.result!=='fail'&&node.tier?gatherXP(tierName(node.tier)):null}),
-    {outcome:outcome.result,nodeKey:node.key,locationId:node.locationId});}
-  catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
-  const skipped=(exotic.skipped??[]).map(x=>({...x,reason:skipReason(x.materialId,x.reason)}));
-  if(skipped.length){
-    // GM-only: a configured candidate that could not be found this time, and why. Players never get this.
-    const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
-    const text=skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??materialName(x.materialId)} skipped: ${x.reason}.`).join(' ');
-    exoticNote=exoticNote?`${exoticNote} ${text}`:text;
-  }
-  if(exoticNote){
-    try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> ${esc(exoticNote)}</p></div>`});}catch{}
-  }
-  if(exhausted==='manual'){
-    try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> Locations could not record that <em>${esc(nodeTitle(node))}</em> at ${esc(node.locationName)} is exhausted. Mark it in Locations.</p></div>`});}catch{}
-  }
-  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic:{...exotic,skipped},exoticNote,exhausted,by,
-    tableRoll:reward?.tableRoll?.roll!=null?reward.tableRoll:null,usedDraft:session.allowDraft};
+  const actor=game.actors.get(roller.actorId);
+  const option=parseChoice(roller.plan,choice)??parseChoice(roller.plan,roller.plan.selected);
+  roller.rolled={total:n,label:option&&actor?checkOption(actor,option).label:'Check',mode:Math.sign(Number(mode)||0),by:String(by??'')};
+  sendSocket({type:'gather-round-progress',roundId,rolledIds:round.rollers.filter(r=>r.rolled).map(r=>r.actorId)});
   refreshLedger();
-  return {outcome,reward,award,exotic:{...exotic,skipped},exoticAward,awards:rewards.awards,exhausted};
+  return {actorId:roller.actorId,total:n,remaining:round.rollers.filter(r=>!r.rolled).length};
+}
+/** Roll the dice for a character you own and hand the total to the round (the GM records it directly; a player asks the GM). */
+async function rollForRound(roundId,actorId,{choice,mode}={}){
+  checkPlayerLedger();
+  const actor=actorById(actorId);
+  if(!actor||!owned(actor))throw Error('You can only roll for a character you own');
+  if(game.user.isGM){
+    const round=gatherRounds.get(roundId),roller=round?.rollers.find(r=>r.actorId===actorId);
+    if(!round||round.status!=='rolling')throw Error('This gather is no longer open for rolls');
+    if(!roller)throw Error('That character does not hold a profession for this gather');
+    if(roller.rolled)throw Error(`${roller.actorName} has already rolled for this gather`);
+    const rolled=await rollForGather(actor,rollerProjection(round,roller),{choice,mode});
+    return recordRoll(roundId,{actorId,...rolled,by:game.user.name});
+  }
+  const round=incomingRounds.get(roundId),proj=round?.rollers.find(r=>r.actorId===actorId);
+  if(!round)throw Error('This gather is no longer open');
+  if(!proj)throw Error('That character does not hold a profession for this gather');
+  if(proj.rolled!=null)throw Error(`${proj.actorName} has already rolled for this gather`);
+  const rolled=await rollForGather(actor,proj,{choice,mode});
+  proj.rolled=rolled.total;
+  sendSocket({type:'gather-rolled',roundId,actorId,...rolled});
+  closeGatherDialogs(`roll:${roundId}`);refreshLedger();
+  return {actorId,total:rolled.total};
+}
+/** GM side of a player's roll: only an owner of that character can answer, once. */
+async function receiveGatherRoll(message,senderId){
+  const round=gatherRounds.get(message.roundId);
+  if(!round||round.status!=='rolling')return false;
+  const roller=round.rollers.find(r=>r.actorId===message.actorId);
+  const sender=userById(senderId),actor=game.actors.get(message.actorId);
+  if(!roller||roller.rolled||!sender||sender.isGM||!userOwns(sender,actor))return false;
+  if(!parseChoice(roller.plan,message.choice))return false;
+  recordRoll(round.id,{actorId:roller.actorId,total:message.total,choice:message.choice,mode:message.mode,by:sender.name});
+  return true;
+}
+const materialShow=(round,id)=>{const item=awardMaterial(id,round.allowDraft);return {name:item?.name??materialName(id),img:item?.img||'',released:materialState(id).state==='ok'};};
+/** GM: the materials this round can give, awardable only (a draft one only when the GM allowed drafts). */
+function buildRoundPool(round){
+  const ok=id=>Boolean(awardMaterial(id,round.allowDraft)),keep=t=>t.filter(e=>ok(e.materialId));
+  if(round.poolSource==='node'){const p=nodePool(round.node);return {common:keep(p.common),rare:keep(p.rare),exotics:[]};}
+  const c=catalogPool(materialCatalog(),{professions:round.professions,tiers:round.tiers,keyOf:professionKeyOfId,
+    usable:m=>m.state==='ok'||(round.allowDraft&&usableAnyway(m.state))});
+  return {common:keep(c.common),rare:keep(c.rare),exotics:c.exotics.filter(e=>ok(e.materialId))};
+}
+/** GM: stop taking rolls and settle every result now. Nothing is given yet; the result is final before any animation. */
+function revealRound(roundId){
+  if(!canRunGathering(game.user))throw Error('Only the GM reveals gathering results');
+  const round=gatherRounds.get(roundId);
+  if(!round||round.status!=='rolling')throw Error('This gather is no longer open');
+  const rolled=round.rollers.filter(r=>r.rolled);
+  if(!rolled.length)throw Error('Nobody has rolled yet.');
+  const pool=buildRoundPool(round);
+  round.poolIds=[...new Set([...pool.common,...pool.rare].map(e=>e.materialId))];
+  const own=normalizeExotics(round.node.exotics);
+  const exoticNode={...round.node,professions:round.professions,tier:round.tiers.at(-1),exotics:own.length?own:pool.exotics};
+  const plan=planRound({pool,exoticNode,rolls:rolled.map(r=>({actorId:r.actorId,actorName:r.actorName,total:r.rolled.total})),dc:round.dc,roll:exoticRoll,
+    percent:exoticPercent(),metaOf:metaFor(round.allowDraft),keyOf:professionKeyOfId});
+  round.result={rows:plan.rows.map(r=>({...r,handed:[]})),skipped:plan.skipped,unrolled:round.rollers.filter(r=>!r.rolled).map(r=>r.actorName),
+    best:bestResult(plan.rows),needsManual:needsManual(plan.rows),revealedAt:Date.now()};
+  round.status='revealed';
+  const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
+  const notes=plan.skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??materialName(x.materialId)} skipped: ${skipReason(x.materialId,x.reason)}.`);
+  round.result.gmNotes=[...new Set(notes)];
+  const view=roundView(round,{players:true});
+  sendSocket({type:'gather-round-reveal',toUserIds:nonGmUserIds(),roundId:round.id,view});
+  refreshLedger();
+  return {roundId:round.id,needsManual:round.result.needsManual,rows:structuredClone(round.result.rows),skipped:plan.skipped.map(x=>({...x,reason:skipReason(x.materialId,x.reason)}))};
+}
+/** The reveal as data for the slot machine. Players never get unreleased materials, Exotic candidates or the GM's notes. */
+function roundView(round,{players=false}={}){
+  const res=round.result;
+  const rows=res.rows.map(r=>({id:r.actorId,name:r.actorName,total:r.total,result:r.result,
+    drops:r.drops.map(d=>{const m=materialShow(round,d.materialId),hidden=players&&!m.released&&!d.given;
+      // A player's copy never carries an unreleased material's name, picture or id.
+      return hidden?{name:'',img:'',quantity:d.quantity,kind:d.kind,hidden:true}:{...(players?{}:{materialId:d.materialId}),name:m.name,img:m.img,quantity:d.quantity,kind:d.kind,hidden:false};}),
+    undetermined:r.undetermined.length>0}));
+  const ids=new Set([...(round.poolIds??[])]);
+  const reel=[];
+  for(const id of ids){const m=materialShow(round,id);if(players&&!m.released)continue;reel.push({img:m.img,name:m.name});}
+  for(const r of rows)for(const d of r.drops)if(!d.hidden&&!reel.some(x=>x.name===d.name))reel.push({img:d.img,name:d.name});
+  return {title:roundTitle(round),dcText:roundDcText(round,{players}),rows,reel,at:Date.now()};
+}
+/** GM: give one material by hand to a character in the open round (the Add flow of the hand-out pop-up). */
+async function giveByHand(roundId,actorId,materialId,quantity=1){
+  if(!canRunGathering(game.user))throw Error('Only the GM can give gathering loot');
+  const round=gatherRounds.get(roundId);
+  if(!round||round.status!=='revealed')throw Error('Reveal the results first');
+  const row=round.result.rows.find(r=>r.actorId===actorId);
+  if(!row||row.result==='fail')throw Error('That character did not meet the DC');
+  const actor=game.actors.get(actorId),item=awardMaterial(materialId,round.allowDraft);
+  if(!actor)throw Error('That character is no longer in this world');
+  if(!item)throw Error(materialUnavailable(materialId)||'That is not an imported material');
+  const q=Number(quantity);
+  const qty=Number.isSafeInteger(q)&&q>=1?q:1;
+  const out=await stackMaterial(actor,item,qty,{sourceIdOf:agSourceId,flagScope:ID});
+  const kind=row.undetermined.shift()??(row.result==='rare'?'rare':'common');
+  row.drops.push({materialId,quantity:qty,kind,given:true,hand:true,name:item.name,img:item.img});
+  row.handed.push(materialId);
+  round.result.needsManual=needsManual(round.result.rows);
+  refreshLedger();
+  return {actorId,materialId,name:item.name,total:out.total};
+}
+/** GM: give every settled drop, post the chat cards, retire the spot if the rules say so, and close the round. Safe to repeat after a failure. */
+async function giveRound(roundId){
+  if(!canRunGathering(game.user))throw Error('Only the GM can give gathering loot');
+  const round=gatherRounds.get(roundId);
+  if(!round||round.status!=='revealed')throw Error('Reveal the results before giving loot');
+  round.status='giving';
+  const failures=[];
+  for(const row of round.result.rows){
+    const actor=game.actors.get(row.actorId);
+    for(const d of row.drops){
+      if(d.given)continue;
+      try{
+        if(!actor)throw Error('no longer in this world');
+        const item=awardMaterial(d.materialId,round.allowDraft);
+        if(!item)throw Error(materialUnavailable(d.materialId)||'not an imported material');
+        const out=await stackMaterial(actor,item,d.quantity,{sourceIdOf:agSourceId,flagScope:ID});
+        Object.assign(d,{given:true,name:item.name,img:item.img,total:out.total,stacked:out.stacked});
+      }catch(err){failures.push(`${row.actorName}: ${materialName(d.materialId)} (${err.message})`);}
+    }
+  }
+  if(failures.length){round.status='revealed';refreshLedger();throw Error(`Some loot could not be given. What was given stays; press Give loot again to retry. ${failures.join('; ')}`);}
+  const {node}=round,exhausts=exhaustsNode(node,{result:round.result.best});
+  let exhausted=null;
+  if(exhausts){exhaustedHere.add(node.key);exhausted=await exhaustInLocations(node);}
+  const spent=exhausted==='session'?'This gathering spot is used up for now.':exhausted?'This gathering spot is now exhausted.':'';
+  for(const [i,row] of round.result.rows.entries())await postRoundCard(round,row,{note:i===0?spent:''});
+  const gm=allUsers().filter(u=>u.isGM).map(u=>u.id);
+  const notes=[...(round.result.gmNotes??[]),exhausted==='manual'?`Locations could not record that ${nodeTitle(node)} at ${node.locationName} is exhausted. Mark it in Locations.`:''].filter(Boolean);
+  if(notes.length){try{await globalThis.ChatMessage?.create?.({whisper:gm,content:`<div class="agl-chat-card">${notes.map(n=>`<p><strong>GM:</strong> ${esc(n)}</p>`).join('')}</div>`});}catch{}}
+  const exoticNotes=round.result.rows.filter(r=>r.exotic.roll!=null).map(r=>`${r.actorName}: Exotic d100 ${r.exotic.roll} vs ${r.exotic.target} (${r.exotic.kind})`);
+  lastGather={title:nodeTitle(node),tiers:round.tiers,dc:round.dc,exhausted,usedDraft:round.allowDraft,notes:[...exoticNotes,...(round.result.gmNotes??[])],
+    rows:round.result.rows.map(r=>({name:r.actorName,total:r.total,result:r.result,got:r.drops.map(d=>`${d.quantity} × ${d.name}`)}))};
+  gatherRounds.delete(roundId);
+  sendSocket({type:'gather-round-closed',roundId});
+  refreshLedger();
+  return {rows:structuredClone(round.result.rows),exhausted};
+}
+const verdictOf=result=>result==='rare'?'Success by 5+':result==='common'?'Success':'Failed';
+/** One chat card per rolling character, with the GM's XP award slot. */
+async function postRoundCard(round,row,{note=''}={}){
+  const actor=game.actors.get(row.actorId),roller=round.rollers.find(r=>r.actorId===row.actorId);
+  if(!actor||!roller)return;
+  const got=row.drops.filter(d=>d.given);
+  const head=got.length?`${actor.name} gathered ${got.map(d=>`${d.quantity} × ${d.name}`).join(' and ')}`:`${actor.name} found nothing usable`;
+  const main=got.find(d=>d.kind!=='exotic'),exotic=got.find(d=>d.kind==='exotic');
+  const top=round.tiers.at(-1);
+  const lines=[`<p><strong>${esc(roller.rolled.label)} check:</strong> ${row.total}${modeText(roller.rolled.mode)}${round.node.dcVisible?` vs DC ${round.dc}`:''} — <strong>${verdictOf(row.result)}</strong>${main?` ${qualityBadge(main.kind==='rare'?'rare':'common')}`:''}</p>`,
+    exotic?`<p class="agl-exotic-find"><strong>Exotic find:</strong> ${exotic.quantity} × ${esc(exotic.name)} ${qualityBadge('exotic')}</p>`:'',
+    row.noRareFallback?'<p class="agl-chat-note">Success by 5+, but there is no rare material for this gather, so it gave a common one.</p>':'',
+    note?`<p class="agl-chat-note">${esc(note)}</p>`:''];
+  try{await postXpCard({speaker:ChatMessage.getSpeaker?.({actor}),content:`<div class="agl-chat-card agl-gather-card">
+    <header>${(main??exotic)?.img?`<img src="${esc((main??exotic).img)}" alt="" width="36" height="36">`:''}<div><strong>${esc(head)}</strong><span>Gathering · ${esc(roundTitle(round))} · ${esc(tiersText(round.tiers))}</span></div></header>
+    ${lines.join('')}<div class="agl-xp-slot" data-agl-xp></div></div>`},
+    xpFlag('gather',actor,{professionId:roller.professionId,professionName:roller.professionName,suggested:row.result!=='fail'&&top?gatherXP(tierName(top)):null}),
+    {outcome:row.result,nodeKey:round.node.key,locationId:round.node.locationId});}
+  catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
 }
 
 /** Roll prompt fields; shared by the player popup and the GM's "Roll for them" panel. */
@@ -1909,53 +2063,98 @@ async function rollForGather(actor,proj,{choice,mode}){
   if(!out)throw Error('dnd5e could not roll this check here. Roll on your sheet and tell the GM your total.');
   return {total:out.total,choice:`${option.kind}:${option.key}`,mode:out.mode};
 }
-/** Player popup: the GM-approved check is ready. Closing it leaves the check open (it stays in the Gathering tab). */
-async function showGatherRoll(message){
-  const actor=game.actors?.get?.(message.actorId);
-  if(!actor||!owned(actor))return;
-  incomingRolls.set(message.sessionId,message);refreshLedger();
+/** Player popup: the GM opened a gather and one or more of your characters can roll. Closing it leaves the round open in the Gathering tab. */
+async function showGatherRound(message){
+  const mine=(message.rollers??[]).filter(r=>{const a=game.actors?.get?.(r.actorId);return a&&owned(a);});
+  if(!mine.length)return;
+  incomingRounds.set(message.roundId,{...message,rollers:mine});
+  playerResults.delete(message.roundId);
+  refreshLedger();
   try{
-    const dialog=new DialogV2({id:`agl-gather-${message.sessionId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:`Gathering check — ${message.actorName}`},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
-      content:`<p><strong>${esc(message.actorName)}</strong> gathers at ${esc(message.title)}.</p><p>${esc(message.summary)}</p>${message.assists.length?`<p>Assisted by ${esc(message.assists.join(', '))}.</p>`:''}${rollFields(actor,message)}`,
-      buttons:[{action:'later',label:'Later',icon:'fa-solid fa-clock'},{action:'roll',label:'Roll',icon:'fa-solid fa-dice-d20',default:true,
-        callback:(event,button)=>{void submitGatherRoll(message.sessionId,{choice:button?.form?.elements?.check?.value,mode:button?.form?.elements?.mode?.value});}}]});
-    gatherDialogs.set(`roll:${message.sessionId}`,dialog);
+    const buttons=mine.map((r,i)=>({action:`roll:${r.actorId}`,label:`Roll as ${r.actorName}`,icon:'fa-solid fa-dice-d20',default:i===0,
+      callback:()=>{void rollForRound(message.roundId,r.actorId,{}).then(out=>say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`)).catch(err=>say(`Profession Ledger: ${err.message}`,true));}}));
+    const dialog=new DialogV2({id:`agl-gather-${message.roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Gather — roll your check'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+      content:`<p>The GM opened a gather at ${esc(message.title)}${message.summary?` (${esc(message.summary)})`:''}.</p><p>${esc(mine.map(r=>`${r.actorName} (${r.professionName})`).join(', '))} can roll. Open Profession Ledger → Gathering to pick a different check.</p>`,
+      buttons:[...buttons,{action:'later',label:'Later',icon:'fa-solid fa-clock'}]});
+    gatherDialogs.set(`roll:${message.roundId}`,dialog);
     dialog.render({force:true});
   }catch(err){console.error(`[${ID}] gathering roll dialog`,err);}
 }
-async function submitGatherRoll(sessionId,{choice,mode}){
-  const proj=incomingRolls.get(sessionId);
-  try{
-    if(!proj)throw Error('This gathering check is no longer open');
-    const actor=game.actors.get(proj.actorId);if(!actor||!owned(actor))throw Error('You need to own the gathering character');
-    const rolled=await rollForGather(actor,proj,{choice,mode});
-    incomingRolls.delete(sessionId);closeGatherDialogs(`roll:${sessionId}`);
-    sendSocket({type:'gather-rolled',sessionId,actorId:actor.id,...rolled});
-    say(`${actor.name} rolled ${rolled.total}. The GM resolves the result.`);refreshLedger();
-  }catch(err){say(`Profession Ledger: ${err.message}`,true);}
+/** GM: who rolled, who met the DC and what each may receive; the data behind the hand-out pop-up. */
+function handoutRows(round){
+  if(!round?.result)return [];
+  return round.result.rows.map(r=>{
+    const given=r.drops.map(d=>d.name??materialShow(round,d.materialId).name);
+    return {actorId:r.actorId,name:r.actorName,total:r.total,dc:r.dc,met:r.result!=='fail',result:r.result,verdict:verdictOf(r.result),mayReceive:[...r.mayReceive],
+      picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`:`The Ledger picked ${given.join(' and ')}`};
+  });
 }
-/** GM side of a player's roll: only an owner of the lead can answer, once. */
-async function receiveGatherRoll(message,senderId){
-  const session=gatherSessions.get(message.sessionId);
-  if(!session||session.status!=='rolling'||message.actorId!==session.leadId)return false;
-  const sender=userById(senderId),lead=game.actors.get(session.leadId);
-  if(!sender||sender.isGM||!userOwns(sender,lead))return false;
-  if(!parseChoice(session.plan,message.choice))return false;
-  await resolveGather(session.id,{total:message.total,choice:message.choice,mode:message.mode,by:sender.name});
-  return true;
+/** GM: materials a character may be given by hand for this row, matching its quality, the round's professions and tiers (all of that quality if none match). */
+function giveChoices(round,row,{query=''}={}){
+  const qualities=new Set((row?.mayReceive?.length?row.mayReceive:['Common','Rare','Exotic']).map(q=>q.toLowerCase()));
+  const usable=m=>m.state==='ok'||usableAnyway(m.state);
+  const all=materialCatalog().filter(m=>usable(m)&&qualities.has(norm(m.quality)));
+  const fit=all.filter(m=>m.tier!=null&&round.tiers.includes(m.tier)&&materialProfessionKeys(m,professionKeyOfId).some(k=>round.professions.includes(k)));
+  const q=norm(query),list=(fit.length?fit:all).filter(m=>!q||norm(m.name).includes(q));
+  return {matching:fit.length>0,materials:list.sort((a,b)=>(a.tier??9)-(b.tier??9)||a.name.localeCompare(b.name)).slice(0,60).map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,draft:m.draft}))};
+}
+function bindClicks(dialog,selector,attr,fn){
+  const el=dialog?.element;
+  el?.querySelectorAll?.(selector)?.forEach(b=>b.addEventListener('click',()=>fn(b.dataset[attr],b)));
+}
+/** GM pop-up: the Ledger could not settle every drop (or the GM wants to add one). One Give… button per character who met the DC. */
+async function openHandoutDialog(roundId){
+  if(!canRunGathering(game.user))throw Error('Only the GM can hand out gathering loot');
+  const round=gatherRounds.get(roundId);
+  if(!round?.result)throw Error('Reveal the results first');
+  const key=`handout:${roundId}`;
+  gatherDialogs.get(key)?.close?.();
+  const rows=handoutRows(round);
+  const content=`<div class="agl-handout"><p>${round.result.needsManual?'The Ledger could not settle every drop from the tier and DC alone. Here is who rolled and what each may receive:':'Who rolled and what each may receive:'}</p>
+    <ul class="ag-rows">${rows.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span>
+      <span class="ag-row__meta">${r.total} vs DC ${r.dc} · ${r.met?'Met the DC':'Did not meet the DC'} · ${r.met?`May receive: ${esc(r.mayReceive.join(' / ')||'nothing')}`:'Nothing'}</span>
+      <span class="ag-row__meta">${esc(r.status)}</span></span>
+      <span class="ag-row__end">${r.met?`<button type="button" class="ag-btn ag-btn--sm" data-handout-give="${esc(r.actorId)}">Give…</button>`:''}</span></li>`).join('')}</ul></div>`;
+  try{
+    const dialog=new DialogV2({id:`agl-handout-${roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Hand out loot'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+      content,buttons:[{action:'close',label:'Close',icon:'fa-solid fa-xmark',default:true}],
+      render:(event,d)=>bindClicks(d,'[data-handout-give]','handoutGive',actorId=>{void openGiveDialog(roundId,actorId).catch(err=>say(`Profession Ledger: ${err.message}`,true));})});
+    gatherDialogs.set(key,dialog);
+    await dialog.render({force:true});
+    return dialog;
+  }catch(err){console.error(`[${ID}] hand-out dialog`,err);return null;}
+}
+/** GM pop-up: pick a material for one character (Add per material). Stays open so several can be added. */
+async function openGiveDialog(roundId,actorId){
+  if(!canRunGathering(game.user))throw Error('Only the GM can hand out gathering loot');
+  const round=gatherRounds.get(roundId),row=round?.result?.rows.find(r=>r.actorId===actorId);
+  if(!row)throw Error('Reveal the results first');
+  const {materials,matching}=giveChoices(round,row);
+  const key=`give:${roundId}:${actorId}`;
+  gatherDialogs.get(key)?.close?.();
+  const content=`<div class="agl-give"><p>Give ${esc(row.actorName)} a material (${esc(row.mayReceive.join(' / ')||'any')}).${matching?'':' None match the chosen professions and tiers, so every material of that quality is listed.'}</p>
+    ${materials.length?`<ul class="ag-rows">${materials.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta">Tier ${m.tier??'—'}${m.draft?' · unreleased':''}</span></span>
+      <span class="ag-row__end">${qualityBadge(m.quality)}<button type="button" class="ag-btn ag-btn--sm" data-give-material="${esc(m.id)}">Add</button></span></li>`).join('')}</ul>`:'<p class="agl-sub">No imported material of that quality can be given.</p>'}</div>`;
+  const dialog=new DialogV2({id:`agl-give-${roundId}-${actorId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:`Give loot — ${row.actorName}`},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+    content,buttons:[{action:'close',label:'Done',icon:'fa-solid fa-check',default:true}],
+    render:(event,d)=>bindClicks(d,'[data-give-material]','giveMaterial',(materialId,button)=>{
+      void giveByHand(roundId,actorId,materialId,1).then(out=>{say(`${row.actorName} received ${out.name}.`);if(button){button.textContent='Added';button.disabled=true;}})
+        .catch(err=>say(`Profession Ledger: ${err.message}`,true));})});
+  gatherDialogs.set(key,dialog);
+  await dialog.render({force:true});
+  return dialog;
 }
 
 /** Player: ask the GM to gather an available node at a revealed location (0.21.0: it waits in the GM's queue). */
-async function requestGather({actorId,locationId,nodeId,helperIds=[]}){
+async function requestGather({actorId,locationId,nodeId}={}){
   checkPlayerLedger();
-  if(game.user?.isGM)throw Error('The GM starts gathering directly: use Start gathering check');
+  if(game.user?.isGM)throw Error('The GM starts gathering directly: use Start gather');
   const actor=actorById(actorId);
   if(!actor||!owned(actor))throw Error('Choose a character you own');
   if(!locationId||!nodeId)throw Error('Choose an available gathering spot');
   if(myGatherRequests.has(actor.id))return {ok:false,status:'refused',message:`${actor.name} already has a gathering request waiting for the GM.`};
   if(!activeGM())throw Error('Gathering needs the GM to be online');
-  const request={type:'gather-request',requestId:newId(),requesterId:game.user.id,actorId:actor.id,locationId,nodeId,
-    helperIds:[...new Set(helperIds)].filter(id=>typeof id==='string'&&id!==actor.id).slice(0,8)};
+  const request={type:'gather-request',requestId:newId(),requesterId:game.user.id,actorId:actor.id,locationId,nodeId};
   const outcome=new Promise(resolve=>{
     const timer=setTimeout(()=>{pendingGatherRequests.delete(request.requestId);resolve({ok:false,status:'refused',message:'No answer from the GM in time.'});},30000);
     pendingGatherRequests.set(request.requestId,message=>{clearTimeout(timer);resolve({ok:message.ok,status:message.status??(message.ok?'approved':'refused'),message:message.message});});
@@ -1980,7 +2179,7 @@ const gatherReply=(request,status,text,extra={})=>{const ok=status==='queued'||s
 function verifyGatherRequest(request,requester,{ignoreId=null}={}){
   const actor=game.actors?.get?.(request.actorId);
   const {location,node}=findNode(request.locationId,typeof request.nodeId==='string'?request.nodeId:null);
-  const busy=Boolean(node)&&([...gatherSessions.values()].some(s=>s.node.key===node.key)||[...gatherRequests.values()].some(r=>r.requestId!==ignoreId&&r.node.key===node.key));
+  const busy=Boolean(node)&&([...gatherRounds.values()].some(s=>s.node.key===node.key)||[...gatherRequests.values()].some(r=>r.requestId!==ignoreId&&r.node.key===node.key));
   const verdict=checkGatherRequest({ownsActor:Boolean(actor)&&!requester.isGM&&userOwns(requester,actor),inParty:Boolean(actor)&&!isLevelBackup(actor)&&rosterIds().includes(actor.id),location,node,busy});
   return {verdict,actor,node};
 }
@@ -2000,22 +2199,21 @@ async function handleGatherRequest(request,senderId){
   if(since<gatherRequestCooldownMs)return reply('refused',`Wait ${Math.ceil((gatherRequestCooldownMs-since)/1000)} s before asking again for ${actor.name}.`);
   const party=partyActors();
   // Setup problems are reported now, not after the GM has approved: the player gets a plain line, the GM the exact fix.
-  const base={rosterCount:rosterIds().length,partyCount:party.length,leadInParty:party.some(a=>a.id===actor.id),node};
+  const base={rosterCount:rosterIds().length,partyCount:party.length,node};
   const setup=startBlocker({...base,...nodeMaterialCheck(node)});
   // 0.25.0: a node whose only problem is a draft/unreleased material waits in the queue; the GM may approve it with that material anyway.
   const draft=Boolean(setup)&&!startBlocker({...base,...nodeMaterialCheck(node,true)});
   if(setup&&!draft){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
     return reply('refused',`The GM can’t start this yet: ${nodeBlocker(node,{...nodeMaterialCheck(node),forPlayer:true})||'the party is not set up.'} They have been told.`);}
-  const helperIds=(Array.isArray(request.helperIds)?request.helperIds:[]).filter(id=>typeof id==='string'&&id!==actor.id&&party.some(p=>p.id===id)).slice(0,8);
   gatherRequests.set(request.requestId,{requestId:request.requestId,requesterId:requester.id,requesterName:requester.name,actorId:actor.id,actorName:actor.name,
-    locationId:request.locationId,nodeId:request.nodeId,node,helperIds,draft,at:Date.now()});
+    locationId:request.locationId,nodeId:request.nodeId,node,draft,at:Date.now()});
   lastGatherRequestAt.set(actor.id,Date.now());
   say(`${requester.name} asks for ${actor.name} to gather ${nodeTitle(node)}. See Profession Ledger → Gathering → Requests.${draft?` ${setup}`:''}`);
   refreshLedger();
   return reply('queued',`Request sent. ${actor.name} waits for the GM to approve gathering at ${publicNodeTitle(node)}.`,{title:publicNodeTitle(node)});
 }
 const queuedRequest=requestId=>{const r=gatherRequests.get(requestId);if(!r)throw Error('That gathering request is no longer waiting');return r;};
-/** GM: approve a queued request. Checks it again, then starts the gather exactly as Start gathering check does. */
+/** GM: approve a queued request. Checks it again, then starts the gather exactly as Start gather does. */
 async function approveGatherRequest(requestId,{allowDraft=false}={}){
   if(!canRunGathering(game.user))throw Error('Only the GM can approve gathering');
   const r=queuedRequest(requestId),requester=userById(r.requesterId);
@@ -2023,9 +2221,9 @@ async function approveGatherRequest(requestId,{allowDraft=false}={}){
   if(!verdict.ok){gatherRequests.delete(requestId);gatherReply(r,'declined',`The gathering request for ${r.actorName} can’t go ahead: ${verdict.reason}`);refreshLedger();throw Error(`Request removed: ${verdict.reason}`);}
   gatherRequests.delete(requestId);
   let session;
-  try{session=await startGather({node,leadId:actor.id,helperIds:r.helperIds,requesterId:r.requesterId,allowDraft:allowDraft===true});}
+  try{session=await startRound({node,requesterId:r.requesterId,allowDraft:allowDraft===true});}
   catch(err){gatherRequests.set(requestId,r);refreshLedger();throw err;}
-  gatherReply(r,'approved',`Approved. ${actor.name}’s gathering check is ready to roll.`);
+  gatherReply(r,'approved',`Approved. The gather at ${publicNodeTitle(node)} is open: characters with the right profession can roll.`);
   refreshLedger();
   return session;
 }
@@ -2043,7 +2241,7 @@ function declineGatherRequest(requestId,{reason=''}={}){
 function listGatherRequests(){
   if(!canRunGathering(game.user))throw Error('Only the GM can see gathering requests');
   return [...gatherRequests.values()].sort((a,b)=>a.at-b.at).map(r=>({requestId:r.requestId,requesterId:r.requesterId,requesterName:r.requesterName,actorId:r.actorId,actorName:r.actorName,
-    locationId:r.locationId,nodeId:r.nodeId,title:nodeTitle(r.node),locationName:r.node.locationName,helperIds:[...r.helperIds],draftMaterial:r.draft===true,at:r.at}));
+    locationId:r.locationId,nodeId:r.nodeId,title:nodeTitle(r.node),locationName:r.node.locationName,draftMaterial:r.draft===true,at:r.at}));
 }
 
 /* ---- Gathering node templates (0.25.0) ------------------------------------------------------------
@@ -2308,10 +2506,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
     // source: 'location' | 'template' (0.25.0, a Ledger node template) | 'adhoc'. allowDraft: the GM's "use draft materials anyway".
-    this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,templateId:'',templateTier:'',allowDraft:false,
-      adhoc:{label:'',skill:'Herbalism',tier:'1',dc:'',materialId:'',rareMaterialId:'',quantity:'1',rareQuantity:'1',exotics:[]},
-      // Exotic picker filters: profession and tier default to the ad-hoc node's own.
-      pick:{query:'',profession:'node',tier:'node'}};
+    // source: 'adhoc' | 'location' | 'template' (0.25.0, a Ledger node template). professions: null = the saved spot's own. allowDraft: the GM's "use draft materials anyway".
+    this.gather={source:'adhoc',nodeRef:'',pending:false,templateId:'',templateTier:'',allowDraft:false,label:'',professions:null,tiers:[1],dc:''};
     this.exoticDraft=null;
     this.coreAwardDraft=null;
     this.accessDraft=null;
@@ -2672,24 +2868,23 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Party:</strong> every party member’s materials and recipes, by player or by profession.</p>
     <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession${game.user.isGM?'. As GM you see every recipe, with drafts marked':''}.</p>
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
-    <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
+    <p><strong>Gathering:</strong> when the GM opens a gather, every character who holds one of the chosen gathering professions can roll one check (your own skill or tool bonus, advantage preset from the sheet). Roll from the popup or from Gathering. When the GM reveals the results, a slot-machine reel lands on what each successful character found. <em>Skip animation</em> jumps to the result, and with reduced motion on you get a plain list. Nothing is given until the GM presses Give loot; the result is posted in chat. You can also pick a gathering spot at a location your party knows and press <b>Request gather</b>: it waits in the GM’s Requests list until they approve or decline (with a reason).</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
     <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
-    ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
-    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
-  /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
+  /** Ad-hoc node from the GM's form: the professions and tier(s) it allows, a DC, nothing else. Its loot comes from the imported materials. */
   _adhocNode(){
-    const a=this.gather.adhoc;
-    // Each ad-hoc node is its own spot, so several can be worked at once.
-    return normalizeNode({id:`adhoc-${newId()}`,label:a.label,skill:a.skill,tier:a.tier,dc:a.dc,dcVisible:true,materialId:a.materialId,rareMaterialId:a.rareMaterialId,exotics:a.exotics,
-      quantity:a.quantity,rareQuantity:a.rareQuantity,finite:false},{locationId:null,index:0});
+    const g=this.gather,profs=g.professions??[],tiers=selectionTiers(g.tiers);
+    // Each ad-hoc node is its own spot.
+    return normalizeNode({id:`adhoc-${newId()}`,label:g.label,skill:profs[0]?professionTitle(profs[0]):'',tier:tiers.at(-1)??null,dc:g.dc,dcVisible:true,professions:profs,finite:false},{locationId:null,index:0});
   }
   _selectedNode(){
     if(this.gather.source==='adhoc')return this._adhocNode();
@@ -2775,7 +2970,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Name<input data-node-field="name" maxlength="80" value="${esc(d.name)}" placeholder="e.g. [TEST] River reeds"></label>
         <label class="ag-field">Activity${sel('activity',[['','Choose…'],...ACTIVITY_KEYS.map(k=>[k,activityLabel(k)])],d.activity)}</label>
         <fieldset class="agl-gather-eligible"><legend>Gathering professions</legend>${NODE_PROFESSIONS.map(k=>`<label><input type="checkbox" data-node-prof="${k}" ${d.professions.includes(k)?'checked':''}> ${esc(professionTitle(k))}</label>`).join('')}
-          <span class="agl-sub">None ticked: the activity’s profession. The first one the lead has gives the XP.</span></fieldset>
+          <span class="agl-sub">None ticked: the activity’s profession. The first one a character holds gives the XP.</span></fieldset>
         <label class="ag-field">Lowest tier${sel('tierMin',tierOpts,d.tierMin)}</label>
         <label class="ag-field">Highest tier${sel('tierMax',tierOpts,d.tierMax)}</label>
         <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="finite" ${d.finite?'checked':''}> Finite: used up when gathered at a Location</label>
@@ -2818,160 +3013,147 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _gathering(){
     return game.user.isGM?this._gatherGM():this._gatherPlayer();
   }
-  /** GM ad-hoc form: Exotic candidates from the imported catalog. Choosing one sets eligibility; it never awards by itself. */
-  _exoticPicker(node){
-    const a=this.gather.adhoc,p=this.gather.pick;
-    // Every imported Exotic is listed; one that cannot be awarded (draft, GM-only) is shown with its fix, not hidden.
-    const metas=materialCatalog();
-    const nodeProf=nodeProfessionKey(node),nodeTier=node?.tier??null;
-    const profession=p.profession==='node'?nodeProf:p.profession==='any'?null:p.profession;
-    const tierOpt=p.tier==='node'?{maxTier:nodeTier}:p.tier==='any'?{}:{tier:Number(p.tier)};
-    const chosen=new Set(a.exotics.map(e=>e.materialId));
-    const list=(p.profession==='node'&&!nodeProf)?[]:filterMaterials(metas,{query:p.query,profession,quality:'Exotic',...tierOpt,keyOf:professionKeyOfId}).filter(m=>!chosen.has(m.id)).slice(0,50);
-    const profLabel=professionTitle;
-    const rows=exoticRows({...node,exotics:a.exotics},{allowDraft:this.gather.allowDraft}).map(r=>`<li class="ag-row agl-exotic-row">
-        <span class="ag-row__title">${esc(r.name)}</span> ${qualityBadge('exotic')}${r.draft?` ${materialBadge(r.materialId)}`:''}${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
-        <label class="ag-field ag-field--inline">Rule<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="mode">${EXOTIC_MODES.map(m=>`<option value="${m}" ${r.mode===m?'selected':''}>${m==='designated'?'Designated source':'Random discovery'}</option>`).join('')}</select></label>
-        ${r.mode==='designated'?`<label class="ag-field ag-field--inline">Chance %<input type="number" min="1" max="100" step="1" data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="chance" value="${esc(r.chance??'')}" placeholder="required"></label>
-        <label class="ag-field ag-field--inline">When<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${r.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
-        <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></span></li>`).join('');
-    // 0.26.0 (PL-02): a closed fold under the ad-hoc form; its title counts the chosen candidates.
-    return fold({key:'adhoc-exotics',title:'Exotic candidates',count:`${a.exotics.length} chosen`,hint:'optional, GM only',body:`<div class="agl-exotic-pick">
-      <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list. A draft or unreleased Exotic can be picked; it is only found when “Use draft materials anyway” is ticked.</p>
-      ${rows?`<ul class="ag-rows agl-exotic-list">${rows}</ul>`:''}
-      <div class="ag-toolbar agl-exotic-filters">
-        <label class="ag-field">Search<input type="search" data-gather-pick="query" value="${esc(p.query)}" placeholder="Material name"></label>
-        <label class="ag-field">Gathering profession<select data-gather-pick="profession"><option value="node" ${p.profession==='node'?'selected':''}>This node’s (${esc(nodeProf?profLabel(nodeProf):'none')})</option><option value="any" ${p.profession==='any'?'selected':''}>Any</option>${GATHERING_KEYS.map(k=>`<option value="${k}" ${p.profession===k?'selected':''}>${esc(profLabel(k))}</option>`).join('')}</select></label>
-        <label class="ag-field">Tier<select data-gather-pick="tier"><option value="node" ${p.tier==='node'?'selected':''}>Up to this node’s (${esc(nodeTier??'—')})</option><option value="any" ${p.tier==='any'?'selected':''}>Any</option>${TIERS.map((t,i)=>`<option value="${i+1}" ${p.tier===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
-        <span class="agl-sub">${qualityBadge('exotic')} · Type: Material</span></div>
-      ${list.length?`<ul class="ag-rows agl-exotic-list">${list.map(m=>{const off=Boolean(m.unavailable)&&!m.draft;return `<li class="ag-row agl-exotic-row${off?' is-off':''}"${off?' aria-disabled="true"':''}><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span>
-        <span class="ag-row__meta">Tier ${m.tier??'—'}${m.unavailable?` · ${esc(m.unavailable)}`:''}</span></span>
-        <span class="ag-row__end">${qualityBadge('exotic')}${m.draft?materialBadge(m.id):''}<button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${off?'disabled':''}>Add</button></span></li>`;}).join('')}</ul>`
-        :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (quality “Exotic”; a draft one is marked and needs “Use draft materials anyway”).'}</p>`}
-    </div>`});
-  }
   /** GM: players' gathering requests waiting for Approve or Decline (0.21.0). 0.26.0 (PL-06): one kit card per request,
-   * the reason above Decline (left) and Approve (right, primary). */
+   * the reason above Decline (left) and Approve (right, primary). 0.34.0: Approve opens a gather round for that spot. */
   _gatherQueue(){
     const list=[...gatherRequests.values()].sort((a,b)=>a.at-b.at);
     if(!list.length)return emptyState('No gathering requests waiting.','Players ask to gather from their own Gathering tab. Their requests wait here for you to approve or decline.');
     const cards=list.map(r=>{
-      const actor=game.actors?.get?.(r.actorId),node=r.node;
-      const plan=actor?gatherCheckPlan(actor,node):null,info=plan?helperInfo(r.helperIds.map(id=>game.actors.get(id)).filter(Boolean),actor,plan):[];
-      const need=node.tier?ACCESS_LEVELS[tierName(node.tier)]:null,progress=plan?.professionId?progressOf(actor,plan.professionId):null;
-      const draftNote=r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'';
-      return `<article class="ag-card ag-card--compact agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks for <strong>${esc(r.actorName)}</strong> to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
+      const node=r.node,who=roundCandidates(nodeProfessionDefaults(node)).map(c=>c.actor.name);
+      const draftNote=r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'';
+      return `<article class="ag-card ag-card--compact agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
         <p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(materialName(node.materialId))}${node.rareMaterialId?`, rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}</p>
-        <p class="agl-sub">${info.length?`Helpers: ${info.map(h=>`${esc(h.name)} (${esc(h.reason)}${h.eligible?' — gives advantage':''})`).join(', ')}`:'No helpers.'}
-          ${plan&&!plan.professionId?` · ${esc(r.actorName)} has no ${esc(plan.profession||'matching')} profession feature.`:''}
-          ${need&&progress&&progress.level<need?` · ${esc(plan.professionName)} level ${progress.level}; tier ${node.tier} usually needs level ${need}.`:''}</p>
+        <p class="agl-sub">${who.length?`Can roll: ${esc(who.join(', '))}`:'Nobody in the party holds a profession this spot allows.'}</p>
         <label class="ag-field">Reason for declining (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
         <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
           <button type="button" class="ag-btn ag-btn--primary" data-action="gather-approve" data-id="${esc(r.requestId)}"${r.draft?' data-draft="1"':''}><i class="fa-solid fa-check" aria-hidden="true"></i> ${r.draft?'Approve (use draft material)':'Approve'}</button></div></article>`;}).join('');
-    return `<p class="agl-sub">Players asked to gather. Approve starts the check as Start gathering does (the lead’s owner rolls); Decline tells the player, with your reason if you give one.</p>
+    return `<p class="agl-sub">Players asked to gather. Approve opens a gather at that spot, as Start gather does; Decline tells the player, with your reason if you give one.</p>
       <div class="agl-request-list">${cards}</div>`;
   }
-  /** GM Gathering sub-tab to show: the one picked, else Requests when any wait, else the one remembered (or Start gathering). */
+  /** GM Gathering sub-tab to show: the one picked, else Requests when any wait, else the one remembered (or Gather). */
   _gatherTabNow(){
     if(GATHER_TAB_IDS.includes(this.gatherTab))return this.gatherTab;
-    return this.gatherTab=gatherRequests.size?'requests':this._ui.get('gatherTab','start',GATHER_TAB_IDS);
+    return this.gatherTab=gatherRequests.size&&!gatherRounds.size?'requests':this._ui.get('gatherTab','start',GATHER_TAB_IDS);
+  }
+  /** The slot-machine reveal for this client: plain list when the user asks for reduced motion, the end state once it has played or been skipped. */
+  _revealMarkup(key,view,at){
+    const reduced=prefersReducedMotion();
+    return revealHtml(view,{reduced,elapsed:reelSkipped.has(key)?9999:Math.max(0,(Date.now()-(at??Date.now()))/1000),skipId:'skip-reveal'}).replace('data-agl-reveal',`data-agl-reveal data-reveal-key="${esc(key)}"`);
   }
   _gatherPlayer(){
-    const mine=myCharacters(),actor=mine.find(a=>a.id===this.gather.actorId)??mine[0]??null;
-    const rolls=[...incomingRolls.values()].filter(r=>mine.some(a=>a.id===r.actorId));
-    const rollCards=rolls.map(r=>{const a=game.actors.get(r.actorId);return `<section class="ag-card agl-panel agl-gather-roll"><h2>Your gathering check</h2>
-      <p><strong>${esc(r.actorName)}</strong> gathers at ${esc(r.title)} · ${esc(r.summary)}</p>${r.assists.length?`<p class="agl-sub">Assisted by ${esc(r.assists.join(', '))}.</p>`:''}
-      ${rollFields(a,r,r.sessionId)}<div class="agl-management-actions"><button type="button" class="ag-btn" data-action="gather-player-roll" data-id="${esc(r.sessionId)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll</button></div></section>`;}).join('');
+    const mine=myCharacters(),actor=mine[0]??null;
+    const rounds=[...incomingRounds.values()].map(round=>{
+      const result=playerResults.get(round.roundId);
+      const rows=round.rollers.map(p=>{const a=game.actors.get(p.actorId);if(!a)return '';
+        return p.rolled==null?`<li class="ag-row agl-roll-row"><span class="ag-row__main"><span class="ag-row__title">${portrait(a)} ${esc(p.actorName)}</span><span class="ag-row__meta">${esc(p.professionName)}</span>
+          ${rollFields(a,p,p.actorId)}</span><span class="ag-row__end"><button type="button" class="ag-btn" data-action="gather-player-roll" data-id="${esc(round.roundId)}" data-actor="${esc(p.actorId)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll for ${esc(p.actorName)}</button></span></li>`
+          :`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${portrait(a)} ${esc(p.actorName)}</span><span class="ag-row__meta">${esc(p.professionName)}</span></span><span class="ag-row__end">${badge(p.rolled===''?'Rolled':`Rolled ${p.rolled}`,'ok')}</span></li>`;}).join('');
+      return `<section class="ag-card agl-panel agl-gather-roll"><h2>Gather at ${esc(round.title)}</h2>
+        <p class="agl-sub">${esc([round.summary,round.professions?.length?`Open to ${round.professions.join(', ')}`:''].filter(Boolean).join(' · '))}</p>
+        ${result?this._revealMarkup(round.roundId,result,result.seenAt)+'<p class="agl-sub">The GM gives the loot when they confirm.</p>'
+          :`<ul class="ag-rows">${rows}</ul><p class="agl-sub">Each character rolls once. The GM reveals the results when everyone has rolled.</p>`}</section>`;}).join('');
+    const last=!incomingRounds.size&&lastPlayerResult?`<section class="ag-card agl-panel"><h2>Last gather: ${esc(lastPlayerResult.title)}</h2>${this._revealMarkup(`last:${lastPlayerResult.at}`,lastPlayerResult,lastPlayerResult.seenAt)}</section>`:'';
     const where=gatherLocations();
-    const party=partyActors().filter(a=>a.id!==actor?.id);
     const nodes=where.locations.map(loc=>`<fieldset class="agl-node-group"><legend>${esc(loc.name)}</legend>${loc.nodes.map(n=>{
       const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&n.id&&!n.blocked;
       return `<label class="agl-node ${ok?'':'is-off'}"><input type="radio" name="agl-node" data-gather-field="nodeRef" value="${esc(value)}" ${this.gather.nodeRef===value&&ok?'checked':''} ${ok?'':'disabled'}>
         <span><strong>${esc(nodeTitle(n))}</strong> <small>${esc(nodeSummary(n,{forPlayers:true}))}</small>${ok?'':` <small class="agl-reason">${esc(n.blocked||n.why)}</small>`}${n.note?`<small class="agl-sub">${esc(n.note)}</small>`:''}</span></label>`;}).join('')}</fieldset>`).join('');
-    const waiting=actor?myGatherRequests.get(actor.id):null,pending=this.gather.pending||Boolean(waiting);
+    const waiting=mine.map(a=>myGatherRequests.get(a.id)).find(Boolean),pending=this.gather.pending||Boolean(waiting);
     const blocker=playerBlocker({rosterCount:rosterIds().length,mine:actor?mine.length:0,where});
-    return `${rollCards}<section class="ag-card agl-panel"><h2>Request gathering</h2>
-      <p class="agl-sub">Pick a gathering spot at a location your party knows. The GM approves it, then the lead gatherer rolls one check for the party. Helpers with suitable tools give advantage, not another attempt.</p>
+    return `${rounds}${last}<section class="ag-card agl-panel"><h2>Request gathering</h2>
+      <p class="agl-sub">Pick a gathering spot at a location your party knows. The GM approves it, then every character with the right profession rolls one check.</p>
       ${blocker?emptyState('Gathering isn’t ready yet.',esc(blocker))
-        :`<div class="agl-gather-form">${mine.length>1?`<label class="ag-field">Lead gatherer<select data-gather-field="actorId">${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong> leads</div>`}
-          ${party.length?`<fieldset class="agl-gather-eligible"><legend>Helpers (optional)</legend>${party.map(h=>`<label><input type="checkbox" data-gather-helper="${esc(h.id)}" ${this.gather.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)}</label>`).join('')}</fieldset>`:''}</div>
-          <div class="agl-nodes">${nodes}</div>
+        :`<div class="agl-nodes">${nodes}</div>
           <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-request" ${pending?'disabled':''}><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${pending?'Waiting for the GM…':'Request gather'}</button></div>
-          ${waiting?`<p class="agl-sub" role="status">${esc(actor.name)}’s request${waiting.title?` (${esc(waiting.title)})`:''} is waiting for the GM. You’ll be told when they answer.</p>`:''}`}
+          ${waiting?`<p class="agl-sub" role="status">Your request${waiting.title?` (${esc(waiting.title)})`:''} is waiting for the GM. You’ll be told when they answer.</p>`:''}`}
     </section>`;
   }
+  /** GM: the open round, in place of the setup form. Rolling → Reveal results; revealed → Give loot. */
+  _roundPanel(round){
+    const head=`<h2>${esc(roundTitle(round))}</h2><p class="agl-sub">${esc([tiersText(round.tiers),`DC ${round.dc}`,round.professions.map(professionTitle).join(', ')].join(' · '))}${round.allowDraft?' · draft materials allowed':''}</p>`;
+    if(round.status==='rolling'||round.status==='giving'&&!round.result){
+      const rolled=round.rollers.filter(r=>r.rolled).length;
+      const rows=round.rollers.map(r=>{const a=game.actors.get(r.actorId);if(!a)return '';
+        const proj=rollerProjection(round,r),opts=r.plan.options.slice(0,2).map(o=>{const c=checkOption(a,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ');
+        return `<li class="ag-row agl-roll-row"><span class="ag-row__main"><span class="ag-row__title">${portrait(a)} ${esc(r.actorName)}</span><span class="ag-row__meta">${esc(r.professionName)} · ${opts}</span>
+          ${r.rolled?'':`<details class="agl-roll-options"><summary>Check and roll mode</summary>${rollFields(a,proj,r.actorId)}</details>`}</span>
+          <span class="ag-row__end">${r.rolled?badge(`Rolled ${r.rolled.total}`,'ok'):`<label class="ag-field ag-field--inline"><span class="ag-sr-only">Total for ${esc(r.actorName)}</span><input type="number" min="-20" max="100" step="1" placeholder="Total" data-gather-total="${esc(r.actorId)}"></label>
+            <button type="button" class="ag-btn ag-btn--sm" data-action="gather-record" data-id="${esc(r.actorId)}">Record total</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-action="gather-gm-roll" data-id="${esc(r.actorId)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll for ${esc(r.actorName)}</button>`}</span></li>`;}).join('');
+      return `<section class="ag-card agl-panel agl-round">${head}
+        <p class="agl-sub" role="status">${rolled} of ${round.rollers.length} have rolled. Only characters holding ${esc(round.professions.map(professionTitle).join(' or '))} are offered a roll; each rolls once.</p>
+        <ul class="ag-rows">${rows}</ul>
+        <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-cancel" data-id="${esc(round.id)}">Cancel gather</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="gather-reveal" data-id="${esc(round.id)}" ${rolled?'':'disabled'}><i class="fa-solid fa-wand-sparkles" aria-hidden="true"></i> Reveal results</button></div></section>`;
+    }
+    const res=round.result,view=roundView(round,{players:false});
+    const wins=res.rows.filter(r=>r.result!=='fail');
+    const lines=wins.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.actorName)}</span><span class="ag-row__meta">${r.undetermined.length&&!r.drops.length?`The Ledger can’t pick a ${esc(r.undetermined.join(' / '))} material: give it by hand`:'May receive '+esc(r.mayReceive.join(' / '))}</span></span>
+      <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="gather-give-open" data-id="${esc(r.actorId)}">Give…</button></span></li>`).join('');
+    const pending=res.rows.reduce((n,r)=>n+r.drops.filter(d=>!d.given).length,0);
+    return `<section class="ag-card agl-panel agl-round">${head}
+      ${this._revealMarkup(round.id,view,res.revealedAt)}
+      ${res.needsManual?notice('The Ledger could not settle every drop from the tier and DC alone. Use <b>Give…</b> beside each name below, or <b>Hand out…</b> for the list.','warn'):''}
+      ${res.unrolled.length?`<p class="agl-sub">Did not roll: ${esc(res.unrolled.join(', '))}.</p>`:''}
+      ${res.gmNotes?.length?`<p class="agl-sub">${esc(res.gmNotes.join(' '))}</p>`:''}
+      ${wins.length?`<ul class="ag-rows">${lines}</ul>`:''}
+      <p class="agl-sub" role="status">Nothing is given yet. <b>Give loot</b> puts the ${pending} listed ${pending===1?'item':'items'} on the characters and posts the chat cards.</p>
+      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-cancel" data-id="${esc(round.id)}">Cancel gather</button>
+        <button type="button" class="ag-btn" data-action="gather-handout" data-id="${esc(round.id)}">Hand out…</button>
+        <button type="button" class="ag-btn ag-btn--primary" data-action="gather-give" data-id="${esc(round.id)}"><i class="fa-solid fa-gift" aria-hidden="true"></i> Give loot</button></div></section>`;
+  }
   _gatherGM(){
-    const party=this.actors,where=gatherLocations(),mats=gmMaterialChoices(),templates=safeNodeStore().nodes;
+    const party=this.actors,where=gatherLocations(),templates=safeNodeStore().nodes;
     if(!party.length)return rosterIds().length?emptyState('No party characters found.',esc(GATHER_FIX.partyMissing)):emptyState('No party yet.',esc(GATHER_FIX.noParty),'<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Open GM Setup</button>');
     const g=this.gather;
     if(!where.ok&&g.source==='location')g.source=templates.length?'template':'adhoc';
-    const lead=party.find(a=>a.id===g.actorId)??party[0];g.actorId=lead.id;
-    const node=this._selectedNode();
-    const plan=node?gatherCheckPlan(lead,node):null;
-    const helpers=plan?helperInfo(party.filter(a=>a.id!==lead.id),lead,plan):[];
-    const sessions=[...gatherSessions.values()].map(s=>{const a=game.actors.get(s.leadId),proj=gatherProjection(s);return `<section class="ag-card agl-panel agl-gather-roll">
-      <h2>${esc(s.leadName)} · ${esc(nodeTitle(s.node))}${s.node.locationName?` <small class="agl-sub">at ${esc(s.node.locationName)}</small>`:''}</h2>
-      <p>${esc(nodeSummary(s.node))}${proj.assists.length?` · assisted by ${esc(proj.assists.join(', '))}`:''}</p>
-      <p class="agl-sub">${s.rollerIds.length?`Waiting for ${esc(nameList(s.rollerIds.map(userById).filter(Boolean)))} to roll. You can also roll for them or record a total.`:'No owner is online: roll for them or record the total.'}</p>
-      ${a?rollFields(a,proj,s.id):''}
-      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-cancel" data-id="${esc(s.id)}">Cancel check</button>
-        <label class="ag-field ag-field--inline">Total <input type="number" min="-20" max="100" step="1" data-gather-total="${esc(s.id)}"></label><button type="button" class="ag-btn" data-action="gather-record" data-id="${esc(s.id)}">Record total</button>
-        <button type="button" class="ag-btn" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
-    const last=lastGather?notice(`${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)} ${qualityBadge(lastGather.award.quality)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.tableRoll?` · material table d${lastGather.tableRoll.faces} ${lastGather.tableRoll.roll}`:''}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.exoticAward?` + ${esc(lastGather.exoticAward.name)} ${qualityBadge('exotic')}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.`):'';
-    const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&!nodeBusy(n.key),byHand=!n.materialId&&!nodeBusy(n.key);
-      return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok||byHand?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${byHand?' — no material: award by hand':n.blocked?` — ${esc(n.blocked)}`:ok?'':' — in progress'}</option>`;}).join('')}</optgroup>`).join('');
-    const a=g.adhoc,matOpts=(selected,blank)=>materialOptions(selected,{blank});
-    const gatherSkills=Array.isArray(locationsApi()?.GATHERING?.skills)?locationsApi().GATHERING.skills:GATHERING_PROFESSIONS;
-    const skillChoices=[...gatherSkills.map(p=>[p,PROFESSION_KEYS.includes(professionKey(p))?professionTitle(professionKey(p)):p]),...SKILL_IDS.map(k=>[k,skillLabel(k)])];
-    const form=g.source==='adhoc'?`<div class="agl-gather-form">
-       <label class="ag-field">Label<input data-gather-adhoc="label" maxlength="80" value="${esc(a.label)}" placeholder="e.g. Roadside herb patch"></label>
-       <label class="ag-field">Skill / profession<select data-gather-adhoc="skill">${skillChoices.map(([v,l])=>`<option value="${esc(v)}" ${a.skill===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
-       <label class="ag-field">Tier<select data-gather-adhoc="tier">${TIERS.map((t,i)=>`<option value="${i+1}" ${String(a.tier)===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
-       <label class="ag-field">DC<input data-gather-adhoc="dc" type="number" min="1" max="40" step="1" value="${esc(a.dc)}" placeholder="Default for tier: ${defaultDC(a.tier)}"></label>
-       <label class="ag-field">Common material ${materialBadge(a.materialId)}<select data-gather-adhoc="materialId">${matOpts(a.materialId,'Choose…')}</select></label>
-       <label class="ag-field">Common quantity<input data-gather-adhoc="quantity" type="number" min="1" max="99" step="1" value="${esc(a.quantity)}"></label>
-       <label class="ag-field">Rare material (success by 5+) ${materialBadge(a.rareMaterialId)}<select data-gather-adhoc="rareMaterialId">${matOpts(a.rareMaterialId,'None — common instead')}</select></label>
-       <label class="ag-field">Rare quantity<input data-gather-adhoc="rareQuantity" type="number" min="1" max="99" step="1" value="${esc(a.rareQuantity)}"></label></div>
-       ${this._exoticPicker(node)}
-       ${mats.length?'':notice('Import at least one material with General Manager first.','warn')}`
-      :g.source==='template'?this._templatePick(templates)
-      :`<label class="ag-field">Gathering node<select data-gather-field="nodeRef"><option value="">Choose a node…</option>${nodeOptions}</select></label>
-       ${where.locations.length?'':emptyState('No gathering resources in Locations yet.','Add gathering resources to a location in Locations, or use a node template or an ad-hoc node.')}`;
-    const blocker=g.source==='adhoc'&&node&&!node.materialId?'Choose a common material for the ad-hoc node.'
-      :g.source==='template'&&!node?(templates.length?'Choose a node template.':'No node templates yet: create one in Gathering Nodes.')
-      :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,...nodeMaterialCheck(node,g.allowDraft),busy:Boolean(node)&&nodeBusy(node.key)});
-    const ready=!blocker;
-    const lead0=lead,rollers=allUsers().filter(u=>u.active&&!u.isGM&&lead0.testUserPermission?.(u,'OWNER'));
-    const startLabel=rollers.length?`Send gathering check to ${nameList(rollers)}`:'Start gathering check (you roll)';
-    const start=`<section class="ag-card agl-panel"><h2>Start gathering</h2>
-      ${fold({key:'gather-how',title:'How gathering works',body:'<p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also ask for a node from their Gathering tab: their requests wait in Requests.</p>'})}
-      <div class="ag-segmented" role="radiogroup" aria-label="Node source"><button type="button" role="radio" aria-checked="${g.source==='location'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location node</button><button type="button" role="radio" aria-checked="${g.source==='template'}" data-action="gather-source" data-id="template">Node template</button><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
-      ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Node templates and ad-hoc nodes still work.</p>`}
-      ${form}
-      ${node?`<p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(node.materialId?materialName(node.materialId):'—')}${node.rareMaterialId?` · rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}${node.note&&node.materialId?` · ${esc(node.note)}`:''}</p>
-        ${g.source!=='adhoc'&&exoticSummary(node,{allowDraft:g.allowDraft})?`<p class="agl-sub">${esc(exoticSummary(node,{allowDraft:g.allowDraft}))}</p>`:''}
-        `:''}
-      <div class="agl-gather-form">
-        <label class="ag-field">Lead gatherer<select data-gather-field="actorId">${party.map(p=>`<option value="${esc(p.id)}" ${p.id===lead.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
-        ${plan?`<div class="agl-sub">${esc(lead.name)}: ${plan.options.slice(0,2).map(o=>{const c=checkOption(lead,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ')}${plan.professionId?'':` · no ${esc(plan.profession||'matching')} profession feature (no XP target)`}</div>`:'<div></div>'}
-        ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label ${tip(h.reason)}><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
-      </div>
-      <div class="agl-field-group"><label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft aria-describedby="agl-allow-draft-hint" ${g.allowDraft?'checked':''}> Use draft materials anyway</label>
-        <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: this check can award draft or unreleased materials. Players still only see released ones.</p></div>
-      ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
-      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling" aria-hidden="true"></i> ${esc(startLabel)}</button></div>
-    </section>`;
-    // 0.26.0 (PL-02): Requests (n) · Active checks (n) · Start gathering. Every panel is rendered (the others hidden), so a
-    // sub-tab switch keeps what was typed; new requests and checks no longer push Start gathering down the page.
-    const tab=this._gatherTabNow();
-    const active=sessions||last?`${last}${sessions}`:emptyState('No gathering checks open.','Start one in Start gathering, or approve a request. Checks wait here until they are rolled or cancelled.');
-    const tabs=this._gatherTabs();
-    const panels={requests:this._gatherQueue(),active,start,nodes:''};
+    const round=openRound();
+    const lastCard=lastGather?notice(`Last gather, ${esc(lastGather.title)} (${esc(tiersText(lastGather.tiers))}, DC ${lastGather.dc}): ${lastGather.rows.map(r=>`${esc(r.name)} ${r.total} — ${r.got.length?esc(r.got.join(' and ')):r.result==='fail'?'nothing':'by hand'}`).join('; ')}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.notes?.length?` · ${esc(lastGather.notes.join(' · '))}`:''}${lastGather.exhausted==='recorded'?' · spot marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the spot exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable spot: blocked until you reload':''}. Award XP from the chat cards.`):'';
+    let start='';
+    if(round)start=this._roundPanel(round);
+    else{
+      const node=this._selectedNode(),adhoc=g.source==='adhoc';
+      const profs=g.professions??(adhoc||!node?[]:nodeProfessionDefaults(node));
+      const tiers=adhoc?selectionTiers(g.tiers):selectionTiers(node?.tier!=null?[node.tier]:[]);
+      const dcNow=roundDC(g.dc!==''?g.dc:node?.dc,tiers);
+      const cands=profs.length?roundCandidates(profs):[];
+      const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.available&&!n.exhausted&&!n.missingTemplate&&!nodeBusy(n.key);
+        return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${!n.materialId?' — no material: hand out':''}${n.blocked&&n.materialId?` — ${esc(n.blocked)}`:''}</option>`;}).join('')}</optgroup>`).join('');
+      const form=adhoc?`<div class="agl-gather-form"><label class="ag-field">Label (optional)<input data-gather-label maxlength="80" value="${esc(g.label)}" placeholder="e.g. Roadside herb patch"></label></div>`
+        :g.source==='template'?this._templatePick(templates)
+        :`<label class="ag-field">Gathering spot<select data-gather-field="nodeRef"><option value="">Choose a spot…</option>${nodeOptions}</select></label>
+          ${where.locations.length?'':emptyState('No gathering resources in Locations yet.','Add gathering resources to a location in Locations, or use a node template or an ad-hoc gather.')}`;
+      let blocker='';
+      if(g.source==='template'&&!node)blocker=templates.length?'Choose a node template.':'No node templates yet: create one in Gathering Nodes.';
+      else if(g.source==='location'&&!node)blocker=GATHER_FIX.noNode;
+      else if(node&&!adhoc&&roundNodeProblem(node,g.allowDraft))blocker=roundNodeProblem(node,g.allowDraft);
+      else if(!profs.length)blocker=GATHER_FIX.noProfession;
+      else if(!tiers.length)blocker=GATHER_FIX.noTier;
+      else if(!Number.isInteger(dcNow))blocker='Set a DC.';
+      else if(!cands.length)blocker=`${GATHER_FIX.noHolder} (${profs.map(professionTitle).join(', ')}).`;
+      const profBoxes=GATHERING_KEYS.map(k=>`<label class="ag-field ag-field--inline"><input type="checkbox" data-gather-prof="${k}" ${profs.includes(k)?'checked':''}> ${esc(professionTitle(k))}</label>`).join('');
+      const tierBoxes=TIERS.map((t,i)=>`<label class="ag-field ag-field--inline"><input type="checkbox" data-gather-tier="${i+1}" ${tiers.includes(i+1)?'checked':''} ${adhoc?'':'disabled'}> ${i+1} · ${esc(t)}</label>`).join('');
+      start=`<section class="ag-card agl-panel"><h2>Gather</h2>
+        <div class="ag-segmented" role="radiogroup" aria-label="Where"><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc</button><button type="button" role="radio" aria-checked="${g.source==='location'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location spot</button><button type="button" role="radio" aria-checked="${g.source==='template'}" data-action="gather-source" data-id="template">Node template</button></div>
+        ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Node templates and ad-hoc gathers still work.</p>`}
+        ${form}
+        <fieldset class="agl-gather-eligible"><legend>Professions that can roll</legend><div class="agl-chip-row">${profBoxes}</div></fieldset>
+        <fieldset class="agl-gather-eligible"><legend>Tier${adhoc?'s':''}</legend><div class="agl-chip-row">${tierBoxes}</div>${adhoc?'':'<p class="agl-sub">A saved spot keeps its own tier and the materials it lists.</p>'}</fieldset>
+        <div class="agl-gather-form"><label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-gather-dc value="${esc(g.dc)}" placeholder="${esc(node?.dc??(tiers.length?defaultDC(tiers.at(-1)):'')??'')}"></label></div>
+        <p class="agl-sub" role="status">${cands.length?`Can roll (${cands.length}): ${esc(cands.map(c=>`${c.actor.name} (${professionTitle(c.professionKey)})`).join(', '))}.`:profs.length?'Nobody in the party holds those professions.':'Choose a profession to see who can roll.'}</p>
+        <div class="agl-field-group"><label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft aria-describedby="agl-allow-draft-hint" ${g.allowDraft?'checked':''}> Use draft materials anyway</label>
+          <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: this gather can give draft or unreleased materials. Players never see them listed.</p></div>
+        ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
+        <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${blocker?'disabled':''}><i class="fa-solid fa-seedling" aria-hidden="true"></i> Start gather…</button></div>
+      </section>`;
+    }
+    const tab=this._gatherTabNow(),tabs=this._gatherTabs();
+    const panels={requests:this._gatherQueue(),start:`${lastCard}${start}`,nodes:''};
     return `${subTabs({group:'agl-gather',label:'Gathering',tabs,selected:tab})}
       ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
   }
-  /** The GM's Gathering sub-tabs. Gathering nodes (0.31.1) is the fourth: it opens the node templates in the same place. */
-  _gatherTabs(){return [{id:'requests',label:'Requests',count:gatherRequests.size},{id:'active',label:'Active checks',count:gatherSessions.size},{id:'start',label:'Start gathering'},{id:'nodes',label:'Gathering nodes'}];}
+  /** The GM's Gathering sub-tabs: Requests (when players ask), Gather, and Gathering nodes (the node templates in the same place). */
+  _gatherTabs(){return [{id:'requests',label:'Requests',count:gatherRequests.size},{id:'start',label:'Gather'},{id:'nodes',label:'Gathering nodes'}];}
   /** The same sub-tab row around the node templates, with Gathering nodes selected; the other three go back to Gathering. */
   _nodesInGathering(content){
     const tabs=this._gatherTabs();
@@ -3077,21 +3259,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
-      if(e.target?.matches?.('[data-gather-helper]')){
-        const id=e.target.dataset.gatherHelper,next=new Set(this.gather.helperIds);
-        if(e.target.checked)next.add(id);else next.delete(id);
-        this.gather.helperIds=[...next];if(game.user.isGM)this.render();return;
-      }
-      if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['actorId','nodeRef','templateId','templateTier'].includes(f)){this.gather[f]=e.target.value;if(f==='actorId')this.gather.helperIds=this.gather.helperIds.filter(id=>id!==e.target.value);if(f==='templateId')this.gather.templateTier='';this.render();}return;}
+      if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['nodeRef','templateId','templateTier'].includes(f)){this.gather[f]=e.target.value;if(f!=='templateTier'){this.gather.professions=null;this.gather.dc='';}if(f==='templateId')this.gather.templateTier='';this.render();}return;}
+      if(e.target?.matches?.('[data-gather-prof]')&&game.user.isGM){
+        const node=this._selectedNode(),now=new Set(this.gather.professions??(this.gather.source==='adhoc'||!node?[]:nodeProfessionDefaults(node)));
+        if(e.target.checked)now.add(e.target.dataset.gatherProf);else now.delete(e.target.dataset.gatherProf);
+        this.gather.professions=GATHERING_KEYS.filter(k=>now.has(k));this.render();return;}
+      if(e.target?.matches?.('[data-gather-tier]')&&game.user.isGM){
+        const now=new Set(this.gather.tiers);const n=Number(e.target.dataset.gatherTier);
+        if(e.target.checked)now.add(n);else now.delete(n);
+        this.gather.tiers=[...now].sort((x,y)=>x-y);this.render();return;}
+      if(e.target?.matches?.('[data-gather-dc]')&&game.user.isGM){this.gather.dc=e.target.value;this.render();return;}
+      if(e.target?.matches?.('[data-gather-label]')&&game.user.isGM){this.gather.label=e.target.value;return;}
       if(e.target?.matches?.('[data-gather-allow-draft]')&&game.user.isGM){this.gather.allowDraft=e.target.checked;this.render();return;}
       if(e.target?.matches?.('[data-node-filter]')&&game.user.isGM){this.nodeFilter=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-node-field],[data-node-prof],[data-node-mat]')&&game.user.isGM&&this.nodeDraft){if(this._nodeDraftChange(e.target))this.render();return;}
-      if(e.target?.matches?.('[data-gather-adhoc]')&&game.user.isGM){this.gather.adhoc[e.target.dataset.gatherAdhoc]=e.target.value;this.render();return;}
-      if(e.target?.matches?.('[data-gather-pick]')&&game.user.isGM){this.gather.pick[e.target.dataset.gatherPick]=e.target.value;this.render();return;}
-      if(e.target?.matches?.('[data-adhoc-exotic]')&&game.user.isGM){
-        const id=e.target.dataset.adhocExotic,k=e.target.dataset.exoticKey,entry=this.gather.adhoc.exotics.find(x=>x.materialId===id);
-        if(entry&&['mode','chance','condition'].includes(k)){entry[k]=e.target.value;this.gather.adhoc.exotics=normalizeExotics(this.gather.adhoc.exotics.map(x=>x===entry?{chance:'',...x}:x));}
-        this.render();return;}
       if(e.target?.matches?.('[data-player-access]')&&game.user.isGM){this.accessDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-core-award]')&&game.user.isGM){this.coreAwardDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
@@ -3294,36 +3475,44 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(!out)return;
         if(out.award)this.lastAward=out.award;
         this.notice=out.message;this.render();say(out.message,out.ok===false);return;}
-      if(action==='adhoc-exotic-add'||action==='adhoc-exotic-remove'){if(!game.user.isGM)throw Error('GM only');
-        // 0.25.0: a draft/unreleased Exotic can be picked (it is found only with "Use draft materials anyway"); a missing one cannot.
-        if(action==='adhoc-exotic-add'){const why=materialUnavailable(id);if(why&&!usableAnyway(materialState(id).state))throw Error(why);}
-        const list=this.gather.adhoc.exotics.filter(x=>x.materialId!==id);
-        this.gather.adhoc.exotics=normalizeExotics(action==='adhoc-exotic-add'?[...list,{materialId:id,mode:'discovery'}]:list);this.render();return;}
-      if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=['adhoc','template'].includes(id)?id:'location';this.render();return;}
+      if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=['adhoc','template'].includes(id)?id:'location';this.gather.professions=null;this.gather.dc='';this.render();return;}
       if(action==='gather-start'){if(!game.user.isGM)throw Error('GM only');
-        const session=await startGather({node:this._selectedNode(),leadId:this.gather.actorId,helperIds:this.gather.helperIds,allowDraft:this.gather.allowDraft});
-        this.gather.nodeRef='';this.gather.helperIds=[];this.gatherTab='active';
-        this.notice=session.rollerIds.length?`Gathering check sent to ${session.leadName}’s player.`:`No owner of ${session.leadName} is online: roll for them in Active checks.`;this.render();say(this.notice);return;}
-      if(action==='gather-cancel'){cancelGather(id);this.notice='Gathering check cancelled. Nothing was used.';this.render();return;}
+        const g=this.gather,node=this._selectedNode(),adhoc=g.source==='adhoc';
+        const round=await startRound({node,professions:g.professions??(adhoc?[]:nodeProfessionDefaults(node)),tiers:adhoc?g.tiers:undefined,dc:g.dc!==''?g.dc:undefined,allowDraft:g.allowDraft});
+        this.gatherTab='start';this._ui.set('gatherTab','start');
+        this.notice=`Gather open: ${nameList(round.rollers.map(r=>({name:r.actorName})))} can roll.`;this.render();say(this.notice);return;}
+      if(action==='gather-cancel'){cancelRound(id);this.notice='Gather cancelled. Nothing was given.';this.render();return;}
       if(action==='gather-gm-roll'||action==='gather-record'){if(!game.user.isGM)throw Error('GM only');
-        const session=gatherSessions.get(id);if(!session)throw Error('This gathering check is no longer open');
-        const choice=this.element?.querySelector?.(`[data-gather-roll-check="${id}"]`)?.value??session.plan.selected;
-        const mode=this.element?.querySelector?.(`[data-gather-roll-mode="${id}"]`)?.value??0;
-        let total;
-        if(action==='gather-record'){total=this.element?.querySelector?.(`[data-gather-total="${id}"]`)?.value;if(total===''||total==null)throw Error('Enter the check total first');}
-        else{const lead=game.actors.get(session.leadId);total=(await rollForGather(lead,gatherProjection(session),{choice,mode})).total;}
-        const out=await resolveGather(id,{total:Number(total),choice,mode,by:game.user.name});
-        this.notice=out.award?`${session.leadName} gathered ${out.award.quantity} × ${out.award.name}${out.exoticAward?` and an Exotic ${out.exoticAward.name}`:''}.`:`${session.leadName}’s gathering failed; the node is exhausted.`;this.render();say(this.notice);return;}
+        const round=openRound(),roller=round?.rollers.find(r=>r.actorId===id);if(!round||!roller)throw Error('This gather is no longer open');
+        let out;
+        if(action==='gather-record'){const total=this.element?.querySelector?.(`[data-gather-total="${id}"]`)?.value;if(total===''||total==null)throw Error('Enter the check total first');
+          out=recordRoll(round.id,{actorId:id,total:Number(total),choice:this.element?.querySelector?.(`[data-gather-roll-check="${id}"]`)?.value,mode:this.element?.querySelector?.(`[data-gather-roll-mode="${id}"]`)?.value,by:game.user.name});}
+        else out=await rollForRound(round.id,id,{choice:this.element?.querySelector?.(`[data-gather-roll-check="${id}"]`)?.value,mode:this.element?.querySelector?.(`[data-gather-roll-mode="${id}"]`)?.value});
+        this.notice=`${roller.actorName} rolled ${out.total}.`;this.render();return;}
+      if(action==='gather-reveal'){if(!game.user.isGM)throw Error('GM only');
+        const out=revealRound(id);reelSkipped.delete(id);this.notice='Results revealed. Nothing is given until you press Give loot.';this.render();
+        if(out.needsManual)await openHandoutDialog(id);return;}
+      if(action==='gather-handout'){await openHandoutDialog(id);return;}
+      if(action==='gather-give-open'){await openGiveDialog(openRound()?.id,id);return;}
+      if(action==='gather-give'){if(!game.user.isGM)throw Error('GM only');
+        const round=gatherRounds.get(id);
+        if(round?.result){
+          const owed=round.result.rows.filter(r=>r.undetermined.length).map(r=>r.actorName);
+          if(owed.length&&!await confirmDialog(`${owed.join(', ')} still ${owed.length===1?'has':'have'} nothing the Ledger could pick. Give loot closes this gather; hand those out first with Give…, or give the rest now?`,{title:'Give loot?',yes:'Give loot',no:'Not yet'}))return;}
+        const out=await giveRound(id);this.notice=`Loot given to ${out.rows.filter(r=>r.drops.length).length} ${out.rows.filter(r=>r.drops.length).length===1?'character':'characters'}.`;this.gatherTab='start';this.render();say(this.notice);return;}
+      if(action==='skip-reveal'){const key=data.key??this.element?.querySelector?.('[data-agl-reveal]')?.dataset?.revealKey??openRound()?.id;if(key){reelSkipped.add(key);}this.render();return;}
       if(action==='gather-player-roll'){
-        await submitGatherRoll(id,{choice:this.element?.querySelector?.(`[data-gather-roll-check="${id}"]`)?.value,mode:this.element?.querySelector?.(`[data-gather-roll-mode="${id}"]`)?.value});return;}
+        const actorId=data.actor;
+        const out=await rollForRound(id,actorId,{choice:this.element?.querySelector?.(`[data-gather-roll-check="${actorId}"]`)?.value,mode:this.element?.querySelector?.(`[data-gather-roll-mode="${actorId}"]`)?.value});
+        say(`Rolled ${out.total}. The GM reveals the results.`);this.render();return;}
       if(action==='gather-request'){
-        const mine=myCharacters(),actor=mine.find(a=>a.id===this.gather.actorId)??mine[0];
+        const mine=myCharacters(),actor=mine[0];
         const [locationId,nodeId]=String(this.gather.nodeRef??'').split('|');
         if(!locationId||!nodeId)throw Error('Choose an available gathering spot');
         this.gather.pending=true;this.render();say('Gathering request sent to the GM.');
-        let out;try{out=await requestGather({actorId:actor?.id,locationId,nodeId,helperIds:this.gather.helperIds});}finally{this.gather.pending=false;}
-        this.notice=out.message;if(out.ok){this.gather.nodeRef='';this.gather.helperIds=[];}this.render();say(out.message,!out.ok);return;}
-      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});if(!gatherRequests.size)this.gatherTab='active';this.render();return;}
+        let out;try{out=await requestGather({actorId:actor?.id,locationId,nodeId});}finally{this.gather.pending=false;}
+        this.notice=out.message;if(out.ok)this.gather.nodeRef='';this.render();say(out.message,!out.ok);return;}
+      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});this.gatherTab='start';this.render();return;}
       if(action.startsWith('node-')){await this._nodeAction(action,id);return;}
       if(action==='gather-decline'){if(!game.user.isGM)throw Error('Only the GM can decline gathering');
         const reason=this.element?.querySelector?.(`[data-gather-decline-reason="${id}"]`)?.value??'';declineGatherRequest(id,{reason});this.render();return;}
@@ -3630,12 +3819,29 @@ Hooks.once('ready',()=>{
     professions:()=>allProfessions().map(p=>({...p})),
     /** Gathering: start/resolve/cancel are GM-only; request is a player asking the GM. */
     gathering:{nodes:()=>{checkPlayerLedger();return structuredClone(gatherLocations());},
-      start:({locationId=null,nodeId=null,node=null,templateId=null,tier=null,leadId,helperIds=[],allowDraft=false}={})=>{checkPlayerLedger();
+      /** GM only. Opens a gather round (0.34.0): `professions` (names/keys), `tiers` (array or {min,max}) and `dc` pick who may roll and what the pool is;
+       * a saved spot fills in its own. `leadId` and `helperIds` from older callers are ignored: there is no lead gatherer. Returns a plain summary. */
+      start:async(options={})=>{checkPlayerLedger();
+        const {locationId=null,nodeId=null,node=null,templateId=null,tier=null,...rest}=options??{};
+        if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
         if(templateId)requireNodesGM();
         const target=templateId?templateGatherNode(templateId,tier):node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;
         if(templateId&&!target)throw Error('That gathering node no longer exists');
-        return startGather({node:target,leadId,helperIds,allowDraft});},
-      resolve:(sessionId,result)=>resolveGather(sessionId,result),cancel:sessionId=>cancelGather(sessionId),
+        const round=await startRound({...stripLead(rest),node:target});
+        return roundSummary(round);},
+      /** GM only: the open round, or null. */
+      round:()=>{checkPlayerLedger();if(!canRunGathering(game.user))throw Error('Only the GM can see an open gather');const r=openRound();return r?roundSummary(r):null;},
+      /** Owner or GM: roll a character's check for the open round ({actorId, choice?, mode?}); a GM may instead pass `total` to record one. */
+      roll:async(roundId,{actorId,total,choice,mode}={})=>{checkPlayerLedger();
+        if(total!=null){if(!canRunGathering(game.user))throw Error('Only the GM can record a total');return recordRoll(roundId,{actorId,total,choice,mode,by:game.user.name});}
+        return rollForRound(roundId,actorId,{choice,mode});},
+      /** GM only. Older callers: resolve(roundId,{actorId,total}) records one roll. */
+      resolve:(roundId,result={})=>recordRoll(roundId,{by:game.user?.name,...result}),
+      /** GM only: settle the results (nothing is given), then give them. */
+      reveal:roundId=>revealRound(roundId),
+      give:roundId=>giveRound(roundId),
+      giveByHand:(roundId,actorId,materialId,quantity)=>giveByHand(roundId,actorId,materialId,quantity),
+      cancel:roundId=>cancelRound(roundId),
       request:options=>requestGather(options),
       /** GM only (0.21.0): the request queue, and Approve (starts the gather) / Decline (tells the player). */
       requests:()=>{checkPlayerLedger();return listGatherRequests();},
@@ -3735,6 +3941,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
-  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
+  startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
+  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
+  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

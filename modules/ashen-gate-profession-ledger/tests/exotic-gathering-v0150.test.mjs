@@ -171,6 +171,7 @@ const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:t
  testUserPermission:(u,role)=>u.isGM||u.id==='u1'||role==='LIMITED',
  updateEmbeddedDocuments:async(t,ups)=>{for(const u of ups)inv.get(u._id).system.quantity=u['system.quantity'];return ups;},
  createEmbeddedDocuments:async(t,docs)=>{const out=docs.map(d=>held(`new${made++}`,d.name,d.flags,d.system.quantity));inv.push(...out);return out;}};
+inv.push(held('bprof','[TEST] Herbalism — Profession',src('PROF-TG-HERBALISM','Profession',{id:'PROF-TG-HERBALISM',entity_type:'Profession',version:'0.1.0',refs:[],name:'[TEST] Herbalism'}),1));
 const qty=id=>inv.filter(i=>(i.flags?.['ashen-gate-manager']?.source?.sourceId??i.flags?.['ashen-gate-profession-ledger']?.sourceId)===id).reduce((n,i)=>n+i.system.quantity,0);
 const locs=[{id:'LOC-TG-GROVE',name:'[TEST] Grove',revealed:true,resources:[
  {id:'g1',label:'[TEST] Ash tree',skill:'Herbalism',tier:3,dcVisible:true,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,finite:false,visible:true,
@@ -191,14 +192,22 @@ const {_test}=await import(pathToFileURL(entry));hooks.init();hooks.ready();
 const app=api.open({view:'gathering'});
 const html=async view=>{app.view=view;return (await app._prepareContext({})).html;};
 const nodeAt=id=>_test.gatherLocations().locations[0].nodes.find(n=>n.id===id);
+// One gather round with Belwar alone: open it, record the total, reveal, give. Returns the old single-check shape.
+const gather=async(node,total,options={})=>{
+ const round=await _test.startRound({node,professions:['herbalism'],...options});
+ _test.recordRoll(round.id,{actorId:'belwar',total});
+ const rev=_test.revealRound(round.id);
+ await _test.giveRound(round.id);
+ const row=rev.rows[0];
+ return {round,rev,row,awards:row.drops,outcome:{result:row.result},exotic:{...row.exotic,skipped:rev.skipped}};
+};
 
 test('Location node: success gives the Common bundle plus the Exotic, on one card with one XP opportunity; Exotics stack',async()=>{
  game.user=gm;
  _test.setExoticRoll(dice(2));
- let s=await _test.startGather({node:nodeAt('g1'),leadId:'belwar'});
- assert.equal(s.node.dc,15,'tier 3 default DC');
  const before=chats.length;
- let out=await _test.resolveGather(s.id,{total:16,choice:'skill:nat'});
+ let out=await gather(nodeAt('g1'),16);
+ assert.equal(out.round.dc,15,'tier 3 default DC');
  assert.deepEqual(out.awards.map(a=>a.kind),['common','exotic']);
  assert.equal(chats.length,before+1,'one chat card');
  const card=chats.at(-1);
@@ -208,33 +217,29 @@ test('Location node: success gives the Common bundle plus the Exotic, on one car
  assert.equal(qty('MAT-TG-HERB'),2);assert.equal(qty('MAT-TG-PHOENIX'),1);
  // Success by 5+ again: Rare instead of Common, and the Exotic stacks onto the one held.
  _test.setExoticRoll(dice(1));
- s=await _test.startGather({node:nodeAt('g1'),leadId:'belwar'});
- out=await _test.resolveGather(s.id,{total:20,choice:'skill:nat'});
+ out=await gather(nodeAt('g1'),20);
  assert.deepEqual(out.awards.map(a=>a.kind),['rare','exotic']);
  assert.equal(qty('MAT-TG-HERB'),2,'no Common as well');assert.equal(qty('MAT-TG-RARE'),1);assert.equal(qty('MAT-TG-PHOENIX'),2);
  assert.equal(inv.filter(i=>i.name==='[TEST] Phoenix Ash').length,1,'stacked, not duplicated');
  // A miss: the card names no Exotic, roll or candidate; the GM's note has the d100.
  _test.setExoticRoll(dice(3));
- s=await _test.startGather({node:nodeAt('g1'),leadId:'belwar'});
- out=await _test.resolveGather(s.id,{total:15,choice:'skill:nat'});
- assert.equal(out.exoticAward,null);assert.doesNotMatch(chats.at(-1).content,/Exotic|Phoenix|d100/);
+ out=await gather(nodeAt('g1'),15);
+ assert.deepEqual(out.awards.map(a=>a.kind),['common']);assert.doesNotMatch(chats.at(-1).content,/Exotic|Phoenix|d100/);
  assert.match(await html('gathering'),/Exotic d100 3 vs 2 \(discovery\)/);
  // A failure never rolls.
  _test.setExoticRoll(noRoll);
- s=await api.gathering.start({node:{label:'[TEST] Star pool copy',skill:'Herbalism',tier:1,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-STAR',mode:'designated',chance:100}]},leadId:'belwar'});
- out=await _test.resolveGather(s.id,{total:2,choice:'skill:nat'});
+ out=await gather({...normalizeNode({id:'adhoc-star',label:'[TEST] Star pool copy',skill:'Herbalism',tier:1,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-STAR',mode:'designated',chance:100}]},{locationId:null}),key:'adhoc:copy'},2);
  assert.equal(out.outcome.result,'fail');assert.equal(out.exotic.roll,null);
 });
 
 test('ad-hoc and Location gathering give the same results for the same rolls',async()=>{
  game.user=gm;
  const results=[];
- const starts={location:()=>_test.startGather({node:nodeAt('g1'),leadId:'belwar'}),
-  adhoc:()=>api.gathering.start({node:{label:'[TEST] Ad-hoc ash',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,exotics:[{materialId:'MAT-TG-PHOENIX'}]},leadId:'belwar'})};
- for(const start of [starts.location,starts.adhoc])for(const [total,r] of [[16,2],[16,3],[21,1]]){
+ const nodes={location:()=>nodeAt('g1'),
+  adhoc:()=>normalizeNode({id:`adhoc-x${Math.random()}`,label:'[TEST] Ad-hoc ash',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,exotics:[{materialId:'MAT-TG-PHOENIX'}]},{locationId:null})};
+ for(const node of [nodes.location,nodes.adhoc])for(const [total,r] of [[16,2],[16,3],[21,1]]){
   _test.setExoticRoll(dice(r));
-  const s=await start();
-  const out=await _test.resolveGather(s.id,{total,choice:'skill:nat'});
+  const out=await gather(node(),total);
   results.push(out.awards.map(a=>`${a.kind}:${a.materialId}:${a.quantity}`).join(','));
  }
  assert.deepEqual(results.slice(0,3),results.slice(3));
@@ -245,18 +250,17 @@ test('designated source at a location uses its chance, not the 2% roll',async()=
  game.user=gm;
  for(const [r,found] of [[50,'MAT-TG-STAR'],[51,null]]){
   const d=dice(r);_test.setExoticRoll(d);
-  const s=await _test.startGather({node:nodeAt('g2'),leadId:'belwar'});
-  const out=await _test.resolveGather(s.id,{total:12,choice:'skill:nat'});
-  assert.equal(out.exotic.kind,'designated');assert.equal(out.exotic.materialId,found);assert.deepEqual(d.calls,[100]);
+  const out=await gather(nodeAt('g2'),12);
+  assert.equal(out.exotic.kind,'designated');assert.equal(out.awards.find(a=>a.kind==='exotic')?.materialId??null,found);assert.deepEqual(d.calls,[100]);
  }
 });
 
 test('missing, draft or GM-only Exotic candidates fail safely: skipped with the Manager fix (0.25.0: not imported vs draft/unreleased), told to the GM only',async()=>{
  game.user=gm;
  _test.setExoticRoll(noRoll);
- const s=await api.gathering.start({node:{label:'x',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-SECRETX'},{materialId:'MAT-TG-GONE'},{materialId:'MAT-TG-DRAFTX'}]},leadId:'belwar'});
- const out=await _test.resolveGather(s.id,{total:30,choice:'skill:nat'});
- assert.equal(out.award.name,'[TEST] Herb');assert.equal(out.exotic.roll,null);
+ const node=normalizeNode({id:'adhoc-miss',label:'x',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-SECRETX'},{materialId:'MAT-TG-GONE'},{materialId:'MAT-TG-DRAFTX'}]},{locationId:null});
+ const out=await gather(node,30);
+ assert.equal(out.awards[0].materialId,'MAT-TG-HERB');assert.equal(out.exotic.roll,null);
  assert.deepEqual(out.exotic.skipped.map(x=>[x.materialId,x.reason]),[['MAT-TG-SECRETX','Unreleased (GM-only): make it player-visible in General Manager, or use it anyway (GM)'],
   ['MAT-TG-GONE','Not imported in this world: import it with General Manager'],['MAT-TG-DRAFTX','Draft/unreleased (status: draft): approve it in General Manager, or use it anyway (GM)']]);
  const card=chats.at(-2),note=chats.at(-1);
@@ -266,12 +270,16 @@ test('missing, draft or GM-only Exotic candidates fail safely: skipped with the 
  assert.match(await html('gathering'),/Exotic candidate \[TEST\] Draft Exotic skipped/,'and in the GM’s last-result note');
 });
 
-test('players never get Exotic candidates: node list, roll prompt, Gathering tab and API',async()=>{
+test('players never get Exotic candidates: node list, roll prompt, Gathering tab, reveal and API',async()=>{
  game.user=gm;sent.length=0;
- const s=await _test.startGather({node:nodeAt('g1'),leadId:'belwar'});
- const prompt=sent.find(m=>m.type==='gather-roll');
+ const round=await _test.startRound({node:nodeAt('g1'),professions:['herbalism']});
+ const prompt=sent.find(m=>m.type==='gather-round');
  assert.ok(prompt);assert.doesNotMatch(JSON.stringify(prompt),/PHOENIX|Phoenix|exotic/i);
- _test.cancelGather(s.id);
+ _test.setExoticRoll(dice(1));_test.recordRoll(round.id,{actorId:'belwar',total:16});_test.revealRound(round.id);
+ const reveal=sent.find(m=>m.type==='gather-round-reveal');
+ assert.ok(reveal.view.rows[0].drops.some(d=>d.kind==='exotic'),'the Exotic that was found is shown');
+ assert.doesNotMatch(JSON.stringify(reveal.view.reel),/Star Moss/,'candidates that were not found never reach the players’ reel');
+ _test.cancelRound(round.id);
  game.user=alice;
  const nodes=_test.gatherLocations().locations[0].nodes;
  assert.ok(nodes.every(n=>n.exotics.length===0));
@@ -283,25 +291,10 @@ test('players never get Exotic candidates: node list, roll prompt, Gathering tab
  game.user=gm;
 });
 
-test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; adding sets eligibility only',async()=>{
- game.user=gm;app.gather.source='adhoc';Object.assign(app.gather.adhoc,{skill:'Herbalism',tier:'1',materialId:'MAT-TG-HERB',exotics:[]});
+test('GM ad-hoc form: professions and tiers, no material pickers; the Exotic API still filters by profession, tier and rarity',async()=>{
+ game.user=gm;app.gather.source='adhoc';
  let h=await html('gathering');
- // 0.26.0: a closed fold whose title counts the chosen candidates.
- assert.match(h,/<details class="ag-fold" data-ag-fold-key="adhoc-exotics"><summary class="ag-fold__summary"><span class="ag-fold__title">Exotic candidates<\/span><span class="ag-fold__count">0 chosen<\/span><span class="ag-fold__hint">optional, GM only<\/span><\/summary>/);
- const pick=h.slice(h.indexOf('agl-exotic-filters'));
- assert.match(pick,/\[TEST\] Star Moss/);assert.doesNotMatch(pick,/Phoenix Ash/,'tier 3 is above a tier 1 node');
- assert.doesNotMatch(pick,/Deep Ore/,'Mining Exotic at a Herbalism node');assert.doesNotMatch(pick,/Rare Herb|>\[TEST\] Herb</,'only Exotic quality');
- // 0.25.0: a draft Exotic is listed for the GM with a Draft badge and its fix, and can be picked (found only with "use anyway").
- assert.match(pick,/<li class="ag-row agl-exotic-row"><span class="ag-row__main"><span class="ag-row__title">\[TEST\] Draft Exotic<\/span>.*Draft\/unreleased \(status: draft\): approve it in General Manager.*Quality: Exotic.*>Draft<\/span>.*data-id="MAT-TG-DRAFTX" >Add/s,'draft shown with its badge and fix, addable');
- await app._click('adhoc-exotic-add','MAT-TG-DRAFTX');assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-DRAFTX',mode:'discovery'}],'the GM can pick a draft Exotic');
- h=await html('gathering');assert.match(h,/\[TEST\] Draft Exotic<\/span> <span class="ag-rarity-badge"[^>]*>Quality: Exotic<\/span> <span[^>]*><span class="ag-badge ag-badge--warn">Draft/,'picked draft keeps its badge');
- await app._click('adhoc-exotic-remove','MAT-TG-DRAFTX');
- errors.length=0;await app._click('adhoc-exotic-add','MAT-TG-GONE');assert.deepEqual(app.gather.adhoc.exotics,[],'a material that is not imported cannot be picked');
- app.gather.pick.tier='any';h=await html('gathering');assert.match(h.slice(h.indexOf('agl-exotic-filters')),/Phoenix Ash/);
- await app._click('adhoc-exotic-add','MAT-TG-PHOENIX');
- assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-PHOENIX',mode:'discovery'}]);
- h=await html('gathering');assert.match(h,/Tier 3 is above the node’s tier 1/);
- await app._click('adhoc-exotic-remove','MAT-TG-PHOENIX');assert.deepEqual(app.gather.adhoc.exotics,[]);
+ assert.match(h,/data-gather-prof="herbalism"/);assert.match(h,/data-gather-tier="3"/);assert.doesNotMatch(h,/adhoc-exotics|data-gather-adhoc|Common material/);
  assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1}).map(m=>m.id),['MAT-TG-STAR']);
  assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1,includeUnavailable:true}).map(m=>[m.id,m.available,m.reason]),
   [['MAT-TG-DRAFTX',false,'Draft/unreleased (status: draft): approve it in General Manager, or use it anyway (GM)'],['MAT-TG-SECRETX',false,'Unreleased (GM-only): make it player-visible in General Manager, or use it anyway (GM)'],['MAT-TG-STAR',true,'']]);

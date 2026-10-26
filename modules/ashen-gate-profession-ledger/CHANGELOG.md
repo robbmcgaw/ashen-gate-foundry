@@ -1,3 +1,14 @@
+## 0.34.0 — 2026-10-26
+
+Gathering is simpler, and there is no lead gatherer any more.
+
+- **One gather, everyone with the profession rolls.** Gathering → **Gather**: choose Ad-hoc, a Location spot or a Node template, tick the professions that can roll, the tier(s) and the DC, then **Start gather…**. Every party character who holds a chosen profession rolls once with their own check for it; others are not offered a roll.
+- **The Ledger settles the loot.** **Reveal results** picks a material for each character who met the DC from the existing rules (Common on success, Rare on success by 5+, an Exotic by the usual chance), a different material for each while the pool allows. A saved spot uses its own material tables; an ad-hoc gather uses the imported Materials of the chosen professions and tiers.
+- **Slot-machine reveal.** A reel of material pictures lands on each result. It is only a picture: the result is fixed before it starts, **Skip animation** and reduced motion show the plain list, and nothing is given until you press **Give loot**. Unreleased materials stay out of players' view.
+- **Hand-out pop-up.** When a drop cannot be settled from the tier and DC, a pop-up lists who rolled, who met the DC and what each may receive, with **Give…** (Add per material).
+- Removed: Lead gatherer, Helpers, the Active checks sub-tab and the ad-hoc material and Exotic pickers. Player requests remain (Approve opens the gather).
+- API: `gathering.start` ignores `leadId` and `helperIds` and takes `professions`, `tiers`, `dc`; new `round`, `roll`, `reveal`, `give`, `giveByHand`; `resolve(roundId, {actorId, total})` records one roll. No saved data changes; an old remembered Active checks sub-tab opens Gather.
+
 ## 0.33.4 — 2026-10-26
 
 Recipe cards no longer say things twice. The cause is in the recipe content: an activity's `description` starts with a generated sentence that repeats the tier and effort badges ("A Courtyard Jest is an apprentice performance composition made through short effort.") and then repeats the whole `effect_note`, which the card also showed under **Effect**. The card now leaves out the badge-restating sentence, and shows text that is the same as (or contained in) the effect only once, under **Effect**; distinct text stays as the italic summary. In **Party** and **Recipe Catalog** the card body folds under a **Details** control (badges and **Known by** stay visible); Individual cards stay open. "(the GM decides at the table)" now appears only on cards where a character can complete the activity. No change to recipe data or saved data.

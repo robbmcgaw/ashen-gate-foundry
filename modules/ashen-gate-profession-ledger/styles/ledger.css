@@ -194,3 +194,31 @@
 .agl-app .agl-node-plan-list{display:grid;gap:var(--ag-space-1);margin:var(--ag-space-1) 0 var(--ag-space-2);padding-left:var(--ag-space-4);max-height:20rem;overflow:auto}
 .agl-app .agl-node-plan-list code{font-size:var(--ag-text-sm);color:var(--ag-muted)}
 .agl-app .agl-select-actions{margin:var(--ag-space-2) 0}
+
+/* Gather round (0.34.0): profession and tier choices, the roll rows and the slot-machine reveal. Kit tokens only. */
+.agl-chip-row{display:flex;flex-wrap:wrap;gap:var(--ag-space-2) var(--ag-space-4)}
+.agl-roll-row .agl-roll-options{margin-top:var(--ag-space-1)}
+.agl-reveal{display:flex;flex-direction:column;gap:var(--ag-space-2);--agl-cell:2.75rem;--agl-dur:2.8s}
+.agl-reveal__bar{display:flex;justify-content:flex-end}
+.agl-reveal__rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--ag-space-2)}
+.agl-reveal__row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--ag-space-2) var(--ag-space-4);align-items:center;padding:var(--ag-space-2) var(--ag-space-3);
+  border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+.agl-reveal__row[data-result=rare]{border-color:var(--ag-rarity-rare)}
+.agl-reveal__row[data-result=fail]{opacity:.85}
+.agl-reveal__who{grid-column:1;min-width:0}
+.agl-reveal__drops{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-3);align-items:center}
+.agl-reveal__drop{display:inline-flex;align-items:center;gap:var(--ag-space-1)}
+.agl-reveal__drop img{border-radius:var(--ag-radius-sm)}
+.agl-reveal__none{color:var(--ag-muted);font-size:var(--ag-text-sm)}
+/* The reel: a one-icon window over a strip that scrolls up and lands on the last icon. Pure picture; the result is already decided. */
+.agl-reel{grid-column:2;grid-row:1;width:var(--agl-cell);height:var(--agl-cell);overflow:hidden;border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken)}
+.agl-reel__strip{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
+  transform:translateY(calc((var(--agl-n) - 1) * var(--agl-cell) * -1));animation:agl-reel-spin var(--agl-dur) cubic-bezier(.15,.7,.2,1) var(--agl-delay,0s) both}
+.agl-reel__strip li{flex:none;width:var(--agl-cell);height:var(--agl-cell);display:grid;place-items:center}
+.agl-reel__strip img{width:calc(var(--agl-cell) - .5rem);height:calc(var(--agl-cell) - .5rem);object-fit:contain}
+@keyframes agl-reel-spin{from{transform:translateY(0)}to{transform:translateY(calc((var(--agl-n) - 1) * var(--agl-cell) * -1))}}
+/* Skip, a finished reveal and reduced motion all show the end state at once. */
+.agl-reveal.is-played .agl-reel__strip{animation:none}
+@media (prefers-reduced-motion:reduce){.agl-reel__strip{animation:none}.agl-reel{display:none}}
+.agl-reveal.is-plain .agl-reel{display:none}
+@container (max-width:26rem){.agl-reveal__row{grid-template-columns:1fr}.agl-reel{grid-column:1;grid-row:auto}}

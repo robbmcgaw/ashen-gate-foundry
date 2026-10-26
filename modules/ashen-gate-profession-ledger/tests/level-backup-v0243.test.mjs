@@ -63,7 +63,13 @@ test('XP award is refused for a backup (API and action route); a normal characte
 });
 
 test('gathering, crafting, learning and the embed refuse a backup',async()=>{
-  await assert.rejects(api.gathering.start({node:{materialId:'MAT-TEST',dc:10},leadId:'ana-bk'}),REFUSAL);
+  // 0.34.0: no lead gatherer; a backup is simply never offered a roll.
+  const herb={...structuredClone(prof),id:'p2',flags:{'ashen-gate-manager':{source:{...prof.flags['ashen-gate-manager'].source,sourceId:'PROF-TG-HERBALISM',definition:{id:'PROF-TG-HERBALISM',name:'[TEST] Herbalism'}}}}};
+  ana.items.push(structuredClone(herb));backup.items.push(structuredClone(herb));
+  const round=await api.gathering.start({node:{label:'[TEST] Patch',skill:'Herbalism',tier:1,dc:10},leadId:'ana-bk'});
+  assert.deepEqual(round.rollers.map(r=>r.actorId),['ana'],'the backup is not a roller');
+  await assert.rejects(()=>api.gathering.roll(round.id,{actorId:'ana-bk',total:12}),/does not hold a profession for this gather/);
+  assert.equal(api.gathering.cancel(round.id),true);
   await assert.rejects(api.craft(backup,'REC-TEST'),REFUSAL);
   await assert.rejects(api.learnRecipe(backup,backup.items[0]),REFUSAL);
   const el={innerHTML:'',classList:{add(){},remove(){}},addEventListener(){},querySelector:()=>null,contains:()=>true};
