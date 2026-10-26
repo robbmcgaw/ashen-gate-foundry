@@ -2,7 +2,7 @@
 import {enforcementOn} from './spell-prep.mjs';
 import {esc, MODULE_ID} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX, KIND_TITLE, TYPE_FLAG, companionKindOf, companionBoxes, gearChoices, perkChoices, tierOf, linkableActors, actorStats, legacyItemCompanions, defaultPetSlots, petSlotOverrides, MAX_PET_SLOTS, COMPANION_TYPES} from './companions.mjs';
+import {LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX, KIND_TITLE, TYPE_FLAG, companionKindOf, notACreature, ownedByPlayer, companionBoxes, gearChoices, perkChoices, tierOf, linkableActors, actorStats, legacyItemCompanions, defaultPetSlots, petSlotOverrides, MAX_PET_SLOTS, COMPANION_TYPES} from './companions.mjs';
 import {isBackup} from './level-backup.mjs';
 import {companionRole, COMPANION_ROLES, companionStats, itemGives} from './companion-items.mjs';
 import {itemRow} from './items.mjs';
@@ -169,21 +169,41 @@ function petSlotsCard() {
     ${rows ? `<h4 class="agch-subheading">Per character</h4><ul class="agch-vis agch-petslots">${rows}</ul>` : '<p class="agch-muted">No characters yet.</p>'}</div></section>`;
 }
 
-/** GM Setup → Companion types: one select per NPC Actor; Automatic clears the GM's choice and lets the id or size decide. */
+export const CTYPE_PAGE = 50;
+/**
+ * GM Setup → Companion types (0.58.3): the GM's override of what kind of companion an NPC Actor counts as. Rows are grouped (Overrides
+ * open; Pets, Mounts and Not companions closed) with counts, 50 shown per group ("Show more"), and Actors that don't matter (people and
+ * other non-companions nobody owns) stay behind "Show all NPC Actors (n)". Search reaches every row. The party stash and other
+ * non-creatures are never listed unless the GM has put an override on one (so it can be cleared). Display only: the saved flag is unchanged.
+ */
 function companionTypesCard() {
-  const npcs = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'npc' && !isBackup(a)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const npcs = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'npc' && !isBackup(a) && (COMPANION_TYPES.includes(a.flags?.[MODULE_ID]?.[TYPE_FLAG]) || !notACreature(a)))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const choices = [['pet', 'Pet'], ['mount', 'Mount'], ['either', 'Either'], ['none', 'None']];
-  const rows = npcs.map(a => {
-    const set = a.flags?.[MODULE_ID]?.[TYPE_FLAG], automatic = companionKindOf(a, {automatic: true});
-    return `<li data-ctype-row data-name="${esc(String(a.name).toLowerCase())}"><label><span class="agch-ctype__name">${esc(a.name)}</span>
-      <select data-edit="companion-type" data-actor="${esc(a.id)}" aria-label="Companion type for ${esc(a.name)}"><option value=""${COMPANION_TYPES.includes(set) ? '' : ' selected'}>Automatic: ${esc(automatic.label)}</option>${choices.map(([v, l]) => `<option value="${v}"${set === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-      <span class="agch-muted agch-ctype__eff">${esc(companionKindOf(a).label)}</span></li>`;
-  }).join('');
+  const groups = [['overrides', 'Overrides', true], ['pets', 'Pets', false], ['mounts', 'Mounts', false], ['none', 'Not companions', false]].map(([id, label, open]) => ({id, label, open, rows: []}));
+  const by = Object.fromEntries(groups.map(g => [g.id, g]));
+  let hiddenCount = 0;
+  for (const a of npcs) {
+    const set = a.flags?.[MODULE_ID]?.[TYPE_FLAG], automatic = companionKindOf(a, {automatic: true}), kind = companionKindOf(a).kind, owned = ownedByPlayer(a);
+    const gid = COMPANION_TYPES.includes(set) ? 'overrides' : kind === 'mount' ? 'mounts' : kind === 'none' ? 'none' : 'pets';
+    const minor = gid === 'none' && !owned;
+    if (minor) hiddenCount++;
+    const row = `<li data-ctype-row data-name="${esc(String(a.name).toLowerCase())}"${minor ? ' data-minor' : ''}><label><span class="agch-ctype__name">${esc(a.name)}</span>
+      <select data-edit="companion-type" data-actor="${esc(a.id)}" aria-label="Companion type for ${esc(a.name)}"><option value=""${COMPANION_TYPES.includes(set) ? '' : ' selected'}>Automatic: ${esc(automatic.label)}</option>${choices.map(([v, l]) => `<option value="${v}"${set === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label></li>`;
+    by[gid].rows.push({html: row, minor});
+  }
+  const shown = groups.filter(g => g.rows.length);
+  // Before any script runs: people and other non-companions nobody owns are hidden, and only the first 50 of a group show.
+  const html = shown.map(g => { let n = 0; const rows = g.rows.map(r => r.minor || n++ >= CTYPE_PAGE ? r.html.replace('<li ', '<li hidden ') : r.html).join(''), visible = g.rows.filter(r => !r.minor).length;
+    return `<details class="agch-ctgroup" data-ctgroup="${g.id}" data-limit="${CTYPE_PAGE}"${g.open ? ' open' : ''}${visible ? '' : ' hidden'}><summary>${esc(g.label)} <span class="ag-badge">${g.rows.length}</span></summary>
+      <ul class="agch-vis agch-ctypes">${rows}</ul>
+      <p class="agch-ctype__more" data-ctype-more-wrap${visible > CTYPE_PAGE ? '' : ' hidden'}><button type="button" class="ag-btn ag-btn--sm" data-action="ctype-more" data-group="${g.id}" data-ag-always>Show more…</button></p></details>`; }).join('');
   const key = sectionKey('gm', 'companiontypes');
-  return `<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companion types')}</h3><div${bodyAttrs(key)}>
-    <p class="agch-muted">Each pet and mount box lists the NPC Actors a character's player owns, so you award a companion by giving the player Owner on the Actor. What kind an Actor is comes from, in order: the type you set here; its import id (a CRE-MOUNT or CRE-PET creature); then its size (Tiny, Small and Medium are pets; Large, Huge and Gargantuan are mounts). People (NPC- imports) are never listed. <strong>Either</strong> lists it in both, <strong>None</strong> in neither, <strong>Automatic</strong> clears your choice. A companion already linked stays linked if you remove ownership.</p>
-    ${npcs.length ? `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ctype-filter placeholder="Search NPC Actors" aria-label="Search NPC Actors" data-ag-always></label>
-    <ul class="agch-vis agch-ctypes">${rows}</ul>` : '<p class="agch-muted">No NPC Actors yet.</p>'}</div></section>`;
+  return `<section class="ag-card" data-ctypes><h3 class="agch-sec__head">${toggleButton(key, 'Companion types')}</h3><div${bodyAttrs(key)}>
+    <p class="agch-muted">Override what kind of companion an NPC Actor counts as. Otherwise its import id (CRE-PET / CRE-MOUNT) decides, then its size. Players pick from the NPCs they own.</p>
+    ${npcs.length ? `<div class="agch-ctype__tools"><label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ctype-filter placeholder="Search NPC Actors" aria-label="Search NPC Actors" data-ag-always></label>
+    ${hiddenCount ? `<label class="agch-switchrow"><input type="checkbox" data-edit="ctype-all" data-ag-always> <span>Show all NPC Actors (${hiddenCount} more)</span></label>` : ''}</div>
+    ${html}` : '<p class="agch-muted">No NPC Actors yet.</p>'}</div></section>`;
 }
 
 /** GM Setup → Spell preparation: the world switch for the class limits (the GM is never blocked, only told). */

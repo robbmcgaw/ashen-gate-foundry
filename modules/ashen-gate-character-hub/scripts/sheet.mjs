@@ -80,6 +80,7 @@ export const ACTIONS = {
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
+  'ctype-more': (s, t) => { const g = t.closest?.('[data-ctgroup]'); if (g) { g.dataset.limit = String((Number(g.dataset.limit) || 50) + 50); const root = g.closest?.('[data-ctypes]') ?? g.parentElement; filterCompanionTypes(root, root?.querySelector?.('[data-ctype-filter]')?.value ?? ''); } return {ok: true}; },
   'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
   'ag-jump': async (s, t) => { if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
@@ -302,7 +303,21 @@ export async function presetAsk(id, ask = confirmDialog) {
  */
 export function filterCompanionTypes(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
-  for (const row of root?.querySelectorAll?.('[data-ctype-row]') ?? []) row.hidden = !!q && !String(row.dataset?.name ?? '').includes(q);
+  const all = root?.querySelector?.('[data-edit="ctype-all"]')?.checked === true;
+  for (const g of root?.querySelectorAll?.('[data-ctgroup]') ?? []) {
+    const limit = Number(g.dataset?.limit) || 50;
+    let shown = 0, more = 0;
+    for (const row of g.querySelectorAll?.('[data-ctype-row]') ?? []) {
+      const match = !q || String(row.dataset?.name ?? '').includes(q), base = !q && row.dataset?.minor !== undefined && !all;
+      const visible = match && !base && shown < limit;
+      if (match && !base) { if (shown < limit) shown++; else more++; }
+      row.hidden = !visible;
+    }
+    const wrap = g.querySelector?.('[data-ctype-more-wrap]');
+    if (wrap) wrap.hidden = more === 0;
+    g.hidden = shown === 0 && more === 0 && (!!q || g.dataset?.ctgroup === 'none');
+    if (q && shown) g.open = true;
+  }
 }
 export function applyFilter(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
@@ -504,6 +519,7 @@ export const EDITS = {
   // 0.51.0: Show spell descriptions (this user) and the GM's Enforce spell preparation limits (world).
   'spell-descriptions': async (s, i) => { const r = await setShowDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
   'item-descriptions': async (s, i) => { const r = await setShowItemDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
+  'ctype-all': (s, i) => { const root = i.closest?.('[data-ctypes]'); filterCompanionTypes(root, root?.querySelector?.('[data-ctype-filter]')?.value ?? ''); return {ok: true}; },
   'prep-enforce': async (s, i) => { const r = await setEnforcement(i.checked === true); if (!r?.ok) s.render(); return r; },
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value, i.dataset.tab === 'features' ? {group: originDefault(s.document)} : {}); if (r.ok) s.render(); return r; },
   'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; },

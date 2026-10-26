@@ -1,3 +1,13 @@
+## 0.58.3 — 2026-10-26
+
+GM Setup → Companion types is short and grouped.
+
+- Purpose in one sentence, plus the order of precedence (GM override, then the CRE-PET / CRE-MOUNT import id, then size). The long text and the duplicated right-hand label are gone.
+- Actors are grouped with counts: **Overrides** (open), **Pets**, **Mounts**, **Not companions** (closed). Each group shows 50 rows and a **Show more…** button.
+- People (NPC- imports) and other non-companions nobody owns are hidden behind **Show all NPC Actors (n more)**. Player-owned NPCs always show. Search still finds every Actor, hidden or not.
+- The party stash and other non-creature Actors are not listed (unless the GM had put an override on one, so it can be cleared).
+- The saved setting (`companionType` on the Actor) and what it does are unchanged.
+
 ## 0.58.2 — 2026-10-26
 
 Companions: the party stash (and other non-creature Actors) can no longer be a pet or mount.
