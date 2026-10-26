@@ -13,7 +13,7 @@ export function ariaName(label, title, aria = '') {
   return t.length > label.length && t.toLowerCase().startsWith(String(label).toLowerCase()) ? t : '';
 }
 /** A kit button. `always` keeps it clickable for observers (tabs, Help, open sheets). `title` is the tooltip. */
-export const btn = (action, label, {kind = '', icon = '', data = {}, title = '', disabled = false, always = false, extra = '', aria = ''} = {}) => {
+export const btn = (action, label, {kind = '', icon = '', data = {}, title = '', disabled = false, always = false, extra = '', aria = '', pressed = null} = {}) => {
   const name = ariaName(label, title, aria);
-  return `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}${extra ? ` ${extra}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${title ? ` data-tooltip="${esc(title)}"` : ''}${name ? ` aria-label="${esc(name)}"` : ''}${disabled ? ' disabled' : ''}${always ? ' data-ag-always' : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
+  return `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}${extra ? ` ${extra}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${title ? ` data-tooltip="${esc(title)}"` : ''}${name ? ` aria-label="${esc(name)}"` : ''}${pressed === null ? '' : ` aria-pressed="${pressed === true}"`}${disabled ? ' disabled' : ''}${always ? ' data-ag-always' : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
 };

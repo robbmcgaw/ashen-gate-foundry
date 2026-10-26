@@ -44,18 +44,24 @@ export const COMBAT_STEPS = Object.freeze([
   Object.freeze({width: 400, hides: 'dice'}),
   Object.freeze({width: 390, hides: 'tohit'})
 ]);
-/** Inventory: the actions (Use, Equip / Unequip, Attune, Move to stash) are pinned and never hidden; at the first step they become an icon cluster. Quantity goes last: at the narrowest it shrinks to its number field (the minus and plus move into the open row). */
+/**
+ * Inventory (0.57.0): the name keeps a generous minimum width and nothing sits beside it. The actions are pinned and never hidden:
+ * Use, the Equip / Equipped and Attune / Attuned toggles (like Magic's Prepare / Prepared) and Move to party stash; at the first step
+ * they become icons. Quantity is only its number field on the line (minus and plus are in the open row at every width) and stays
+ * longest. Weight and Value are low priority and go first, then Uses.
+ */
 export const INVENTORY_PRIORITY = Object.freeze({
-  always: Object.freeze(['fold', 'star', 'icon', 'chevron', 'name', 'badges', 'actions']),
-  optional: Object.freeze(['qty', 'value', 'weight', 'uses'])
+  always: Object.freeze(['fold', 'star', 'icon', 'chevron', 'name', 'actions']),
+  optional: Object.freeze(['qty', 'uses', 'value', 'weight'])
 });
 export const INVENTORY_STEPS = Object.freeze([
-  Object.freeze({width: 755, hides: 'action-labels'}),
-  Object.freeze({width: 605, hides: 'uses'}),
-  Object.freeze({width: 555, hides: 'weight'}),
-  Object.freeze({width: 495, hides: 'value'}),
-  Object.freeze({width: 430, hides: 'qty-compact'})
+  Object.freeze({width: 775, hides: 'action-labels'}),
+  Object.freeze({width: 615, hides: 'weight'}),
+  Object.freeze({width: 555, hides: 'value'}),
+  Object.freeze({width: 490, hides: 'uses'})
 ]);
+/** Inventory's list scrolls sideways below this width (px): its name track is wider than the other tabs'. */
+export const INVENTORY_MIN_LIST = 416;
 export const FEATURES_PRIORITY = Object.freeze({
   always: Object.freeze(['star', 'icon', 'chevron', 'name', 'use']),
   optional: Object.freeze(['uses', 'recovery', 'activation', 'type'])
@@ -80,14 +86,14 @@ export const COL_ID = Object.freeze({damage: 'dice', toHit: 'tohit', range: 'ran
  * Inventory), `track` the pinned actions plus its gutter, `sets` the column combinations a tab can show (CSS class agch-set-<name>).
  *   metrics: border 2 (1px each side), rowPad 12 (space-2 each side), gap 3 (space-1 between tracks), icon 24, main (name) 112 = 7rem.
  *   Combat / Features actions: Use 4.25rem = 68 + gutter space-2 6 = 74.
- *   Inventory lead: fold toggle 24 + gap 3 + star 24 = 51. Inventory actions, icon cluster: 4 x 24 + 3 x 3 + 6 = 111;
- *   with labels: Use 64 + Equip 76 + Attune 80 + stash 24 + 3 x 3 + 6 = 259. Qty: minus 24 + 3 + field 50 + 3 + plus 24 = 104 (field only: 50).
+ *   Inventory lead: fold toggle 24 + gap 3 + star 24 = 51. Inventory name: planned at 176 (11rem; the track floor is 9rem). Inventory actions,
+ *   icon cluster: 4 x 24 + 3 x 3 + 6 = 111; with labels: Use 64 + Equip toggle 84 + Attune toggle 84 + stash 24 + 3 x 3 + 6 = 271. Qty: the number field, 3rem = 48.
  */
 export const ITEM_METRICS = Object.freeze({border: 2, rowPad: 12, gap: 3, icon: 24, main: 112});
 export const ITEM_LAYOUT = Object.freeze({
   combat: Object.freeze({lead: 24, track: 74, widths: Object.freeze({tohit: 48, dice: 88, range: 72, uses: 56, recovery: 80, props: 96}),
     sets: Object.freeze({weapons: Object.freeze(['dice', 'tohit', 'range', 'props']), actions: Object.freeze(['range', 'dice', 'uses', 'recovery']), mixed: Object.freeze(['dice', 'tohit', 'range', 'uses'])})}),
-  inventory: Object.freeze({lead: 51, track: 111, trackLabels: 259, qtyField: 50, widths: Object.freeze({qty: 104, value: 64, weight: 56, uses: 48}),
+  inventory: Object.freeze({lead: 51, track: 111, trackLabels: 271, main: 176, widths: Object.freeze({qty: 48, value: 64, weight: 56, uses: 48}),
     sets: Object.freeze({all: Object.freeze(['qty', 'weight', 'value', 'uses'])})}),
   features: Object.freeze({lead: 24, track: 74, widths: Object.freeze({type: 96, act: 88, recovery: 80, uses: 56}),
     sets: Object.freeze({full: Object.freeze(['type', 'act', 'uses', 'recovery']), notype: Object.freeze(['act', 'uses', 'recovery']), noact: Object.freeze(['type', 'uses', 'recovery'])})})
