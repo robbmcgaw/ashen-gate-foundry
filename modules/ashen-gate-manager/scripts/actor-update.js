@@ -1,5 +1,6 @@
 import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject, baselineFields} from './core.js';
 import {canonicalDefinition} from './source-projection.mjs';
+import {isArtPath, artDecision, artLabel, artSentence} from './art-fields.js';
 /**
  * Opt-in update of existing Actors on re-import (0.19.0).
  * An Actor is matched only by the canonical id in Manager's source flag, never by name.
@@ -63,10 +64,12 @@ export function planActor(record, raws, {updateExisting = false, includeDrafts =
   if (!isPlainObject(baseline)) return {action: 'blocked', reason: 'No record of the last import on this Actor, so GM edits cannot be told apart from package changes. Update it by hand.', changes: []};
   if (raw.type !== data.type) return {action: 'blocked', reason: `Actor type differs (${raw.type} in the world, ${data.type} in the package).`, changes: []};
 
-  const changes = [], notes = [], fields = {};
+  const changes = [], notes = [], fields = {}, artKept = [];
   for (const [path, incoming] of Object.entries(ownedActorFields(data))) {
     const live = getPath(raw, path);
     if (equal(live, incoming)) continue;
+    // 0.70.0 "art is always yours": a portrait, token image or ring the GM changed is kept, never replaced by an update.
+    if (isArtPath(path) && artDecision(path, live, incoming, baseline) === 'keep') { artKept.push({path, label: artLabel(path, 'Actor'), live: show(live), package: show(incoming)}); continue; }
     if (own(baseline, path) && equal(baseline[path], incoming)) continue; // GM edit; package unchanged
     if (typeof incoming === 'string' && isBundled(incoming)) {notes.push(`${path} points to ZIP artwork; not changed on update`); continue;}
     fields[path] = incoming;
@@ -124,9 +127,10 @@ export function planActor(record, raws, {updateExisting = false, includeDrafts =
     const textKeys = [...new Set([...Object.keys(stored), ...Object.keys(incomingDef)])].filter(k => !equal(stored[k], incomingDef[k])).sort();
     if (textKeys.length) changes.push(`record text: ${textKeys.join(', ')} (NPC Codex and other readers see the new text)`);
   }
-  if (!changes.length) return {action: 'unchanged', reason: `Actor already matches the package.${notes.length ? ` ${notes.join('; ')}.` : ''}`, changes: []};
+  if (artKept.length) notes.push(`${artSentence(artKept.map(a => a.path), 'Actor')} (${artKept.map(a => a.label).join(', ')})`);
+  if (!changes.length) return {action: 'unchanged', reason: `Actor already matches the package.${notes.length ? ` ${notes.join('; ')}.` : ''}`, changes: [], artKept};
   return {action: 'update', reason: `Updates ${changes.length} definition change(s); HP, XP, level, conditions, player items, folder, ownership and other modules' data are kept.${notes.length ? ` ${notes.join('; ')}.` : ''}`,
-    patch: {fields, items, touched}, changes};
+    patch: {fields, items, touched}, changes, artKept};
 }
 
 /** Writes a planned update. GM only. Items first, so a failed run leaves the old baseline and can be re-run. */

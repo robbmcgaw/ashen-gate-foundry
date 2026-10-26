@@ -6,6 +6,7 @@ import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-e
 import {modifierRecordProblems} from './modifier-definitions.js';
 import {validateSupersedes, supersedeMap} from './supersedes.js';
 import {systemWithRelated} from './related-lists.mjs';
+import {isArtPath, artDecision, artSentence} from './art-fields.js';
 /** Ashen Gate Manager — pure, side-effect-free import planning tools. v0.1.0 */
 export const MODULE_ID = "ashen-gate-manager";
 export const MANAGED_TYPES = ["Item", "JournalEntry", "Actor", "RollTable", "Macro"];
@@ -219,7 +220,7 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
   // and reports them as a known local edit instead of updating, conflicting or blocking on them.
   const link = doc.coreLink?.adopted ? doc.coreLink : null;
   const coreOwned = path => Boolean(link) && (link.adoptedPaths ?? []).some(p => path === p || path.startsWith(`${p}.`));
-  const coreKept = [];
+  const coreKept = [], artKept = [];
   for (const key of Object.keys(baseline)) {
     if (!own(fields, key) && !coreOwned(key)) return {action:"blocked", reason:`Source removed ${key}; v0.1 requires manual review of removed fields.`};
   }
@@ -229,6 +230,13 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
   for (const [path, incoming] of Object.entries(fields)) {
     const old = baseline[path];
     if (coreOwned(path)) {if (!equal(incoming, old)) coreKept.push(path); continue;}
+    // 0.70.0 "art is always yours": an image the GM changed is kept, never a conflict and never overwritten.
+    if (isArtPath(path)) {
+      const decision = artDecision(path, doc.get(path), incoming, baseline);
+      if (decision === 'same') continue;
+      if (decision === 'keep') {artKept.push(path); continue;}
+      if (!own(baseline, path)) {patch[path] = incoming; continue;}
+    }
     if (!own(baseline, path)) {
       if (doc.get(path) === undefined) {patch[path] = incoming; continue;}
       // Already the same live value (e.g. a Hub role flag the GM set by hand): adopt it, nothing to write.
@@ -243,9 +251,11 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
     else if (localChanged && !sourceChanged) locallyEdited.push(path);
   }
   const coreNote = link ? ` Core-linked to ${link.name ?? 'a 2024 core item'}: keeps the adopted core image and data${coreKept.length ? ` (${coreKept.length} source change(s) to those fields not applied)` : ''}.` : '';
-  if (conflicting.length) return {action:"conflict", reason:`Both source and Foundry edited: ${conflicting.join(", ")}.${coreNote}`, conflicting};
-  if (Object.keys(patch).length) return {action:"update", reason:(locallyEdited.length ? `Safely update ${Object.keys(patch).length} fields; preserve local edits to ${locallyEdited.join(", ")}.` : `${Object.keys(patch).length} source field(s) changed.`)+coreNote, patch};
-  if (locallyEdited.length) return {action:"local", reason:`No new source changes; preserves local edits to ${locallyEdited.join(", ")}.${coreNote}`};
-  if (link) return {action:"local", reason:coreNote.trim(), coreKept};
-  return {action:"unchanged", reason:"Already matches last imported source."};
+  const artNote = artKept.length ? ` ${artSentence(artKept, kind)}.` : '';
+  const art = artKept.length ? {artKept} : {};
+  if (conflicting.length) return {action:"conflict", reason:`Both source and Foundry edited: ${conflicting.join(", ")}.${coreNote}${artNote}`, conflicting, ...art};
+  if (Object.keys(patch).length) return {action:"update", reason:(locallyEdited.length ? `Safely update ${Object.keys(patch).length} fields; preserve local edits to ${locallyEdited.join(", ")}.` : `${Object.keys(patch).length} source field(s) changed.`)+coreNote+artNote, patch, ...art};
+  if (locallyEdited.length) return {action:"local", reason:`No new source changes; preserves local edits to ${locallyEdited.join(", ")}.${coreNote}${artNote}`, ...art};
+  if (link) return {action:"local", reason:coreNote.trim()+artNote, coreKept, ...art};
+  return {action:"unchanged", reason:`Already matches last imported source.${artNote}`, ...art};
 }

@@ -25,6 +25,13 @@ function overwriteRow(r) {
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Now</th><th scope="col">Package</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
 }
 
+/** "Keeping your art" (0.70.0): one short line per record, expandable to the fields (what the world has now, what the package has). */
+function artRow(a) {
+  const rows = a.fields.map(f => `<tr><th scope="row">${esc(f.label)}</th><td>${esc(f.live)}</td><td>${esc(f.package)}</td></tr>`).join('');
+  return `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(a.name)}</strong> ${esc(a.kind)} · ${esc(a.summary)}</summary>
+    <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Yours (kept)</th><th scope="col">Package</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
+}
+
 /** The "Replaces" list: one row per record that supersedes a document in this world, with a Yes / No / Skip choice. Nothing is written before Apply. */
 function replacesFold(plan) {
   const offers = plan.offers ?? [];
@@ -63,6 +70,8 @@ export function syncView(state) {
     <p class="ag-field__hint">Off by default. Records imported by an older Manager have no package line, so Sync cannot tell whether they belong to these files and keeps them. Ticking this lets Sync delete those that no chosen file mentions. Only documents with Manager's flag are ever considered.</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-edited ${state.overwriteEdited ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also overwrite records I edited</strong></label>
     <p class="ag-field__hint">Off by default. Off: a record you changed since the last import is left alone, and is not deleted either when the files no longer carry it. On: the package wins, your changes are replaced and such records are deleted (the preview counts them, and the backup keeps them).</p>`);
+  parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-art ${state.replaceArt ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>Also replace art I set</strong></label>
+    <p class="ag-field__hint">Off by default, and separate from the option above. Art you set yourself (a portrait, a token image or a token ring, for example from Link files to records) is always kept, even when you overwrite edited records. On: art you changed is replaced by the package's art. The backup keeps what you had.</p>`);
   parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
   if (state.message) parts.push(`<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> ${esc(state.message)}</p>`);
 
@@ -81,12 +90,16 @@ export function syncView(state) {
         ${c.keptEdited ? `<span class="ag-badge ag-badge--warn"><strong>${c.keptEdited}</strong> kept: edited in your world${c.keptRemoved ? ` (${c.keptRemoved} no longer in the package)` : ''}</span>` : ''}
         ${plan.overwriteEdited ? `<span class="ag-badge ag-badge--warn"><strong>${plan.lost}</strong> GM-edited field${plan.lost === 1 ? '' : 's'} will be lost</span>` : ''}
         ${c.metadataRefreshes ? `<span class="ag-badge"><strong>${c.metadataRefreshes}</strong> metadata refresh${c.metadataRefreshes === 1 ? '' : 'es'} (no content change)</span>` : ''}
+        ${c.artKept ? `<span class="ag-badge ag-badge--ok"><strong>${c.artKept}</strong> keeping your art</span>` : ''}
+        ${plan.replaceArt ? `<span class="ag-badge ag-badge--warn">art you set will be replaced</span>` : ''}
         ${c.refused ? `<span class="ag-badge ag-badge--warn"><strong>${c.refused}</strong> refused</span>` : ''}</div>`);
       parts.push(`<p class="agmanager-tiny">Character sheets and everything on them are untouched (${plural(plan.characterCount, 'player character')} in this world). Item copies on character sheets stay exactly as they are even where the world Item is updated or deleted.</p>`);
       const rows = g => plan.rows.filter(r => r.group === g);
       const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
       const list = (items, fn, cap = SHOWN_ROWS) => `<ul class="ag-rows">${items.slice(0, cap).map(fn).join('')}</ul>${more(Math.min(cap, items.length), items.length)}`;
       if ((plan.offers ?? []).length) parts.push(replacesFold(plan));
+      const art = plan.artKept ?? [];
+      if (art.length) parts.push(group('Keeping your art', art.length, `<p class="agmanager-tiny">Keeping your art on ${plural(art.length, 'record')}. Art you set yourself is never replaced and never stops a record from updating. Open one to see the fields.</p><ul class="ag-rows">${art.slice(0, SHOWN_ROWS).map(artRow).join('')}</ul>${more(Math.min(SHOWN_ROWS, art.length), art.length)}`, {open: art.length <= 12}));
       const reb = rows('rebind');
       if (reb.length) parts.push(group('Replaced in place', reb.length, list(reb, overwriteRow), {open: reb.length <= 12}));
       parts.push(group('Create', creates.length, creates.length ? list(creates, line) : '<p class="agmanager-tiny">Nothing new.</p>'));
