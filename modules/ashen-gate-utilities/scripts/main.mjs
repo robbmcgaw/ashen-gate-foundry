@@ -84,7 +84,7 @@ const notice=()=>activeSession()?'Another active interaction is in progress. Res
 const sessionKind=s=>s.kind==='group'?'Group Check':'Roll Request';
 function sessionHeader(s){const sum=summary(s);return `${sessionKind(s)} · ${s.name} · ${sum.accepted}/${sum.totalSlots} accepted`;} 
 
-/** Active sessions are public-only in this release: nothing secret is written to synced settings. */
+/** Active sessions are public-only: the check itself holds nothing secret. Note that every world setting is sent to all clients, so the Party Stash history (`stashHistory`: GM-only gold awards and coin totals) is also readable from a player's browser console. The windows only show it to the GM; this table accepts that. */
 async function storeSession(s){
  if(!isGM())throw Error('Only a GM can update a check.');
  if(saving)throw Error('Another session update is still saving.');

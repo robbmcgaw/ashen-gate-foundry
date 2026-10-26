@@ -28,6 +28,8 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **GM Setup** (GM): Player Access and other settings.
 - **Shops**: GM: see *Shops (GM)* below. Players: **Open shops**, the shops and services the GM presents to them (see *Shops: presenting and buying*), and **Merchant lists**, the lists the GM shares (read only, see *Merchant lists*). The tab shows for players while Player Access and *Shops on for players* are both on.
 
+**Where data is kept.** Utilities keeps its records (the active check, the Party Stash history with gold awards and coin totals) in world settings. The windows and the API show players only what they may see, but world settings are sent to every connected browser, so a player who opens the browser console could read the raw history. That is fine for this table; it is not a secret store.
+
 Player actions that change shared state (stash moves, applying or removing conditions) are carried out by the active GM client, which re-checks ownership and the lock, so a GM must be logged in for those.
 
 ## Shops (GM)
