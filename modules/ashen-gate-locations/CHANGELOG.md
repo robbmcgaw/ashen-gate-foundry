@@ -1,3 +1,10 @@
+## 0.20.6 — 2026-10-26
+
+Fix: in Tree view, places nested four or five levels deep had their names squeezed to a few letters per line.
+
+- **Why:** each level indented 12px and the badge and counts stayed beside the name, so at depth four (Overworld › Frontier › Town › Muster › Guildhall) the name was 25 to 66px wide and broke mid-word ("[TEST] / Mus / ter"). From the third level down the indent is smaller, and the badge and counts drop under the name when the row is tight. Measured in a headless browser with that five-level example: every name is one line, 103 to 157px wide.
+- Presentation only: no saved data changes. Check in Forge: Locations > Tree with places five levels deep; every name reads on one line.
+
 ## 0.20.5 — 2026-10-26
 
 Internal: the **Ashen Gate / Locations** Journal folder is now found or created with the shared race-safe folder helper, so Locations and another Ashen Gate module starting at the same moment cannot make two **Ashen Gate** folders. Nothing moves and no saved data changes.
