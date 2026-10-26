@@ -45,9 +45,9 @@ import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, descr
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
 import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, ledgerKey} from './sync.js';
-import {executeSync, buildSyncBackup, writeRebind} from './sync-apply.js';
+import {executeSync, buildSyncBackup, writeRebind, summarizeErrors} from './sync-apply.js';
 import {bindPackageLinks} from './link-binding.js';
-import {BULK, bulkWrite, emitBulkFinished, listenBulkFinished, BULK_FINISHED} from './bulk.js';
+import {bulk, bulkWrite, emitBulkFinished, listenBulkFinished, BULK_FINISHED} from './bulk.js';
 import {createConnection, isInterruption} from './sync-connection.js';
 import {createProgress, HEARTBEAT_MS, STALL_MS} from './sync-progress.js';
 import {readSyncInput, joinSyncInputs} from './sync-load.js';
@@ -214,7 +214,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     data.items=(data.items??[]).map((item,i)=>({...item,...(Array.isArray(item.effects)?{effects:upgradeEffectChanges(item.effects)}:{}),flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
     data.flags[MODULE_ID][ACTOR_ITEMS_FLAG]={version:1};
   }
-  return cls.create(data, BULK);
+  return cls.create(data, bulk());
 }
 async function updateRecord(record, pkg, doc, patch, availableIds) {
   const update = {...patch};
@@ -222,7 +222,7 @@ async function updateRecord(record, pkg, doc, patch, availableIds) {
   update[`flags.${MODULE_ID}.source`] = source;
   // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
   if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
-  await doc.update(update, BULK);
+  await doc.update(update, bulk());
   return doc;
 }
 /** Metadata-only reconciliation never touches Foundry rule fields or actor state. */
@@ -4197,7 +4197,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       :outcome.interrupted?[outcome.interrupted.message,`So far: ${k.created} created, ${k.updated} overwritten, ${k.deleted} deleted. Nothing is half-written that the same sync does not finish.`]
       :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
         ...(outcome.cancelled?['Run the same files again to finish; what is already done is not repeated.']:[]),
-        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)).slice(0,8).map(named)];
+        ...summarizeErrors(outcome.log).map(e=>`${e.count} records failed with the same error: ${e.message} (for example ${e.names.join(', ')})`),
+        ...outcome.log.filter(r=>['error','skipped'].includes(r.status)&&!summarizeErrors(outcome.log).some(e=>e.message===r.message)).slice(0,8).map(named)];
     await this.#syncPreview();
     this.sync.result={tone:failure||k?.failed||outcome?.interrupted?'danger':outcome?.cancelled||k?.skipped?'warn':'ok',lines};
     toast(lines[0],Boolean(failure||k?.failed||outcome?.interrupted));

@@ -1,3 +1,14 @@
+## 0.70.4 — 2026-10-26
+
+Fixes 0.70.3, where Sync failed every record with "Cannot add property parent, object is not extensible".
+
+- **Cause:** the bulk-write flag was one shared frozen object (`Object.freeze({agBulk: true})` in `bulk.js`) passed to Foundry's update, create and delete calls. Foundry writes `parent`, `pack`, `diff` and other keys onto the options it is given, so every write that received it threw. Every write now gets its own fresh plain object. Nothing is lost: the failed records were not changed, and running the same Sync again finishes the job.
+- **Stops early on a systematic fault:** 25 records in a row failing with the same error stop the run (or, in the link step, the link step; the rest of the Sync still finishes) with one line saying so, instead of grinding through hundreds.
+- **One line, not hundreds:** many records failing the same way show as "N records failed with the same error: <message> (for example …)".
+- **Real error in the console:** the first failure of each kind logs the original error with its stack and the record's name once.
+- Note: third-party modules (for example D&D Beyond Importer) have their own item hooks that run for every document; Ashen Gate cannot silence those.
+- No change to saved data.
+
 ## 0.70.3 — 2026-10-26
 
 Sync from package no longer freezes the browser tab when it starts saving links.

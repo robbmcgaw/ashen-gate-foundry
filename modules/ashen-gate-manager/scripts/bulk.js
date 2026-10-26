@@ -5,7 +5,8 @@
  * `ashenGate.bulkFinished` (a hook with {source, reason}). Before this, each of ~800 updated Items woke every module (one re-published
  * Skill Trees to a world setting per Item, re-rendered windows, rebuilt indexes) and froze the tab.
  */
-export const BULK = Object.freeze({agBulk: true});
+/** A FRESH options object per call: Foundry assigns parent, pack, diff, render... onto the options it is given, so a frozen or shared one throws "Cannot add property parent, object is not extensible". */
+export const bulk = () => ({agBulk: true});
 /** Options for a batch write: no redraw, flagged as bulk. */
 export const bulkWrite = () => ({render: false, agBulk: true});
 export const BULK_FINISHED = 'ashenGate.bulkFinished';

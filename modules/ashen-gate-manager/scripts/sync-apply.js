@@ -15,7 +15,7 @@ import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
 import {applyShops} from './shop-handoff.js';
 import {applySpecialist} from './specialist-handoff.js';
-import {bulkWrite, BULK} from './bulk.js';
+import {bulkWrite, bulk} from './bulk.js';
 import {ConnectionLost, isInterruption} from './sync-connection.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk} from './sync.js';
 
@@ -59,27 +59,27 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
   if (kind === 'Actor') {
     const {adopt = [], update = [], create = [], delete: del = []} = ops.items ?? {};
     const updates = [...adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...update];
-    if (updates.length) await doc.updateEmbeddedDocuments('Item', updates, BULK);
-    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create), BULK);
-    if (del.length) await doc.deleteEmbeddedDocuments('Item', del, BULK);
+    if (updates.length) await doc.updateEmbeddedDocuments('Item', updates, bulk());
+    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create), bulk());
+    if (del.length) await doc.deleteEmbeddedDocuments('Item', del, bulk());
   } else if (kind === 'Item' && ops.effects) {
     const {create = [], update = [], delete: del = []} = ops.effects;
-    if (create.length) await doc.createEmbeddedDocuments('ActiveEffect', structuredClone(create), BULK);
-    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, ...u}) => u), BULK);
-    if (del.length) await doc.deleteEmbeddedDocuments('ActiveEffect', del, BULK);
+    if (create.length) await doc.createEmbeddedDocuments('ActiveEffect', structuredClone(create), bulk());
+    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, ...u}) => u), bulk());
+    if (del.length) await doc.deleteEmbeddedDocuments('ActiveEffect', del, bulk());
   } else if (kind === 'JournalEntry' && ops.pages) {
     const {create = [], update = [], delete: del = []} = ops.pages;
-    if (create.length) await doc.createEmbeddedDocuments('JournalEntryPage', structuredClone(create), BULK);
-    if (update.length) await doc.updateEmbeddedDocuments('JournalEntryPage', update.map(({key, ...u}) => u), BULK);
-    if (del.length) await doc.deleteEmbeddedDocuments('JournalEntryPage', del, BULK);
+    if (create.length) await doc.createEmbeddedDocuments('JournalEntryPage', structuredClone(create), bulk());
+    if (update.length) await doc.updateEmbeddedDocuments('JournalEntryPage', update.map(({key, ...u}) => u), bulk());
+    if (del.length) await doc.deleteEmbeddedDocuments('JournalEntryPage', del, bulk());
   } else if (kind === 'RollTable' && ops.results) {
     // New results first, then the old ones: an interrupted run leaves extras that the next run replaces, never an empty table.
-    if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create), BULK);
-    if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds, BULK);
+    if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create), bulk());
+    if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds, bulk());
   }
   const update = {...fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
   if (kind === 'Actor') update[`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`] = {version: 1};
-  await doc.update(update, BULK);
+  await doc.update(update, bulk());
 }
 
 /**
@@ -102,7 +102,7 @@ export async function writeRebind(doc, row, {user, flag, extra = {}, replaceArt 
  * After a write (and after links are bound): remember, per path, where Foundry stores something other than the package
  * text (rich-text links, normalised numbers), so the next preview calls that field unchanged. JSON text, one write.
  */
-export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record), BULK); }
+export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record), bulk()); }
 /** The one update stampDoc writes ({flag path: JSON text}); sync, so a run can batch many documents into one write. */
 export function stampUpdate(doc, record) {
   const raw = doc.toObject();
@@ -145,7 +145,7 @@ function nameKeysOf(names) { const seen = new Map(); return names.map(n => { con
 /** Removes one Manager-imported world document. Copies on character sheets are separate documents and are not touched. */
 export async function removeDoc(doc, row, {user}) {
   assertSyncTarget(doc, user, row.id, {deleting: true});
-  await doc.delete(BULK);
+  await doc.delete(bulk());
 }
 
 // ---------- backup ----------
@@ -167,12 +167,12 @@ export function buildSyncBackup(plan, {world = null, now = new Date(), modules =
 
 // ---------- the run ----------
 /** Chunks of `size`; checks `signal` and the connection between chunks, guards each item so a dead socket cannot hang it. */
-const chunked = async (list, size, signal, run, pause, progress, {guard = p => p, ensure = async () => {}} = {}) => {
+const chunked = async (list, size, signal, run, pause, progress, {guard = p => p, ensure = async () => {}, halted = () => false} = {}) => {
   let done = 0;
   for (let i = 0; i < list.length; i += size) {
     if (signal?.aborted) return {cancelled: true, done};
     await ensure();
-    for (const item of list.slice(i, i + size)) { await guard(run(item)); done++; }
+    for (const item of list.slice(i, i + size)) { await guard(run(item)); done++; if (halted()) return {cancelled: true, halted: true, done}; }
     progress?.(done);
     await pause?.();
   }
@@ -188,6 +188,13 @@ const chunked = async (list, size, signal, run, pause, progress, {guard = p => p
  * Returns {cancelled, log, counts, completed, interrupted?}. The log's counts equal the preview's when nothing fails.
  * 0.70.1: a lost connection (or a server that stops answering) ends the run with `interrupted` set and the same sync resumes it.
  */
+export const REPEAT_STOP = 25;
+/** One line per distinct message when many records failed the same way: [{message, count, names}]. */
+export function summarizeErrors(log, {many = 4} = {}) {
+  const by = new Map();
+  for (const x of log) if (x.status === 'error') { const e = by.get(x.message) ?? by.set(x.message, {message: x.message, count: 0, names: []}).get(x.message); e.count++; if (e.names.length < 3) e.names.push(x.name ?? x.id); }
+  return [...by.values()].filter(e => e.count >= many);
+}
 export async function executeSync(plan, adapter, options = {}) {
   const log = [], state = {phase: '', label: '', done: 0, total: 0};
   try { return await runSync(plan, adapter, options, log, state); }
@@ -211,8 +218,22 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const conn = adapter.connection ?? null;
   const guard = p => conn ? conn.race(p) : p;
   const ensure = async () => { if (conn && !(await conn.ready(() => say(state.phase, 'Connection lost: waiting for Foundry to reconnect…', state.done, state.total)))) throw new ConnectionLost(); };
-  const ok = (row, action, extra = {}) => log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'ok', ...extra});
-  const fail = (row, action, error) => log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'error', message: String(error?.message ?? error)});
+  const ok = (row, action, extra = {}) => { succeeded(); log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'ok', ...extra}); };
+  const streak = {message: null, count: 0}, logged = new Set();
+  const fail = (row, action, error) => {
+    const message = String(error?.message ?? error);
+    streak.count = message === streak.message ? streak.count + 1 : 1; streak.message = message;
+    // The original Error (with its stack) once per distinct message, so the real throw site is visible in the console.
+    if (!logged.has(message)) { logged.add(message); console.error(`[${MODULE_ID}] Sync: first failure of this kind on "${row.name ?? row.id}" (${action})`, error); }
+    log.push({id: row.id, kind: row.kind, name: row.name, action, status: 'error', message});
+  };
+  const succeeded = () => { streak.count = 0; streak.message = null; };
+  // 0.70.4: a failure that repeats for 25 records in a row is a systematic fault, not 25 bad records: stop grinding and say so once.
+  const halted = () => {
+    if (streak.count < REPEAT_STOP) return false;
+    log.push({action: 'sync-halted', status: 'error', id: '—', message: `Sync stopped after ${streak.count} records in a row failed with the same error: ${streak.message}. Nothing further was written; fix the cause and run the same Sync again.`});
+    return true;
+  };
   const creates = plan.rows.filter(r => r.group === 'create' && !r.external);
   const overwrites = plan.rows.filter(r => r.group === 'overwrite' && !r.external);
   const rebinds = plan.rows.filter(r => r.group === 'rebind');
@@ -222,7 +243,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const total = rebinds.length + creates.length + overwrites.length + external.length + deletes.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
-  const co = {guard, ensure};
+  const co = {guard, ensure, halted};
 
   say('backup', 'Downloading the backup of everything that will change…', 0, total);
   await adapter.backup(plan); // throws → nothing has been written
@@ -290,6 +311,9 @@ async function runSync(plan, adapter, options = {}, log, state) {
       const where = state.stepTotal ? `${state.stepDone} of ${state.stepTotal}${state.name ? ` (${state.name})` : ''}` : 'before the first record';
       console.warn(`[${MODULE_ID}] Binding links abandoned: no progress for ${Math.round((now() - lastMove) / 1000)} s at ${where}`);
       log.push({action: 'link-sync', status: 'error', id: '—', message: `Links are not bound yet: Binding links made no progress for ${Math.round((now() - lastMove) / 1000)} s at ${where}. The records and hand-offs were still written; descriptions show names until the links are bound. Run the same Sync again to finish (deletes were skipped).`});
+    } else if (winner.v?.stopped) {
+      linksStalled = true; // the text is not bound: nothing is remembered for it
+      log.push({action: 'link-sync', status: 'error', id: '—', message: `Binding links stopped after ${winner.v.stopped.count} records in a row failed with the same error: ${winner.v.stopped.message}. The records and hand-offs were still written; descriptions show names until the links are bound. Fix the cause and run the same Sync again (deletes were skipped).`});
     } else if (winner.v?.cancelled) return result(plan, log, true);
   } catch (e) {
     if (isInterruption(e)) throw e;
