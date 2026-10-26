@@ -326,7 +326,9 @@ test('Strain card is one partial (CN-06) with a labelled Backfire % (CN-08) and 
   assert.equal((hbs.match(/\{\{> agcStrain/g)??[]).length,2,'and used with and without a Cinder');
   assert.match(hbs,/<span class="agc-strain__chance[^"]*">Backfire \{\{bar\.chance\}\}%/);assert.doesNotMatch(hbs,/Backfire on a Push from here/);
   assert.match(hbs,/<p class="agc-legend agc-meta">Sockets \{\{used\}\} of \{\{capacity\}\}<\/p>/,'the legend no longer repeats Strain');
-  for(const l of ['Add Strain…','Remove Strain…','Set Strain…','Repair…','Transfer…','Unbind…','Bind…'])assert.ok(hbs.includes(`</i> ${l}</button>`),l);
+  for(const l of ['Add Strain…','Remove Strain…','Set Strain…','Repair…'])assert.ok(hbs.includes(`</i> ${l}</button>`),l);
+  // 0.15.0: the Manage row buttons carry their words in a span that shows from 52rem, and an aria-label and tooltip always.
+  for(const l of ['Transfer…','Unbind…','Bind…'])assert.ok(hbs.includes(`<span class="agc-lab ag-sr-only"> ${l}</span></button>`),l);
   for(const p of ['manage.panels.cinders','manage.panels.sockets','manage.panels.check','setup.panels.general','setup.panels.strain'])assert.ok(hbs.includes(`{{{${p}}}}`),p);
   assert.match(hbs,/data-ag-fold-key="sockets:\{\{instanceId\}\}"/);
   const sockets=hbs.slice(hbs.indexOf('data-ag-fold-key="sockets:'),hbs.indexOf('</details>',hbs.indexOf('data-ag-fold-key="sockets:')));
