@@ -849,3 +849,9 @@
 .agch-app .agch-older { margin: 0; padding-left: var(--ag-space-4); }
 .agch-app .agch-root--compact .agch-socketbox { grid-template-columns: 4rem minmax(0, 1fr) auto; }
 .agch-app .agch-root--compact .agch-cbox--mount, .agch-app .agch-root--compact .agch-pets, .agch-app .agch-root--compact .agch-cbox--petnone { flex: 1 1 100%; }
+
+/* 0.52.0 Compendium picker: Sort by + Descending above dnd5e's results (browser-sort.mjs). */
+.agch-bsort { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); padding: var(--ag-space-2) 0; }
+.agch-bsort__label { font-size: var(--ag-text-sm); font-weight: 600; }
+.agch-bsort select { width: auto; min-width: 10ch; max-width: 100%; }
+.agch-bsort__dir i { margin-right: var(--ag-space-1); }

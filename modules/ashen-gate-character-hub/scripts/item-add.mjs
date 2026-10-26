@@ -15,6 +15,7 @@ import {readDrop, resolveItemDrop, grantBundle} from './ag-item-drop.mjs';
 import {renderBeside} from './popout.mjs';
 import {advancementManager, showManager, hasSteps, setting} from './level-up.mjs';
 import {esc} from './constants.mjs';
+import {kindFor, canSort, selectOneSorted} from './browser-sort.mjs';
 
 const refuse = error => ({ok: false, error});
 const note = (kind, msg) => globalThis.ui?.notifications?.[kind]?.(msg);
@@ -127,7 +128,12 @@ export async function browseAndAdd(actor, tab, {sheet = null} = {}) {
   const {CompendiumBrowser} = dnd5eApps();
   if (typeof CompendiumBrowser?.selectOne !== 'function') return refuse("This version of dnd5e has no compendium browser to pick from. Drag the item onto the list, or use Create new….");
   let uuid;
-  try { uuid = await CompendiumBrowser.selectOne({filters: {locked: {types: new Set(ADD_TYPES[tab])}}}); } catch (err) {
+  const options = {filters: {locked: {types: new Set(ADD_TYPES[tab])}}}, kind = kindFor(ADD_TYPES[tab]);
+  try {
+    // 0.52.0: spells and items open with a Sort by control (browser-sort.mjs); anything it cannot build uses selectOne as before.
+    uuid = kind && canSort(CompendiumBrowser) ? await selectOneSorted(CompendiumBrowser, options, kind) : undefined;
+    if (uuid === undefined) uuid = await CompendiumBrowser.selectOne(options);
+  } catch (err) {
     console.error('ashen-gate-character-hub | compendium browser', err);
     return refuse(`Could not open the compendium browser: ${err?.message ?? err}`);
   }

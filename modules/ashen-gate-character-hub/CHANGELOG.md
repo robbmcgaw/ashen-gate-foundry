@@ -1,3 +1,15 @@
+## 0.52.0 — 2026-10-26
+
+The compendium picker behind **Add spell…**, **Add item…** and **Add attack…** can be sorted.
+
+- **Sort by** (a labelled select) and a **Descending** toggle (a pressed button; it reads "pressed" while the order is reversed) sit above the results in dnd5e's "Browse compendiums…" window. **Spells:** Name, Level, School, Casting time, Range, Concentration, Ritual, Source. **Items:** Name, Item type (weapon, equipment, consumable, tool, loot, container), Rarity (common, uncommon, rare, very rare, legendary, artifact, in that order), Price (copper, silver, electrum, gold and platinum all counted in gp), Weight (in pounds), Source. Ties are broken by the next key (level, then name; rarity, then price, then name), always A to Z. Items with no rarity, no price or no school sort last in both directions; a price of 0 counts as "no price". For Concentration and Ritual, ascending lists those spells first.
+- **The whole list is sorted, not just what is on screen.** dnd5e loads every match and shows 50 rows at a time as you scroll; the sort is applied to the full set before that, so row 51 onward are in order too. Search and Filters work as before and the sort applies to what they leave. Changing the sort refreshes the results from the top, and focus stays on the control you used.
+- Each row's second line now also shows what it is sorted on, for example "Spell · Level 3 · Evocation" or "Weapon · Rare · 500 gp".
+- **Remembered per user** on this computer, spells and items separately (client setting `browserSort`). First time: spells by Level then Name, items by Name. Add feature… keeps dnd5e's plain picker; the class picker in Level up is unchanged.
+- The results are a list, not a table, so there are no clickable column headings; the select and the toggle are the controls. No group-by headers (the picker loads rows in batches of 50).
+- Saved data: no change; one new client setting with an empty default; no migration. If dnd5e's picker ever lacks what the sort needs, Add… opens dnd5e's own picker unsorted.
+- Tests use mocked Foundry and prove the logic, not the live UI. Please check in Forge as described in the pull request.
+
 ## 0.51.0 — 2026-10-25
 
 Magic gets compact rows, and spell preparation now has limits.
