@@ -1,5 +1,5 @@
 /**
- * 0.53.0: the diamond message lives in the window's title bar. Mocked Foundry and a tiny fake DOM: this proves the markup,
+ * 0.54.0: the diamond message lives in the window's title bar. Mocked Foundry and a tiny fake DOM: this proves the markup,
  * the show / hide rules and the CSS text, not how the live window lays out or drags.
  */
 import test from 'node:test';

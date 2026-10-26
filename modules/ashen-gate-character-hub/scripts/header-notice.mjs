@@ -1,5 +1,5 @@
 /**
- * Character notices in the Hub's window title bar (0.53.0, Robb): a short status line between the title and the
+ * Character notices in the Hub's window title bar (0.54.0, Robb): a short status line between the title and the
  * window buttons. Until 0.52.0 the resurrection-diamond message sat in the Inventory panel; it is a character-level
  * notice, so it now shows on every tab. Display only: not stored, not clickable.
  *

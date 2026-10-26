@@ -16,6 +16,7 @@ import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket, registerMarkHooks} from './marks.mjs';
 import {registerSpellViewSetting} from './spell-rows.mjs';
+import {registerItemViewSetting} from './item-rows.mjs';
 import {registerPrepSettings, guardPrepareUpdate} from './spell-prep.mjs';
 import {registerConditionSettings} from './conditions.mjs';
 import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
@@ -155,6 +156,7 @@ if (globalThis.Hooks) {
     registerBrowserSortSetting(game.settings);
     // 0.51.0: Show spell descriptions (per user) and the GM's Enforce spell preparation limits (world).
     registerSpellViewSetting(game.settings, () => renderAllHubs());
+    registerItemViewSetting(game.settings, () => renderAllHubs());
     registerPrepSettings(game.settings, () => renderAllHubs());
     // 0.31.0: the built-in look (per user) and its world default, used while General Manager's appearance is absent.
     registerLookSettings(game.settings, () => renderAllHubs());

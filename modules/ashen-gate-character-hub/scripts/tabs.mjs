@@ -17,6 +17,7 @@ import {coinIcon} from './coins.mjs';
 import {ADD_LABELS, addReason} from './item-add.mjs';
 import {showDescriptions, descriptionsToggle, spellList, preparedIndicator} from './spell-rows.mjs';
 import {preparationSummary} from './spell-prep.mjs';
+import {showItemDescriptions, itemDescriptionsToggle, itemListFn, withLate} from './item-rows.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
@@ -66,7 +67,7 @@ function starBtn(actor, row, off) {
 function favouritesSection(actor, tab, rows, columns, card, expanded, list = null) {
   if (!favoritesSupported(actor)) return '';
   const favs = rows.filter(r => isFavorite(actor, actor.items?.get?.(r.id)));
-  return favs.length ? sectionHtml(sectionKey(tab, 'favourites'), `<i class="fa-solid fa-star agch-star__head" aria-hidden="true"></i> Favourites <span class="ag-badge">${favs.length}</span>`, (list ?? cardList)(favs, columns, {card, expanded, listKey: `${tab}-fav`})) : '';
+  return favs.length ? sectionHtml(sectionKey(tab, 'favourites'), `<i class="fa-solid fa-star agch-star__head" aria-hidden="true"></i> Favourites <span class="ag-badge">${favs.length}</span>`, (list ?? itemListFn(false))(favs, columns, {card, expanded, listKey: `${tab}-fav`})) : '';
 }
 
 // ---------- Combat ----------
@@ -87,22 +88,23 @@ function combatTab(ctx) {
   const dmg = {...C.damage, label: 'Damage / Healing'};
   const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery], mixedCols = [dmg, C.toHit, C.range, C.uses];
   const card = r => ({iconUse: !off, controls: useBtn(r, off), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`});
+  const compact = !showItemDescriptions(), list = itemListFn(compact), late = cols => withLate(cols, ['properties', 'recovery'], compact);
   const shown = sortRows(filterRows(d.rows, f), sort);
   const groups = orderGroups(groupRows(shown, group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'Everything'}), group);
-  const colsFor = g => group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols;
-  const sections = groups.map(g => sectionHtml(sectionKey('combat', group, g.key), `${esc(g.label)} <span class="ag-badge">${g.items.length}</span>`, cardList(g.items, colsFor(g), {card, expanded, listKey: `combat-${group}-${g.key}`}))).join('');
-  const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${filtersControl(ctx, 'combat', `${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}`)}
+  const colsFor = g => late(group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols);
+  const sections = groups.map(g => sectionHtml(sectionKey('combat', group, g.key), `${esc(g.label)} <span class="ag-badge">${g.items.length}</span>`, list(g.items, colsFor(g), {card, expanded, listKey: `combat-${group}-${g.key}`}))).join('');
+  const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${filtersControl(ctx, 'combat', `${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}`, `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`)}
     <div class="ag-toolbar__end">${h.hp.value <= 0 ? btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off}) : ''}${addButton(ctx, 'combat')}</div></div>`;
   const body = sections || (d.rows.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No weapons or actions yet.', 'Weapons, and items or features you can use, show here.'));
   return dropZone(ctx, 'combat', `${stickyBand(toolbar)}
-    ${favouritesSection(actor, 'combat', shown, mixedCols, card, expanded)}${body}
+    ${favouritesSection(actor, 'combat', shown, late(mixedCols), card, expanded, list)}${body}
     <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left. Hide unequipped leaves out weapons and gear you carry but have not equipped. Add attack… picks a weapon or an attack feature from the compendiums, or creates one; you can also drop an item here.</p>`);
 }
 
 // ---------- Inventory ----------
 /** True when any item the character owns (containers' contents too: they are Items on the Actor) has "diamond" in its name. */
 export const hasDiamond = actor => [...(actor?.items ?? [])].some(i => /diamond/i.test(String(i.name ?? '')));
-// 0.53.0: the diamond message is a character notice in the window's title bar (header-notice.mjs), not an Inventory banner.
+// 0.54.0: the diamond message is a character notice in the window's title bar (header-notice.mjs), not an Inventory banner.
 
 /**
  * Carried weight (0.30.0): a small kit meter beside the coin purse, filled with dnd5e's carried weight against its
@@ -126,7 +128,8 @@ function purseHtml(ctx, d) {
 function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   const {actor, editable, sheet} = ctx, off = !editable, toParty = partyStashUsable(), expanded = sheet?.expanded;
   const qty = {...C.quantity, render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
-  const columns = [qty, C.weight, C.value, C.uses];
+  const compact = !showItemDescriptions(), list = itemListFn(compact);
+  const columns = withLate([qty, C.weight, C.value, C.uses], ['weight', 'value'], compact);
   const controls = r => [
     r.usable && r.type === 'consumable' ? useBtn(r, off) : '',
     r.equippable ? btn(r.equipped ? 'item-unequip' : 'item-equip', r.equipped ? 'Unequip' : 'Equip', {kind: r.equipped ? 'primary' : 'sm', data: {id: r.id}, disabled: off}) : '',
@@ -135,8 +138,8 @@ function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   ].join('');
   const card = r => ({iconUse: !off, controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${attunedBadge(r)}`});
   // A container's contents sit in a folding row under it (fold state shared with headings).
-  const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${cardList(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`})}</li>` : '';
-  const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), cardList(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
+  const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${list(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`, nested: true})}</li>` : '';
+  const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), list(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
   return `${groups}
     <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
@@ -148,7 +151,7 @@ function inventoryShell(ctx) {
   const seg = (view, label, part) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always role="radio" aria-checked="${(view === 'party') === party}">${esc(label)}${hiddenBadge(part)}</button>`;
   const segs = mine && stash ? `<div class="ag-segmented agch-seg" role="radiogroup" aria-label="Whose items">${seg('character', 'Character', 'inventory')}${seg('party', 'Party stash', 'partyStash')}</div>` : '';
   const html = `${stickyBand(`<div class="ag-toolbar agch-toolbar">${segs}
-    ${searchBox(ctx, 'items')}
+    ${searchBox(ctx, 'items')}${d ? filtersControl(ctx, 'inventory', '', `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`, {label: 'View', title: 'View', icon: 'fa-sliders'}) : ''}
     ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}${d ? addEnd(ctx, 'inventory') : ''}</div>`)}
     ${d ? purseHtml(ctx, d) : ''}${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx, d)}`;
   return party ? html : dropZone(ctx, 'inventory', html);
@@ -169,13 +172,13 @@ export const activeFilters = (tab, f = {}) => Object.entries(f).filter(([k, v]) 
  * the filters that are on. Clear filters sits beside it while any filter is on. The popover is a Hub menu
  * (sheet.menu 'filters:<tab>'), so a click outside or Escape closes it.
  */
-export function filtersControl(ctx, tab, chips, extra = '') {
+export function filtersControl(ctx, tab, chips, extra = '', {label = 'Filters', title = 'Group, sort and filter', icon = 'fa-filter'} = {}) {
   const f = ctx.sheet?.listFilters?.[tab] ?? {}, n = activeFilters(tab, f), open = ctx.sheet?.menu === `filters:${tab}`;
   const any = Object.values(f).some(isOn);
-  const pop = open ? `<div class="agch-menu agch-filtermenu" role="group" aria-label="Filters">
-      <header class="agch-menu__head"><strong>Group, sort and filter</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>
-      <div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}${extra}</div>` : '';
-  return `<span class="agch-filterwrap"><button type="button" class="ag-btn ag-btn--sm agch-filtersbtn${n ? ' is-on' : ''}" data-action="filters-menu" data-tab="${tab}" data-ag-always aria-haspopup="true" aria-expanded="${open}"><i class="fa-solid fa-filter" aria-hidden="true"></i><span>Filters${n ? ` (${n})` : ''}</span></button>${pop}</span>
+  const pop = open ? `<div class="agch-menu agch-filtermenu" role="group" aria-label="${esc(title)}">
+      <header class="agch-menu__head"><strong>${esc(title)}</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>
+      ${ORGANIZE[tab] ? `<div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>` : ''}${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}${extra}</div>` : '';
+  return `<span class="agch-filterwrap"><button type="button" class="ag-btn ag-btn--sm agch-filtersbtn${n ? ' is-on' : ''}" data-action="filters-menu" data-tab="${tab}" data-ag-always aria-haspopup="true" aria-expanded="${open}"><i class="fa-solid ${icon}" aria-hidden="true"></i><span>${esc(label)}${n ? ` (${n})` : ''}</span></button>${pop}</span>
     ${any ? `<button type="button" class="ag-chip agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
 }
 
@@ -218,16 +221,17 @@ function magicTab(ctx) {
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
   const {group, sort} = listChoice('features'), f = sheet?.listFilters?.features ?? {};
-  const columns = [...(group === 'type' ? [] : [{...C.type, render: r => esc(r.typeLabel || r.facts.type || '—')}]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery];
+  const compact = !showItemDescriptions(), list = itemListFn(compact);
+  const columns = withLate([...(group === 'type' ? [] : [{...C.type, render: r => esc(r.typeLabel || r.facts.type || '—')}]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery], ['activation', 'recovery'], compact);
   const card = r => ({iconUse: !off, controls: useBtn(r, off), star: starBtn(actor, r, off)});
   const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label}))), shown = filterRows(all, f);
   const groups = group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
-  const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
+  const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
   // Action-type buttons for the dnd5e activation types these features have.
   const actBtns = actionChips('features', all, f);
-  return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`)}${addEnd(ctx, 'features')}</div>`)}
-    ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
+  return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`, `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`)}${addEnd(ctx, 'features')}</div>`)}
+    ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded, list)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
     <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. Add feature… picks a feature from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
 

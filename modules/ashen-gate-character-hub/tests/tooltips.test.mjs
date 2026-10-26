@@ -45,6 +45,7 @@ test('every item element in the Hub gets the rich tooltip: list rows, slots, Oth
   withDnd5e();
   const actor = makeActor({items: ITEMS});
   await hb.setHotbarSlot(actor, 0, actor.items.get('hm'));
+  game.settings.store.showItemDescriptions = true;   // 0.53.0: the long rows; the compact rows are checked below
   let html = await render('combat', actor);
   assert.match(html, new RegExp(`class="agch-item__name" data-action="item-sheet" data-id="ss" data-ag-always ${tip('Actor.actor1.Item.ss')}`), 'Combat row');
   assert.match(html, new RegExp(`data-action="slot-open" data-slot="mainhand" data-id="ss"[^>]*${tip('Actor.actor1.Item.ss')}`), 'paper doll slot');
@@ -56,6 +57,12 @@ test('every item element in the Hub gets the rich tooltip: list rows, slots, Oth
     html = await render(t, actor);
     assert.match(html, /class="agch-item__name" data-action="item-sheet" data-id="\w+" data-ag-always data-tooltip-html=/, t);
   }
+  // 0.53.0: compact item rows: the name expands the description; hovering it still shows dnd5e's hover card.
+  delete game.settings.store.showItemDescriptions;
+  for (const t of ['combat', 'inventory', 'features']) {
+    html = await render(t, actor);
+    assert.match(html, /class="agch-item__name agch-crow__name" data-action="item-expand" data-id="\w+" data-key="[^"]+" data-ag-always aria-expanded="false" aria-controls="[^"]+" tabindex="-1" data-tooltip-html=/, `${t} compact`);
+  }
   // 0.51.0: a compact spell row's name expands the description; hovering it still shows dnd5e's hover card.
   html = await render('magic', actor);
   assert.match(html, /class="agch-item__name agch-spell__name" data-action="spell-expand" data-id="\w+" data-key="[^"]+" data-ag-always aria-expanded="false" aria-controls="[^"]+" tabindex="-1" data-tooltip-html=/, 'magic');
@@ -66,9 +73,10 @@ test('companion gear and pet clothing get it too; observers get the same dnd5e t
   const actor = makeActor({items: ITEMS});
   await c.addActorCompanion(actor, {documentName: 'Actor', id: 'cat1', uuid: 'Actor.cat1', name: '[TEST] Cat', testUserPermission: () => true}, 'pet');
   await c.socketGear(actor, 'pet', 'head', 'hat');
+  game.settings.store.showItemDescriptions = true;
   let html = await render('companions', actor);
   assert.match(html, new RegExp(`data-action="item-sheet" data-id="hat" data-ag-always ${tip('Actor.actor1.Item.hat')}`), 'pet clothing slot');
-  withDnd5e(users.observer);
+  withDnd5e(users.observer, {petCap: 1, showItemDescriptions: true});
   html = await render('combat', actor);
   assert.match(html, new RegExp(`data-id="ss" data-ag-always ${tip('Actor.actor1.Item.ss')}`));
   assert.doesNotMatch(html, /data-tooltip-html="[^"]*(price|gm)/i, 'the Hub adds no data of its own to the tooltip');

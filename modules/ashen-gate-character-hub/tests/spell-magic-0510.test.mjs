@@ -131,7 +131,7 @@ test('sticky headings and narrow layout (CSS text)', () => {
   const narrow = CSS.slice(CSS.indexOf('/* 0.51.0 Magic'), CSS.indexOf('/* Compact mode (0.29.0)'));
   assert.match(narrow, /@container \(max-width: 640px\) \{[\s\S]*\.agch-spell \.agch-card__fact--late \{ display: none; \}[\s\S]*\.agch-spell__facts \{ display: flex; \}/, 'duration and components move into the expanded row');
   assert.match(narrow, /prefers-reduced-motion/);
-  assert.doesNotMatch(narrow.replace('(max-width: 640px)', '').replace(/1px solid/g, ''), /\d+px/, 'tokens only (the 640px breakpoint and 1px borders are the Hub\'s existing ones)');
+  assert.doesNotMatch(narrow.replaceAll('(max-width: 640px)', '').replace(/1px solid/g, ''), /\d+px/, 'tokens only (the 640px breakpoint and 1px borders are the Hub\'s existing ones)');
   assert.doesNotMatch(narrow, /overflow-x|white-space: nowrap/, 'nothing scrolls sideways or clips');
 });
 

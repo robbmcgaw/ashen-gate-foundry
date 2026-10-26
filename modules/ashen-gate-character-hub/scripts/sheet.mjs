@@ -34,6 +34,7 @@ import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut, isPoppedOut, hostWindows, releaseHosting} from './popout.mjs';
 import {placePopovers} from './popover.mjs';
 import {toggleSpell, setShowDescriptions, syncBandHeight} from './spell-rows.mjs';
+import {toggleItem, setShowItemDescriptions} from './item-rows.mjs';
 import {setEnforcement} from './spell-prep.mjs';
 import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
@@ -153,6 +154,7 @@ export const ACTIONS = {
   'spell-prepare': (s, t) => items.togglePreparedAsk(s.document, t.dataset.id),
   // 0.51.0: a spell's description opens in place under its row (no redraw: the focus stays on the button).
   'spell-expand': (s, t) => toggleSpell(s, t),
+  'item-expand': (s, t) => toggleItem(s, t),   // 0.53.0: Combat, Inventory and Features rows open in place like Magic's
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
   'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.kind, t.dataset.uuid),
@@ -500,6 +502,7 @@ export const EDITS = {
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
   // 0.51.0: Show spell descriptions (this user) and the GM's Enforce spell preparation limits (world).
   'spell-descriptions': async (s, i) => { const r = await setShowDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
+  'item-descriptions': async (s, i) => { const r = await setShowItemDescriptions(i.checked === true); if (r.ok) s.render(); return r; },
   'prep-enforce': async (s, i) => { const r = await setEnforcement(i.checked === true); if (!r?.ok) s.render(); return r; },
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; },
   'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; },
@@ -678,7 +681,7 @@ export function createHubSheetClass(Base) {
         mountEmbeds(content, this._embeds);
         applyFilter(content, this.filters[this.tab] ?? '');
         restoreScroll(content, this._agchScroll[view]);
-        syncBandHeight(content);   // 0.51.0: Magic's column headings pin under the toolbar band
+        syncBandHeight(content);   // 0.51.0: the column headings pin under the toolbar band (Magic; 0.53.0 Combat, Inventory, Features too)
         placePopovers(content);   // 0.34.0: Filters and the header menus stay inside the window
         this._bindTabs(content);
         const pop = popNow && popNow !== popBefore ? content.querySelector?.(POPOVER_SELECTOR) : null;
@@ -693,7 +696,7 @@ export function createHubSheetClass(Base) {
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
       try { this._syncTitle(); } catch {}   // 0.37.1: the title follows a rename
-      try { syncHeaderNotice(this); } catch (err) { console.warn(`${MODULE_ID} | title bar notice`, err); }   // 0.53.0
+      try { syncHeaderNotice(this); } catch (err) { console.warn(`${MODULE_ID} | title bar notice`, err); }   // 0.54.0
       // <html> carries General Manager's skin to every window in Foundry's own page, so the Hub no longer copies the skin
       // onto its content on each render (0.33.0, GM-CO-04: the copy went stale on a skin change). A popped-out Hub sits
       // in another browser window's <html>, so there it is still applied.

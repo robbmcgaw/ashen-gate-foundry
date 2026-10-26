@@ -81,7 +81,7 @@ test('card list: column headers, stripes, rarity, summary with More, full text k
 });
 
 test('More toggles the full text in place and the sheet remembers it', async () => {
-  installGlobals();
+  installGlobals({settings: {showItemDescriptions: true}});   // the long rows (0.53.0: compact is the default)
   const {sheet} = await renderTab('combat');
   const detail = {hidden: true}, attrs = {};
   const target = {dataset: {key: 'more:combat-category-combat:sw'}, textContent: 'More', setAttribute: (k, v) => { attrs[k] = v; }, closest: () => ({querySelector: () => detail})};
@@ -112,7 +112,7 @@ test('Inventory: quantity, weight, value, uses columns; every action kept; conta
   assert.match(b, /data-label="Weight">0.5 lb<[\s\S]*data-label="Value">50 gp</);
   for (const re of [/data-action="item-unequip" data-id="sw"/, /data-action="item-equip" data-id="bow"/, /data-action="item-use" data-id="pot"/]) assert.match(b, re);
   assert.match(b, /data-key="container:pack" data-ag-always aria-expanded="false"/);
-  assert.match(b, /<li class="agch-contents" data-sec-body="container:pack" hidden><ul class="ag-list agch-cards"[\s\S]*\[TEST\] Rope/);
+  assert.match(b, /<li class="agch-contents" data-sec-body="container:pack" hidden><ul class="ag-list agch-cards agch-crowlist agch-crowlist--nested[\s\S]*\[TEST\] Rope/);
 });
 
 test('group and sort choices: per user, safe defaults, unknown values refused', async () => {
