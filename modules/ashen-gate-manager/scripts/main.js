@@ -298,7 +298,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
   '<p><strong>Pull from GitHub</strong> (Import, above the sync switch): reads your content pack straight from a GitHub repository instead of ZIP files. Enter the repository (owner/name), branch and the folder or manifest file of the pack, paste a read-only token (a fine-grained token for that one repository with Contents set to read), press <strong>Find packs</strong>, tick the packs and press <strong>Pull selected packs</strong>. The token is kept on this device only, never in the world and never visible to players; <strong>Remove token…</strong> deletes it. <strong>Check for updates</strong> says whether the files changed since your last pull. Pulled files go to Sync from package for its full preview (or, if you prefer, to the normal import); nothing changes before you confirm. If any file cannot be read, nothing is sent on. A folder with no manifest is offered as a pack of its JSON files in name order, but starts unticked: tick it only if you want it. Gathering node files are left for the Profession Ledger\u2019s own import.</p>',
-  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included (but never your art: a portrait, token image or token ring you set yourself, for example with Link files to records, is always kept, never makes a record count as edited, and is listed under <em>Keeping your art</em>; only the separate, off-by-default <strong>Also replace art I set</strong> replaces it), and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. The progress line names the step, the record and the time; if nothing moves for 60 s it says so, <strong>Cancel sync</strong> stops between chunks, and if your connection drops Sync stops with a message: reload the page and run the same Sync again, it resumes without repeating what is done. Locations, shops, quests, trees, factions and deities and the like go to their own modules in update mode (Renown shows what it will update per record, saves a snapshot of the old definitions first, keeps standings, claims, requests, choices and what the party learned, and keeps a definition you edited in Renown unless you tick <strong>Also overwrite records I edited</strong>; an older Renown only adds new ones and the preview says it needs an update); ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Manager remembers what it handed each module, so a record that has not changed since is listed as <em>Already matches the package</em> and is not passed on again; the first Sync after this feature says <em>No earlier import is recorded for this record</em> and passes it on once. A record you edited in that module&rsquo;s own window shows <em>Kept: edited in</em> that module and is replaced only when you tick <strong>Also overwrite records I edited</strong>. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
+  '<p><strong>Sync from package</strong> (Import, switch at the top; off by default): makes the world match the files you choose, as if they were literally the old files. Tick the switch, choose every file of the sync in one go (for the two-ZIP pack, both the main and the sandbox ZIP; a ZIP with an import-order manifest holds a whole pack), press <strong>Preview sync</strong> and read it: <em>Create</em>, <em>Overwrite</em> (open a record for its field-by-field differences), <em>Kept: edited in your world</em>, <em>Delete</em> (every record by name and kind) and <em>Untouched</em>. A record matches by its permanent id, never its name, and a record you have not edited is updated to the package, while one you edited since the import is kept as it is (listed under <em>Kept: edited in your world</em> with what would differ) unless you tick <strong>Also overwrite records I edited</strong>, which lets the package win, your edits included (but never your art: a portrait, token image or token ring you set yourself, for example with Link files to records, is always kept, never makes a record count as edited, and is listed under <em>Keeping your art</em>; only the separate, off-by-default <strong>Also replace art I set</strong> replaces it), and also deletes edited records the files no longer carry (otherwise those are kept too, under <em>Kept: edited in your world, no longer in the package</em>). NPC Actors take the package\u2019s abilities, AC, max HP, items, image and token but keep current and temporary HP, item quantities and uses, and the biography. Only documents Manager imported from the package lines in this sync, and that no chosen file mentions, are deleted; documents Manager did not import are never touched, and neither are Keep here, protected-folder, player-owned, placed-on-a-scene or hotbar documents (listed as <em>Not removed</em>). Character sheets (player characters, their Items, effects and flags, hotbars) are never touched, and an Item that is also on a sheet stays there as it is. <strong>Clear inputs…</strong> empties the Import page (files, preview, ticks, the typed confirmation) without touching your world, backups or settings; after a sync that did not finish it is <strong>Discard the unfinished sync…</strong>, a separate confirmation. The page is three steps (Choose, Preview, Confirm and run) with rarely used options under <strong>Advanced</strong>. The progress line names the step, the record and the time; if nothing moves for 60 s it says so, <strong>Cancel sync</strong> stops between chunks, and if your connection drops Sync stops with a message: reload the page and run the same Sync again, it resumes without repeating what is done. Locations, shops, quests, trees, factions and deities and the like go to their own modules in update mode (Renown shows what it will update per record, saves a snapshot of the old definitions first, keeps standings, claims, requests, choices and what the party learned, and keeps a definition you edited in Renown unless you tick <strong>Also overwrite records I edited</strong>; an older Renown only adds new ones and the preview says it needs an update); ones a newer package drops are listed as <em>Not removed: remove it in</em> that module. Manager remembers what it handed each module, so a record that has not changed since is listed as <em>Already matches the package</em> and is not passed on again; the first Sync after this feature says <em>No earlier import is recorded for this record</em> and passes it on once. A record you edited in that module&rsquo;s own window shows <em>Kept: edited in</em> that module and is replaced only when you tick <strong>Also overwrite records I edited</strong>. Type <strong>Replace content from package</strong> and press the red button; a JSON backup of everything overwritten or deleted downloads first (if it cannot be saved nothing is written). It works in small chunks with <strong>Cancel sync</strong>; running the same files again finishes a cancelled run and changes nothing once done. A deleted id stays retired and is not reused. Records imported by an older Manager have no package line and are kept unless you tick <strong>Also delete records not in these files</strong>.</p>',
   '<p><strong>Replacing a record</strong> (<code>supersedes</code>): when a new record says it replaces an old permanent id and that old document is in your world, the preview shows <em>Replaces &lt;old name&gt;</em> with <strong>Yes, replace it</strong>, <strong>No, add separately</strong> or <strong>Skip</strong>. Yes keeps the same document (tokens, ownership, folder, links, Codex notes) and gives it the new name and content; items and pages you added, current HP and a token ring that is already on stay. A backup of the old documents downloads first; Sync also never deletes a document whose id is replaced. Renown and Quest Log are asked to move their saved ids to the new ones, keeping progress.</p>',
   '<p><strong>Reference links</strong> (<code>@AGRef[id]{Label}</code>): a reference to a person or a handout in any description, journal page or biography shows the record&rsquo;s name with an icon, never its id. A handout opens its Item twin when there is one and you may see it. Players only get links to what they may open (a person opens in the NPC Codex once it reveals them); otherwise it is plain text. For the GM a person opens the Actor sheet, also inside Monk&rsquo;s Enhanced Journal.</p>',
   '<p><strong>Related lists</strong>: an Item whose <em>refs</em> point at a person, a handout or a quest, order or contract ends with a short <strong>Related</strong> list (up to 5 links: handouts, then people, then quests). Import and Sync from package write it and keep it up to date; gear, materials, recipes, shops and locations get none, and an Item you edited in Foundry is left alone. Players see names and only the links they may open.</p>',
@@ -358,6 +358,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
     this.zipBundle = null;
+    this.previewShown = PREVIEW_PAGE;
     // 0.56.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
     this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, replaceArt:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
     // 0.59.0 Pull from GitHub: the form draft, the packs found and the last pull. The token is never kept here beyond what is typed.
@@ -833,6 +834,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Validation messages name a record by its permanent id; show the record's name for the ones in the loaded package.
     const nameById=this.preview.filter(r=>r.id&&r.name).map(r=>[String(r.id),String(r.name)]).sort((x,y)=>y[0].length-x[0].length);
     const named=text=>nameById.reduce((out,[id,name])=>out.includes(id)?out.split(id).join(name):out,String(text));
+    const previewAll=this.tab==='import'?this.#previewRows():[];
     return {
       ...ctx,
       version: game.modules.get(MODULE_ID)?.version ?? '',
@@ -947,7 +949,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       canApply: !this.busy && !this.zipBundle?.autoRunning && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
       busy: this.busy || Boolean(this.zipBundle?.autoRunning),
       summary,
-      rows: this.#previewRows(),
+      rows: previewAll.slice(0,this.previewShown), totalRows: previewAll.length, moreRows: Math.max(0,previewAll.length-this.previewShown), nextPage: Math.min(PREVIEW_PAGE,Math.max(0,previewAll.length-this.previewShown)),
       smartIcons: this.smartIcons, repickIcons: this.repickIcons, iconStatus: this.#iconStatusText(),
       hasIconRows: this.preview.some(row=>row.icon),
       icons: items&&view==='checks'?this.#iconScanContext():null,
@@ -1452,7 +1454,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "gh-send-sync": await this.#ghSendSync(); break;
       case "gh-send-import": await this.#ghSendImport(); break;
       case "sync-preview": await this.#syncPreview(); break;
-      case "sync-reset": this.sync.inputs=[]; this.#syncDrop('Files cleared. Nothing in your world changed.'); await this.render(); break;
+      case "clear-inputs": await this.#clearInputs(); break;
+      case "preview-more": this.previewShown+=PREVIEW_PAGE; await this.render(); break;
       case "sync-cancel": this.#syncDrop('Sync cancelled. Nothing in your world changed.'); await this.render(); break;
       case "sync-report": this.#syncReport(); break;
       case "sync-backup": this.#syncBackupFile(); break;
@@ -1505,6 +1508,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   /** Forgets any loaded file (and its banner) so a failed or new load never shows the previous file as loaded. */
   #clearLoaded(message) {
+    this.previewShown=PREVIEW_PAGE;
     this.pkg=null; this.rawPkg=null; this.specialist=null; this.zipMedia=new Map(); this.packageSource=null;
     this.preview=[]; this.errors=[]; this.warnings=[]; this.moduleLinks=[]; this.selected.clear();
     this.iconOverrides=new Map(); this.repickIcons=false;
@@ -4015,13 +4019,47 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       const el=root.querySelector('[data-ag-sync-status]');if(el)el.textContent='Stopping after the current chunk…';
     });
   }
+  /** True while a Sync, an Import or a ZIP run is writing: Clear inputs… is refused then. */
+  #importRunning() {
+    const z=this.zipBundle;
+    return Boolean(this.busy||this.sync.abort||z?.running||(z?.autoMode&&!z?.paused));
+  }
+  /** Anything left from the last import or sync that Clear inputs… would remove. */
+  #hasInputs() {
+    return Boolean(this.pkg||this.rawPkg||this.specialist||this.zipBundle||this.sync.inputs.length||this.sync.set||this.sync.plan||this.sync.phrase||this.sync.result
+      ||this.importReports.length||this.errors.length||this.warnings.length||this.moduleLinks.length||this.preview.length||this.selected.size||this.gh.rows.length||this.gh.pulled);
+  }
+  /**
+   * 0.70.6 "Clear inputs…" (Import tab, Import and Sync): returns the page to its empty starting state. It only drops what this window holds
+   * in memory (chosen files, the preview and its results, ticks, the typed confirmation phrase, messages and progress); it never touches world
+   * documents, the hand-off ledger, backups or settings. Refused while something is running; after a cancelled, interrupted or failed Sync it
+   * asks separately ("Discard the unfinished sync…", danger) because running the same files again would have finished it.
+   */
+  async #clearInputs() {
+    if(!game.user?.isGM)return;
+    if(this.#importRunning()){toast('Wait for the running Sync or Import to finish (or cancel it) before clearing.',true);return;}
+    if(!this.#hasInputs()){toast('Nothing to clear: no files are loaded.');return;}
+    const unfinished=Boolean(this.sync.unfinished);
+    const yes=unfinished
+      ? await confirmDanger('The last Sync did not finish. Everything it already wrote stays in your world, and running the same files again would finish it. Discarding forgets the chosen files and the preview, so you would have to choose them again. Nothing in your world, the hand-off record, your backups or your settings changes.',{title:'Discard the unfinished sync?',yes:'Discard the unfinished sync'})
+      : await confirmDialog(`Clear the chosen files, the preview and its results, your ticks${this.sync.phrase?', the typed confirmation':''} and the messages? Nothing in your world, the hand-off record, your backups or your settings changes.`,{title:'Clear inputs?',yes:'Clear inputs'});
+    if(!yes)return;
+    this.pkg=null;this.rawPkg=null;this.specialist=null;this.zipBundle=null;this.zipMedia=new Map();this.packageSource=null;
+    this.preview=[];this.errors=[];this.warnings=[];this.moduleLinks=[];this.selected.clear();this.importReports=[];this.auditEntries=[];
+    this.iconOverrides=new Map();this.repickIcons=false;this.previewShown=PREVIEW_PAGE;
+    this.message='Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin.';
+    Object.assign(this.sync,{inputs:[],set:null,plan:null,phrase:'',result:null,progress:null,stopping:false,unfinished:false,shown:{},message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'});
+    Object.assign(this.gh,{rows:[],selected:[],pulled:null,update:null,message:null,progress:null});
+    toast('Inputs cleared. Nothing in your world changed.');
+    await this.render();
+  }
   #syncDrop(message) {
     Object.assign(this.sync,{set:null,plan:null,phrase:'',result:null,progress:null,stopping:false,message});
   }
   #syncHtml() {
     const s=this.sync, joined=joinSyncInputs(s.inputs);
     return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
-      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message});
+      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message,unfinished:Boolean(s.unfinished),shown:s.shown??{}});
   }
   #syncFileButton() {
     return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
@@ -4192,6 +4230,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       emitBulkFinished('sync');
       void maybeResumeLegacy();
     }
+    this.sync.unfinished=Boolean(failure||outcome?.cancelled||outcome?.interrupted||!outcome?.completed);
     const k=outcome?.counts;
     const named=r=>`${r.name??r.id??''} ${r.action??''}: ${r.message??r.status}`;
     const lines=failure?[`${SYNC_NAME} stopped before finishing: ${failure}`,'Anything already written stays; the sync is safe to run again.']
@@ -4379,6 +4418,7 @@ function withoutBundledArt(record,assets) {
   if(named(clone.foundry.data.prototypeToken?.texture?.src))delete clone.foundry.data.prototypeToken.texture.src;
   return clone;
 }
+const PREVIEW_PAGE=100; // Import preview rows drawn at a time (the page scrolls; no inner scroll box)
 const SPECIALIST_COUNT=src=>specialistCount(src.kind,src.payload);
 /** Which module-owned ids still exist, for "Not removed: remove it in <module>" (undefined when Manager cannot tell). */
 function moduleRecordIndex(locApi,shpApi) {

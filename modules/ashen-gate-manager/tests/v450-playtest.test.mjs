@@ -12,23 +12,25 @@ const tpl = read('../templates/manager.hbs');
 const main = read('../scripts/main.js');
 
 // ---- 1. Import tab layout ----
-test('Import tab: Load, ZIP, Options and Preview are remembered folds; messages are in a drawer below the scrolling pane', () => {
-  for(const key of ['load', 'zip', 'options', 'preview']) assert.match(tpl, new RegExp(`data-ag-fold="${key}" \\{\\{#if folds\\.${key}\\}\\}open\\{\\{/if\\}\\}`), key);
+test('Import tab: ZIP, Advanced (options) and Preview are remembered folds; the message bar is below the pane and its messages follow the steps in the page (0.70.6)', () => {
+  for(const key of ['zip', 'options', 'preview']) assert.match(tpl, new RegExp(`data-ag-fold="${key}" \\{\\{#if folds\\.${key}\\}\\}open\\{\\{/if\\}\\}`), key);
   const pane = tpl.slice(tpl.indexOf('<div class="ag-scroll agm-pane"'), tpl.indexOf('<aside class="agm-drawer'));
   // 0.46.0: the folds are kit .ag-fold sections.
-  for(const key of ['load', 'zip', 'options', 'preview']) assert.match(tpl, new RegExp(`<details class="ag-fold[^"]*" data-ag-fold="${key}"`), key);
+  for(const key of ['zip', 'options', 'preview']) assert.match(tpl, new RegExp(`<details class="ag-fold[^"]*" data-ag-fold="${key}"`), key);
   const importPart = pane.slice(pane.indexOf('{{#if importActive}}\n'), pane.indexOf('{{#if itemsActive}}\n'));
   assert.ok(importPart.length > 1000);
   // None of the long message lists sit above or between the main controls any more.
-  for(const s of ['Validation failed', 'Import review notes', 'Links to other Ashen Gate modules', 'Import results']) assert.doesNotMatch(importPart, new RegExp(s), s);
+  const mainControls = importPart.slice(0, importPart.indexOf('id="agm-drawer-body"'));
+  for(const s of ['Validation failed', 'Import review notes', 'Links to other Ashen Gate modules', 'Import results']) assert.doesNotMatch(mainControls, new RegExp(s), s);
+  assert.match(importPart.slice(importPart.indexOf('id="agm-drawer-body"')), /Import results/);
   const drawer = tpl.slice(tpl.indexOf('<aside class="agm-drawer'), tpl.indexOf('</aside>', tpl.indexOf('<aside class="agm-drawer')));
-  for(const s of ['Validation failed', 'Import review notes', 'Links to other Ashen Gate modules', 'Import results', 'data-ag-drawer-tab', 'data-ag-drawer-toggle']) assert.match(drawer, new RegExp(s), s);
+  for(const s of ['data-ag-drawer-tab', 'data-ag-drawer-toggle']) assert.match(drawer, new RegExp(s), s);
   assert.match(tpl, /<\/div>\n  \{\{#if importActive\}\}\{\{#if drawer\.any\}\}\n  <aside class="agm-drawer/, 'drawer is outside the scrolling pane');
   // Validate & Preview stays in the main controls, outside every fold.
   const actions = importPart.slice(importPart.indexOf('agm-import-actions'));
   assert.match(actions.slice(0, 600), /data-ag-action="preview"/);
   const css = read('../styles/manager.css');
-  assert.match(css, /\.agm-drawer__body\{max-height:min\(18rem,35vh\)/);
+  assert.doesNotMatch(css, /\.agm-drawer__body\{max-height/); // 0.70.6: the messages are part of the page, not a second scroll box
   assert.match(css, /\.agm-scrollcap\{max-height:min\(28rem,45vh\);overflow:auto/);
   assert.match(main, /game\.settings\.register\(MODULE_ID,LAYOUT_SETTING,\{name:"Import tab layout",scope:"client",config:false/);
 });
