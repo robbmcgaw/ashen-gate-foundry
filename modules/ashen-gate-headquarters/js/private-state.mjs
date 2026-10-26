@@ -8,6 +8,7 @@
  * then replace the public setting. Failure never deletes the original or vault.
  */
 import {emptyState,FORMAT,MODULE_ID} from './logic.mjs';
+import {journalFolderId} from './folder-nesting.mjs';
 import {PERSONNEL_FORMAT} from './hirelings.mjs';
 
 export const VAULT_POINTER='privateStateDocumentId';
@@ -158,7 +159,7 @@ export function createPrivateStateStore({game,JournalEntryClass,settings=game?.s
   if(!pub||pub.format!==FORMAT)throw Error('The public Guildhall copy is missing or unreadable, so a new vault cannot be built. Nothing was changed.');
   const next=projectPublicState(pub);
   next.state_revision=(Number.isFinite(pub.state_revision)?pub.state_revision:0)+1;
-  const created=await JournalEntryClass.create({name:VAULT_TITLE,ownership:{default:0},flags:{[MODULE_ID]:{[VAULT_MARKER]:true,[VAULT_FLAG]:clone(next)}}},{renderSheet:false});
+  const created=await JournalEntryClass.create({name:VAULT_TITLE,folder:await journalFolderId(),ownership:{default:0},flags:{[MODULE_ID]:{[VAULT_MARKER]:true,[VAULT_FLAG]:clone(next)}}},{renderSheet:false});
   if(!created?.id)throw Error('Could not create the new private vault. Nothing was changed.');
   requirePrivateVaultPermissions(created,game.users);
   document=created;authoritative=clone(next);
@@ -191,7 +192,7 @@ export function createPrivateStateStore({game,JournalEntryClass,settings=game?.s
   const old=settings.get(MODULE_ID,'state')??emptyState();
   if(old.format!==FORMAT)throw Error('Unsupported legacy Headquarters save; state not changed.');
   // A restricted Journal is a server-authorized store. Do not set non-GM rights.
-  const created=await JournalEntryClass.create({name:VAULT_TITLE,ownership:{default:0},flags:{[MODULE_ID]:{[VAULT_MARKER]:true,[VAULT_FLAG]:clone(old)}}},{renderSheet:false});
+  const created=await JournalEntryClass.create({name:VAULT_TITLE,folder:await journalFolderId(),ownership:{default:0},flags:{[MODULE_ID]:{[VAULT_MARKER]:true,[VAULT_FLAG]:clone(old)}}},{renderSheet:false});
   if(!created?.id)throw Error('Could not create Headquarters private vault; legacy state retained.');
   requirePrivateVaultPermissions(created,game.users);
   document=created;authoritative=clone(old);
