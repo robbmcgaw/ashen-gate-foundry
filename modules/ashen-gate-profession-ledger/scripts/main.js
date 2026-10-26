@@ -7,6 +7,7 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionSource} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {tierBadge} from './tier-style.mjs';
+import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,formDialog,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
@@ -24,7 +25,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.33.3';
+const VERSION='0.33.4';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -401,8 +402,11 @@ const recipeLabelFor=(ref,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(r
 const recipeWord=(recipe,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(recipe?.professionId)??labelKeyOf(professionLabel(recipe))),opts);
 /** 0.29.0: a recipe's effect note (activities); older stored catalog rows read it from their source definition. */
 const effectNote=recipe=>recipe?.effectNote??effectNoteOf(recipe?.sourceDefinition);
-const effectNoteHtml=recipe=>{const note=isActivity(recipe)?effectNote(recipe):null;
-  return note?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(note)} <small class="agl-sub">(the GM decides at the table)</small></p>`:'';};
+/** 0.33.4: each fact once. The summary is the description minus the badge-restating first sentence and minus the effect text; the effect shows once.
+ * "(the GM decides at the table)" only where a character is about to complete the activity (craft context). */
+const recipeTextHtml=(recipe,{gmNote=false}={})=>{
+  const {summary,effect}=recipeTexts({name:recipe.name,tier:tierLabel(recipe.tier),effort:recipe.effort,description:recipe.description,effect:isActivity(recipe)?effectNote(recipe):null});
+  return `${summary?`<p class="agl-recipe-summary">${esc(summary)}</p>`:''}${effect?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(effect)}${gmNote?' <small class="agl-sub">(the GM decides at the table)</small>':''}</p>`:''}`;};
 
 /** The world ITEM-* document a recipe produces (Manager import), or null. */
 function resultDocument(recipe,{forPlayer=!game.user.isGM}={}){
@@ -1183,12 +1187,9 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   // 0.32.0: header (name, tier, effort), then Needs → Makes, then the tool or station, then the quieter text, then who knows it.
   const makes=result?`<span class="agl-qty">1 ×</span> ${itemRef(result.name,recipe.resultItemId,'Item',ctx)}`
     :`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported yet':'Not available yet'}</span>`;
-  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
-    <div class="agl-recipe-head">
-      <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
-        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
-      <div class="agl-recipe-actions">${actions}</div>
-    </div>
+  // 0.33.4: lists with no craft context (Party, Catalog) fold the body under the title; Known by stays visible.
+  const compact=!craft&&!learnItem;
+  const bodyHtml=`
     ${activity?'':`<div class="agl-recipe-flow">
       <div class="agl-recipe-needs"><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
       <i class="fa-solid fa-arrow-right agl-recipe-arrow" aria-hidden="true"></i>
@@ -1196,8 +1197,14 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     </div>`}
     ${gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''}
     ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
-    ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
-    ${effectNoteHtml(recipe)}
+    ${recipeTextHtml(recipe,{gmNote:Boolean(craft)})}`;
+  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
+    <div class="agl-recipe-head">
+      <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
+        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
+      <div class="agl-recipe-actions">${actions}</div>
+    </div>
+    ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`:bodyHtml}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
   </article>`;
 }
