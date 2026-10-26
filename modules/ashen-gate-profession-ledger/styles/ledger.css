@@ -39,6 +39,7 @@
 /* 0.26.1: name + badges stay on one row down to the ~220px Hub embed. The name takes the room left and ends in an
  * ellipsis (full name in its tooltip); the badges are one nowrap group, so they never split. When even a short stub of
  * the name would not fit, the whole group drops to its own row, right-aligned, just above the tier line. */
+.agl-prof-actions{display:flex;margin-top:var(--ag-space-1)}
 .agl-prof-head{display:flex;align-items:center;gap:var(--ag-space-1) var(--ag-space-2);flex-wrap:wrap}
 .agl-prof-name{flex:1 1 0;min-width:min(100%,4.5em);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--ag-text-lg)}
 .agl-prof-badges{display:inline-flex;flex:none;align-items:center;gap:var(--ag-space-1);margin-left:auto;white-space:nowrap}
