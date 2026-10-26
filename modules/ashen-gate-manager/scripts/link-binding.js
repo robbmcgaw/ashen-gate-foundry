@@ -17,6 +17,8 @@ import {relatedFor, withRelated} from './related-lists.mjs';
 import {itemKeys} from './actor-update.js';
 import {isInterruption as isStop} from './sync-connection.js';
 
+export const REPEAT_STOP = 25;     // this many identical failures in a row end the step (a systematic fault, not bad records)
+class RepeatedFailure extends Error { constructor(message, count) { super(message); this.count = count; } }
 export const BIND_CHUNK = 25;
 export const WRITE_UNIT = 10;      // documents per request, so progress moves inside a chunk
 export const SLOW_CHUNK_MS = 20000; // a chunk slower than this halves the chunk size
@@ -46,6 +48,12 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
   const recordsById = new Map(records.map(r => [r.id, r]));
   const writtenOk = new Set(log.results.filter(r => ['create', 'update', 'metadata', 'rebind'].includes(r.action) && r.status === 'ok').map(r => r.id));
   const todo = rows.filter(r => writtenOk.has(r.id));
+  const rep = {message: null, count: 0};
+  const seen = new Set();
+  const failed = (message, error, name) => {
+    if (error && !seen.has(message)) { seen.add(message); console.error(`[${MODULE_ID}] Binding links: first failure of this kind on "${name}"`, error); }
+    rep.count = message === rep.message ? rep.count + 1 : 1; rep.message = message; if (rep.count >= REPEAT_STOP) throw new RepeatedFailure(message, rep.count); };
+  const succeeded = () => { rep.count = 0; rep.message = null; };
   const issue = (row, name, extra) => log.results.push({id: row.id, name, ...extra});
 
   // ---- one record: compute what to write (no awaits) ----
@@ -161,11 +169,11 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
         report(unit[0].w.name, u);
         try {
           await guard(world.updateDocuments(documentName, unit.map(p => ({_id: p.w.doc.id, ...p.changed})), bulkWrite()));
-          done(unit);
+          done(unit); succeeded();
         } catch (batchError) {
           if (isStop(batchError)) throw batchError;
-          for (const p of unit) try { await guard(p.w.doc.update(p.changed, bulkWrite())); done([p]); }
-          catch (e) { if (isStop(e)) throw e; issue(p.w.row, p.w.name, {action: 'link-sync', status: 'error', message: `UUID binding update failed: ${msg(e)}`}); }
+          for (const p of unit) try { await guard(p.w.doc.update(p.changed, bulkWrite())); done([p]); succeeded(); }
+          catch (e) { if (isStop(e)) throw e; issue(p.w.row, p.w.name, {action: 'link-sync', status: 'error', message: `UUID binding update failed: ${msg(e)}`}); failed(msg(e), e, p.w.name); }
         }
         await pause?.();
       }
@@ -192,7 +200,8 @@ export async function bindPackageLinks({records, rows, log, plans = new Map(), w
       }
     }
     step('Saving links', done, total, lead);
-    await flush(works, (who, offset) => step('Saving links', Math.min(total, done + offset), total, who));
+    try { await flush(works, (who, offset) => step('Saving links', Math.min(total, done + offset), total, who)); }
+    catch (e) { if (e instanceof RepeatedFailure) return {cancelled: false, done, total, stopped: {message: e.message, count: e.count}}; throw e; }
     done += part.length;
     i += part.length;
     const took = timer() - started;
