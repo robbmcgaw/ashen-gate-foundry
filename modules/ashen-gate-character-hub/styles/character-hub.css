@@ -6,6 +6,29 @@
 .agch-app { --agch-bg: var(--ag-surface); --agch-bg-raised: var(--ag-surface-raised); --agch-bg-sunken: var(--ag-surface-sunken); }
 .application.ag-app.agch-app { background: var(--agch-bg); }
 .application.ag-app.agch-app > .window-header { background: var(--agch-bg-sunken); }
+/* 0.53.0 Title bar notice (header-notice.mjs): a status line between the title and the window buttons. It is a conditional
+   notice Robb asked for, not a control or a subtitle. The text never takes pointer events, so the whole strip still drags
+   the window; it is the first thing hidden: under 900px (the Hub's narrow width) or in Compact the text gives way to a small
+   icon button that carries the same words. The skin's own ok / danger colours, so they stay readable in light and dark skins. */
+.application.agch-app > .window-header { container: agch-head / inline-size; }
+.application.agch-app > .window-header:has(> .agch-notice-slot) .window-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.application.agch-app .agch-notice-slot { flex: 0 1 auto; min-width: 0; margin-inline: auto; display: flex; }
+.application.agch-app .agch-notice { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; }
+.application.agch-app .agch-notice__text { display: flex; align-items: center; gap: var(--ag-space-1); min-width: 0; margin: 0; pointer-events: none; font-family: var(--ag-font-display); font-size: var(--ag-text-md); font-style: italic; letter-spacing: .04em; white-space: nowrap; }
+.application.agch-app .agch-notice__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.application.agch-app .agch-notice__text.is-ok, .application.agch-app .agch-notice__icon.is-ok { color: var(--ag-ok); }
+.application.agch-app .agch-notice__text.is-danger, .application.agch-app .agch-notice__icon.is-danger { color: var(--ag-danger); }
+.application.agch-app .agch-notice__more { flex: none; font-size: var(--ag-text-sm); color: var(--ag-muted); cursor: help; }
+.application.agch-app .agch-notice__icon { display: none; align-items: center; gap: var(--ag-space-1); flex: none; height: auto; min-height: 0; padding: var(--ag-space-1); margin: 0; border: 0; background: none; line-height: 1; cursor: pointer; }
+.application.agch-app .agch-notice__icon:focus-visible { outline: 2px solid var(--ag-accent); outline-offset: 2px; }
+.application.agch-app .agch-notice__count { font-size: var(--ag-text-sm); color: var(--ag-muted); }
+@container agch-head (max-width: 900px) {
+  .application.agch-app .agch-notice__text, .application.agch-app .agch-notice__more { display: none; }
+  .application.agch-app .agch-notice__icon { display: inline-flex; }
+}
+.application.agch-app .agch-notice[data-compact="true"] .agch-notice__text, .application.agch-app .agch-notice[data-compact="true"] .agch-notice__more { display: none; }
+.application.agch-app .agch-notice[data-compact="true"] .agch-notice__icon { display: inline-flex; }
+
 /* Compact see-through (0.29.0, experimental, compact-opacity.mjs): only Compact sets --agch-compact-alpha (60-100 %);
    only the window background fades. Full never sets it, so it stays opaque. Remove this block to drop the feature. */
 .agch-app { --agch-bg: color-mix(in srgb, var(--ag-surface) var(--agch-compact-alpha, 100%), transparent);
@@ -438,7 +461,7 @@
 .agch-app .agch-item__icon:hover .agch-item__img { box-shadow: 0 0 0 2px var(--ag-accent); }
 .agch-app .agch-item__icon:focus-visible { outline: 2px solid var(--ag-accent); outline-offset: 2px; }
 
-/* Inventory: currency, the resurrection diamond banner (display only) */
+/* Inventory: currency (the resurrection diamond message moved to the title bar in 0.53.0, see the end of this file) */
 .agch-app .agch-contents { padding-left: var(--ag-space-5); }
 .agch-app .agch-currency { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-sunken); }
 .agch-app .agch-coin { display: flex; gap: var(--ag-space-1); align-items: center; text-transform: uppercase; font-size: var(--ag-text-sm); color: var(--ag-muted); }
@@ -461,10 +484,6 @@
   background: color-mix(in srgb, var(--agch-metal) 10%, var(--ag-surface)); box-shadow: 0 0 var(--ag-space-2) color-mix(in srgb, var(--agch-metal) 35%, transparent); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.6; vertical-align: middle; }
 .agch-app .agch-coinchip .agch-coin__icon { width: calc(var(--ag-icon) * 1.2); height: calc(var(--ag-icon) * 1.2); box-shadow: none; }
 .agch-app .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }
-.agch-app .agch-diamond { margin: 0 0 var(--ag-space-2); text-align: center; font-family: var(--ag-font-display); font-size: var(--ag-text-lg); font-style: italic; letter-spacing: .04em; }
-/* 0.46.0 (Robb): medium-light green with a diamond, medium-light red without. The skin's own ok / danger colours, so they stay readable in light and dark skins. */
-.agch-app .agch-diamond.is-present { color: var(--ag-ok); }
-.agch-app .agch-diamond.is-absent { color: var(--ag-danger); }
 
 /* Ashen Gate panels. 0.33.0: kit sub-tabs above the panel */
 .agch-app .agch-agtabs { flex-wrap: wrap; padding: 0; margin: 0 0 var(--ag-space-2); }

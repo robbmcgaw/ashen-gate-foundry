@@ -130,20 +130,21 @@ test('Favourites first in Features; the star has its own column in every list ta
   }
 });
 
-test('Inventory diamond banner: display only, any item with "diamond" in its name, containers too, observers see it', async () => {
+test('Diamond notice: same rule as the old Inventory banner (any item with "diamond" in its name, containers too, observers see it); no longer in the Inventory panel', async () => {
   const {DIAMOND_PRESENT, DIAMOND_ABSENT} = await import('../scripts/constants.mjs');
+  const {headerNotices, headerNoticeHtml} = await import('../scripts/header-notice.mjs');
   assert.equal(DIAMOND_ABSENT, 'You do not possess a resurrection diamond');
   assert.equal(DIAMOND_PRESENT, 'Your soul may be returned');
+  const notice = items => headerNotices(makeActor({items}));
+  assert.deepEqual(notice([{id: 'rope', name: '[TEST] Rope', type: 'loot'}]).map(n => [n.tone, n.text]), [['danger', DIAMOND_ABSENT]]);
+  assert.deepEqual(notice([{id: 'pack', name: '[TEST] Backpack', type: 'container'}, {id: 'gem', name: '[TEST] Diamond (300 gp)', type: 'loot', system: {container: 'pack'}}]).map(n => [n.tone, n.text]), [['ok', DIAMOND_PRESENT]], 'a diamond inside a backpack counts');
+  assert.equal(notice([{id: 'dust', name: '[TEST] Diamond Dust', type: 'loot'}])[0].tone, 'ok', '"Diamond Dust" counts');
+  assert.equal(notice([{id: 'x', name: '[TEST] diamondback hide', type: 'loot'}])[0].tone, 'ok', 'whole word not required, any case');
+  assert.equal(headerNotices(makeActor({items: []}), {limited: true}).length, 0, 'limited observers see none');
   const inv = async (items, user = users.owner) => { installGlobals({user}); const s = new (createHubSheetClass(FakeActorSheetV2))({document: makeActor({items})}); s.tab = 'inventory'; return body(await s._renderHTML()); };
-  let b = await inv([{id: 'rope', name: '[TEST] Rope', type: 'loot'}]);
-  assert.match(b, /<p class="agch-diamond is-absent" role="note">You do not possess a resurrection diamond<\/p>/);
-  b = await inv([{id: 'pack', name: '[TEST] Backpack', type: 'container'}, {id: 'gem', name: '[TEST] Diamond (300 gp)', type: 'loot', system: {container: 'pack'}}]);
-  assert.match(b, /<p class="agch-diamond is-present" role="note">Your soul may be returned<\/p>/, 'a diamond inside a backpack counts');
-  b = await inv([{id: 'dust', name: '[TEST] Diamond Dust', type: 'loot'}]);
-  assert.match(b, /is-present/, '"Diamond Dust" counts');
-  b = await inv([{id: 'x', name: '[TEST] diamondback hide', type: 'loot'}]);
-  assert.match(b, /is-present/, 'whole word not required, any case');
-  b = await inv([{id: 'dust', name: '[TEST] Diamond Dust', type: 'loot'}], users.observer);
-  assert.match(b, /Your soul may be returned/, 'observers see it too');
-  assert.doesNotMatch(b, /agch-diamond[^>]*data-action/, 'not clickable');
+  for (const user of [users.owner, users.observer]) {
+    const b = await inv([{id: 'rope', name: '[TEST] Rope', type: 'loot'}], user);
+    assert.doesNotMatch(b, /agch-diamond|resurrection diamond|soul may be returned/, 'not in the Inventory panel');
+  }
+  assert.doesNotMatch(headerNoticeHtml(notice([])), /data-action/, 'not an action button');
 });

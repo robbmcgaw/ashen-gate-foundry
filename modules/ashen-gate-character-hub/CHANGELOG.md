@@ -1,3 +1,15 @@
+## 0.54.0 — 2026-10-26
+
+The resurrection-diamond message moves to the window's title bar.
+
+- It now sits in the empty strip of the title bar between "Ashen Gate | Character Hub — <name>" and the window buttons, on every tab, and is no longer shown in the Inventory panel. Same rule as before: "You do not possess a resurrection diamond" (red, italic) without a diamond; "Your soul may be returned" (green) when any item with "diamond" in its name is carried, containers included.
+- One compact line with an ellipsis. The text takes no pointer events, so you can still drag the window by that strip; the window buttons do not move.
+- It is the first thing hidden. When the window is under 900px wide, or in Compact, the words give way to a small gem button in the same place; its aria-label and tooltip carry the full message and a click shows it as a notification. Only one of the two is displayed at a time.
+- If there are ever several notices, the first shows with "+N" and a tooltip for the rest.
+- A deliberate exception to the header rule (no subtitle): a conditional status line Robb asked for, not a control.
+- Saved data: no change; no migration.
+- Tests use mocked Foundry and prove the logic and markup, not the live window. Please check in Forge as described in the pull request.
+
 ## 0.53.0 — 2026-10-26
 
 Combat, Inventory and Features rows are one line each, like Magic's.

@@ -2,7 +2,7 @@
  * Combat, Inventory (character or party stash), Magic and Features views. Every list is a column-headed list of item
  * cards (cards.mjs). The paper doll, initiative and rests are in character.mjs.
  */
-import {esc, DIAMOND_PRESENT, DIAMOND_ABSENT} from './constants.mjs';
+import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
 import {partyStashHtml, partyStashUsable, electrumHidden} from './partners.mjs';
@@ -104,10 +104,7 @@ function combatTab(ctx) {
 // ---------- Inventory ----------
 /** True when any item the character owns (containers' contents too: they are Items on the Actor) has "diamond" in its name. */
 export const hasDiamond = actor => [...(actor?.items ?? [])].some(i => /diamond/i.test(String(i.name ?? '')));
-/** The display-only banner at the top of Inventory. Not stored, not clickable. Absent is muted, not an error (0.33.0, CH-13). */
-export const diamondBanner = actor => hasDiamond(actor)
-  ? `<p class="agch-diamond is-present" role="note">${esc(DIAMOND_PRESENT)}</p>`
-  : `<p class="agch-diamond is-absent" role="note">${esc(DIAMOND_ABSENT)}</p>`;
+// 0.54.0: the diamond message is a character notice in the window's title bar (header-notice.mjs), not an Inventory banner.
 
 /**
  * Carried weight (0.30.0): a small kit meter beside the coin purse, filled with dnd5e's carried weight against its
@@ -143,7 +140,7 @@ function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${list(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`, nested: true})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), list(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
-  return `${diamondBanner(actor)}${groups}
+  return `${groups}
     <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
 

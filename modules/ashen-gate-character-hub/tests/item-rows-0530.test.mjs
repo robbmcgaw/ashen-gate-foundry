@@ -223,5 +223,5 @@ test('sticky headings, narrow collapse and reduced motion (CSS text); tokens onl
 
 test('help and README describe it; the version is 0.53.0', () => {
   assert.match(HELP_HTML, /Show item descriptions/); assert.match(README, /showItemDescriptions/); assert.match(README, /Item rows \(0\.53\.0\)/);
-  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.53\.0/);
+  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.53\.0/m);
 });
