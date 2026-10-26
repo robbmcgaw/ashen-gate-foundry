@@ -5,6 +5,7 @@
  * (fields the GM edited in Foundry are kept), never deletes one, and never touches an effect Manager did not create.
  * Also: the item-level `flags` allow-list. Pure logic; the only writes are in applyItemEffects (GM only).
  */
+import {activityEffectWarnings} from './activity-effects.js';
 export const MODULE_ID = 'ashen-gate-manager';
 export const EFFECT_FLAG = 'effect';
 export const LIMITS = Object.freeze({effects: 20, changes: 30, name: 120, description: 5000, img: 500, key: 200, value: 500, statuses: 10});
@@ -176,6 +177,7 @@ export function flagWarnings(record) {
   }
   for (const e of Array.isArray(data.effects) ? data.effects : [])
     if (isObj(e?.flags) && Object.keys(e.flags).length) warnings.push(`${record.id}: effect ${e.eff_id ?? '?'} flags are not imported (Manager writes its own effect id).`);
+  warnings.push(...activityEffectWarnings(record));
   return warnings;
 }
 
