@@ -209,7 +209,7 @@ function groupedTrees(actor, api) {
 function factions(actor, api) {
   const rows = (api.getFactions?.() ?? []).map(f => {
     const group = f.group?.score, mine = f.personal?.[actor.id]?.score;
-    return `<li><strong>${esc(f.name || 'Unknown Organization')}</strong>${group !== undefined ? ` <span class="ag-badge">Party ${signedScore(group)}</span>` : ''}${mine !== undefined ? ` <span class="ag-badge ag-badge--accent">${esc(actor.name)} ${signedScore(mine)}</span>` : ''}</li>`;
+    return `<li><strong>${esc(f.name || 'Unknown faction')}</strong>${group !== undefined ? ` <span class="ag-badge">Party ${signedScore(group)}</span>` : ''}${mine !== undefined ? ` <span class="ag-badge ag-badge--accent">${esc(actor.name)} ${signedScore(mine)}</span>` : ''}</li>`;
   });
   return list(rows, 'No factions revealed yet.');
 }

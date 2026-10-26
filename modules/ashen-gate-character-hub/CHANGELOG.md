@@ -1,3 +1,11 @@
+## 0.59.1 — 2026-10-26
+
+Accessibility and wording fixes found in an audit.
+
+- The pop-up item and slot menus were announced to screen readers as a "menu" (a promise of arrow-key navigation and menu items) but hold plain buttons. They are now plain labelled groups; Tab and Escape work as before.
+- A faction with no name in the Hub's Factions list now reads "Unknown faction" (it said "Unknown Organization", and the suite says Faction everywhere).
+- No change to saved data. Check in Forge: open a character's Inventory, click ⋯ on an item, and Tab through the buttons; Escape closes it.
+
 ## 0.59.0 — 2026-10-26
 
 Level backup copies now go in **Ashen Gate / Backups** (Actors), together with the other modules' backups, and the GM-only Journey journal is filed in **Ashen Gate / Character Hub** instead of loose at the top. On the first GM login after updating, the Hub moves its own backups from **Ashen Gate / Level backups** and its loose Journey journal; anything you filed elsewhere stays. The old folder is left (empty) for you to delete. Nothing is deleted and no ownership or permission changes.
