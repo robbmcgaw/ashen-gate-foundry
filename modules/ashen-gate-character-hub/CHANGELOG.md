@@ -1,3 +1,11 @@
+## 0.57.2 — 2026-10-26
+
+Fixes Combat, Inventory and Features rows falling apart when the Hub body is 640px wide or less.
+
+- **Cause:** an older narrow-window rule (container width 640px or less) made every item list a plain block, which un-gridded the one-line rows: each cell landed on its own line. Magic was not affected because it states its own grid. The item lists now state `display: grid` too.
+- Checked in a real browser at 13 widths (1100 down to 340px) for Combat (weapons, actions and mixed lists), Inventory (with a container and its nested list), Features and Magic: every row is one line at every width. A new test checks, for every step of every tab, that the visible cells match the grid template's track count.
+- Presentation only; no data changes.
+
 ## 0.57.1 — 2026-10-26
 
 Inventory: Uses is kept longer than Quantity as the Hub narrows.

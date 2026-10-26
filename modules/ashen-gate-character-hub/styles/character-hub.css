@@ -824,6 +824,8 @@
    (--agch-row-bg: striped, hovered), so it covers the columns scrolling under it. Below 24rem the list scrolls sideways. Widths:
    Combat / Features actions 4.25rem + gutter; Inventory actions 4 x control-h-sm + 3 gaps + gutter as icons, 4rem + 4.75rem + 5rem
    + control-h-sm + 3 gaps + gutter with labels. */
+/* The grid must be stated here: the older narrow rule (@container max-width 640px) turns every .agch-cards list into display: block, which stacked every cell of the item rows (the 0.56.0 to 0.57.1 regression below 640px). */
+.agch-app .agch-crows.agch-cards { display: grid; }
 .agch-app .agch-crows { min-width: 24rem; }
 .agch-app .agch-crows--combat, .agch-app .agch-crows--features { --agch-ic-lead: max(var(--ag-icon-chip), var(--ag-control-h-sm)); --agch-ic-track: calc(4.25rem + var(--ag-space-2)); }
 .agch-app .agch-crows--inventory { --agch-ic-lead: calc(2 * var(--ag-control-h-sm) + var(--ag-space-1)); --agch-ic-track: calc(4rem + 5.25rem + 5.25rem + var(--ag-control-h-sm) + 3 * var(--ag-space-1) + var(--ag-space-2)); min-width: 26rem; }
