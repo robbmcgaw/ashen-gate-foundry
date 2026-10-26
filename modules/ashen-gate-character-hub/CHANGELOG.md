@@ -1,3 +1,10 @@
+## 0.58.1 — 2026-10-26
+
+Journey says Piety for deities, to match Renown 0.19.0.
+
+- A deity rank change in the Journey is now a **Piety** entry (own icon and tooltip), not a "Renown" one. Entries already saved as Renown for a deity read Piety too. Faction ranks stay Renown. The Journey intro, empty state and Help say "Renown and Piety".
+- No change to saved data: old entries stay valid and are not rewritten. Tests are mocked Foundry; they prove the entry type and labels, not the live window.
+
 ## 0.58.0 — 2026-10-26
 
 Features tab: group by origin, and sort by uses remaining.
