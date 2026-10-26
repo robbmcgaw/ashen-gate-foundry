@@ -12,6 +12,7 @@ import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,f
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,buildDefinitionIndex} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {journalFolderId,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
 import {SOURCE_KINDS,sourceRecords,missingSourceMessage} from './source-pick.mjs';
@@ -24,7 +25,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.23.3';
+const VERSION='0.24.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -213,7 +214,7 @@ async function initializeStore(){
 }
 /** Creates the module's own GM-only definitions Journal (no player access). Also used by the Manager import. */
 async function createStore(){
-  const d=await JournalEntry.create({name:'[AG] Skill Trees — GM Definitions',
+  const d=await JournalEntry.create({name:'[AG] Skill Trees — GM Definitions',folder:await journalFolderId(),
     ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},
     flags:{[MODULE]:{[STORAGE_FLAG]:true,payload:{schema:SCHEMA,trees:[]}}}});
   if(!d)throw Error('Unable to create the private definition Journal');
@@ -1903,12 +1904,15 @@ Hooks.once('init',()=>{
   game.settings.register(MODULE,PLAYER_ACCESS_SETTING,{name:'Player Access — Skill Trees',hint:'GM only: hide or reveal the player tree interface without deleting points, node unlocks or Feature Items.',scope:'world',config:true,type:Boolean,default:true,
     onChange:value=>syncTreePlayerAccess(value)});
   // Preserve v0.1 registration for explicit legacy migration/backup; never silently delete it.
+  // 1 once Skill Trees has filed its own journal under Ashen Gate (folder-nesting.mjs); config:false.
+  game.settings.register(MODULE,FOLDER_SETTING,{name:'Skill Trees folder nesting',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE,'treeData',{scope:'world',config:false,type:Object,default:{schema:'ag-skill-trees/0.1',trees:[]}});
   game.settings.register(MODULE,SAFE_SETTING,{scope:'world',config:false,type:Object,default:{schema:SCHEMA,trees:[]},onChange:()=>{refreshEmbeds();if(instance?.rendered)instance.render();}});
   game.settings.registerMenu(MODULE,'open',{name:'Ashen Gate | Skill Trees',label:'Open Skill Trees',hint:'Opens the Skill Trees window. Players need Player access on (Skill Trees → GM Setup).',icon:'fa-solid fa-diagram-project',type:SkillTreeApp,restricted:false});
 });
 Hooks.once('ready',()=>{
   const mod=game.modules.get(MODULE);if(!mod)return;
+  void migrateFolders().catch(e=>console.warn(`${MODULE} | could not file the journal under Ashen Gate`,e));
   mod.api={
     version:VERSION,open,
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},

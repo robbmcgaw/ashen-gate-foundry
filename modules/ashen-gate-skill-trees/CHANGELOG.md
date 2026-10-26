@@ -1,3 +1,7 @@
+## 0.24.0 — 2026-10-26
+
+The GM-only definitions journal is filed in **Ashen Gate / Skill Trees** instead of loose at the top of the Journal sidebar. On the first GM login after updating, Skill Trees moves its own loose journal there; one you filed elsewhere stays. Nothing is deleted and no ownership or permission changes.
+
 ## 0.23.3 — 2026-10-26
 
 Fix: players saw every published tree, including ones for professions and Cinders their character does not have.
