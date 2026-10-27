@@ -28,7 +28,7 @@ const held=(id,name,flags,type='loot')=>({id,name,type,system:{quantity:1,descri
 const items=[held('hp','Alchemy — Profession',src('PROF-ALCHEMY','Profession'),'feat'),held('hp2','Cooking — Profession',src('PROF-COOKING','Profession'),'feat')];items.get=i=>items.find(x=>x.id===i);
 const actor={id:'a1',name:'[TEST] Alpha',type:'character',hasPlayerOwner:true,items,flags:{'ashen-gate-profession-ledger':{knownRecipes:[]}},testUserPermission:()=>true,setFlag:async()=>{}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.36.0'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.37.0'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[actor],get:id=>id==='a1'?actor:undefined},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -52,26 +52,27 @@ test('definition lookup: the per-pass index never reads stale documents',async()
   await Promise.resolve();
 });
 
-test('a big recipe list starts with every folder shut, remembers an opened one and still opens on a search',async()=>{
+test('0.37.0: the catalog starts with every profession folder shut (tiers inside), remembers an opened one and still opens on a search',async()=>{
   const h=await html('catalog');
-  const folders=h.match(/<details class="agl-folder"[^>]*>/g);
+  const folders=h.match(/<details class="agl-folder agl-tree-folder"[^>]*>/g);
   assert.equal(folders.length,3);
-  assert.ok(folders.every(f=>/data-big/.test(f)&&!/\sopen/.test(f)),'90 recipes: all folders closed');
-  assert.match(h,/<span class="ag-badge">30 recipes<\/span>|<span class="ag-badge">30 /,'each folder still says how many recipes it holds');
-  app.closedFolders.add('open:alchemy');
+  assert.ok(folders.every(f=>!/\sopen/.test(f)),'professions start closed');
+  assert.match(h,/<span class="ag-badge" data-folder-count>30 /,'each folder still says how many recipes it holds');
+  app._setTree('p:alchemy',true);
   const h2=await html('catalog');
-  assert.match(h2,/<details class="agl-folder" data-folder="alchemy" data-big open>/);
-  assert.doesNotMatch(h2,/data-folder="cooking" data-big open/);
-  app.closedFolders.clear();
+  assert.match(h2,/<details class="agl-folder agl-tree-folder" data-folder="alchemy" data-tree="p:alchemy" data-stored-open="1" data-total="30" open>/);
+  assert.doesNotMatch(h2,/data-folder="cooking"[^>]*\sopen/);
+  app.__tree={};
 });
 
-test('a short list keeps its folders open, as before',async()=>{
+test('0.37.0: a short list is shut by default too; the remembered state is what opens it',async()=>{
   const few=world.filter(d=>!/^wr(?!0$|1$|2$)/.test(d.id));
   const saved=game.items.contents;game.items.contents=few;
-  const h=await html('catalog');
-  assert.doesNotMatch(h,/data-big/);
-  assert.match(h,/<details class="agl-folder" data-folder="[^"]*" open>/);
-  game.items.contents=saved;
+  try{
+    const h=await html('catalog');
+    assert.doesNotMatch(h,/data-big/);
+    assert.match(h,/<details class="agl-folder agl-tree-folder" data-folder="[^"]*"[^>]*data-stored-open="0"[^>]*>/);
+  }finally{game.items.contents=saved;}
 });
 
 test('GM: six top-level tabs; Gathering nodes is Gathering’s fourth sub-tab and keeps Gathering selected',async()=>{

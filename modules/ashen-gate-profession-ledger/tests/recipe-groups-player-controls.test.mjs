@@ -30,7 +30,7 @@ assert.match(html,/data-action="manager"/,'GM Catalog tools has the Manager shor
 const gm=(await (app.view="gm",app._prepareContext({}))).html;
 assert.doesNotMatch(gm,/data-action="demo"|data-action="manager"|data-action="import"/,'GM Setup has no content actions');
 app.view="catalog";
-assert.match(html,/<details class="agl-folder" data-folder="alchemy"/,'catalog is foldered by profession');
+assert.match(html,/<details class="agl-folder agl-tree-folder" data-folder="alchemy"/,'catalog is foldered by profession');
 assert.match(html,/data-agl-search/);
 assert.match(html,/Alchemy/);
 assert.match(html,/Blacksmithing/);
