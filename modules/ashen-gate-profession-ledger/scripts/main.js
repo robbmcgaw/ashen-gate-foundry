@@ -26,7 +26,7 @@ import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKe
 import {revealHtml} from './reel.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
-  duplicateTemplate,removeTemplate,templateReferences,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
+  duplicateTemplate,removeTemplate,templateReferences,previewLocationCopy,planCopyUndo,applyCopyUndo,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
@@ -2480,13 +2480,58 @@ async function copyLocationNodes(){
   const locations=locationRecords();
   if(!locations)throw Error(GATHER_FIX.noLocations);
   const store=readNodeStore();
-  const out=migrateLocationNodes(store,locations,{by:game.user.name,locationsVersion:game.modules?.get?.(LOCATIONS_ID)?.version??''});
+  const out=migrateLocationNodes(store,locations,{by:game.user.name,locationsVersion:game.modules?.get?.(LOCATIONS_ID)?.version??'',runId:newId()});
   if(out.created.length||out.linked||out.store.migrationVersion!==store.migrationVersion)await writeNodeStore(out.store);
   if(out.created.length||out.linked){
     const text=`Profession Ledger copied ${plural(out.created.length+out.linked,'Location gathering node')} into node templates (${plural(out.created.length,'new template')}${out.linked?`, ${out.linked} matched an identical one`:''}). Locations records were not changed. The original Location entries are backed up in the Journal “${GM_JOURNAL_NAME}”. Review them in Ledger > Gathering Nodes.`;
     try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> ${esc(text)}</p></div>`});}catch{}
   }
   return {created:[...out.created],linked:out.linked,skipped:out.skipped};
+}
+/** GM: what copying Location nodes would create, without creating anything (activity breakdown included). */
+function copyLocationPreview(){
+  requireNodesGM();
+  const locations=locationRecords();
+  if(!locations)throw Error(GATHER_FIX.noLocations);
+  return previewLocationCopy(readNodeStore(),locations);
+}
+/** GM: the last copy as an undo plan (see nodes.mjs planCopyUndo), or null. */
+function copyUndoPlan(){
+  requireNodesGM();
+  const store=readNodeStore(),locations=locationRecords()??[];
+  return planCopyUndo(store,{references:id=>templateReferences(id,{locations,store})});
+}
+const copyUndoSummary=plan=>plan?{at:plan.at,by:plan.by,total:plan.total,gone:plan.gone,
+  remove:plan.remove.map(t=>({id:t.id,name:t.name,activity:t.activity})),editedSince:plan.editedSince.map(t=>({id:t.id,name:t.name,activity:t.activity})),
+  inUse:plan.inUse.map(x=>({id:x.template.id,name:x.template.name,activity:x.template.activity,locations:[...new Set(x.refs.map(r=>r.locationName))]})),unlink:plan.unlink.map(u=>({...u}))}:null;
+const NODE_UNDO_ROLE='node-copy-undo-snapshot';
+/**
+ * GM only. Undoes the last Copy Location nodes: removes the templates that run created (never edited since, never pointed at by a Location), takes the
+ * Location entries it added off templates it only matched, and forgets that those entries were copied. A GM-only snapshot Journal of what is removed is saved
+ * FIRST (the undo stops if it cannot be); Locations records and every other template are untouched. `alsoRemove` ticks edited or in-use templates.
+ * `preview` (default) changes nothing. A second call finds nothing to undo.
+ */
+async function undoLocationCopy({preview=true,alsoRemove=[]}={}){
+  requireNodesGM();
+  const plan=copyUndoPlan();
+  if(preview!==false)return {preview:true,plan:copyUndoSummary(plan)};
+  if(!plan)throw Error('There is no copy to undo.');
+  const store=readNodeStore(),next=applyCopyUndo(store,plan,{alsoRemove});
+  const removedIds=new Set(store.nodes.filter(n=>!next.nodes.some(m=>m.id===n.id)).map(n=>n.id));
+  const create=globalThis.JournalEntry?.create;
+  if(typeof create!=='function')throw Error('Undo cancelled: Foundry cannot create the snapshot Journal here. Nothing was changed.');
+  const takenAt=new Date().toISOString();
+  const data={schema:'ag-node-copy-undo-snapshot/1',module:ID,version:VERSION,takenAt,copyRecord:{...plan.record},removedTemplates:store.nodes.filter(n=>removedIds.has(n.id)).map(n=>structuredClone(n)),
+    migratedBefore:structuredClone(store.migrated)};
+  let doc;
+  try{doc=await create.call(globalThis.JournalEntry,{name:`Gathering nodes: undo copy (${takenAt.slice(0,16).replace('T',' ')})`,folder:await backupsFolderId(),
+    ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},flags:{[ID]:{role:NODE_UNDO_ROLE,snapshot:data}},
+    pages:[{name:'Snapshot',type:'text',text:{content:`<p>Taken before the last Copy Location nodes was undone. ${removedIds.size} node templates were removed; their full data is in the flag <code>snapshot.removedTemplates</code> (GM only). To restore, add them back with the Gathering nodes import or by hand.</p>`,format:1}}]});}
+  catch(err){throw Error(`Undo cancelled: the snapshot could not be saved (${err?.message??err}). Nothing was changed.`);}
+  if(!doc?.id)throw Error('Undo cancelled: the snapshot could not be saved. Nothing was changed.');
+  await writeNodeStore(next);
+  try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> Profession Ledger removed ${plural(removedIds.size,'node template')} created by the last copy of Location nodes. Locations records were not changed. A snapshot Journal was saved.</p></div>`});}catch{}
+  return {preview:false,removed:[...removedIds],unlinked:plan.unlink.length,snapshot:{id:doc.id}};
 }
 /** Active GM, once per world (migrationVersion 1): the first copy of Location nodes. Later copies are the GM's button. */
 async function autoMigrateNodes(){
@@ -2682,7 +2727,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     // 0.31.0 Assign → Signature perks: same shape.
     this.signatureState={target:'party',preview:null,selected:new Set(),result:null};
     // 0.25.0 Gathering Nodes tab: the open editor draft, an import preview, and the activity filter.
-    this.nodeDraft=null;this.nodeImport=null;this.nodeFilter='all';
+    this.nodeDraft=null;this.nodeImport=null;this.nodeCopy=null;this.nodeUndo=null;this.nodeFilter='all';
     // 0.26.0: sub-tabs shown (null: pick on first show), and the node editor's unsaved-edit guard (kit guardDirty).
     this.gmTab=null;this.gatherTab=null;
     this.nodeGuard=guardDirty({status:()=>this.element?.querySelector?.('[data-agl-node-status]')});
@@ -3081,7 +3126,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
-    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes…</em> shows what it would create (by activity) and asks first, then makes templates from the gathering nodes your Locations already have, without changing Locations. <em>Undo last copy…</em> takes the last copy back (templates you edited since, or that a Location uses, are kept unless you tick them; a snapshot is saved first). Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Refresh recipes…:</strong> on a character’s Known recipes (Individual) or for the whole party (Party). It lists every known recipe in a group with why, and the starting recipes they are missing. Recipes that no longer exist are ticked to remove because they cannot work; tick anything else you want removed. A learned recipe with crafted items or XP needs the character’s name typed. A snapshot is saved first; crafted items, materials, XP and gear are never touched.</p>':''}
     ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
@@ -3117,22 +3162,51 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const shown=store.nodes.filter(n=>f==='all'||(f==='none'?!n.activity:n.activity===f));
     const rows=shown.map(n=>({group:n.activity?activityLabel(n.activity):'No activity set',html:this._nodeRow(n,templateReferences(n.id,{locations:locations??[],store}))}));
     const copied=store.migrations.reduce((k,r)=>k+(Array.isArray(r.created)?r.created.length:0)+(Number(r.linked)||0),0);
-    const migNote=store.migrations.length?notice(`${plural(copied,'Location gathering node')} copied into templates (last copy ${esc(new Date(store.migrations.at(-1).at).toLocaleString())}). Locations records were not changed; the original entries are backed up in the Journal “${esc(GM_JOURNAL_NAME)}”.`):'';
+    const undoPlan=(()=>{try{return copyUndoPlan();}catch{return null;}})();
+    // The banner describes the last copy; once it is undone it is gone until the next copy.
+    const last=store.migrations.at(-1),showBanner=Boolean(last)&&Number(last.at)>store.lastUndone;
+    const migNote=showBanner?notice(`${plural(copied,'Location gathering node')} copied into templates (last copy ${esc(new Date(last.at).toLocaleString())}). Locations records were not changed; the original entries are backed up in the Journal “${esc(GM_JOURNAL_NAME)}”.${undoPlan?` <button type="button" class="ag-btn ag-btn--sm" data-action="node-undo-open">Undo last copy…</button>`:''}`):'';
     const filter=`<label class="ag-field ag-field--inline">Activity<select data-node-filter><option value="all" ${f==='all'?'selected':''}>All</option>${ACTIVITY_KEYS.map(k=>`<option value="${k}" ${f===k?'selected':''}>${esc(activityLabel(k))}</option>`).join('')}${store.nodes.some(n=>!n.activity)?`<option value="none" ${f==='none'?'selected':''}>No activity set</option>`:''}</select></label>`;
     const canCopy=Boolean(locations);
     // 0.26.0 (PL-03): the editor and the import preview open in place of the list (never above or below it), with a way
     // back; their Cancel and Save Changes / Apply import sit in the window footer.
-    if(this.nodeDraft||this.nodeImport)return `<div class="ag-toolbar agl-toolbar">${linkButton('All nodes',{data:{action:this.nodeDraft?'node-cancel':'node-import-cancel'},icon:'fa-solid fa-arrow-left'})}</div>
-      ${this.nodeDraft?this._nodeEditor(store):this._nodeImportPreview()}`;
+    if(this.nodeDraft||this.nodeImport||this.nodeCopy||this.nodeUndo)return `<div class="ag-toolbar agl-toolbar">${linkButton('All nodes',{data:{action:this.nodeDraft?'node-cancel':this.nodeImport?'node-import-cancel':this.nodeCopy?'node-copy-cancel':'node-undo-cancel'},icon:'fa-solid fa-arrow-left'})}</div>
+      ${this.nodeDraft?this._nodeEditor(store):this.nodeImport?this._nodeImportPreview():this.nodeCopy?this._nodeCopyPreview():this._nodeUndoPreview()}`;
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search nodes, ids or materials')}<div class="ag-toolbar__filters">${filter}<span class="ag-toolbar__count">${shown.length} of ${store.nodes.length}</span></div>
         <div class="ag-toolbar__end">${fileButton({label:'Import nodes…',accept:'application/json,.json',data:{aglFile:'nodes'},className:'ag-btn ag-btn--sm'})}
         <button type="button" class="ag-btn ag-btn--sm" data-action="node-export" ${store.nodes.length?'':'disabled'}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
-        <button type="button" class="ag-btn ag-btn--sm" data-action="node-copy-locations" ${canCopy?'':`disabled ${tip(GATHER_FIX.noLocations)}`}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy Location nodes</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-action="node-copy-locations" ${canCopy?'':`disabled ${tip(GATHER_FIX.noLocations)}`}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy Location nodes…</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-action="node-undo-open" ${undoPlan?'':`disabled ${tip('There is no copy to undo.')}`}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last copy…</button>
         <button type="button" class="ag-btn ag-btn--primary ag-btn--sm" data-action="node-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New node</button></div></div>
       <p class="agl-sub">Node templates are gathering spots you can roll on from anywhere (Gathering → Node template). A Location can point to one by its NODE id. Ids are permanent: a deleted node’s id is never reused. Players never see node templates.</p>
       ${migNote}
       ${folders(rows,this.closedFolders)||emptyState(store.nodes.length?'No nodes match this filter.':'No gathering nodes yet.',store.nodes.length?'Choose All activities.':'Create one with New node, import a node file, or copy the gathering nodes your Locations already have.')}
       <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every node.</p></div>`;
+  }
+  /** GM: what Copy Location nodes would create, before it does (0.35.5). */
+  _nodeCopyPreview(){
+    const {preview:p}=this.nodeCopy;
+    const rows=ACTIVITY_KEYS.filter(k=>p.byActivity[k]).map(k=>`<li>${esc(activityLabel(k))}: <strong>${p.byActivity[k]}</strong></li>`).join('');
+    return `<section class="ag-card agl-panel agl-node-copy"><h2>Copy Location gathering nodes</h2>
+      ${p.total?`<p>This creates <strong>${plural(p.created.length,'node template')}</strong>${p.linked?` and matches ${p.linked} to identical ones that already exist`:''}. Locations records are not changed, and you can undo the copy.</p>
+        <ul class="agl-refresh-list">${rows}${p.noActivity?`<li>No activity set: <strong>${p.noActivity}</strong> <span class="agl-sub">(the Location skill was not a gathering profession; set an activity in the editor afterwards)</span></li>`:''}</ul>
+        ${p.skipped?`<p class="agl-sub">${plural(p.skipped,'Location entry','Location entries')} already copied or already pointing at a template are skipped.</p>`:''}`
+        :emptyState('Nothing to copy.','Every Location gathering node has been copied before.')}</section>`;
+  }
+  /** GM: the last copy, listed before it is undone (0.35.5). */
+  _nodeUndoPreview(){
+    const {plan:p,ticked}=this.nodeUndo;
+    const group=nodes=>{const g={};for(const n of nodes)(g[n.activity?activityLabel(n.activity):'No activity set']??=[]).push(n);
+      return Object.entries(g).map(([label,list])=>`<details class="ag-fold"><summary class="ag-fold__summary"><span class="ag-fold__title">${esc(label)}</span><span class="ag-fold__count">${list.length}</span></summary><ul class="agl-node-plan-list">${list.map(n=>`<li>${esc(n.name)}</li>`).join('')}</ul></details>`).join('');};
+    const tickList=(items,why)=>items.length?`<h3>${why.title} (${items.length})</h3><p class="agl-sub">${why.text}</p><ul class="ag-rows">${items.map(n=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(n.name)}</span>${n.locations?`<span class="ag-row__meta">Used by ${esc(n.locations.join(', '))}</span>`:''}</span>
+      <span class="ag-row__end"><label class="ag-field ag-field--inline"><input type="checkbox" data-node-undo-also="${esc(n.id)}" ${ticked.has(n.id)?'checked':''}> Remove<span class="ag-sr-only"> ${esc(n.name)}</span></label></span></li>`).join('')}</ul>`:'';
+    return `<section class="ag-card agl-panel agl-node-undo"><h2>Undo the last copy</h2>
+      <p>The copy on ${esc(new Date(p.at).toLocaleString())}${p.by?` by ${esc(p.by)}`:''} created ${plural(p.total,'node template')}. Locations records are never changed, and a snapshot Journal is saved first.</p>
+      <h3>Will be removed (${p.remove.length})</h3>${group(p.remove)||'<p class="agl-sub">Nothing.</p>'}
+      ${tickList(p.editedSince,{title:'Edited since the copy, kept',text:'You changed these after the copy. They stay unless you tick them.'})}
+      ${tickList(p.inUse,{title:'Used by a Location, kept',text:'A Location entry points at these. They stay unless you tick them.'})}
+      ${p.unlink.length?`<p class="agl-sub">${plural(p.unlink.length,'existing template')} the copy only matched will forget the Location entries it added.</p>`:''}
+      ${p.gone?`<p class="agl-sub">${plural(p.gone,'template')} from the copy ${p.gone===1?'was':'were'} already deleted.</p>`:''}</section>`;
   }
   _nodeRow(t,refs){
     const search=[t.name,t.id,activityLabel(t.activity),...t.professions.map(professionTitle),...TABLES.flatMap(k=>t.materials[k].map(e=>`${e.materialId} ${gmMaterialChoices().find(m=>m.id===e.materialId)?.name??''}`))].join(' ').toLowerCase();
@@ -3382,6 +3456,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const footer=inRR?`<button type="button" class="ag-btn ag-btn--ghost" data-action="rr-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="rr-apply" ${this._recipeRefreshReady()?'':'disabled'}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh recipes</button>`
       :inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
       :inNodes&&this.nodeDraft?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-node-status>${this.nodeGuard?.dirty?'Unsaved changes':esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="node-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>`
+      :inNodes&&this.nodeCopy?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-copy-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="node-copy-apply" ${this.nodeCopy.preview.total?'':'disabled'}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy ${this.nodeCopy.preview.total} nodes…</button>`
+      :inNodes&&this.nodeUndo?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-undo-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="node-undo-apply"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo copy…</button>`
       :inNodes&&this.nodeImport?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-import-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span>${plan?.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="node-import-apply" ${plan.add.length||plan.update.length?'':'disabled'}><i class="fa-solid fa-file-import" aria-hidden="true"></i> Apply import</button>`:''}`
       :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`;
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
@@ -3397,7 +3473,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
    * after everything else in _onRender has changed the DOM, and the editor's scroll position is never put on the list.
    * The focused control is also kept across a re-render (same data-action, data-id, name, data-* fields). */
   /** Which screen .agl-main shows: the tab, and on Gathering Nodes the list, the editor or the import preview. */
-  _screen(){return this.view==='nodes'?`nodes:${this.nodeDraft?'editor':this.nodeImport?'import':'list'}`:this.view;}
+  _screen(){return this.view==='nodes'?`nodes:${this.nodeDraft?'editor':this.nodeImport?'import':this.nodeCopy?'copy':this.nodeUndo?'undo':'list'}`:this.view;}
   _captureScroll(){
     const main=this.element?.querySelector?.('.agl-main');
     this._scrollState=main?{screen:main.dataset?.aglScreen??this._renderedView,top:main.scrollTop,wraps:[...(main.querySelectorAll?.('.agl-map-wrap')??[])].map(w=>w.scrollLeft),
@@ -3494,6 +3570,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(e.target.checked)set.add(id);else set.delete(id);
         try{this._recipeRefreshReplan();}catch(err){say(`Profession Ledger: ${err.message}`,true);}
         this.render();return;}
+      if(e.target?.matches?.('[data-node-undo-also]')&&game.user.isGM&&this.nodeUndo){const id=e.target.dataset.nodeUndoAlso;if(e.target.checked)this.nodeUndo.ticked.add(id);else this.nodeUndo.ticked.delete(id);return;}
       if(e.target?.matches?.('[data-node-filter]')&&game.user.isGM){this.nodeFilter=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-node-field],[data-node-prof],[data-node-mat]')&&game.user.isGM&&this.nodeDraft){if(this._nodeDraftChange(e.target))this.render();return;}
       if(e.target?.matches?.('[data-player-access]')&&game.user.isGM){this.accessDraft=e.target.checked;this._syncRosterActions();return;}
@@ -3796,9 +3873,29 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const save=globalThis.foundry?.utils?.saveDataToFile??globalThis.saveDataToFile;
       if(typeof save!=='function')throw Error('This Foundry version cannot download files here');
       save(JSON.stringify(data,null,2),'application/json',`ag-gathering-nodes-${data.exportedAt.slice(0,10)}.gathering-nodes.json`);return;}
-    if(action==='node-copy-locations'){const out=await copyLocationNodes();
-      this.notice=out.created.length||out.linked?`Copied ${plural(out.created.length+out.linked,'Location node')} (${plural(out.created.length,'new template')}). Locations were not changed.`:'No new Location nodes to copy: every Location gathering node has been copied before.';
+    if(action==='node-copy-locations'){
+      const preview=copyLocationPreview();
+      if(!preview.total){this.notice='No new Location nodes to copy: every Location gathering node has been copied before.';this.render();say(this.notice);return;}
+      this._rememberNodeList();this.nodeCopy={preview};this.render();return;}
+    if(action==='node-copy-cancel'){this.nodeCopy=null;this._backToNodeList();this.render();return;}
+    if(action==='node-copy-apply'){
+      const p=this.nodeCopy?.preview;if(!p)throw Error('Preview the copy first');
+      if(!await confirmDialog(`This creates ${plural(p.created.length,'node template')} from your Location gathering nodes${p.noActivity?` (${p.noActivity} with no activity set)`:''}. Locations are not changed. You can undo the copy.`,
+        {title:`Copy ${p.total} Location gathering nodes into templates?`,yes:`Copy ${p.total} nodes`,no:'Cancel'}))return;
+      const out=await copyLocationNodes();this.nodeCopy=null;this._backToNodeList();
+      this.notice=out.created.length||out.linked?`Copied ${plural(out.created.length+out.linked,'Location node')} (${plural(out.created.length,'new template')}). Locations were not changed. Use Undo last copy… to take it back.`:'No new Location nodes to copy.';
       this.render();say(this.notice);return;}
+    if(action==='node-undo-open'){
+      const plan=copyUndoSummary(copyUndoPlan());if(!plan)throw Error('There is no copy to undo.');
+      this._rememberNodeList();this.nodeUndo={plan,ticked:new Set()};this.render();return;}
+    if(action==='node-undo-cancel'){this.nodeUndo=null;this._backToNodeList();this.render();return;}
+    if(action==='node-undo-apply'){
+      const u=this.nodeUndo;if(!u)throw Error('Open the undo first');
+      const count=u.plan.remove.length+[...u.ticked].filter(id=>u.plan.editedSince.some(n=>n.id===id)||u.plan.inUse.some(n=>n.id===id)).length;
+      if(!await confirmDanger(`${plural(count,'node template')} will be removed. A snapshot Journal is saved first, and Locations are not changed.`,{title:`Undo the copy of ${count} nodes?`,yes:`Remove ${count} nodes`,no:'Cancel'}))return;
+      const out=await undoLocationCopy({preview:false,alsoRemove:[...u.ticked]});
+      this.nodeUndo=null;this._backToNodeList();
+      this.notice=`Removed ${plural(out.removed.length,'node template')}. A snapshot Journal was saved.`;this.render();say(this.notice);return;}
   }
   /** 0.26.0 (PL-03): remember where the node list was, so closing the editor or import preview returns to it. */
   _rememberNodeList(focusId=null){
@@ -3910,7 +4007,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(!discard)return false;
       if(dirty){this.nodeGuard.markClean();this.nodeDraft=null;}
     }
-    this.nodeImport=null;
+    this.nodeImport=null;this.nodeCopy=null;this.nodeUndo=null;
     return true;
   }
   async _leaveGmSetup(){
@@ -4105,7 +4202,9 @@ Hooks.once('ready',()=>{
         /** What a Location may publish to players for a template: no chances, no Exotics, DC only when shown. */
         playerView:(id,options)=>{requireNodesGM();const t=nodeTemplate(id);return t?templatePlayerView(t,options):null;},
         preview:data=>previewNodeFile(data),import:data=>importNodeFile(data),export:()=>exportNodeFile(),
-        copyFromLocations:()=>copyLocationNodes()},
+        copyFromLocations:()=>copyLocationNodes(),
+        /** GM only (0.35.5): copyPreview() changes nothing; undoCopy({preview = true, alsoRemove}) undoes the last copy (snapshot first). */
+        copyPreview:()=>structuredClone(copyLocationPreview()),undoCopy:options=>undoLocationCopy(options)},
       /** Exotic candidates (contract ag-ledger-exotic/1), GM only: Locations' resource editor uses these when the Ledger is active. */
       exotic:{contract:'ag-ledger-exotic/1',defaultDcByTier:{...DEFAULT_DC_BY_TIER},
         percent:()=>{requireGM();return exoticPercent();},
@@ -4193,4 +4292,4 @@ export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTa
   refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
+  readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
