@@ -7,6 +7,13 @@ Delete from a list row, and smaller Equipped / Attuned markers.
 - **Protected items:** Skill Trees perks are never deleted here (refund them in Skill Trees; the menu offers Open Skill Trees…). Profession Ledger features, Cinder power items and items in a Cinder socket, and gear or perks assigned to a companion: GM only, with a warning. Class, subclass, species and background: GM only, through dnd5e's own delete dialog (it asks about what they granted). Containers use dnd5e's own dialog (it asks about the contents). Features granted by advancement ask with a warning.
 - **Equipped / Attuned** on Combat rows are small icons (the words are read out, shown in the tooltip, and listed in the open row) at every width, so the name keeps its room (it was cut to a few letters at some widths).
 
+## 0.59.3 — 2026-10-27
+
+Fix: right-clicking a skill, save or other roll tile opened the configure menu and also rolled.
+
+- Only a primary activation (left click, or Enter / Space on the focused button) runs a Hub action. A right-click, middle click, contextmenu or auxclick never rolls, and a click straight after a context menu (a touch long-press release) is ignored. The Menu key and Shift+F10 open the menu without rolling. This covers every Hub action (skills, saves, ability and tool checks, initiative, death saves, companions, and so on) in one place.
+- Checked in real Chromium with real mouse and key events: left click rolls once, right and middle click do not, Enter and Space roll, Menu key / Shift+F10 / a long-press do not.
+
 ## 0.59.2 — 2026-10-26
 
 Narrow and short window fixes (shared kit 2.4.0).
