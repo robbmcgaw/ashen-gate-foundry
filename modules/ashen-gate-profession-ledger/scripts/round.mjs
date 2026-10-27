@@ -126,3 +126,14 @@ export const bestResult=rows=>rows.some(r=>r.result==='rare')?'rare':rows.some(r
 
 /** Tier numbers offered in the setup form. */
 export const TIER_CHOICES=Object.freeze(TIERS.map((name,i)=>({n:i+1,name})));
+
+/** The words for a roll preset ({mode, sources:['Advantage: Herbalism Kit', ...]}), or null when there is nothing to say.
+ * {mode, text}: "Advantage: Herbalism Kit", "Disadvantage: Poisoned" or "Advantage and disadvantage cancel". */
+export function advantageText(preset){
+  const sources=Array.isArray(preset?.sources)?preset.sources:[];
+  if(!sources.length)return null;
+  const strip=prefix=>sources.filter(x=>x.startsWith(prefix)).map(x=>x.slice(prefix.length));
+  if(preset.mode>0)return {mode:1,text:`Advantage: ${strip('Advantage: ').join(', ')}`};
+  if(preset.mode<0)return {mode:-1,text:`Disadvantage: ${strip('Disadvantage: ').join(', ')}`};
+  return {mode:0,text:'Advantage and disadvantage cancel'};
+}

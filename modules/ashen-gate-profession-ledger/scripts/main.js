@@ -21,7 +21,7 @@ import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
-import {planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
+import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
@@ -29,7 +29,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.35.3';
+const VERSION='0.35.4';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1841,6 +1841,8 @@ function roundNodeProblem(node,allowDraft){
   if(hasOwnMaterials(node)){const m=nodeMaterialCheck(node,allowDraft);if(!m.materialFound)return nodeBlocker({...node,dc:node.dc??1},m);}
   return '';
 }
+/** The check plan one character rolls for a gather with this profession: the setup form and the round both use it. */
+const rollerPlan=(actor,node,key)=>gatherCheckPlan(actor,{...node,professions:[key],skill:professionTitle(key)});
 /** GM: who could roll for these professions right now (party characters that hold one). */
 const roundCandidates=professions=>eligibleRollers(partyActors().filter(a=>!isLevelBackup(a)),professions,heldProfessionKeys);
 
@@ -1866,7 +1868,7 @@ async function startRound(options={}){
   if(!candidates.length)throw Error(`${GATHER_FIX.noHolder} (${keys.map(professionTitle).join(', ')})`);
   const round={id:newId(),node,poolSource,professions:keys,tiers:tierList,dc:useDc,allowDraft:draftOk,requesterId,status:'rolling',createdAt:Date.now(),result:null,
     rollers:candidates.map(({actor,professionKey:key})=>{
-      const plan=gatherCheckPlan(actor,{...node,professions:[key],skill:professionTitle(key)});
+      const plan=rollerPlan(actor,node,key);
       return {actorId:actor.id,actorName:actor.name,professionKey:key,professionName:plan.professionName||professionTitle(key),professionId:plan.professionId,plan,rolled:null};})};
   gatherRounds.set(round.id,round);
   for(const user of allUsers().filter(u=>u.active&&!u.isGM)){
@@ -1905,6 +1907,7 @@ function recordRoll(roundId,{actorId,total,choice,mode=0,by=''}={}){
   const actor=game.actors.get(roller.actorId);
   const option=parseChoice(roller.plan,choice)??parseChoice(roller.plan,roller.plan.selected);
   roller.rolled={total:n,label:option&&actor?checkOption(actor,option).label:'Check',mode:Math.sign(Number(mode)||0),by:String(by??'')};
+  roller.adv=actor?presetOfProjection(actor,roller.plan,choice):null;
   sendSocket({type:'gather-round-progress',roundId,rolledIds:round.rollers.filter(r=>r.rolled).map(r=>r.actorId)});
   refreshLedger();
   return {actorId:roller.actorId,total:n,remaining:round.rollers.filter(r=>!r.rolled).length};
@@ -1998,7 +2001,7 @@ function revealRound(roundId){
   const exoticNode={...round.node,professions:round.professions,tier:round.tiers.at(-1),exotics:own.length?own:pool.exotics};
   const plan=planRound({pool,exoticNode,rolls:rolled.map(r=>({actorId:r.actorId,actorName:r.actorName,total:r.rolled.total})),dc:round.dc,roll:exoticRoll,
     percent:exoticPercent(),metaOf:metaFor(round.allowDraft),keyOf:professionKeyOfId});
-  round.result={rows:plan.rows.map(r=>({...r,handed:[]})),skipped:plan.skipped,unrolled:round.rollers.filter(r=>!r.rolled).map(r=>r.actorName),
+  round.result={rows:plan.rows.map(r=>({...r,handed:[],adv:advantageText(round.rollers.find(x=>x.actorId===r.actorId)?.adv)})),skipped:plan.skipped,unrolled:round.rollers.filter(r=>!r.rolled).map(r=>r.actorName),
     best:bestResult(plan.rows),needsManual:needsManual(plan.rows),revealedAt:Date.now()};
   const reasons={};
   for(const row of round.result.rows)if(row.undetermined.length){const k=row.undetermined[0];row.reason=reasons[k]??=poolReason(round,k);}
@@ -2018,7 +2021,7 @@ function roundView(round,{players=false}={}){
     drops:r.drops.map(d=>{const m=materialShow(round,d.materialId),hidden=players&&!m.released&&!d.given;
       // A player's copy never carries an unreleased material's name, picture or id.
       return hidden?{name:'',img:'',quantity:d.quantity,kind:d.kind,hidden:true}:{...(players?{}:{materialId:d.materialId}),name:m.name,img:m.img,quantity:d.quantity,kind:d.kind,hidden:false};}),
-    undetermined:r.undetermined.length>0,...(players?{}:{reason:r.reason??''})}));
+    undetermined:r.undetermined.length>0,...(players?{}:{reason:r.reason??'',advantage:r.adv?.text??'',advantageMode:r.adv?.mode??0})}));
   const ids=new Set([...(round.poolIds??[])]);
   const reel=[];
   for(const id of ids){const m=materialShow(round,id);if(players&&!m.released)continue;reel.push({img:m.img,name:m.name});}
@@ -2104,11 +2107,23 @@ async function postRoundCard(round,row,{note=''}={}){
   catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
 }
 
+/** 0.35.4: the advantage a character's check starts with: the ONE function behind the roll prompt, the roll itself and every "who has Advantage" list.
+ * `proj` carries {options, selected, advantageTools, advantageItems, assists}; a roller's plan has the same fields. */
+function presetOfProjection(actor,proj,choice=null){
+  const sel=parseChoice({options:proj.options},choice??proj.selected)??parseChoice({options:proj.options},proj.selected);
+  return rollModeFor(actor,sel??{},{assists:proj.assists??[],advantageTools:Array.isArray(proj.advantageTools)?proj.advantageTools:[],advantageItems:Array.isArray(proj.advantageItems)?proj.advantageItems:[]});
+}
+/** The marker shown beside a name: nothing when there is no advantage or disadvantage to speak of. Text, never colour alone. */
+function advantageMarker(preset,{who=''}={}){
+  const text=advantageText(preset);
+  if(!text)return '';
+  const icon=text.mode>0?'fa-angles-up':text.mode<0?'fa-angles-down':'fa-equals';
+  return `<span class="agl-adv" data-mode="${text.mode}"${who?` aria-label="${esc(`${who}: ${text.text}`)}"`:''}><i class="fa-solid ${icon}" aria-hidden="true"></i> ${esc(text.text)}</span>`;
+}
 /** Roll prompt fields; shared by the player popup and the GM's "Roll for them" panel. */
 function rollFields(actor,proj,prefix=''){
   const opts=proj.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(`${o.kind}:${o.key}`)}" ${proj.selected===`${o.kind}:${o.key}`?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('');
-  const sel=parseChoice({options:proj.options},proj.selected);
-  const preset=rollModeFor(actor,sel??{},{assists:proj.assists,advantageTools:Array.isArray(proj.advantageTools)?proj.advantageTools:[],advantageItems:Array.isArray(proj.advantageItems)?proj.advantageItems:[]});
+  const preset=presetOfProjection(actor,proj);
   return `<div class="agl-roll-fields"><label class="ag-field">Check (bonus)<select name="check" ${prefix?`data-gather-roll-check="${esc(prefix)}"`:''}>${opts}</select></label>
     <label class="ag-field">Roll ${modeSelect(preset.mode,`name="mode" ${prefix?`data-gather-roll-mode="${esc(prefix)}"`:''}`)}</label></div>
     <p class="agl-sub">${esc(modeHint(preset))}</p>`;
@@ -2116,7 +2131,9 @@ function rollFields(actor,proj,prefix=''){
 async function rollForGather(actor,proj,{choice,mode}){
   const option=parseChoice({options:proj.options},choice)??parseChoice({options:proj.options},proj.selected);
   if(!option)throw Error('Choose a check');
-  const out=await rollCheck(actor,checkOption(actor,option),Math.sign(Number(mode)||0));
+  // No mode given (the popup's Roll button, the API): the preset the prompt would show, so a tool's Advantage is never silently dropped.
+  const rollMode=mode==null||mode===''?presetOfProjection(actor,proj,`${option.kind}:${option.key}`).mode:Math.sign(Number(mode)||0);
+  const out=await rollCheck(actor,checkOption(actor,option),rollMode);
   if(!out)throw Error('dnd5e could not roll this check here. Roll on your sheet and tell the GM your total.');
   return {total:out.total,choice:`${option.kind}:${option.key}`,mode:out.mode};
 }
@@ -2131,7 +2148,7 @@ async function showGatherRound(message){
     const buttons=mine.map((r,i)=>({action:`roll:${r.actorId}`,label:`Roll as ${r.actorName}`,icon:'fa-solid fa-dice-d20',default:i===0,
       callback:()=>{void rollForRound(message.roundId,r.actorId,{}).then(out=>say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`)).catch(err=>say(`Profession Ledger: ${err.message}`,true));}}));
     const dialog=new DialogV2({id:`agl-gather-${message.roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Gather — roll your check'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
-      content:`<p>The GM opened a gather at ${esc(message.title)}${message.summary?` (${esc(message.summary)})`:''}.</p><p>${esc(mine.map(r=>`${r.actorName} (${r.professionName})`).join(', '))} can roll. Open Profession Ledger → Gathering to pick a different check.</p>`,
+      content:`<p>The GM opened a gather at ${esc(message.title)}${message.summary?` (${esc(message.summary)})`:''}.</p><p>${esc(mine.map(r=>{const a=game.actors.get(r.actorId),adv=a?advantageText(presetOfProjection(a,r)):null;return `${r.actorName} (${r.professionName}${adv?`; ${adv.text}`:''})`;}).join(', '))} can roll. Open Profession Ledger → Gathering to pick a different check.</p>`,
       buttons:[...buttons,{action:'later',label:'Later',icon:'fa-solid fa-clock'}]});
     gatherDialogs.set(`roll:${message.roundId}`,dialog);
     dialog.render({force:true});
@@ -2143,7 +2160,7 @@ function handoutRows(round){
   return round.result.rows.map(r=>{
     const given=r.drops.map(d=>d.name??materialShow(round,d.materialId).name);
     return {actorId:r.actorId,name:r.actorName,total:r.total,dc:r.dc,met:r.result!=='fail',result:r.result,verdict:verdictOf(r.result),mayReceive:[...r.mayReceive],
-      picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?(r.reason?`${r.reason} Give it by hand.`:`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`):`The Ledger picked ${given.join(' and ')}`};
+      advantage:r.adv?.text??'',picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?(r.reason?`${r.reason} Give it by hand.`:`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`):`The Ledger picked ${given.join(' and ')}`};
   });
 }
 /** GM: materials a character may be given by hand for this row, matching its quality, the round's professions and tiers (all of that quality if none match). */
@@ -2173,7 +2190,7 @@ async function openHandoutDialog(roundId){
   const content=`<div class="agl-handout"><p>${round.result.needsManual?'The Ledger could not settle every drop from the tier and DC alone. Here is who rolled and what each may receive:':'Who rolled and what each may receive:'}</p>
     <ul class="ag-rows">${rows.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span>
       <span class="ag-row__meta">${r.total} vs DC ${r.dc} · ${r.met?'Met the DC':'Did not meet the DC'} · ${r.met?`May receive: ${esc(r.mayReceive.join(' / ')||'nothing')}`:'Nothing'}</span>
-      <span class="ag-row__meta">${esc(r.status)}</span></span>
+      ${r.advantage?`<span class="ag-row__meta">${esc(r.advantage)}</span>`:''}<span class="ag-row__meta">${esc(r.status)}</span></span>
       <span class="ag-row__end">${r.met?`<button type="button" class="ag-btn ag-btn--sm" data-action="agl-handout-give" data-actor="${esc(r.actorId)}">Give…</button>`:''}</span></li>`).join('')}</ul></div>`;
   try{
     const {dialog,attach}=actionDialog({id:`agl-handout-${roundId}`,title:'Hand out loot',content,buttons:[{action:'close',label:'Close',icon:'fa-solid fa-xmark',default:true}],
@@ -2936,7 +2953,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
-    ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
@@ -3138,6 +3155,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const rows=round.rollers.map(r=>{const a=game.actors.get(r.actorId);if(!a)return '';
         const proj=rollerProjection(round,r),opts=r.plan.options.slice(0,2).map(o=>{const c=checkOption(a,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ');
         return `<li class="ag-row agl-roll-row"><span class="ag-row__main"><span class="ag-row__title">${portrait(a)} ${esc(r.actorName)}</span><span class="ag-row__meta">${esc(r.professionName)} · ${opts}</span>
+          ${advantageMarker(r.rolled?r.adv:presetOfProjection(a,r.plan),{who:r.actorName})}
           ${r.rolled?'':`<details class="agl-roll-options"><summary>Check and roll mode</summary>${rollFields(a,proj,r.actorId)}</details>`}</span>
           <span class="ag-row__end">${r.rolled?badge(`Rolled ${r.rolled.total}`,'ok'):`<label class="ag-field ag-field--inline"><span class="ag-sr-only">Total for ${esc(r.actorName)}</span><input type="number" min="-20" max="100" step="1" placeholder="Total" data-gather-total="${esc(r.actorId)}"></label>
             <button type="button" class="ag-btn ag-btn--sm" data-action="gather-record" data-id="${esc(r.actorId)}">Record total</button>
@@ -3202,7 +3220,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <fieldset class="agl-gather-eligible"><legend>Professions that can roll</legend><div class="agl-chip-row">${profBoxes}</div></fieldset>
         <fieldset class="agl-gather-eligible"><legend>Tier${adhoc?'s':''}</legend><div class="agl-chip-row">${tierBoxes}</div>${adhoc?'':'<p class="agl-sub">A saved spot keeps its own tier and the materials it lists.</p>'}</fieldset>
         <div class="agl-gather-form"><label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-gather-dc value="${esc(g.dc)}" placeholder="${esc(node?.dc??(tiers.length?defaultDC(tiers.at(-1)):'')??'')}"></label></div>
-        <p class="agl-sub" role="status">${cands.length?`Can roll (${cands.length}): ${esc(cands.map(c=>`${c.actor.name} (${professionTitle(c.professionKey)})`).join(', '))}.`:profs.length?'Nobody in the party holds those professions.':'Choose a profession to see who can roll.'}</p>
+        <div class="agl-can-roll" role="status"><p class="agl-sub">${cands.length?`Can roll (${cands.length}):`:profs.length?'Nobody in the party holds those professions.':'Choose a profession to see who can roll.'}</p>
+          ${cands.length?`<ul class="ag-rows agl-can-roll__list">${cands.map(c=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(c.actor.name)}</span><span class="ag-row__meta">${esc(professionTitle(c.professionKey))}</span></span>
+            <span class="ag-row__end">${advantageMarker(presetOfProjection(c.actor,rollerPlan(c.actor,node,c.professionKey)),{who:c.actor.name})}</span></li>`).join('')}</ul>`:''}</div>
         <div class="agl-field-group"><label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft aria-describedby="agl-allow-draft-hint" ${g.allowDraft?'checked':''}> Use draft materials anyway</label>
           <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: this gather can give draft or unreleased materials. Players never see them listed.</p></div>
         ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
@@ -4007,7 +4027,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  actionDialog,poolReason,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
+  actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

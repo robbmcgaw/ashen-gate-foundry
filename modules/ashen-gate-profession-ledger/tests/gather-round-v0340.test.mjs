@@ -116,7 +116,7 @@ const H=['herbalism','[TEST] Herbalism'],M=['mining','[TEST] Mining'],F=['fishin
 const ana=makeActor('ana','[TEST] Ana','u1',[H,M]),bo=makeActor('bo','[TEST] Bo','u2',[H]),cy=makeActor('cy','[TEST] Cy','u3',[M]),dee=makeActor('dee','[TEST] Dee','u1',[]),
   eli=makeActor('eli','[TEST] Eli','u2',[A]),fay=makeActor('fay','[TEST] Fay','u3',[H]),gus=makeActor('gus','[TEST] Gus','u2',[F]);
 const all=[ana,bo,cy,dee,eli,fay,gus];
-const ledgerModule={active:true,version:'0.35.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.35.4',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
  actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:(name,msg)=>sent.push(msg),on:()=>{}},
  modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -160,12 +160,12 @@ test('the setup form: professions and tiers to tick, a DC, who can roll, one pri
  game.user=gm;Object.assign(app.gather,{source:'adhoc',professions:['herbalism'],tiers:[1,2],dc:'',label:''});
  const h=await html();
  assert.match(h,/Professions that can roll/);assert.match(h,/data-gather-prof="herbalism" checked/);assert.match(h,/data-gather-tier="2" checked/);assert.match(h,/data-gather-dc /);
- assert.match(h,/Can roll \(3\): \[TEST\] Ana \(.*Herbalism\), \[TEST\] Bo/);assert.doesNotMatch(h,/Can roll[^<]*\[TEST\] Cy/);
+ assert.match(h,/Can roll \(3\):/);assert.match(h,/agl-can-roll__list.*\[TEST\] Ana.*\[TEST\] Bo.*\[TEST\] Fay/s);assert.doesNotMatch(h.slice(h.indexOf('agl-can-roll__list')),/\[TEST\] Cy/);
  assert.match(h,/placeholder="12"/,'the DC of the highest chosen tier');
  assert.match(h,/data-action="gather-start" ><i class="fa-solid fa-seedling" aria-hidden="true"><\/i> Start gather…/);
  assert.doesNotMatch(h,/Lead gatherer|Helpers|data-gather-helper|Active checks/);
  app.gather.professions=[];assert.match(await html(),/Choose which professions can roll\./);assert.match(await html(),/data-action="gather-start" disabled/);
- app.gather.professions=['fishing'];assert.doesNotMatch(await html(),/data-action="gather-start" disabled/);assert.match(await html(),/Can roll \(1\): \[TEST\] Gus/);
+ app.gather.professions=['fishing'];assert.doesNotMatch(await html(),/data-action="gather-start" disabled/);assert.match(await html(),/Can roll \(1\):[^]*\[TEST\] Gus/);
  app.gather.professions=['archaeology'];assert.match(await html(),/Nobody in the party holds those professions/);assert.match(await html(),/data-action="gather-start" disabled/);
  app.gather.professions=['herbalism'];
  // The change handlers keep the selection.
@@ -420,4 +420,102 @@ test('an empty pool says exactly why: nothing imported, draft only, duplicate, o
  assert.match(view.rows[0].reason,/No imported Common materials for Fishing/);
  assert.match(await html(),/No imported Common materials for Fishing, tier 1\. Import them with General Manager\. Give it by hand\./,'shown on the Gather panel');
  assert.doesNotMatch(JSON.stringify(_test.roundView(_test.openRound(),{players:true})),/Import them|reason/,'players never get the reason');
+});
+
+/* ---- 0.35.4: who rolls with Advantage (from tools): the lists and the roll use one function ------------ */
+const toolItem=(id,name,base,extra={})=>({id,name,type:'tool',system:{quantity:1,type:{baseItem:base,...(extra.type??{})},...(extra.system??{})},flags:{}});
+const setAdv=advantageTools=>{values.checkMapping={advantageTools};};
+const canRollRow=(h,name)=>{const i=h.indexOf('agl-can-roll__list');const list=h.slice(i,h.indexOf('</ul>',i));const li=list.split('<li').find(x=>x.includes(`>${name}<`))??'';return li;};
+/** Everything a GM sees and the roll does for one character in one gather: the setup list, the round row, the roll prompt's preset, the dice. */
+const advantageFor=async(name,actorId,professions)=>{
+ Object.assign(app.gather,{source:'adhoc',professions,tiers:[1],dc:'10',label:''});
+ const row=canRollRow(await html(),name);
+ const round=await _test.startRound({node:nodeOf(`adhoc-adv-${Math.random()}`),professions,tiers:[1],dc:10});
+ const roller=round.rollers.find(r=>r.actorId===actorId);
+ const panel=(await html()).slice((await html()).indexOf('agl-round'));
+ const actor=game.actors.get(actorId),preset=_test.presetOfProjection(actor,roller.plan);
+ rolls.length=0;actor.nextRoll=14;
+ await api.gathering.roll(round.id,{actorId});                       // no mode given: the roll must follow the preset
+ const rolled=rolls.at(-1);
+ const rowAfter=(await html()).slice((await html()).indexOf('agl-round'));
+ _test.revealRound(round.id);
+ const reveal=_test.roundView(_test.openRound(),{players:false}).rows.find(r=>r.id===actorId);
+ const handout=_test.handoutRows(_test.openRound()).find(r=>r.actorId===actorId);
+ _test.cancelRound(round.id);
+ return {row,panel,preset,rolled,rowAfter,reveal,handout,professionKey:roller.professionKey};
+};
+
+test('advantage from a carried tool: the Can roll list, the round row, the prompt preset, the dice, the reveal and the hand-out all agree',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));setAdv({herbalism:['herb']});
+ const kit=toolItem('kit','Herbalism Kit','herb');bo.items.push(kit);
+ try{
+  const r=await advantageFor('[TEST] Bo','bo',['herbalism']);
+  assert.equal(r.preset.mode,1);
+  assert.match(r.row,/data-mode="1"[^>]*aria-label="\[TEST\] Bo: Advantage: Herbalism Kit"[^>]*>.*Advantage: Herbalism Kit/s,'text, with an aria label, not colour alone');
+  assert.match(r.panel,/Advantage: Herbalism Kit/);assert.equal(r.rolled.advantage,true,'the dice are rolled with advantage');
+  assert.match(r.rowAfter,/Advantage: Herbalism Kit/,'still shown after rolling');
+  assert.equal(r.reveal.advantage,'Advantage: Herbalism Kit');assert.equal(r.handout.advantage,'Advantage: Herbalism Kit');
+ }finally{bo.items.splice(bo.items.indexOf(kit),1);}
+});
+
+test('advantage: a missing tool shows nothing and rolls normally; a tool in a container counts; a GM mapping change shows at once',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));setAdv({herbalism:['herb']});
+ let r=await advantageFor('[TEST] Bo','bo',['herbalism']);
+ assert.equal(r.preset.mode,0);assert.doesNotMatch(r.row,/agl-adv|Advantage/);assert.doesNotMatch(r.panel,/agl-adv/);assert.equal(r.rolled.advantage,false);assert.equal(r.reveal.advantage,'');
+ const bag={id:'bag',name:'Explorer’s Pack',type:'container',system:{quantity:1},flags:{}};
+ const inBag=toolItem('kit2','Herbalism Kit','herb',{system:{container:'bag'}});bo.items.push(bag,inBag);
+ try{
+  r=await advantageFor('[TEST] Bo','bo',['herbalism']);
+  assert.match(r.row,/Advantage: Herbalism Kit/);assert.equal(r.rolled.advantage,true,'carried is carried, in a container or not');
+  // GM override: the per-profession Tool for Advantage list is read live; clearing it removes the marker and the advantage.
+  setAdv({});r=await advantageFor('[TEST] Bo','bo',['herbalism']);
+  assert.doesNotMatch(r.row,/agl-adv/);assert.equal(r.rolled.advantage,false);
+  setAdv({herbalism:['herb']});r=await advantageFor('[TEST] Bo','bo',['herbalism']);assert.match(r.row,/Advantage: Herbalism Kit/);
+ }finally{bo.items.splice(bo.items.indexOf(inBag),1);bo.items.splice(bo.items.indexOf(bag),1);}
+});
+
+test('advantage with two professions: the list shows the check the character will actually roll, and the ticks change it live',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ setAdv({mining:['smith']});// only Mining has an advantage tool
+ const anvil=toolItem('sm','Smith’s Tools','smith');ana.items.push(anvil);
+ try{
+  // Ana holds Herbalism and Mining; ticked in the form (Ledger order) she rolls Herbalism, the first one she holds: no advantage.
+  let r=await advantageFor('[TEST] Ana','ana',['herbalism','mining']);
+  assert.equal(r.professionKey,'herbalism');assert.doesNotMatch(r.row,/Advantage/);assert.equal(r.rolled.advantage,false,'the list and the dice agree');
+  r=await advantageFor('[TEST] Ana','ana',['mining','herbalism']);// an API caller's order decides: Mining first
+  assert.equal(r.professionKey,'mining');assert.match(r.row,/Advantage: Smith.s Tools/);assert.equal(r.rolled.advantage,true);
+  // Tick only Mining: she rolls Mining, and the tool gives Advantage.
+  r=await advantageFor('[TEST] Ana','ana',['mining']);
+  assert.equal(r.professionKey,'mining');assert.match(r.row,/Advantage: Smith.s Tools/);assert.equal(r.rolled.advantage,true);
+  assert.match(r.row,/\[TEST\] Ana.*Mining/s,'the row names the profession being rolled');
+ }finally{ana.items.splice(ana.items.indexOf(anvil),1);}
+});
+
+test('advantage from a tool group (any musical instrument) and from proficiency; advantage and disadvantage cancel in words',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ setAdv({herbalism:['music']});
+ const lute=toolItem('lute','Lute','lute',{type:{value:'music'}});bo.items.push(lute);
+ try{
+  let r=await advantageFor('[TEST] Bo','bo',['herbalism']);
+  assert.match(r.row,/Advantage: Any musical instrument/);assert.equal(r.rolled.advantage,true);
+ }finally{bo.items.splice(bo.items.indexOf(lute),1);}
+ // Proficiency with the tool also counts (the same rule the roll prompt always had).
+ setAdv({herbalism:['herb']});bo.system.tools={herb:{value:1}};
+ try{const r=await advantageFor('[TEST] Bo','bo',['herbalism']);assert.match(r.row,/Advantage: Herbalism Kit/);assert.equal(r.rolled.advantage,true);}
+ finally{delete bo.system.tools;}
+ // A sheet effect giving disadvantage next to the tool's advantage: the roll is normal and the words say so.
+ const kit=toolItem('kit3','Herbalism Kit','herb');bo.items.push(kit);bo.system.tools={herb:{roll:{mode:-1}}};
+ try{const r=await advantageFor('[TEST] Bo','bo',['herbalism']);assert.equal(r.preset.mode,0);assert.match(r.row,/data-mode="0"[^>]*>.*Advantage and disadvantage cancel/s);assert.equal(r.rolled.advantage,false);assert.equal(r.rolled.disadvantage,false);}
+ finally{bo.items.splice(bo.items.indexOf(kit),1);delete bo.system.tools;setAdv({});}
+});
+
+test('players never get the advantage lists or reasons in the reveal they are sent',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));setAdv({herbalism:['herb']});
+ const kit=toolItem('kit4','Herbalism Kit','herb');bo.items.push(kit);
+ try{
+  const round=await _test.startRound({node:nodeOf('adhoc-adv-p'),professions:['herbalism'],tiers:[1],dc:10});
+  _test.recordRoll(round.id,{actorId:'bo',total:14});_test.revealRound(round.id);
+  assert.doesNotMatch(JSON.stringify(_test.roundView(_test.openRound(),{players:true})),/Advantage|advantage/);
+  _test.cancelRound(round.id);
+ }finally{bo.items.splice(bo.items.indexOf(kit),1);setAdv({});}
 });
