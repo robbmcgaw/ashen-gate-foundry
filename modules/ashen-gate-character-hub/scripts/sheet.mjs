@@ -239,6 +239,17 @@ export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDan
   else n?.error?.(r.error);
   return r;
 }
+/**
+ * Whether an event may run a Hub action (0.59.3): not a contextmenu / auxclick, not a mouse button other than the primary one, and
+ * not a click right after a context menu (touch long-press release). Keyboard activation (Enter / Space on a button) is a click with button 0.
+ */
+export function primaryActivation(event, ctxAt = 0, now = Date.now()) {
+  if (!event) return true;
+  if (event.type === 'contextmenu' || event.type === 'auxclick') return false;
+  if (typeof event.button === 'number' && event.button !== 0) return false;
+  if (event.type === 'click' && ctxAt && now - ctxAt < 500 && event.detail !== 0) return false;
+  return true;
+}
 const refuse = error => ({ok: false, error});
 /** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
 function toggleMenu(sheet, key) {
@@ -800,6 +811,9 @@ export function createHubSheetClass(Base) {
     async dispatch(action, target, event) {
       const handler = ACTIONS[action];
       if (!handler) return null;
+      // 0.59.3: only a primary activation runs an action. A right-click (button 2), middle click, contextmenu or auxclick never rolls or
+      // changes anything, and the click a touch long-press can send after its context menu is dropped.
+      if (!primaryActivation(event, this._ctxAt)) return null;
       try { this._agchActionKey = target?.attributes ? fieldKey(target) : null; } catch { this._agchActionKey = null; }   // a popover it opens returns the focus here
       try { return report(await hostWindows(this, () => handler(this, target, event))); } catch (err) {
         console.error(`${MODULE_ID} | ${action}`, err);
@@ -813,6 +827,7 @@ export function createHubSheetClass(Base) {
      */
     _onContextMenu(event) {
       if (event.target?.closest?.('.agch-embed')) return null;
+      this._ctxAt = Date.now();   // see primaryActivation: a long-press on touch may send a click after the menu
       const quick = event.target?.closest?.('.agch-quick__slot.is-filled');
       if (quick) {
         event.preventDefault(); event.stopPropagation();
