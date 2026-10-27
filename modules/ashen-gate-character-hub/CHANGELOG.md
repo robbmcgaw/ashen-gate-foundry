@@ -1,3 +1,10 @@
+## 0.60.2 — 2026-10-27
+
+Renown's Vow Item is protected, and grouped under Pantheon.
+
+- A feat Item carrying Renown's `flags.ashen-gate-factions.vowItem` (the "Vow of <god>" Renown gives when a Vow is sworn) is managed by Renown. In the row menu a player sees Delete… disabled with "Managed by Renown: end your Vow in Pantheon." and, when Renown can open it, **Open Pantheon…**. The GM may delete it, after a warning that Renown recreates it if the Vow is still sworn. Enforced in the delete handler, not only the menu.
+- Features → Group → Origin puts it under **Pantheon: Vow of <god>** (found by the flag alone; no Renown needed). Its uses and Use button are as usual.
+
 ## 0.60.1 — 2026-10-27
 
 The Foundry hotbar sync is for players only.
