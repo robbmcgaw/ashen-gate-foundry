@@ -1,3 +1,13 @@
+## 0.35.5 — 2026-10-27
+
+Copy Location nodes can be undone, and asks first.
+
+- **Copy Location nodes…** now opens a preview in place: how many node templates it would create, the breakdown by activity and how many have **no activity set**. Nothing is created until you press *Copy N nodes…* and confirm.
+- **Undo last copy…** (next to the Copy button, and in the "copied into templates" banner). It lists what the last copy created, grouped by activity, and removes exactly those templates. Templates you **edited since the copy**, and templates a **Location points at**, are kept unless you tick them. Confirmation: *Undo the copy of N nodes?* with *Remove N nodes* (danger) and *Cancel* (default).
+- Works for copies made before this version: the copy's record already lists the templates it created. A GM-only snapshot Journal of what is removed is saved first (the undo stops if it cannot be saved). Locations records and hand-made templates are never touched. A copy never overwrites an existing template, so only newly created templates are removed; an existing template the copy only matched forgets the Location entries it added. Removed ids are not retired, and those entries can be copied again later.
+- The banner and the undo are gone until the next copy; a second press never undoes an older copy.
+- API (GM only): `gathering.templates.copyPreview()` and `gathering.templates.undoCopy({preview = true, alsoRemove})`.
+
 ## 0.35.4 — 2026-10-27
 
 Gathering shows who rolls with Advantage.
