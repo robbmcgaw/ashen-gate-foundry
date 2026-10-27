@@ -235,3 +235,14 @@
 .agl-rr-group h3{display:flex;align-items:center;gap:var(--ag-space-2);margin:0;font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.07em;color:var(--ag-muted)}
 .agl-recipes-gone{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap}
 @container (max-width:26rem){.agl-rr-group .ag-row{flex-wrap:wrap}}
+
+/* Recipe tree (0.37.0): tier groups inside a profession folder. A header button collapses its panel (aria-expanded); no nested <details>. */
+.agl-tier-group{display:flex;flex-direction:column}
+.agl-tier-head{margin:0;position:sticky;top:0;z-index:1;background:var(--ag-surface)}
+.agl-tier-toggle{display:flex;align-items:center;justify-content:flex-start;gap:var(--ag-space-2);width:100%;min-height:var(--ag-control-h-sm);padding:var(--ag-space-1) var(--ag-space-2);border:0;border-bottom:1px solid var(--ag-border);background:transparent;color:var(--ag-muted);font:inherit;font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.07em;text-align:left;cursor:pointer}
+.agl-tier-toggle:hover{color:var(--ag-text)}
+.agl-tier-toggle:focus-visible{outline:2px solid var(--ag-focus);outline-offset:-2px}
+.agl-tier-chev{transition:transform var(--ag-dur-fast)}
+.agl-tier-toggle[aria-expanded=false] .agl-tier-chev{transform:rotate(-90deg)}
+.agl-tier-body{display:flex;flex-direction:column;gap:var(--ag-space-2);padding-top:var(--ag-space-2)}
+@media (prefers-reduced-motion:reduce){.agl-tier-chev{transition:none}}

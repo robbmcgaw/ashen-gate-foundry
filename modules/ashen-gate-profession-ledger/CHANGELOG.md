@@ -1,3 +1,12 @@
+## 0.37.0 — 2026-10-27
+
+The Recipe Catalog is a tree: profession folders with tier groups inside.
+
+- **Recipe Catalog** (and **Party → By profession**, the same renderer): each profession folder now holds tier groups in ladder order (Apprentice, Journeyman, Expert, Artisan, Master), each with a count and only its recipes. Empty tiers are left out; recipes with no or an unknown tier go in **Other**, last. The tier is read the way the recipe card's chip reads it (its tier, else the minimum profession level it asks for).
+- **Collapsible and remembered.** A profession is a folder; a tier is a header button (aria-expanded) that collapses its recipes, so there is no fold inside a fold. Open and closed state is remembered per user on this device and restored after every refresh, with focus staying on the same header. Professions start shut; tiers start open.
+- **Search** still filters: it opens the folders and tiers that match, hides the rest and shows "n of total" in the headers; clearing it puts back what you had open. **Expand all** and **Collapse all** sit in the toolbar.
+- No saved data changes.
+
 ## 0.36.0 — 2026-10-27
 
 Refresh recipes.
