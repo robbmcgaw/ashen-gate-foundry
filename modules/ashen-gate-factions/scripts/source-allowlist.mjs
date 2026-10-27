@@ -12,7 +12,7 @@ const TRACK=[...BASE,'default_scope','milestones'];
 const MILESTONE=['id','key','name','threshold','benefit','selection_mode'];
 const ENTRY=['supersedes','id','name','text','uuid','link_mode','unlock','threshold'];
 // 0.14.0: item rewards may carry the permanent item id (item_id) and a picture (img); both optional.
-const REWARD=['id','key','audience','milestone_id','name','teaser','description','kind','uuid','item_id','img','tags','behavior','usage_limit'];
+const REWARD=['id','key','audience','milestone_id','name','teaser','description','kind','uuid','item_id','img','tags','behavior','usage_limit','vow_benefit'];
 const REF=['relation','target_id','mode'];
 const PROVENANCE=['sources','decision_refs'];
 const FIELD_KEYS=['name','leader','public_role'];
@@ -36,7 +36,23 @@ function envelope(value,path,type,idPattern){if(!idPattern.test(value.id??''))th
 function track(value,path){closed(value,TRACK,path);envelope(value,path,'RenownTrack',TRACK_ID);choice(value.default_scope,['group','individual'],`${path}.default_scope`);list(value.milestones,`${path}.milestones`,(row,p)=>{closed(row,MILESTONE,p);text(row.id,`${p}.id`,true);text(row.key,`${p}.key`,true);text(row.name,`${p}.name`,true);natural(row.threshold,`${p}.threshold`);text(row.benefit,`${p}.benefit`);choice(row.selection_mode,['all','choose_one'],`${p}.selection_mode`);},5,5);}
 function supersedes(value,path){optional(value,path,(v,p)=>{list(v,p,(x,q)=>text(x,q,true),1);if(new Set(v).size!==v.length)throw new Error(`${p}: duplicate id`);});}
 function entry(value,path){closed(value,ENTRY,path);supersedes(value.supersedes,`${path}.supersedes`);text(value.id,`${path}.id`,true);text(value.name,`${path}.name`,true);choice(value.unlock,['manual','group_renown','individual_renown'],`${path}.unlock`);choice(value.link_mode,['preview','document'],`${path}.link_mode`);optional(value.text,`${path}.text`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.threshold,`${path}.threshold`,natural);}
-function reward(value,path){closed(value,REWARD,path);for(const key of ['id','key','milestone_id','name'])text(value[key],`${path}.${key}`,true);choice(value.audience,['group','individual'],`${path}.audience`);choice(value.kind,['custom','uuid'],`${path}.kind`);choice(value.behavior,['one_time','repeatable_service','passive'],`${path}.behavior`);strings(value.tags,`${path}.tags`);natural(value.usage_limit,`${path}.usage_limit`);optional(value.teaser,`${path}.teaser`,text);optional(value.description,`${path}.description`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.img,`${path}.img`,text);if(value.item_id!==undefined&&(typeof value.item_id!=='string'||!SOURCE_ID.test(value.item_id)))throw new Error(`${path}.item_id: permanent item id required`);if(value.kind==='uuid')text(value.uuid,`${path}.uuid`,true);}
+// 0.21.0: a Seeker reward may carry vow_benefit (the data behind the Vow feature). Closed shape, nothing extra accepted.
+const VOW_SKILLS=['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur'],VOW_ABILITIES=['str','dex','con','int','wis','cha'];
+function sizedText(value,path,max,required=true){text(value,path,required);if(value.length>max)throw new Error(`${path}: ${max} characters maximum`);}
+export function vowBenefit(value,path='vow_benefit'){
+ closed(value,['name','bonus','applies_to','uses','summary','requirement'],path);
+ sizedText(value.name,`${path}.name`,80);
+ if(typeof value.bonus!=='string'||!/^\d+d\d+$/.test(value.bonus))throw new Error(`${path}.bonus: dice string like 1d4 required`);
+ list(value.applies_to,`${path}.applies_to`,(a,p)=>{closed(a,['kind','key','condition'],p);choice(a.kind,['skill','save','check','tool','attack'],`${p}.kind`);
+  if(a.kind==='skill')choice(a.key,VOW_SKILLS,`${p}.key`);else if(a.kind==='save'||a.kind==='check')choice(a.key,VOW_ABILITIES,`${p}.key`);
+  else{text(a.key,`${p}.key`,true);if(a.key.length>40)throw new Error(`${p}.key: 40 characters maximum`);}
+  optional(a.condition,`${p}.condition`,(v,q)=>sizedText(v,q,200));},1,4);
+ closed(value.uses,['max','recovery'],`${path}.uses`);
+ if(!Number.isSafeInteger(value.uses.max)||value.uses.max<1||value.uses.max>9)throw new Error(`${path}.uses.max: integer 1 to 9 required`);
+ choice(value.uses.recovery,['lr','sr','day'],`${path}.uses.recovery`);
+ sizedText(value.summary,`${path}.summary`,400);sizedText(value.requirement,`${path}.requirement`,300);
+}
+function reward(value,path){closed(value,REWARD,path);optional(value.vow_benefit,`${path}.vow_benefit`,vowBenefit);for(const key of ['id','key','milestone_id','name'])text(value[key],`${path}.${key}`,true);choice(value.audience,['group','individual'],`${path}.audience`);choice(value.kind,['custom','uuid'],`${path}.kind`);choice(value.behavior,['one_time','repeatable_service','passive'],`${path}.behavior`);strings(value.tags,`${path}.tags`);natural(value.usage_limit,`${path}.usage_limit`);optional(value.teaser,`${path}.teaser`,text);optional(value.description,`${path}.description`,text);optional(value.uuid,`${path}.uuid`,text);optional(value.img,`${path}.img`,text);if(value.item_id!==undefined&&(typeof value.item_id!=='string'||!SOURCE_ID.test(value.item_id)))throw new Error(`${path}.item_id: permanent item id required`);if(value.kind==='uuid')text(value.uuid,`${path}.uuid`,true);}
 /** Reject arbitrary top-level AND nested data. This does not migrate or rewrite the input. */
 export function assertReusableFactionSource(value){
  if(value?.entity_type==='Deity')return assertReusableDeitySource(value);

@@ -12,7 +12,7 @@ import {restoreBackup, backupsFor, sourceOf, restoreLines} from './level-restore
 import {isBackup} from './level-backup.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
-import {openPartner, mountEmbeds, unmountEmbeds, depositToParty, pickTreeTab} from './partners.mjs';
+import {openPartner, mountEmbeds, unmountEmbeds, depositToParty, partnerApi, pickTreeTab} from './partners.mjs';
 import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
@@ -863,6 +863,7 @@ export function createHubSheetClass(Base) {
     async _rowAction(key, id, focusId = null) {
       if (key === 'open') return report(await items.openItemSheet(this.document, id, this));
       if (key === 'trees') return report(await openSkillTree(this.document));
+      if (key === 'pantheon') { try { const item = this.document.items?.get?.(id); await partnerApi('ashen-gate-factions')?.open?.({actorId: this.document.id, deityId: item?.flags?.['ashen-gate-factions']?.vowItem?.deityId, tab: 'pantheon'}); return {ok: true}; } catch (err) { return report({ok: false, error: `Could not open Pantheon: ${err?.message ?? err}`}); } }
       if (key !== 'delete') return null;
       this._agchFocusRow = focusId;   // after the redraw the focus goes to the next row
       const r = report(await deleteRowItem(this.document, id));
