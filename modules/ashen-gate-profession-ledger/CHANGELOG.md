@@ -1,3 +1,12 @@
+## 0.35.4 — 2026-10-27
+
+Gathering shows who rolls with Advantage.
+
+- **Who has Advantage, and why.** In Gathering → Gather the **Can roll** list now has one row per character with a text marker beside the name, e.g. *Advantage: Herbalism Kit* (a tool they carry or are proficient with from GM Setup → Tools and checks → Tool for Advantage, or an Advantage item, or the sheet). The same marker shows in the round's roll list, on the Reveal rows and in the Hand out pop-up, and in the player's roll popup. Characters with no advantage show nothing; advantage and disadvantage that cancel say so.
+- **One function.** The marker, the roll prompt's preselected mode and the roll all come from the same check, so the list can never disagree with the dice. A character who holds several ticked professions rolls the first one in the order ticked (form order: Archaeology, Fishing, Herbalism, Hunting, Mining), and the marker is for that profession's check. The list updates as you tick professions.
+- Fix: rolling from the popup or the API without choosing a roll mode used Normal and dropped a tool's Advantage; it now uses the preset the prompt shows.
+- No saved data changes.
+
 ## 0.35.3 — 2026-10-26
 
 Keyboard and narrow-window fixes (shared kit 2.4.0).

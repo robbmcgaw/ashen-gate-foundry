@@ -222,3 +222,10 @@
 @media (prefers-reduced-motion:reduce){.agl-reel__strip{animation:none}.agl-reel{display:none}}
 .agl-reveal.is-plain .agl-reel{display:none}
 @container (max-width:26rem){.agl-reveal__row{grid-template-columns:1fr}.agl-reel{grid-column:1;grid-row:auto}}
+
+/* Who rolls with Advantage (0.35.4): text beside the name, never colour alone; wraps under the name on a phone. */
+.agl-adv{display:inline-flex;align-items:center;gap:var(--ag-space-1);font-size:var(--ag-text-sm);color:var(--ag-text);padding:0 var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control)}
+.agl-adv[data-mode="1"]{border-color:var(--ag-ok)}
+.agl-adv[data-mode="-1"]{border-color:var(--ag-warn)}
+.agl-can-roll__list .ag-row__end{flex:0 1 auto;min-width:0;white-space:normal;text-align:right}
+@container (max-width:26rem){.agl-can-roll__list .ag-row{flex-wrap:wrap}.agl-can-roll__list .ag-row__end{text-align:left}}

@@ -36,7 +36,7 @@ export function revealHtml(view,{reduced=false,elapsed=0,skipId='skip-reveal'}={
       r.result==='fail'?'<span class="agl-reveal__none">Nothing found</span>'
       :`<span class="agl-reveal__none">${r.reason?`${escape(r.reason)} The GM gives it by hand.`:'The Ledger can’t pick this one: the GM gives it by hand'}</span>`;
     return `<li class="agl-reveal__row" data-result="${escape(r.result)}">
-      <div class="agl-reveal__who"><strong>${escape(r.name)}</strong> <span class="agl-sub">${escape(r.total)}${view.dcText?` vs ${escape(view.dcText)}`:''} · ${verdictText(r)}</span></div>
+      <div class="agl-reveal__who"><strong>${escape(r.name)}</strong> <span class="agl-sub">${escape(r.total)}${view.dcText?` vs ${escape(view.dcText)}`:''} · ${verdictText(r)}</span>${r.advantage?` <span class="agl-adv" data-mode="${escape(r.advantageMode??0)}">${escape(r.advantage)}</span>`:''}</div>
       ${strip}<div class="agl-reveal__drops">${drops}</div></li>`;
   }).join('');
   const summary=rows.map(r=>`${r.name}: ${r.result==='fail'?'nothing':r.drops?.length?r.drops.map(dropText).join(' and '):'by hand'}`).join('. ');
