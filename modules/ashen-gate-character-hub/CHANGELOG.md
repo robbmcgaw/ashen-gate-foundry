@@ -1,3 +1,12 @@
+## 0.60.0 — 2026-10-27
+
+Delete from a list row, and smaller Equipped / Attuned markers.
+
+- **Right-click a row** in Combat, Inventory, Magic or Features (or press the **Menu** key or **Shift+F10** on a focused row) for a small menu: **Open sheet** and **Delete…**. The menu has real menu semantics: arrow keys, Home / End, Escape closes it and puts the focus back on the row. Nothing extra shows on the compact rows.
+- **Delete…** asks "Delete <name>?" with a red "Delete <name>" button and Cancel as the default; it says this removes the item from the character sheet. Afterwards the focus moves to the next row. The character's owner and the GM can delete; the Hub checks that in the handler, not only by showing the menu.
+- **Protected items:** Skill Trees perks are never deleted here (refund them in Skill Trees; the menu offers Open Skill Trees…). Profession Ledger features, Cinder power items and items in a Cinder socket, and gear or perks assigned to a companion: GM only, with a warning. Class, subclass, species and background: GM only, through dnd5e's own delete dialog (it asks about what they granted). Containers use dnd5e's own dialog (it asks about the contents). Features granted by advancement ask with a warning.
+- **Equipped / Attuned** on Combat rows are small icons (the words are read out, shown in the tooltip, and listed in the open row) at every width, so the name keeps its room (it was cut to a few letters at some widths).
+
 ## 0.59.3 — 2026-10-27
 
 Fix: right-clicking a skill, save or other roll tile opened the configure menu and also rolled.

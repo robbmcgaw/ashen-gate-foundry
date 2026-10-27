@@ -31,7 +31,7 @@ const attunedBadge = r => r.attuned ? '<span class="ag-badge ag-badge--accent" d
 const equippedBadgeCompact = r => (r.equippable && r.equipped ? stateBadge('fa-shield-halved', 'Equipped') : '');
 const attunedBadgeCompact = r => (r.attuned ? stateBadge('fa-sun', 'Attuned') : '');
 /** Open-row facts the line no longer shows: equipped state, the weapon's mastery (its badge and rules tooltip). */
-const itemExtraFacts = r => [...(r.equippable ? [['Equipped', r.equipped ? 'Yes' : 'No']] : []), ...(r.mastery ? [['Mastery', {html: masteryBadge(r)}]] : [])];
+const itemExtraFacts = r => [...(r.equippable ? [['Equipped', r.equipped ? 'Yes' : 'No']] : []), ...(r.attuned ? [['Attuned', 'Yes']] : []), ...(r.mastery ? [['Mastery', {html: masteryBadge(r)}]] : [])];
 /**
  * A weapon's mastery (0.30.0): the name from dnd5e's CONFIG.DND5E.weaponMasteries; hover shows dnd5e's own rules page
  * for it (rich tooltip) or, without dnd5e's tooltips, just the name. Dimmed when dnd5e says the character can't use it.

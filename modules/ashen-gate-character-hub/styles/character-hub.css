@@ -836,9 +836,11 @@
 .agch-app .agch-crows.agch-cards > li.agch-card__headrow { display: grid; --agch-row-bg: var(--agch-bg-sunken); }
 .agch-app .agch-crows .agch-card__lead { min-width: 0; }
 .agch-app .agch-crows .agch-card__main { display: flex; flex-wrap: nowrap; align-items: center; min-width: 0; flex: none; overflow: clip; overflow-clip-margin: var(--ag-space-1); }
-.agch-app .agch-crow__name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.agch-app .agch-crow__name { flex: 0 1 auto; min-width: min(8ch, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 .agch-app .agch-crows .agch-item__badges { flex: 0 0 auto; flex-wrap: nowrap; }
-.agch-app .agch-crows .agch-sbadge { white-space: nowrap; }
+.agch-app .agch-crows .agch-sbadge { white-space: nowrap; flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; padding: 0; margin-inline-start: var(--ag-space-1); }
+/* 0.60.0: Equipped / Attuned are small icons at every width (the word is read out and in the tooltip, and both are in the open row); the name keeps at least 8ch before the icons, which clip off first. */
+.agch-app .agch-crows .agch-sbadge__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* ag-lint-allow: visually hidden label, the same idiom as .ag-sr-only */
 .agch-app .agch-crows .agch-card__fact { min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agch-app .agch-crows .agch-card__fact::before { content: none; }
 .agch-app .agch-crows > .agch-card__headrow > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -860,9 +862,6 @@
 .agch-app .agch-crow__qtyfield { display: none; }
 .agch-app .agch-crow__qtyfield input { width: 3rem; min-width: 0; padding-inline: var(--ag-space-1); text-align: center; }
 .agch-app .agch-crow__qtyrow > span:first-child::after { content: ":"; }
-@container agch-body (max-width: 480px) {
-  .agch-app .agch-crows .agch-sbadge__t { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* ag-lint-allow: visually hidden label, the same idiom as .ag-sr-only */
-}
 .agch-app .agch-crows--combat.agch-set-weapons.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 3rem 4.5rem 6rem var(--agch-ic-track); }
 .agch-app .agch-crows--combat.agch-set-actions.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 4.5rem 5.5rem 3.5rem 5rem var(--agch-ic-track); }
 .agch-app .agch-crows--combat.agch-set-mixed.agch-cards { grid-template-columns: var(--agch-ic-lead) var(--agch-icon-size) minmax(5rem, 1fr) 5.5rem 3rem 4.5rem 3.5rem var(--agch-ic-track); }
@@ -1084,3 +1083,11 @@
 .agch-app .agch-ctgroup[hidden], .agch-app .agch-ctype__more[hidden] { display: none; }
 .agch-app .agch-ctype__name { min-width: 10em; overflow-wrap: break-word; }
 .agch-app .agch-ctypes select { max-width: 100%; }
+
+/* 0.60.0: the row menu (right-click, Menu key or Shift+F10 on a list row): small, inside the window, text labels. */
+.agch-app .agch-rowmenu { width: auto; min-width: 11rem; max-width: min(18rem, calc(100% - var(--ag-space-3))); }
+.agch-app .agch-rowmenu__item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--ag-radius); padding: var(--ag-space-1) var(--ag-space-2); color: inherit; cursor: pointer; font: inherit; }
+.agch-app .agch-rowmenu__item:hover, .agch-app .agch-rowmenu__item:focus-visible { background: var(--ag-surface-hover, color-mix(in srgb, currentColor 12%, transparent)); }
+.agch-app .agch-rowmenu__item.is-danger { color: var(--ag-danger-ink, var(--ag-danger, inherit)); }
+.agch-app .agch-rowmenu__item[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+.agch-app .agch-rowmenu__why { margin: 0; padding: var(--ag-space-1) var(--ag-space-2); font-size: var(--ag-text-sm); overflow-wrap: break-word; }
