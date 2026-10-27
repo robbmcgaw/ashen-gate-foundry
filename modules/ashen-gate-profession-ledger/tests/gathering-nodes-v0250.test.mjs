@@ -275,7 +275,7 @@ test('player request on a draft-material node waits for the GM, who approves it 
 test('Robb B: Skinning & Harvesting nodes read Hunting for the GM and players',async()=>{
   game.user=gm;app.gather.source='location';app.gather.nodeRef='';
   let h=await html('gathering');
-  assert.match(h,/\[TEST\] Bank game · Hunting · Tier 1/);assert.doesNotMatch(h,/Skinning &amp; Harvesting|Skinning & Harvesting/);
+  assert.match(h,/Tier 1 · Hunting · \[TEST\] Bank game/,'0.37.0: tier, profession, name');assert.doesNotMatch(h,/Skinning &amp; Harvesting|Skinning & Harvesting/);
   game.user=alice;h=await html('gathering');
   assert.match(h,/\[TEST\] Bank game<\/strong> <small>Hunting · Tier 1/);assert.doesNotMatch(h,/Skinning/);
   game.user=gm;
@@ -289,7 +289,7 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   assert.doesNotMatch(h,/data-id="nodes"/,'…and no seventh top-level tab');
   assert.match(h,/Copied 2 Location gathering nodes|2 Location gathering nodes copied into templates/);
   assert.match(h,/backed up in the Journal “Profession Ledger \(GM Data\)”/);
-  assert.match(h,/<summary>.*<strong>Hunting<\/strong>/s,'grouped by activity');
+  assert.match(h,/<summary>.*<strong>Tier \d · [A-Za-z]+<\/strong>/s,'0.37.0: grouped by tier, lowest first');
   assert.match(h,/class="ag-toolbar__end">.*data-action="node-new"/s,'create action on the right');
   const setup=await html('gm');assert.doesNotMatch(setup.slice(setup.indexOf('<main')),/Gathering Nodes|node-new|NODE-/,'GM Setup stays settings-only');
   // New node through the editor.
