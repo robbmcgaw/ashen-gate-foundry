@@ -7,6 +7,7 @@
  *   - Professions: Skill Trees' accounts.grants(actor) rows on a profession tree (pointsSummary `kind`, listTrees `sourceRef`); an Item with
  *     the Profession Ledger's documented `flags.ashen-gate-profession-ledger.grant`; or, while the Ledger is active, an Item whose
  *     Manager source id is a PROF-* or whose definition names a profession_id. Names from the Ledger's getProfessions.
+ *   - Pantheon: an Item carrying Renown's flag flags.ashen-gate-factions.vowItem {deityId, rewardId} (the Vow Item), one group per deity.
  *   - Class, Species, Background: dnd5e's own `flags.dnd5e.advancementOrigin` (the granting Item's type), else system.type.value.
  *   - Feats: dnd5e's system.type.value 'feat'.
  * Every partner is feature-detected and optional: with none of them active, profession and Cinder Items fall into the dnd5e groups.
@@ -16,8 +17,8 @@ import {cinderPowerItems} from './cinders.mjs';
 import {featuresData} from './items.mjs';
 
 export const ORIGIN_SECTIONS = Object.freeze([['class', 'Class and Subclass'], ['heritage', 'Species and Background'], ['feat', 'Feats'],
-  ['profession', 'Professions'], ['cinder', 'Cinder powers'], ['other', 'Everything else']]);
-export const ORIGIN_PARTNER_SECTIONS = Object.freeze(['profession', 'cinder']);
+  ['profession', 'Professions'], ['cinder', 'Cinder powers'], ['pantheon', 'Pantheon'], ['other', 'Everything else']]);
+export const ORIGIN_PARTNER_SECTIONS = Object.freeze(['profession', 'cinder', 'pantheon']);
 const LEDGER = 'ashen-gate-profession-ledger', TREES = 'ashen-gate-skill-trees', MANAGER = 'ashen-gate-manager';
 
 const safe = fn => { try { return fn(); } catch { return null; } };
@@ -63,7 +64,9 @@ export function featureOrigins(actor, rows) {
     const item = actor.items?.get?.(r.id) ?? null, flags = item?.flags ?? {}, grant = grants.get(r.id);
     const src = flags[MANAGER]?.source, srcId = String(src?.sourceId ?? ''), defProf = String(src?.definition?.profession_id ?? src?.definition?.professionId ?? '');
     let o = null;
-    if (cinderOfItem.has(r.id)) o = cinderGroup(cinderOfItem.get(r.id));
+    const vow = flags['ashen-gate-factions']?.vowItem;   // Renown's Vow Item (0.60.2): found by its flag alone, no module needed
+    if (vow && typeof vow === 'object') o = {section: 'pantheon', key: String(vow.deityId || r.id), label: r.name, order: 0};
+    else if (cinderOfItem.has(r.id)) o = cinderGroup(cinderOfItem.get(r.id));
     else if (grant?.kind === 'cinder_milestone' || (grant && cinderOfTree.has(grant.treeId))) {
       o = cinderOfTree.has(grant.treeId) ? cinderGroup(cinderOfTree.get(grant.treeId)) : {section: 'cinder', key: grant.treeId || 'cinder', label: grant.treeName || 'Cinder', order: 99};
     } else if (grant?.kind === 'profession') o = profGroup(grant.sourceRef || defProf, grant.treeName);
