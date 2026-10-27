@@ -18,7 +18,7 @@ globalThis.ui={notifications:{info:m=>infos.push(String(m)),error:m=>errors.push
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
 const actor={id:'a1',name:'[TEST] Alpha',type:'character',hasPlayerOwner:true,items:[],flags:{},testUserPermission:()=>true};
 actor.items.get=()=>undefined;
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.35.5'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.36.0'};
 globalThis.game={user:gm,users:{contents:[gm],get:()=>gm,get activeGM(){return gm;}},items:{contents:[]},journal:[journal],actors:{contents:[actor],get:()=>actor},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
 await import(pathToFileURL(path.resolve(here,'../scripts/main.js')));hooks.init();hooks.ready();

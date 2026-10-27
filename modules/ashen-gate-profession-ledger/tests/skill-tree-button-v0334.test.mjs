@@ -20,7 +20,7 @@ globalThis.document={documentElement:{dataset:{}}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicationMixin:x=>x,DialogV2:{}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:e=>errs.push(String(e))}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.35.5'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.36.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:[actor],get:id=>id==='a'?actor:null},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:id==='ashen-gate-skill-trees'?trees:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{values[key]=v;}}};
