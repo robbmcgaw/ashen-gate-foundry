@@ -50,8 +50,10 @@ export function planRecipeRefresh({known=[],knownRaw=null,grantedRecipes=[],reci
     counts:{gone:rows.filter(r=>r.group==='gone').length,remove:removing.length,add:missing.filter(m=>m.add).length,skipped:missing.filter(m=>m.status==='unreleased').length},
     problems:rows.some(r=>r.group==='gone')||missing.some(m=>m.status==='new')};
 }
-/** How many entries of a character's recipes no longer exist in the catalog (unknown ids and non-text entries): the Individual tab's badge. */
-export function missingRecipeCount({known=[],knownRaw=null,recipes=[]}={}){
+/** How many entries of a character's recipes no longer exist in the catalog (unknown ids and non-text entries): the Individual tab's badge.
+ * `exactCatalog:false` (a player: their catalog hides unreleased recipes, which still exist) counts only entries that cannot be recipe ids at all. */
+export function missingRecipeCount({known=[],knownRaw=null,recipes=[],exactCatalog=true}={}){
+  if(!exactCatalog)return Array.isArray(knownRaw)?knownRaw.filter(e=>typeof e!=='string'||!/^REC-[A-Z0-9-]+$/.test(e)).length:0;
   const byId=new Map(recipes.map(r=>[r.id,r]));
   return unrecognisedRecipes({known,knownRaw,byId}).reduce((n,u)=>n+(u.token===RECIPE_NON_TEXT?(Array.isArray(knownRaw)?knownRaw.filter(e=>typeof e!=='string').length:1):1),0);
 }

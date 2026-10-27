@@ -229,3 +229,9 @@
 .agl-adv[data-mode="-1"]{border-color:var(--ag-warn)}
 .agl-can-roll__list .ag-row__end{flex:0 1 auto;min-width:0;white-space:normal;text-align:right}
 @container (max-width:26rem){.agl-can-roll__list .ag-row{flex-wrap:wrap}.agl-can-roll__list .ag-row__end{text-align:left}}
+
+/* Refresh recipes (0.36.0): grouped rows with a Remove or Add tick; the tick wraps under the text on a phone. */
+.agl-rr-group{display:flex;flex-direction:column;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
+.agl-rr-group h3{display:flex;align-items:center;gap:var(--ag-space-2);margin:0;font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.07em;color:var(--ag-muted)}
+.agl-recipes-gone{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap}
+@container (max-width:26rem){.agl-rr-group .ag-row{flex-wrap:wrap}}

@@ -1382,6 +1382,11 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   const knownRows=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).map(recipe=>({group:professionLabel(recipe),recipe,
     html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM})}));
   const hiddenKnown=known.length-knownRows.length;
+  // 0.36.0: entries of the known-recipes list that the catalog no longer has (everyone sees the count; only the GM gets the button).
+  const gone=missingRecipeCount({known,knownRaw:Array.isArray(actor.flags?.[ID]?.knownRecipes)?actor.flags[ID].knownRecipes:null,recipes:lib.recipes,exactCatalog:game.user.isGM});
+  const canRefresh=game.user.isGM&&surface==='app'&&isPlayerCharacter(actor);
+  const goneNote=gone>0?`<p class="agl-sub agl-recipes-gone" role="status">${badge(`${gone} ${gone===1?'recipe no longer exists':'recipes no longer exist'}`,'warn')}${canRefresh?' Use <b>Refresh recipes…</b> to remove them.':''}</p>`:'';
+  const refreshButton=canRefresh?`<button type="button" class="ag-btn ag-btn--sm" data-action="rr-open" data-id="${esc(actor.id)}"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh recipes…</button>`:'';
   const toLearn=recipeItems(actor).map(item=>{
     const id=agSourceId(item),def=partyRecipeDefinition(id,lib);
     const recipe=def??{id,name:recipeTitle(item.name),ingredients:[],hasStructuredIngredients:false,sourceVisibility:sourceVisibility(item)};
@@ -1402,6 +1407,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
       ${toLearn.length?`<div class="agl-section"><h3>Recipes to learn <span class="ag-badge">${toLearn.length}</span></h3>
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
       <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
+        ${refreshButton?`<div class="ag-btn-group agl-folder-actions">${refreshButton}</div>`:''}${goneNote}
         ${folders(knownRows,closed)||emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.')}
         ${hiddenKnown>0?`<p class="agl-sub">${game.user.isGM?`${plural(hiddenKnown,'known recipe is','known recipes are')} not in this world’s recipe catalog, so ${hiddenKnown===1?'it isn’t':'they aren’t'} listed and can’t be crafted. Import ${hiddenKnown===1?'it':'them'} with General Manager.`
           :`${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now: your GM hasn’t released ${hiddenKnown===1?'it':'them'} in this world yet, so ${hiddenKnown===1?'it':'they'} can’t be crafted.`}</p>`:''}
@@ -2669,6 +2675,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.assignState={target:'party',preview:null,selected:new Set()};
     // 0.33.0 Assign → Professions → Refresh: the open preview (null when closed) and the ticks.
     this.refreshState=null;
+    // 0.36.0 Refresh recipes: null, or {scope:'actor'|'party', actorId, preview, remove:Set, add:Set, confirm} / {scope:'party', characters, sel:Map}.
+    this.recipeRefresh=null;
     // 0.30.0 Assign → Starting recipes: target, dry run, ticked rows and the last grant's result.
     this.grantState={target:'party',preview:null,selected:new Set(),result:null};this.assignTab=null;
     // 0.31.0 Assign → Signature perks: same shape.
@@ -2738,7 +2746,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return `${hidden.length?notice(`No player can see ${esc(nameList(hidden))} (needs at least Limited permission), so players won’t see ${hidden.length===1?'that character':'those characters'} here.`,'warn'):''}
       <div class="ag-toolbar agl-toolbar">${this._search('Search party recipes')}<div class="ag-toolbar__filters"><div class="ag-segmented" role="radiogroup" aria-label="Sort recipes">
         <button type="button" role="radio" aria-checked="${this.partySort==='player'}" data-action="party-sort" data-id="player">By player</button>
-        <button type="button" role="radio" aria-checked="${this.partySort==='profession'}" data-action="party-sort" data-id="profession">By profession</button></div></div></div>
+        <button type="button" role="radio" aria-checked="${this.partySort==='profession'}" data-action="party-sort" data-id="profession">By profession</button></div></div>${gm?`<div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="rr-open" data-id="party"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh recipes for the whole party…</button></div>`:''}</div>
       <div class="agl-party">
         <section class="agl-col-main"><div class="agl-section"><h3>Party recipes <span class="ag-badge">${defs.size}</span></h3>
           <p class="agl-sub">Recipes the party knows, and recipe items someone holds but hasn’t learned yet. Craft and learn from the Individual tab.</p>
@@ -2985,6 +2993,49 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="refresh-cancel">Cancel</button>
         <button type="button" class="ag-btn ag-btn--primary" data-action="refresh-apply" ${nothing?'disabled':''}>Refresh ${name}…</button></div></section>`;
   }
+  /** GM: Refresh recipes, in place of the Individual or Party view. Cancel and the one primary action live in the window footer. */
+  _recipeRefreshView(){
+    const r=this.recipeRefresh;
+    if(r.scope==='party')return this._recipeRefreshParty();
+    const p=r.preview,name=esc(p.actor.name);
+    const tick=(attr,id,checked,label)=>`<label class="ag-field ag-field--inline"><input type="checkbox" ${attr}="${esc(id)}" ${checked?'checked':''}> ${label}</label>`;
+    const groups=RECIPE_GROUPS.map(g=>{
+      const rows=p.rows.filter(x=>x.group===g.id);if(!rows.length)return '';
+      return `<section class="agl-rr-group"><h3>${esc(g.label)} <span class="ag-badge">${rows.length}</span></h3><ul class="ag-rows">${rows.map(x=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(x.name)}</span><span class="ag-row__meta">${esc(x.why)}${x.needsConfirm?' It has crafted items or XP, so removing it needs your confirmation.':''}</span></span>
+        <span class="ag-row__end">${tick('data-rr-remove',x.token,x.remove,`Remove<span class="ag-sr-only"> ${esc(x.name)}</span>`)}</span></li>`).join('')}</ul></section>`;}).join('');
+    const missing=p.missing.length?`<section class="agl-rr-group"><h3>Missing starting recipes <span class="ag-badge">${p.missing.length}</span></h3><ul class="ag-rows">${p.missing.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span>
+        <span class="ag-row__meta">${m.status==='new'?'A starting recipe of a profession this character holds. They don’t have it yet.':esc(`Not granted: ${m.reason}`)}</span></span>
+        <span class="ag-row__end">${m.status==='new'?tick('data-rr-add',m.recipeId,m.add,`Add<span class="ag-sr-only"> ${esc(m.name)}</span>`):badge('Not released','warn')}</span></li>`).join('')}</ul></section>`:'';
+    const confirm=p.needsTypedConfirmation?`<label class="ag-field">A ticked recipe has progress. Type <b>${name}</b> to confirm<input data-rr-confirm autocomplete="off" value="${esc(r.confirm)}"></label>`:'';
+    return `<section class="ag-card agl-panel" aria-labelledby="agl-rr-h"><h2 id="agl-rr-h">Refresh recipes: ${name}</h2>
+      <p class="agl-sub">Nothing changes until you press the button below. Recipes that no longer exist are ticked because they cannot work. Crafted items, materials, XP and gear are never touched; a snapshot is saved first.</p>
+      ${groups||'<p class="agl-sub">This character has no known recipes.</p>'}${missing}${confirm}</section>`;
+  }
+  _recipeRefreshParty(){
+    const r=this.recipeRefresh,chars=r.characters;
+    if(!chars.length)return `<section class="ag-card agl-panel"><h2>Refresh recipes for the whole party</h2>${emptyState('No problems found.','Every party character’s recipes exist in the catalog and no starting recipe is missing.')}</section>`;
+    return `<section class="ag-card agl-panel" aria-labelledby="agl-rr-h"><h2 id="agl-rr-h">Refresh recipes for the whole party</h2>
+      <p class="agl-sub">Only characters with a problem are listed: a recipe that no longer exists, or a starting recipe they are missing. Untick anything you want to keep. A snapshot is saved for each character first.</p>
+      ${chars.map(c=>{const sel=r.sel.get(c.actor.id)??{remove:new Set(),add:new Set()};
+        const gone=c.rows.filter(x=>x.group==='gone'),miss=c.missing.filter(m=>m.status==='new');
+        return `<section class="agl-rr-group"><h3>${esc(c.actor.name)} <span class="ag-badge">${gone.length+miss.length}</span></h3><ul class="ag-rows">
+          ${gone.map(x=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(x.name)}</span><span class="ag-row__meta">${esc(x.why)}</span></span><span class="ag-row__end"><label class="ag-field ag-field--inline"><input type="checkbox" data-rr-remove="${esc(x.token)}" data-rr-actor="${esc(c.actor.id)}" ${sel.remove.has(x.token)?'checked':''}> Remove<span class="ag-sr-only"> ${esc(x.name)} from ${esc(c.actor.name)}</span></label></span></li>`).join('')}
+          ${miss.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta">Missing starting recipe</span></span><span class="ag-row__end"><label class="ag-field ag-field--inline"><input type="checkbox" data-rr-add="${esc(m.recipeId)}" data-rr-actor="${esc(c.actor.id)}" ${sel.add.has(m.recipeId)?'checked':''}> Add<span class="ag-sr-only"> ${esc(m.name)} to ${esc(c.actor.name)}</span></label></span></li>`).join('')}</ul></section>`;}).join('')}</section>`;
+  }
+  /** Re-reads the preview after a tick, keeping what the GM ticked. */
+  _recipeRefreshReplan(){
+    const r=this.recipeRefresh;if(!r||r.scope!=='actor')return;
+    requireRecipeRefreshGM();
+    const actor=refreshActor(r.actorId);
+    r.preview=recipeRefreshSummary(actor,recipeRefreshPlanFor(actor,{remove:r.remove,add:r.add}));
+  }
+  /** Can the footer's primary action run? */
+  _recipeRefreshReady(){
+    const r=this.recipeRefresh;if(!r)return false;
+    if(r.scope==='party')return [...r.sel.values()].some(s=>s.remove.size||s.add.size);
+    const p=r.preview;
+    return (p.counts.remove>0||p.counts.add>0)&&(!p.needsTypedConfirmation||r.confirm===p.actor.name);
+  }
   /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
   _assignProfessions(){
     const a=this.assignState,party=assignActors(),chars=allCharacters();
@@ -3032,6 +3083,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
+    ${game.user.isGM?'<p><strong>Refresh recipes…:</strong> on a character’s Known recipes (Individual) or for the whole party (Party). It lists every known recipe in a group with why, and the starting recipes they are missing. Recipes that no longer exist are ticked to remove because they cannot work; tick anything else you want removed. A learned recipe with crafted items or XP needs the character’s name typed. A snapshot is saved first; crafted items, materials, XP and gear are never touched.</p>':''}
     ${game.user.isGM?'<p><strong>Assign → Refresh…:</strong> pick one character and press <em>Refresh…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
@@ -3323,10 +3375,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
-    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodesInGathering(this._nodes()),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
+    const inRR=game.user.isGM&&Boolean(this.recipeRefresh)&&['individual','party'].includes(this.view);
+    const content=inRR?this._recipeRefreshView():({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodesInGathering(this._nodes()),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm',inNodes=game.user.isGM&&this.view==='nodes';
     const plan=this.nodeImport?.plan;
-    const footer=inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
+    const footer=inRR?`<button type="button" class="ag-btn ag-btn--ghost" data-action="rr-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="rr-apply" ${this._recipeRefreshReady()?'':'disabled'}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh recipes</button>`
+      :inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
       :inNodes&&this.nodeDraft?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-node-status>${this.nodeGuard?.dirty?'Unsaved changes':esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="node-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>`
       :inNodes&&this.nodeImport?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-import-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span>${plan?.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="node-import-apply" ${plan.add.length||plan.update.length?'':'disabled'}><i class="fa-solid fa-file-import" aria-hidden="true"></i> Apply import</button>`:''}`
       :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`;
@@ -3415,6 +3469,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
     if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
+    this.element.addEventListener('input',e=>{
+      if(!e.target?.matches?.('[data-rr-confirm]')||!game.user.isGM||!this.recipeRefresh)return;
+      this.recipeRefresh.confirm=e.target.value;
+      const btn=this.element.querySelector?.('[data-action="rr-apply"]');if(btn)btn.disabled=!this._recipeRefreshReady();
+    },{signal});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['nodeRef','templateId','templateTier'].includes(f)){this.gather[f]=e.target.value;if(f!=='templateTier'){this.gather.professions=null;this.gather.dc='';}if(f==='templateId')this.gather.templateTier='';this.render();}return;}
@@ -3429,6 +3488,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-gather-dc]')&&game.user.isGM){this.gather.dc=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-gather-label]')&&game.user.isGM){this.gather.label=e.target.value;return;}
       if(e.target?.matches?.('[data-gather-allow-draft]')&&game.user.isGM){this.gather.allowDraft=e.target.checked;this.render();return;}
+      if(e.target?.matches?.('[data-rr-remove],[data-rr-add]')&&game.user.isGM&&this.recipeRefresh){
+        const r=this.recipeRefresh,isRemove=e.target.matches('[data-rr-remove]'),id=isRemove?e.target.dataset.rrRemove:e.target.dataset.rrAdd;
+        const set=r.scope==='party'?(r.sel.get(e.target.dataset.rrActor)??(r.sel.set(e.target.dataset.rrActor,{remove:new Set(),add:new Set()}),r.sel.get(e.target.dataset.rrActor)))[isRemove?'remove':'add']:(isRemove?r.remove:r.add);
+        if(e.target.checked)set.add(id);else set.delete(id);
+        try{this._recipeRefreshReplan();}catch(err){say(`Profession Ledger: ${err.message}`,true);}
+        this.render();return;}
       if(e.target?.matches?.('[data-node-filter]')&&game.user.isGM){this.nodeFilter=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-node-field],[data-node-prof],[data-node-mat]')&&game.user.isGM&&this.nodeDraft){if(this._nodeDraftChange(e.target))this.render();return;}
       if(e.target?.matches?.('[data-player-access]')&&game.user.isGM){this.accessDraft=e.target.checked;this._syncRosterActions();return;}
@@ -3510,7 +3575,27 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.view==='gm'&&next!=='gm'&&!await this._leaveGmSetup())return;
         if(next!=='nodes'&&!await this._leaveNodes())return;
         if(next==='gathering'&&this.view!=='gathering')this.gatherTab=null;
+        this.recipeRefresh=null;
         this.view=next;this.render();return;}
+      if(action==='rr-open'){requireRecipeRefreshGM();
+        if(id==='party'){
+          const characters=recipeRefreshParty(),sel=new Map(characters.map(c=>[c.actor.id,{remove:new Set(c.rows.filter(r=>r.group==='gone').map(r=>r.token)),add:new Set(c.missing.filter(m=>m.status==='new').map(m=>m.recipeId))}]));
+          this.recipeRefresh={scope:'party',characters,sel,confirm:''};
+        }else{
+          const out=await refreshRecipes({actorId:id,preview:true});
+          this.recipeRefresh={scope:'actor',actorId:id,preview:out,remove:new Set(out.rows.filter(r=>r.remove).map(r=>r.token)),add:new Set(out.missing.filter(m=>m.add).map(m=>m.recipeId)),confirm:''};
+        }
+        this.notice='';this.render();return;}
+      if(action==='rr-cancel'){this.recipeRefresh=null;this.notice='';this.render();return;}
+      if(action==='rr-apply'){requireRecipeRefreshGM();const r=this.recipeRefresh;if(!r)throw Error('Open Refresh recipes first');
+        if(r.scope==='party'){
+          const selections=[...r.sel.entries()].filter(([,v])=>v.remove.size||v.add.size).map(([actorId,v])=>({actorId,remove:[...v.remove],add:[...v.add]}));
+          const out=await refreshRecipes({party:true,preview:false,selections});
+          const bad=out.results.filter(x=>x.error);
+          this.notice=`Refreshed ${out.results.length-bad.length} ${out.results.length-bad.length===1?'character':'characters'}${bad.length?`; ${bad.length} not changed: ${bad.map(b=>b.error).join(' ')}`:''}.`;
+          this.recipeRefresh=null;this.render();say(this.notice,bad.length>0);return;}
+        const out=await refreshRecipes({actorId:r.actorId,preview:false,remove:[...r.remove],add:[...r.add],confirmName:r.confirm});
+        this.recipeRefresh=null;this.notice=`${out.actor.name}: removed ${plural(out.removed,'recipe')}, added ${plural(out.added,'starting recipe')}.`;this.render();say(this.notice);return;}
       if(action==='gather-tab'){
         if(!game.user.isGM)throw Error('GM only');
         if(id==='nodes'){this.view='nodes';this.render();return;}

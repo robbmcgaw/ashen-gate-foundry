@@ -1,3 +1,14 @@
+## 0.36.0 — 2026-10-27
+
+Refresh recipes.
+
+- **Refresh recipes…** (GM): a button on the Individual tab's *Known recipes* for a player character, and *Refresh recipes for the whole party…* on the Party tab. It opens in place with every known recipe grouped as **Not in the catalog any more**, **Draft or unreleased**, **Profession no longer held**, **Starting recipes** and **Learned recipes**, plus **Missing starting recipes**. Each row says why and has a *Remove* (or *Add*) tick; a row never shows a raw recipe id (*Unrecognised recipe N*).
+- **Defaults:** recipes that no longer exist (including legacy and non-text entries) are pre-ticked to remove, because they cannot work; missing starting recipes are pre-ticked to add; everything else is unticked. A learned, draft or lost-profession recipe that the character has crafted from, or has XP for, needs the character's name typed when ticked. Unreleased starting recipes are skipped with the reason.
+- **Apply** saves the GM-only snapshot Journal first (nothing changes if it can't be saved), then updates the known-recipes flags and grants the missing starting recipes through the existing starting-recipe grant. Crafted items, materials, XP and gear are never touched; running it again changes nothing.
+- The whole-party view lists only characters with a problem, each with its own ticks.
+- The Individual tab shows **N recipes no longer exist** (everyone; players see no controls).
+- API (GM only): `refreshRecipes({actorId, preview = true, remove, add, confirmName})` and `refreshRecipes({party: true, preview, selections})`. Shared helpers moved into `refresh.mjs`; Refresh (professions) is unchanged.
+
 ## 0.35.4 — 2026-10-27
 
 Gathering shows who rolls with Advantage.
