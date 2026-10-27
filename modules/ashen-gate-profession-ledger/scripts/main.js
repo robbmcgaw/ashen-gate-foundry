@@ -18,6 +18,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
+import {planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -29,7 +30,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.35.4';
+const VERSION='0.36.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1022,6 +1023,81 @@ async function refreshProfessions({actorId,preview=true,removeProgress=[],alsoRe
     }
     const after=refreshPlanFor(actor,{removeProgress,alsoRemove,alsoRemoveRecipes});
     return {preview:false,actor:summary.actor,removed,added,kept:after.counts.keep,snapshot,blocked:after.blocked,cantTell:after.cantTell,notes:after.notes};
+  }finally{refreshLocks.delete(actor.id);}
+}
+/* ---- Refresh recipes (0.36.0, GM only) -----------------------------------------------------------
+ * A recipe-only refresh for one character (or the whole party's problems): lists every known recipe in a group, removes the ones that no longer
+ * exist (pre-ticked) and any the GM ticks, and adds the missing starting recipes. Rules in recipe-refresh.mjs; the snapshot, the locks, the player-character
+ * gate and the starting-recipe grant are Refresh's own. Never touches crafted items, materials, XP or gear. */
+const requireRecipeRefreshGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can refresh recipes');};
+function recipeRefreshInputs(actor,{remove=null,add=null}={}){
+  const items=Array.from(actor.items??[]);
+  let progress=null;const raw=actor.flags?.[ID]?.professionProgress;
+  if(raw){try{validateProgressState(raw);progress=raw;}catch{progress=null;}}
+  return {known:knownRecipesOf(actor),knownRaw:Array.isArray(actor.flags?.[ID]?.knownRecipes)?actor.flags[ID].knownRecipes:null,grantedRecipes:grantedRecipesOf(actor),
+    recipes:catalog().recipes,held:heldProfessionsOf(actor),unreleased:startingUnreleased,progress,actor:{id:actor.id,name:actor.name},remove,add,
+    recipeNames:new Map(items.filter(i=>classify(i)==='Recipe'&&agSourceId(i)).map(i=>[agSourceId(i),String(i.name??'').replace(/^Recipe:\s*/,'')])),
+    crafted:items.filter(i=>i.flags?.[ID]?.craftedFrom).map(i=>({recipeId:i.flags[ID].craftedFrom}))};
+}
+const recipeRefreshPlanFor=(actor,opts)=>planRecipeRefresh(recipeRefreshInputs(actor,opts));
+const recipeRefreshSummary=(actor,plan)=>({actor:{id:actor.id,name:actor.name},rows:plan.rows.map(r=>({...r})),missing:plan.missing.map(m=>({...m})),counts:{...plan.counts},
+  needsTypedConfirmation:plan.needsTypedConfirmation,problems:plan.problems});
+/** GM: the characters of the party (player characters only) whose recipes have a problem: a recipe that no longer exists, or a starting recipe missing. */
+function recipeRefreshParty({actorIds=null}={}){
+  requireRecipeRefreshGM();
+  return assignActors(actorIds).filter(isPlayerCharacter).map(a=>({actor:a,plan:recipeRefreshPlanFor(a)})).filter(x=>x.plan.problems)
+    .map(({actor,plan})=>recipeRefreshSummary(actor,plan));
+}
+/**
+ * GM only. `preview` (default) writes nothing and returns {preview:true, actor, rows, missing, counts, needsTypedConfirmation, problems}. `remove` lists the
+ * tokens (row.token: a recipe id, or "@non-text") ticked to remove; omitted means the defaults (recipes that no longer exist). `add` lists the missing
+ * starting recipe ids to grant; omitted means all. Apply (`preview:false`) needs `confirmName` only when a ticked recipe carries progress. Order: snapshot
+ * (abort if it fails) -> known/granted recipe flags -> the starting-recipe grant. `party:true` returns the problems of the whole party (preview) or applies the
+ * defaults to each character listed in `selections` [{actorId, remove, add}] (default: every character with a problem).
+ */
+async function refreshRecipes({actorId,preview=true,remove=null,add=null,confirmName='',party=false,actorIds=null,selections=null}={}){
+  requireRecipeRefreshGM();
+  if(party){
+    const problems=recipeRefreshParty({actorIds});
+    if(preview!==false)return {preview:true,party:true,characters:problems};
+    const picked=Array.isArray(selections)?selections:problems.map(p=>({actorId:p.actor.id}));
+    const results=[];
+    for(const sel of picked){
+      try{const out=await refreshRecipes({actorId:sel.actorId,preview:false,remove:sel.remove??null,add:sel.add??null,confirmName:sel.confirmName??''});results.push({actorId:sel.actorId,actorName:out.actor.name,removed:out.removed,added:out.added,snapshot:out.snapshot});}
+      catch(err){results.push({actorId:sel.actorId,error:String(err?.message??err)});}
+    }
+    return {preview:false,party:true,results};
+  }
+  const actor=refreshActor(actorId);
+  const plan=recipeRefreshPlanFor(actor,{remove,add});
+  const summary=recipeRefreshSummary(actor,plan);
+  if(preview!==false)return {preview:true,...summary};
+  if(remove!=null&&[...remove].some(t=>!plan.rows.some(r=>r.token===String(t))))throw Error('One of the recipes to remove is no longer listed: preview again.');
+  if(add!=null&&[...add].some(id=>!plan.missing.some(m=>m.recipeId===String(id)&&m.status==='new')))throw Error('One of the starting recipes to add cannot be added: preview again.');
+  if(plan.needsTypedConfirmation&&String(confirmName)!==actor.name)throw Error(`Removing a recipe with progress needs the character's name typed to confirm (${actor.name}).`);
+  if(refreshLocks.has(actor.id)||assignLocks.has(actor.id))throw Error(`${actor.name} is already being updated`);
+  refreshLocks.add(actor.id);
+  try{
+    const removing=plan.rows.filter(r=>r.remove),adding=plan.missing.filter(m=>m.add);
+    if(!removing.length&&!adding.length)return {preview:false,actor:summary.actor,removed:0,added:0,snapshot:null};
+    const snapshot=await saveRefreshSnapshot(actor,{willRemove:removing.map(r=>({kind:'recipe',name:r.name,why:r.why,recipeId:r.token})),willAdd:adding.map(m=>({kind:'recipe',name:m.name}))});
+    if(removing.length){
+      const gone=new Set(removing.map(r=>r.token)),isGone=id=>gone.has(typeof id==='string'?id:RECIPE_NON_TEXT);
+      const before={knownRecipes:actor.flags?.[ID]?.knownRecipes,grantedRecipes:actor.flags?.[ID]?.grantedRecipes},wrote=[];
+      try{
+        await actor.setFlag(ID,'knownRecipes',(Array.isArray(before.knownRecipes)?before.knownRecipes:[]).filter(id=>!isGone(id)));wrote.push('knownRecipes');
+        if(Array.isArray(before.grantedRecipes)){await actor.setFlag(ID,'grantedRecipes',before.grantedRecipes.filter(id=>!isGone(id)));wrote.push('grantedRecipes');}
+      }catch(err){
+        for(const key of wrote.reverse())try{if(before[key]===undefined)await actor.unsetFlag?.(ID,key);else await actor.setFlag(ID,key,before[key]);}catch(rb){console.error(`[${ID}] Refresh recipes rollback failed`,rb);}
+        throw Error(`Refresh recipes stopped: ${actor.name} could not be updated (${err?.message??err}). Known recipes were put back; the snapshot "${snapshot.name}" was saved anyway.`);
+      }
+    }
+    let added=0;
+    if(adding.length){
+      try{added=(await grantStartingRecipes({preview:false,actorIds:[actor.id],rowIds:adding.map(m=>m.rowId)})).granted.reduce((n,g)=>n+g.recipes.length,0);}
+      catch(err){throw Error(`Removed ${removing.length} (snapshot "${snapshot.name}"), but adding starting recipes failed: ${err?.message??err}. Run Refresh recipes again to finish.`);}
+    }
+    return {preview:false,actor:summary.actor,removed:removing.length,added,snapshot};
   }finally{refreshLocks.delete(actor.id);}
 }
 /**
@@ -3966,6 +4042,8 @@ Hooks.once('ready',()=>{
     /** GM only (0.30.0): grantStartingRecipes({preview = true, actorIds?, rowIds?}). See the README. */
     /** GM only (0.33.0): refreshProfessions({actorId, preview = true, removeProgress, alsoRemove, confirmName}). See the README. */
     refreshProfessions:async options=>{checkPlayerLedger();return structuredClone(await refreshProfessions(options));},
+    /** GM only (0.36.0): refreshRecipes({actorId, preview = true, remove, add, confirmName} | {party: true, preview, selections}). See the README. */
+    refreshRecipes:async options=>{checkPlayerLedger();return structuredClone(await refreshRecipes(options));},
     grantStartingRecipes:async options=>{checkPlayerLedger();return structuredClone(await grantStartingRecipes(options));},
     /** GM only (0.31.0): signaturePerks.preview({actorIds?}) writes nothing; grant({actorIds?, rowIds?}) adds the missing perks. See the README. */
     signaturePerks:{preview:options=>{checkPlayerLedger();return structuredClone(signaturePerksPreview(options));},
@@ -4027,7 +4105,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
+  refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

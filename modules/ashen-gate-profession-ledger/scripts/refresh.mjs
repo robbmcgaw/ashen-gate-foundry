@@ -29,6 +29,29 @@ export function cantTellTokens(plan){
 const hasProgressRow=row=>Boolean(row)&&(Number(row.xp)>0||(row.selectedPerkIds??[]).length>0||(row.history??[]).length>0);
 
 /**
+ * The knownRecipes entries the catalog cannot explain, in order: ids not in the recipe catalog, then entries of the stored flag that are not
+ * recipe ids at all (legacy ids, damaged data: they could not be listed before 0.33.3), then one row for entries that are not text.
+ * Shared by Refresh (profession-wide) and Refresh recipes (0.36.0). Returns [{token, what, name}]; a name is never a raw id.
+ * `byId` is a Map of catalog recipes; `recipeNames` maps id -> name from recipe Items on the sheet.
+ */
+export function unrecognisedRecipes({known=[],knownRaw=null,byId=new Map(),recipeNames=new Map()}={}){
+  const out=[];let n=0;
+  const push=(token,what,count=1)=>{n++;out.push({token,what,name:recipeNames.get(token)||(token===RECIPE_NON_TEXT?`Unrecognised recipe entries (${count})`:`Unrecognised recipe ${n}`)});};
+  for(const rid of known)if(!byId.has(rid))push(rid,'not in the recipe catalog');
+  if(Array.isArray(knownRaw)){
+    const valid=new Set(known),seen=new Set();let nonText=0;
+    for(const e of knownRaw){
+      if(typeof e!=='string'){nonText++;continue;}
+      if(valid.has(e)||seen.has(e))continue;
+      seen.add(e);push(e,'not a recipe the Ledger recognises');
+    }
+    if(nonText)push(RECIPE_NON_TEXT,'not readable as a recipe',nonText);
+  }
+  return out;
+}
+export const hasProgress=hasProgressRow;
+
+/**
  * input:
  *   qualifying  [{key, profession, reason}]            what the character qualifies for now (assign.mjs qualifications)
  *   defsByKey   Map key -> [{sourceId, name}]          imported Profession Items (Assign's candidates)
@@ -121,10 +144,7 @@ export function planRefresh(input){
   const removingItems=new Set(willRemove.filter(x=>x.itemId).map(x=>x.itemId));
 
   // 3. What stays.
-  let unknownCount=0;
-  const unknownRecipe=(token,what,n=1)=>{
-    unknownCount++;
-    const name=recipeNames.get(token)||(token===RECIPE_NON_TEXT?`Unrecognised recipe entries (${n})`:`Unrecognised recipe ${unknownCount}`);
+  const unknownRecipe=({token,what,name})=>{
     const optIn=alsoRemoveRecipes.has(token);
     cantTell.push({kind:'recipe',name,recipeId:token,optIn:null,optInRecipe:token,ticked:optIn,
       why:`${what[0].toUpperCase()+what.slice(1)}, so it cannot be tied to a profession. Left alone unless you tick it.`});
@@ -133,20 +153,9 @@ export function planRefresh(input){
   for(const rid of known){
     if(removedRecipes.has(rid))continue;
     const r=byId.get(rid);
-    if(!r){unknownRecipe(rid,'not in the recipe catalog');continue;}
-    willKeep.push({kind:'recipe',name:r.name,recipeId:rid});
+    if(r)willKeep.push({kind:'recipe',name:r.name,recipeId:rid});
   }
-  // Entries of the knownRecipes flag that are not recipe ids at all (legacy ids, damaged data). The module itself never reads them, so they could
-  // not be listed before 0.33.3.
-  if(Array.isArray(knownRaw)){
-    const valid=new Set(known),seen=new Set();let nonText=0;
-    for(const e of knownRaw){
-      if(typeof e!=='string'){nonText++;continue;}
-      if(valid.has(e)||seen.has(e))continue;
-      seen.add(e);unknownRecipe(e,'not a recipe the Ledger recognises');
-    }
-    if(nonText)unknownRecipe(RECIPE_NON_TEXT,'not readable as a recipe',nonText);
-  }
+  for(const u of unrecognisedRecipes({known,knownRaw,byId,recipeNames}))unknownRecipe(u);
   for(const p of perks)if(!removingItems.has(p.itemId)&&!cantTell.some(c=>c.itemId===p.itemId))willKeep.push({kind:'perk',name:p.name,itemId:p.itemId});
 
   // 4. What will be added: professions she now qualifies for, then the starting recipes and perks of what she will hold.
