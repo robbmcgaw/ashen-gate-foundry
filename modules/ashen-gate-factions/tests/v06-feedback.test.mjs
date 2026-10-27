@@ -7,7 +7,7 @@ const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8')
 const template=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
 const source=()=>makeFaction({id:'FACTION-PLAYTEST-TEST',trackId:'RENOWN-PLAYTEST-TEST',name:'Secret Herald',leader:'Hidden Captain',public_role:'Protects a trade road.'});
 test('Module actually requests a Foundry socket namespace for player-to-GM messages',()=>{
- assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.20.3');assert.equal(manifest.socket,true);
+ assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.21.0');assert.equal(manifest.socket,true);
  assert.match(code,/game\.socket\.on\(SOCKET/);assert.match(code,/game\.socket\.emit\(SOCKET/);
 });
 test('Player action receipt is correlated to request ID and user rather than broadcasting private action data',()=>{

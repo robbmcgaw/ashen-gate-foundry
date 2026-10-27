@@ -1,3 +1,16 @@
+## 0.21.0 — 2026-10-27
+
+Swearing a Vow gives the character a Vow feature.
+
+- **Swear Vow** now adds one feat Item, "Vow of <god>", to the character: 1 use, back on a Long Rest, with an **Invoke your Vow** activity that spends the use and applies one Active Effect adding the god's +1d4 to the roll the Vow names (a skill, a save, an ability check, a tool or an attack). The Item's description carries the god's summary and requirement. Where a Vow only helps against something ("against being Frightened"), the description says so: Foundry cannot tell what a roll is against, so the player decides.
+- Only one Vow Item exists at a time. Swapping gods, ending the Vow with the toggle, and **Break Vow…** all remove the old Item (and any applied Vow effect). Swearing again recreates a deleted Item. Other Items are never touched. The Item is flagged `flags.ashen-gate-factions.vowItem` (Managed by Renown).
+- dnd5e 6.0.6 has no "ends after this roll" duration, so Renown ends the applied effect itself after the next matching roll; a one-hour duration is the fallback.
+- A character who already has a sworn Vow gets the Item the next time the GM's client loads (re-runnable repair; nothing else is rewritten). Importing a deity never touches a character's Vow or Vow Item.
+- A short Vow history (sworn, replaced, ended, broken) is kept in the character's `vowLog` flag.
+- The Seeker reward can carry a `vow_benefit` record (name, bonus, applies_to, uses, summary, requirement); the source allowlist accepts exactly that shape and nothing more, so the Pantheon file with Seeker Vows imports. A reward with a `vow` tag and no `vow_benefit` still lets the Vow be sworn, with no Item. `vow_benefit` is not sent to a player until they reach the rank.
+- The toggle appears on the first rank card whatever the reward's behavior, including passive rewards with no use limit.
+- Tested with mocked data. The live Foundry UI and the dnd5e roll flow are not tested here.
+
 ## 0.20.3 — 2026-10-26
 
 Narrow-window fixes (shared kit 2.4.0).

@@ -183,6 +183,7 @@ export function milestoneProjection({faction,scope,score,claims={},requests={},u
       const unlocked=score>=m.threshold,full=gm||unlocked;
       const activeRequest=Object.values(requests).find(q=>q.reward_id===r.id&&['requested','approved'].includes(q.status));
       const safe={...r,description:full?(r.description||r.teaser||''):r.teaser??'',uuid:full?r.uuid:null,canView:full&&r.kind==='uuid',unlocked,locked:!unlocked};
+      if(!full)delete safe.vow_benefit;
       safe.canClaim=unlocked&&claimEligible({reward:r,faction:f,score,claims,requests,uses})&&chooseOneEligible({faction:f,reward:r,claims,choices});
       safe.passive=r.behavior==='passive';safe.repeatable=r.behavior==='repeatable_service';
       safe.isClaimed=claims[r.id]?.status==='claimed';safe.isPending=claims[r.id]?.status==='pending'||activeRequest?.status==='requested';
