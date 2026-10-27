@@ -1,3 +1,11 @@
+## 0.60.1 — 2026-10-27
+
+The Foundry hotbar sync is for players only.
+
+- **Fix:** a GM's own macro hotbar was overwritten with the opened character's quick bar every time a character sheet opened. The sync (both ways: quick bar to Foundry hotbar, and Foundry hotbar to quick bar) now does nothing for a GM, whichever character is open and by whichever path (sheet open, hotbar hooks, tests). The check is inside the sync itself, and the hotbar hooks are skipped for a GM.
+- Nothing is rewritten or repaired: a GM's hotbar and every stored per-character quick bar stay exactly as they are. The GM's quick bar still works on its own, and its drawer says "Hotbar sync is for players. As GM your macro hotbar is not changed."
+- Players: unchanged.
+
 ## 0.60.0 — 2026-10-27
 
 Delete from a list row, and smaller Equipped / Attuned markers.

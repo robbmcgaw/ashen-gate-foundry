@@ -88,13 +88,17 @@ export function createHotbarLink(env = {}) {
   const macros = () => env.macros?.() ?? [...(globalThis.game?.macros ?? [])];
   let linked = null, lastFoundry = null, lastHub = null, queue = Promise.resolve(), noticed = false;
   const run = fn => (queue = queue.then(fn).catch(err => { console.warn(`${MODULE_ID} | hotbar link`, err); return null; }));
-  const eligible = actor => !!actor && typeof user()?.assignHotbarMacro === 'function' && canEdit(actor) && canSee('hotbars');
+  // 0.60.1: the sync is for players. A GM's macro hotbar is never read or written, whichever character is open, whichever path asks
+  // (sheet open, hooks, tests): every entry point and every writer checks it.
+  const isGM = () => user()?.isGM === true;
+  const eligible = actor => !isGM() && !!actor && typeof user()?.assignHotbarMacro === 'function' && canEdit(actor) && canSee('hotbars');
   let warned = false;
   const skipped = reason => { if (warned) return; warned = true; notify(`A quick-bar item was not copied to Foundry's hotbar because ${reason} Rename the item to link it.`); };
   const quiet = () => { if (noticed) return; noticed = true; notify('The quick bar slot works, but Foundry\'s hotbar copy could not be made: you may not create script macros in this world. Ask the GM for the "Use Script Macros" permission.'); };
 
   /** Puts one Hub slot on Foundry's page 1. Never throws; a copy that can't be made leaves the Foundry slot as it is. */
   async function push(actor, i, entry) {
+    if (isGM()) return null;
     const u = user(), slot = i + 1, current = macroById(pageIds(u)[i]);
     if (matches(entry, current, actor, u)) return;
     if (!entry) return u.assignHotbarMacro(null, slot);
@@ -114,6 +118,7 @@ export function createHotbarLink(env = {}) {
   const snapshot = actor => { lastFoundry = pageIds(user()); lastHub = hotbarSlots(actor).map(keyOf); };
   /** Hub slots from Foundry: `which(i, m, hubEntry)` says whether slot i takes Foundry's macro m. */
   async function pull(actor, which) {
+    if (isGM()) return 0;
     const u = user(), hub = hotbarSlots(actor), ids = pageIds(u), patch = {};
     ids.forEach((id, i) => {
       const m = macroToEntry(macroById(id), actor, u);
@@ -127,6 +132,7 @@ export function createHotbarLink(env = {}) {
   }
   /** The silent first-link merge: keep every Hub slot, fill the Hub's empty slots from Foundry, then Foundry takes the Hub bar. Returns how many Hub slots were filled. */
   async function merge(actor) {
+    if (isGM()) return 0;
     const filled = await pull(actor, (i, m, h) => !h && m.kind === 'entry');
     const hub = hotbarSlots(actor);
     for (let i = 0; i < HOTBAR_SLOTS; i++) await push(actor, i, hub[i]);
@@ -145,7 +151,7 @@ export function createHotbarLink(env = {}) {
      * character's bars differ (and Foundry's page 1 holds something) they are merged without asking (see the header).
      */
     activate(actor) {
-      if (!eligible(actor) || linked === actor) return Promise.resolve(null);
+      if (isGM() || !eligible(actor) || linked === actor) return Promise.resolve(null);
       return run(async () => {
         if (linked === actor) return null;
         const u = user(), flags = u?.flags?.[MODULE_ID]?.[LINK_FLAG], remembered = flags?.[actor.id];
@@ -165,7 +171,7 @@ export function createHotbarLink(env = {}) {
     },
     /** The linked character's quick bar changed (any client): copy the slots that changed to Foundry. */
     hubChanged(actor) {
-      if (actor !== linked) return Promise.resolve(null);
+      if (isGM() || actor !== linked) return Promise.resolve(null);
       return run(async () => {
         if (actor !== linked || !eligible(actor)) return null;
         const hub = hotbarSlots(actor);
@@ -176,7 +182,7 @@ export function createHotbarLink(env = {}) {
     },
     /** This user's Foundry hotbar changed or was redrawn: copy the page-1 slots that changed into the Hub. */
     foundryChanged() {
-      if (!linked) return Promise.resolve(null);
+      if (isGM() || !linked) return Promise.resolve(null);
       return run(async () => {
         const actor = linked;
         if (!actor || !eligible(actor)) return null;

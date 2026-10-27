@@ -199,7 +199,7 @@ if (globalThis.Hooks) {
   // Level backups (0.27.0) a player queued while no GM was on: the coordinating GM makes them (level-backup.mjs).
   const flushSoon = later(() => flushQueue(), 1000);
   Hooks.once('ready', () => flushSoon());
-  Hooks.on('updateActor', (actor, changes) => { if (changes?.flags?.[MODULE_ID]?.[QUEUE_FLAG]?.length) flushSoon(); });
+  Hooks.on('updateActor', (actor, changes) => { if (!game.user?.isGM && changes?.flags?.[MODULE_ID]?.[QUEUE_FLAG]?.length) flushSoon(); });
   // A mark placed or removed on someone else's token: redraw the Hub of the character who placed it.
   for (const hook of ['createActiveEffect', 'deleteActiveEffect']) Hooks.on(hook, effect => {
     const by = effect?.flags?.[MODULE_ID]?.mark?.by;
@@ -208,8 +208,8 @@ if (globalThis.Hooks) {
   // 0.42.0 Foundry hotbar link: the linked character's quick bar changed (any client) → this user's Foundry page 1;
   // this user's hotbar changed (assignHotbarMacro may skip the updateUser hook, so the hotbar's redraw is watched too).
   Hooks.on('updateActor', (actor, changes) => { if (changes?.flags?.[MODULE_ID] && 'hotbar' in changes.flags[MODULE_ID]) void hotbarLink.hubChanged(actor); });
-  Hooks.on('updateUser', (user, changes) => { if (user === game.user && changes && 'hotbar' in changes) void hotbarLink.foundryChanged(); });
-  Hooks.on('renderHotbar', () => { void hotbarLink.foundryChanged(); });
+  Hooks.on('updateUser', (user, changes) => { if (!game.user?.isGM && user === game.user && changes && 'hotbar' in changes) void hotbarLink.foundryChanged(); });
+  Hooks.on('renderHotbar', () => { if (!game.user?.isGM) void hotbarLink.foundryChanged(); });
   // The GM hid the quick bar from players: forget the link (the bars stay as they are).
   Hooks.on('updateSetting', setting => { if (String(setting?.key ?? '').startsWith(`${MODULE_ID}.`) && !globalThis.game?.user?.isGM && hotbarLink.linked && !canSee('hotbars')) hotbarLink.unlink(); });
   // Utilities' "Use electrum" changed: redraw so the coin boxes follow it.
