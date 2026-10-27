@@ -318,7 +318,7 @@ const itemOn = (actor, id) => id ? actor.items?.get?.(id) ?? null : null;
 export const tierOf = item => { const t = item?.flags?.[MODULE_ID]?.companion?.tier ?? item?.flags?.['ashen-gate-manager']?.source?.tier; return typeof t === 'string' ? t.trim() : ''; };
 
 /** Ids already in use as gear or perks. */
-const usedItemIds = s => new Set([...Object.values(s.gear).flatMap(g => Object.values(g)), ...Object.values(s.perks).flat()]);
+export const usedItemIds = s => new Set([...Object.values(s.gear).flatMap(g => Object.values(g)), ...Object.values(s.perks).flat()]);
 const sortByName = items => items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const candidates = (actor, s) => { const used = usedItemIds(s); return [...(actor.items ?? [])].filter(i => !used.has(i.id) && !NOT_GEAR_TYPES.includes(i.type)); };
 /**

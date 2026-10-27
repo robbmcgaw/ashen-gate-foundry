@@ -47,6 +47,7 @@ import {openCodex} from './codex.mjs';
 import {configChoices} from './character.mjs';
 import {renameAsk} from './name-title.mjs';
 import {startAdd, dropOnList} from './item-add.mjs';
+import {rowOf, openRowMenu, closeRowMenu, deleteRowItem, rowFocusTarget} from './row-delete.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /**
@@ -705,6 +706,8 @@ export function createHubSheetClass(Base) {
         if (pop) { this._agchOpener = this._agchActionKey ?? focus?.key ?? null; focusFirstIn(pop); }
         else if (!restoreFocus(content, focus) && popBefore && !popNow && this._agchOpener) restoreFocus(content, {key: this._agchOpener});
         this._agchPop = popNow;
+        this._rowMenu = null;   // the redraw replaced the content, menu included
+        if (this._agchFocusRow) { try { rowFocusTarget(content.querySelector?.(`li[data-item-id="${this._agchFocusRow}"]`))?.focus?.(); } catch { /* courtesy */ } this._agchFocusRow = null; }
         this._agchHtml = result; this._agchShown = view;
       }
       this._agchActionKey = null;
@@ -765,6 +768,8 @@ export function createHubSheetClass(Base) {
       content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
       content.addEventListener?.('keydown', ev => {
         if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
+        // 0.60.0: the Menu key or Shift+F10 on a control inside a list row opens the same menu as a right-click.
+        if ((ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey)) && rowOf(ev.target) && this._openRowMenu(rowOf(ev.target))) { ev.preventDefault(); return; }
         // 0.33.0 (CH-11): Delete or Backspace on a filled quick-bar slot clears it, like right-click (with Undo).
         if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.target?.matches?.('.agch-quick__slot.is-filled')) { ev.preventDefault(); this._clearQuickSlot(ev.target); return; }
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
@@ -813,6 +818,10 @@ export function createHubSheetClass(Base) {
      */
     _onContextMenu(event) {
       if (event.target?.closest?.('.agch-embed')) return null;
+      const row = rowOf(event.target);
+      if (row && !event.target?.closest?.('.agch-quick__slot, [data-config]')) {
+        if (this._openRowMenu(row, {x: event.clientX, y: event.clientY})) { event.preventDefault(); event.stopPropagation(); return null; }
+      }
       const quick = event.target?.closest?.('.agch-quick__slot.is-filled');
       if (quick) {
         event.preventDefault(); event.stopPropagation();
@@ -830,6 +839,20 @@ export function createHubSheetClass(Base) {
       if (!cfg) return null;
       event.preventDefault(); event.stopPropagation();
       return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null, this).then(report);
+    }
+
+    /** 0.60.0: the row menu (Open sheet, Delete…) for a list row, from right-click or the keyboard. Null when this user can't change the character. */
+    _openRowMenu(row, point = {}) {
+      return openRowMenu(this, row, {...point, act: (key, id, focusId) => this._rowAction(key, id, focusId)});
+    }
+    async _rowAction(key, id, focusId = null) {
+      if (key === 'open') return report(await items.openItemSheet(this.document, id, this));
+      if (key === 'trees') return report(await openSkillTree(this.document));
+      if (key !== 'delete') return null;
+      this._agchFocusRow = focusId;   // after the redraw the focus goes to the next row
+      const r = report(await deleteRowItem(this.document, id));
+      if (!r?.ok || r.result === null) { this._agchFocusRow = null; try { rowFocusTarget(this.element?.querySelector?.(`li[data-item-id="${id}"]`))?.focus?.(); } catch { /* courtesy */ } }
+      return r;
     }
 
     /** Clears a quick-bar slot (right-click, or Delete / Backspace on it) and offers Undo for 5 seconds. */
@@ -945,6 +968,7 @@ export function createHubSheetClass(Base) {
      * opened, so the choice made in it went nowhere and Group / Sort seemed to do nothing.
      */
     _onOutsideClick(event) {
+      if (this._rowMenu && !event.target?.closest?.('.agch-rowmenu')) closeRowMenu(this, {refocus: false});
       if (!this.menu) return null;
       const t = event.target;
       if (t?.closest?.(`.agch-menu, ${MENU_OPENERS}`)) return null;

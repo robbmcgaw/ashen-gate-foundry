@@ -1084,3 +1084,11 @@
 .agch-app .agch-ctgroup[hidden], .agch-app .agch-ctype__more[hidden] { display: none; }
 .agch-app .agch-ctype__name { min-width: 10em; overflow-wrap: break-word; }
 .agch-app .agch-ctypes select { max-width: 100%; }
+
+/* 0.60.0: the row menu (right-click, Menu key or Shift+F10 on a list row): small, inside the window, text labels. */
+.agch-app .agch-rowmenu { width: auto; min-width: 11rem; max-width: min(18rem, calc(100% - var(--ag-space-3))); }
+.agch-app .agch-rowmenu__item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--ag-radius); padding: var(--ag-space-1) var(--ag-space-2); color: inherit; cursor: pointer; font: inherit; }
+.agch-app .agch-rowmenu__item:hover, .agch-app .agch-rowmenu__item:focus-visible { background: var(--ag-surface-hover, color-mix(in srgb, currentColor 12%, transparent)); }
+.agch-app .agch-rowmenu__item.is-danger { color: var(--ag-danger-ink, var(--ag-danger, inherit)); }
+.agch-app .agch-rowmenu__item[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+.agch-app .agch-rowmenu__why { margin: 0; padding: var(--ag-space-1) var(--ag-space-2); font-size: var(--ag-text-sm); overflow-wrap: break-word; }
