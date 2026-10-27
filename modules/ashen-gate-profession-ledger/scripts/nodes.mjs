@@ -168,7 +168,8 @@ export function checkTemplate(raw,{where=''}={}){
 function cleanMeta(raw){
   const m=raw&&typeof raw==='object'?raw:{};
   const legacy=(Array.isArray(m.legacy)?m.legacy:[]).filter(l=>l&&typeof l==='object'&&l.locationId).map(l=>({locationId:String(l.locationId),locationName:String(l.locationName??''),key:String(l.key??''),uuid:l.uuid?String(l.uuid):null}));
-  return {origin:['gm','import','migration'].includes(m.origin)?m.origin:'gm',edited:m.edited===true,createdAt:Number(m.createdAt)||0,updatedAt:Number(m.updatedAt)||0,legacy};
+  // copyRun (0.35.5): the id of the copy run that created the template, so one run can be undone. Older copies have none; their run record lists the ids.
+  return {origin:['gm','import','migration'].includes(m.origin)?m.origin:'gm',edited:m.edited===true,createdAt:Number(m.createdAt)||0,updatedAt:Number(m.updatedAt)||0,legacy,...(typeof m.copyRun==='string'&&m.copyRun?{copyRun:m.copyRun.slice(0,40)}:{})};
 }
 /** A stored template, tolerant: anything checkTemplate cannot make a node of is dropped; warnings and errors stay readable. */
 function storedTemplate(raw){
@@ -189,7 +190,7 @@ export function normalizeStore(raw){
   const retiredIds=[...new Set((Array.isArray(s.retiredIds)?s.retiredIds:[]).filter(id=>NODE_ID.test(String(id))&&!seen.has(id)))];
   const migrated=(Array.isArray(s.migrated)?s.migrated:[]).filter(p=>Array.isArray(p)&&typeof p[0]==='string'&&NODE_ID.test(String(p[1]))).map(p=>[p[0],p[1]]);
   const migrations=(Array.isArray(s.migrations)?s.migrations:[]).filter(m=>m&&typeof m==='object');
-  return {schema:NODE_SCHEMA,nodes:nodes.sort((a,b)=>a.name.localeCompare(b.name)),retiredIds,migrated,migrations,migrationVersion:Number(s.migrationVersion)||0};
+  return {schema:NODE_SCHEMA,nodes:nodes.sort((a,b)=>a.name.localeCompare(b.name)),retiredIds,migrated,migrations,migrationVersion:Number(s.migrationVersion)||0,lastUndone:Number(s.lastUndone)||0};
 }
 export const emptyStore=()=>normalizeStore({});
 const takenIds=store=>new Set([...store.nodes.map(n=>n.id),...store.retiredIds]);
@@ -360,7 +361,7 @@ const shapeKey=t=>JSON.stringify({...plainTemplate({...t,id:'',name:t.name}),id:
  * records are never changed. Returns {store, created:[ids], linked, skipped, backup}. `locations`: GM records
  * [{id, name, resources:[entries]}].
  */
-export function migrateLocationNodes(store,locations,{now=Date.now(),by='',locationsVersion=''}={}){
+export function migrateLocationNodes(store,locations,{now=Date.now(),by='',locationsVersion='',runId=''}={}){
   const done=new Set(store.migrated.map(p=>p[0]));
   const taken=takenIds(store);
   const nodes=[...store.nodes],migrated=[...store.migrated],created=[],backup=[];
@@ -379,13 +380,70 @@ export function migrateLocationNodes(store,locations,{now=Date.now(),by='',locat
       backup.push({...legacy,entry:structuredClone(e)});
       const same=!ownId?byShape.get(shapeKey(draft)):null;
       if(same){same.meta={...same.meta,legacy:[...same.meta.legacy,legacy]};migrated.push([key,same.id]);done.add(key);linked++;continue;}
-      const t={...draft,meta:{origin:'migration',edited:false,createdAt:now,updatedAt:now,legacy:[legacy]},
+      const t={...draft,meta:{origin:'migration',edited:false,createdAt:now,updatedAt:now,legacy:[legacy],...(runId?{copyRun:runId}:{})},
         problems:draft.activity?[]:[`“${draft.name}”: no activity (the Location skill was not a gathering profession): set one in the editor.`]};
       taken.add(t.id);nodes.push(t);byShape.set(shapeKey(t),t);migrated.push([key,t.id]);done.add(key);created.push(t.id);
     }
   }
-  const record=created.length||linked?{at:now,by:String(by),locationsVersion:String(locationsVersion),created:[...created],linked,backup}:null;
+  const record=created.length||linked?{at:now,by:String(by),locationsVersion:String(locationsVersion),...(runId?{runId}:{}),created:[...created],linked,backup}:null;
   // Stored as-is: templateFromEntry may leave activity empty (kept with a problem note, not dropped).
   const next={...store,nodes:nodes.sort((a,b)=>a.name.localeCompare(b.name)),migrated,migrations:record?[...store.migrations,record]:store.migrations,migrationVersion:Math.max(1,store.migrationVersion)};
   return {store:next,created,linked,skipped,backup};
+}
+
+/**
+ * What copying Location nodes would do, without doing it (0.35.5): {total, created:[{id,name,activity}], linked, skipped, byActivity:{key:n}, noActivity}.
+ * It runs the real copy on a throwaway store, so the preview can never disagree with the copy.
+ */
+export function previewLocationCopy(store,locations){
+  const out=migrateLocationNodes(store,locations,{now:0});
+  const made=new Set(out.created),nodes=out.store.nodes.filter(n=>made.has(n.id));
+  const byActivity={};let noActivity=0;
+  for(const n of nodes){if(n.activity)byActivity[n.activity]=(byActivity[n.activity]??0)+1;else noActivity++;}
+  return {total:nodes.length+out.linked,created:nodes.map(n=>({id:n.id,name:n.name,activity:n.activity})),linked:out.linked,skipped:out.skipped,byActivity,noActivity};
+}
+const legacyKey=l=>`${l.locationId}|${l.key}`;
+/**
+ * The last copy, ready to undo (0.35.5). `store.migrations.at(-1)` lists the template ids that run created (every copy since 0.25.0 recorded them, so a copy
+ * made before this version needs no marker). Returns null when there is nothing to undo, else
+ *   {record, remove:[template], editedSince:[template], inUse:[{template, refs}], gone:n, unlink:[{id,name,entries}], total}
+ * `remove` are untouched templates of the run; `editedSince` (the GM saved them after the copy) and `inUse` (a Location entry points at them) are KEPT
+ * unless ticked. `unlink` are existing templates the run only matched: the Location entries it added to their "copied from" list are taken off again.
+ * Nothing the copy did to an existing template other than that can have happened: a copy never overwrites one.
+ */
+export function planCopyUndo(store,{references=()=>[]}={}){
+  const record=store.migrations.at(-1);
+  if(!record||Number(record.at)<=store.lastUndone)return null;   // already undone: an older copy is never undone by a second press
+  const created=new Set(Array.isArray(record.created)?record.created:[]),byId=new Map(store.nodes.map(n=>[n.id,n]));
+  const remove=[],editedSince=[],inUse=[];let gone=0;
+  for(const id of created){
+    const t=byId.get(id);
+    if(!t){gone++;continue;}
+    const refs=references(id).filter(r=>r.kind==='reference');
+    if(refs.length)inUse.push({template:t,refs});
+    else if(t.meta.edited)editedSince.push(t);
+    else remove.push(t);
+  }
+  const backupKeys=new Set((Array.isArray(record.backup)?record.backup:[]).map(b=>`${b.locationId}|${b.key}`));
+  const unlink=[];
+  for(const t of store.nodes){
+    if(created.has(t.id))continue;
+    const entries=t.meta.legacy.filter(l=>backupKeys.has(legacyKey(l)));
+    if(entries.length&&Number(record.linked)>0)unlink.push({id:t.id,name:t.name,entries:entries.length});
+  }
+  const byName=(a,b)=>a.name.localeCompare(b.name);
+  return {record,remove:remove.sort(byName),editedSince:editedSince.sort(byName),inUse:inUse.sort((a,b)=>byName(a.template,b.template)),gone,unlink,
+    total:created.size,at:record.at,by:record.by??''};
+}
+/** The store after undoing the last copy. `alsoRemove`: ids of editedSince/inUse templates the GM ticked. Ids are NOT retired (the copy is as if it never ran). */
+export function applyCopyUndo(store,plan,{alsoRemove=[]}={}){
+  if(!plan)return store;
+  const extra=new Set(alsoRemove.map(String)),allowed=new Set([...plan.editedSince.map(t=>t.id),...plan.inUse.map(x=>x.template.id)]);
+  const gone=new Set([...plan.remove.map(t=>t.id),...[...extra].filter(id=>allowed.has(id))]);
+  const created=new Set(Array.isArray(plan.record.created)?plan.record.created:[]);
+  const backupKeys=new Set((Array.isArray(plan.record.backup)?plan.record.backup:[]).map(b=>`${b.locationId}|${b.key}`));
+  const nodes=store.nodes.filter(n=>!gone.has(n.id)).map(n=>created.has(n.id)||!plan.unlink.some(u=>u.id===n.id)?n:{...n,meta:{...n.meta,legacy:n.meta.legacy.filter(l=>!backupKeys.has(legacyKey(l)))}});
+  // Entries copied by this run can be copied again later; entries of kept templates stay recorded so they are not copied twice.
+  const migrated=store.migrated.filter(([key,id])=>!(backupKeys.has(key)&&(gone.has(id)||!created.has(id)))||(created.has(id)&&!gone.has(id)));
+  return {...store,nodes,migrated,lastUndone:Number(plan.record.at)||0};
 }
