@@ -80,7 +80,7 @@ test('steps: columns drop in the reverse of the priority list, widest first, eac
   assert.deepEqual(COMBAT_STEPS.map(s => s.width), [575, 565, 535, 475, 400, 390]);
   assert.deepEqual(INVENTORY_STEPS.map(s => s.width), [775, 615, 555, 490]);
   assert.deepEqual(FEATURES_STEPS.map(s => s.width), [590, 490, 400, 390]);
-  assert.equal(ITEM_MIN_LIST, 384); assert.equal(ITEM_BADGE_STEP, 480);
+  assert.equal(ITEM_MIN_LIST, 384); assert.equal(ITEM_BADGE_STEP, 480, 'kept for the Inventory action labels');
   assert.deepEqual(ITEM_PRIORITY, {combat: COMBAT_PRIORITY, inventory: INVENTORY_PRIORITY, features: FEATURES_PRIORITY});
 });
 
@@ -112,7 +112,8 @@ test('the CSS container queries match the step constants, in order, per tab', ()
       else assert.match(found[i].body, new RegExp(`\\.agch-crows--${t} \\.agch-ic-${id} \\{ display: none; \\}`), `${t}: ${s.hides} hidden at ${s.width}`);
     });
   }
-  assert.match(css56, new RegExp(`@container agch-body \\(max-width: ${ITEM_BADGE_STEP}px\\) \\{\\n  \\.agch-app \\.agch-crows \\.agch-sbadge__t \\{ position: absolute;`));
+  assert.match(css56, /\.agch-crows \.agch-sbadge__t \{ position: absolute;/, '0.60.0: the badge word is visually hidden at every width');
+  assert.doesNotMatch(css56, /@container agch-body \(max-width: 480px\) \{\n  \.agch-app \.agch-crows \.agch-sbadge__t/);
   assert.doesNotMatch(css56, /max-width: 640px|fact--late/);
 });
 
@@ -177,7 +178,7 @@ test('badges on the line (Combat): Equipped and Attuned only, icon and word, too
   assert.doesNotMatch(lineOf(rowOf(i, 'pot')), /Effect/);
   assert.doesNotMatch(lineOf(rowOf(c, 'sw')), /Versatile<\/span><span class="agch-item__badges"/);
   // CSS: the word hides at the badge step, the icon and the tooltip stay
-  assert.match(css56, /\.agch-sbadge \{ white-space: nowrap; \}/);
+  assert.match(css56, /\.agch-sbadge \{ white-space: nowrap; flex: none;/);
 });
 
 test('long rows (Show item descriptions) keep their chips, Not equipped and Effect', async () => {

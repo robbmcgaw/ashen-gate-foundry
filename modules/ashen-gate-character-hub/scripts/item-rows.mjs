@@ -73,7 +73,7 @@ export const FEATURES_STEPS = Object.freeze([
   Object.freeze({width: 400, hides: 'recovery'}),
   Object.freeze({width: 390, hides: 'uses'})
 ]);
-/** Equipped / Attuned badges show their word above this width and only their icon (with the word read out and in a tooltip) at or below it. */
+/** Kept for reference: below this width (px) the Inventory action toggles become icons (the Combat Equipped / Attuned markers are icons at every width since 0.60.0). */
 export const ITEM_BADGE_STEP = 480;
 /** Below this list width (px) the Hub body scrolls sideways; the pinned actions stay on the right. */
 export const ITEM_MIN_LIST = 384;
