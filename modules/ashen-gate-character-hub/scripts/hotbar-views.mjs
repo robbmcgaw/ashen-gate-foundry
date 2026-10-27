@@ -72,11 +72,14 @@ export function quickToggleHtml(sheet) {
   const open = sheet?.quickOpen === true;
   return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-quicktoggle" data-action="quick-toggle" data-ag-always aria-expanded="${open}" aria-controls="${drawerId(sheet)}" data-tooltip="${open ? 'Hide the quick bar (its keys 1-9 and 0 still work)' : 'Show the quick bar under the Hub'}" data-tooltip-direction="UP"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>Quick bar</span></button>`;
 }
+/** 0.60.1: what a GM is told where the sync would be. */
+export const GM_NOTE = 'Hotbar sync is for players. As GM your macro hotbar is not changed.';
 /** The quick bar drawer under the bottom bar: shown while open, otherwise hidden (no room taken). */
 export function quickDrawerHtml(ctx) {
   if (!canSee('hotbars')) return '';
   const open = ctx.sheet?.quickOpen === true;
-  return `<div class="agch-drawer" id="${drawerId(ctx.sheet)}" role="region" aria-label="Quick bar"${open ? '' : ' hidden'}>${quickBar(ctx.actor, !ctx.editable)}</div>`;
+  const gm = globalThis.game?.user?.isGM === true;
+  return `<div class="agch-drawer" id="${drawerId(ctx.sheet)}" role="region" aria-label="Quick bar"${open ? '' : ' hidden'}>${quickBar(ctx.actor, !ctx.editable)}${gm ? `<p class="agch-muted agch-hint" data-hotbar-gm-note>${GM_NOTE}</p>` : ''}</div>`;
 }
 
 /**

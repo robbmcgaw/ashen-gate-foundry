@@ -195,7 +195,7 @@ export const ACTIONS = {
 };
 /** Links this Hub's character to the user's Foundry hotbar page 1 (hotbar-link.mjs), when the user can change its quick bar. */
 export function linkHub(sheet, link = hotbarLink) {
-  if (!sheet?.hubContext?.editable) return null;
+  if (!sheet?.hubContext?.editable || globalThis.game?.user?.isGM === true) return null;   // 0.60.1: never for a GM
   return link.activate(sheet.document);
 }
 /** After an add the focus goes back to the tab's Add button (the dialog that had it is gone, and the list redraws). */
