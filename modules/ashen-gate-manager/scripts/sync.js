@@ -67,6 +67,9 @@ export function handoffDecision({fp, entry, held = null, overwriteEdited = false
   if (entry.fp === fp && !edited) return {group: 'untouched', unchanged: true};
   return {group: 'overwrite'};
 }
+/** 0.76.0: Sync's switch for hand-offs to Locations and Utilities (Locations, Routes, Shops, Services, Merchant Lists). Off by default. */
+export const UPDATE_EXTERNAL_LABEL = 'Also update existing locations, routes and shops';
+export const UPDATE_EXTERNAL_EXPLAIN = 'Reveal and play state is always kept.';
 export const ledgerKey = (packageId, kind = null) => kind ? `specialist:${kind}` : String(packageId);
 
 /** Actor system data that is play state for an NPC: kept on an overwrite, never written from the package. */
@@ -581,7 +584,7 @@ export function planSync(set, world, ctx = {}) {
   artMode.replace = Boolean(ctx.replaceArt);
   recreateMode.on = Boolean(ctx.recreateTypeChange);
   actorMode.update = Boolean(ctx.updateActors);
-  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt), updateActors: Boolean(ctx.updateActors), archiveMissing: false, archive: {on: false}};
+  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt), updateActors: Boolean(ctx.updateActors), archiveMissing: false, archive: {on: false}, updateExternal: ctx.updateExternal === true};
   const lines = [...set.lines.values()];
   plan.scope = {
     files: set.files.map(f => ({filename: f.filename, origin: f.origin, kind: f.kind, records: f.records, packageId: f.packageId, version: f.version})),
@@ -872,6 +875,12 @@ function planModuleRows(set, ctx, rows, errors) {
   const push = (record, moduleLabel, kind, res, extra = {}) => {
     let group = map(res.action), more = {}, reason = res.reason;
     const name = record.location?.name ?? record.route?.name ?? record.name ?? record.id;
+    // 0.76.0: with "Also update existing locations, routes and shops" off, an existing record is never handed on again: no ledger look-up, no first-time overwrite.
+    if (group === 'overwrite' && ctx.updateExternal !== true) {
+      rows.push({group: 'untouched', key: rowKey('untouched', kind, record.id), id: record.id, name, kind, record, external: true, module: moduleLabel, keptSwitchOff: true,
+        reason: `Kept: update switch off. ${moduleLabel} keeps its copy; turn on "${UPDATE_EXTERNAL_LABEL}" to replace its definition.`, changes: [], lost: 0, refused: false, ...extra});
+      return;
+    }
     if (group === 'create') more = {fp: handoffFingerprint(record)}; // remembered after the hand-off, so the next sync can say Unchanged
     if (group === 'overwrite') {
       const fp = handoffFingerprint(record), entry = ctx.ledger?.[ledgerKey(extra.line)]?.[record.id];
@@ -939,6 +948,7 @@ function finish(plan) {
     if (r.group === 'untouched' && r.refused) c.refused++;
     if (r.notRemoved) c.notRemoved++;
     if (r.keptEdited) c.keptEdited++;
+    if (r.keptSwitchOff) c.keptSwitch = (c.keptSwitch ?? 0) + 1;
     if (r.keptRemoved) c.keptRemoved++;
     if (r.keptReferenced) c.keptReferenced++;
     if (r.notArchived) c.notArchived++;

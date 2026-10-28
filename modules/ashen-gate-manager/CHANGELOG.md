@@ -1,3 +1,14 @@
+## 0.76.0 — 2026-10-28
+
+Sync: you decide whether existing locations, routes and shops are replaced.
+
+- **Why.** Sync always handed Locations, Routes and Shops (Services, Merchant Lists) to Locations and Utilities in update mode. The only brake was Manager's hand-off ledger, so in a world where you had already built, edited, nested or revealed locations and no hand-off was recorded, the first Sync passed every location on once and replaced its definition (text, name, parent, layout). The plain Import tab had a switch for this; Sync had none.
+- **New Advanced switch "Also update existing locations, routes and shops"** (off by default, GM only, not remembered between sessions). **Off:** Sync never replaces a location, route, shop, service or merchant list that Locations or Utilities already holds, whatever the ledger says (a first hand-off included, and Also overwrite records I edited does not change it); new ones are still created. They are listed under **Kept: update switch off** with a count and the explanation "Turn on Also update existing locations, routes and shops to replace their definitions; reveal and play state is always kept". **On:** exactly as before (ledger fingerprint, Unchanged, Kept: edited in, Also overwrite records I edited).
+- **Enforced when it runs, not only in the preview.** The planner stamps the switch on the plan, and the executor reads it from there (and from the live setting): with it off a plan row that says "update" for a location, route or shop is refused and logged, and Locations and Utilities are called in create-only mode.
+- **Preview** shows a one-line note near those rows saying which mode applies, and a "kept: update switch off" badge.
+- **Help** now says where each switch lives (plain Import file options vs Sync Advanced) and that Quest Log and Renown hand-offs are not affected by either (they have their own update mode). The plain Import switch is unchanged.
+- Archive (0.75.0) and renames (0.74.0) are unaffected. No saved data changes.
+
 ## 0.75.0 — 2026-10-28
 
 Sync: archive records that are no longer in the package, instead of deleting them.

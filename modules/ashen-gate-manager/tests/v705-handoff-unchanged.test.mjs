@@ -14,7 +14,7 @@ function plan({payload = pack, ledger = {}, held = () => null, overwriteEdited =
   if (withTrees) files.push({filename: 'trees.json', kind: 'skill-trees', payload: trees});
   const set = buildSyncSet(files);
   const ids = new Set(locs().map(l => l.id));
-  return planSync(set, {docs: [], characterCount: 0, unflaggedNames: nameIndex([])}, {includeDrafts: true, deleteUnscoped: false, overwriteEdited, retiredIds: new Set(), ledger, buildFlag: () => ({}), externalIds: new Set(),
+  return planSync(set, {docs: [], characterCount: 0, unflaggedNames: nameIndex([])}, {includeDrafts: true, deleteUnscoped: false, overwriteEdited, retiredIds: new Set(), ledger, buildFlag: () => ({}), externalIds: new Set(), updateExternal: true,
     sceneActorIds: new Set(), hotbarMacroIds: new Set(), isProtectedFolder: () => false, locationIds: ids, routeIds: null, specialistApi: kind => kind === 'skill-trees' ? api : null, heldFingerprint: held});
 }
 /** The ledger Manager would hold after handing everything in `p` over. */
