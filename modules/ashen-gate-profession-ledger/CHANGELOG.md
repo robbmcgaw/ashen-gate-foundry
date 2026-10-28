@@ -1,3 +1,12 @@
+## 0.37.8 — 2026-10-28
+
+Gather history, and clearing the last gather.
+
+- **Gathering → History** (GM): the last 10 completed gathers, newest first, each collapsible (the latest open): spot, tier, DC, professions, a plain date ("Today, 9:42 PM"), and per character the total, outcome (Nothing / Common / Rare / Exotic), what they got, whether it was Given, and the XP awarded from the gather card. An entry is written at **Reveal results**, updated when loot is given, and removed if the gather is cancelled. Capped at 10 in the world setting `gatherHistory`; nothing existing is rewritten.
+- Players have no History tab (it lists every character's result); they keep their own Last gather panel.
+- **Clear history…** (confirmation "Clear gather history?", Cancel is the default) with a tick box "Also clear the last gather result" (ticked, because the banner would point at a removed entry). On the Last gather banner, **Clear last gather…** (confirmation "Clear the last gather?") with "Also remove it from History" (unticked). Players' Last gather panel clears too. Neither touches loot given, XP, materials, crafted items or Actors. GM only, also in the API.
+- API: `gathering.history()`, `gathering.clearHistory({alsoLast})`, `gathering.clearLast({alsoHistory})`.
+
 ## 0.37.5 — 2026-10-28
 
 Refresh recipes shows a pack check, so a missing former-starter marker is visible.

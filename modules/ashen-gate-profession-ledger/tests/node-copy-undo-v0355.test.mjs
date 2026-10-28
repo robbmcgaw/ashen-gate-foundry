@@ -66,7 +66,7 @@ globalThis.JournalEntry={create:async data=>{
   const j=makeJournal({id:`j${journals.length}`,...data});journals.push(j);return j;}};
 const locs=[{id:'LOC-A',name:'[TEST] A',revealed:true,resources:[entry('seed','[TEST] Seed','Herbalism')]}];
 const locApi={listLocations:()=>structuredClone(locs),resourcesAt:id=>structuredClone(locs.find(l=>l.id===id)?.resources??[]),markNodeExhausted:async()=>{}};
-const ledgerModule={active:true,version:'0.37.5',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.8',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'0.20.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:[],get:()=>null},actors:{contents:[],get:()=>null},journal:journals,
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>modules[id]},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};

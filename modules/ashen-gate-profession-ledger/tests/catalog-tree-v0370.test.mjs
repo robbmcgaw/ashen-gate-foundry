@@ -31,7 +31,7 @@ const held=(id,name,flags,type='loot')=>({id,name,type,system:{quantity:1,descri
 const items=[held('hp','Alchemy — Profession',src('PROF-ALCHEMY','Profession'),'feat'),held('hp2','Cooking — Profession',src('PROF-COOKING','Profession'),'feat')];items.get=i=>items.find(x=>x.id===i);
 const actor={id:'a1',name:'[TEST] Alpha',type:'character',hasPlayerOwner:true,items,flags:{'ashen-gate-profession-ledger':{knownRecipes:[]}},testUserPermission:()=>true,setFlag:async()=>{}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.37.5'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.37.8'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[actor],get:id=>id==='a1'?actor:undefined},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};

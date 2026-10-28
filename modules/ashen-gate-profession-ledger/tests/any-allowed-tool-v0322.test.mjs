@@ -40,7 +40,7 @@ const bag={id:'bag',name:'Backpack',type:'container',system:{quantity:1}};
 const D=mk('d',[bag,{...tool('t4','Painter’s Supplies'),system:{quantity:1,container:'bag',type:{value:'art'}}}]);
 const E=mk('e',[tool('t5',"Cartographer's Tools",{quantity:0})]),F=mk('f',[tool('t6',"Calligraphers Supplies")]);
 const all=[A,B,C,D,E,F];
-const moduleObj={active:true,version:'0.37.5',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.37.8',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:all,get:id=>all.find(a=>a.id===id)},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
