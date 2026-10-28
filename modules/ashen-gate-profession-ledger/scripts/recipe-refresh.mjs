@@ -4,7 +4,9 @@
  *   gone      the catalog does not have it (unknown id, retired, legacy or non-text entry). It cannot work, so it is PRE-TICKED to remove.
  *   draft     in the catalog but not released to players (same rule as the starting-recipe grant). Kept unless ticked.
  *   unheld    its profession is not held any more. Kept unless ticked.
- *   starting  a starting recipe of a held profession (or one the Ledger recorded granting). Kept unless ticked.
+ *   replaced  a recipe the Ledger recorded granting (Actor flag grantedRecipes) that is no longer `starting: true` in the catalog: the GM swapped the starters.
+ *             PRE-TICKED to remove unless the character has crafted items from it (then it stays, with its reason, and ticking it needs the typed name).
+ *   starting  a starting recipe of a held profession. Kept unless ticked.
  *   learned   any other recipe of a held profession. Never pre-ticked.
  * Removing a learned/draft/unheld recipe that carries progress (crafted items from it, or XP in its profession) needs the character's name typed.
  * Nothing else is ever touched: crafted items, materials, XP and gear stay. */
@@ -12,7 +14,7 @@ import {startingRecipePlan,recipeProfessionKey} from './assign.mjs';
 import {RECIPE_NON_TEXT,unrecognisedRecipes,hasProgress} from './refresh.mjs';
 
 export const RECIPE_GROUPS=Object.freeze([
-  {id:'gone',label:'Not in the catalog any more'},{id:'draft',label:'Draft or unreleased'},{id:'unheld',label:'Profession no longer held'},
+  {id:'gone',label:'Not in the catalog any more'},{id:'replaced',label:'Replaced starting recipes'},{id:'draft',label:'Draft or unreleased'},{id:'unheld',label:'Profession no longer held'},
   {id:'starting',label:'Starting recipes'},{id:'learned',label:'Learned recipes'}]);
 
 /**
@@ -34,7 +36,10 @@ export function planRecipeRefresh({known=[],knownRaw=null,grantedRecipes=[],reci
     const base={token:id,recipeId:id,name:r.name,defaultRemove:false,professionId:r.professionId,professionKey:key};
     if(why)rows.push({...base,group:'draft',why,needsConfirm:made||xp});
     else if(!holds)rows.push({...base,group:'unheld',why:'The character no longer holds this recipe’s profession.',needsConfirm:made||xp});
-    else if(r.starting===true||grantedRecipes.includes(id))rows.push({...base,group:'starting',why:'A starting recipe of a profession the character holds.',needsConfirm:false});
+    else if(r.starting===true)rows.push({...base,group:'starting',why:'A starting recipe of a profession the character holds.',needsConfirm:false});
+    else if(grantedRecipes.includes(id))rows.push({...base,group:'replaced',needsConfirm:made,defaultRemove:!made,
+      why:made?'Replaced starting recipe: it is no longer a starter, but this character has crafted with it, so it stays unless you tick it.'
+        :'Replaced starting recipe: it is no longer a starter. Learned starters you crafted with stay unless you tick them.'});
     else rows.push({...base,group:'learned',why:'Learned by the character.',needsConfirm:made||xp});
   }
   const ticked=new Set(remove==null?rows.filter(r=>r.defaultRemove).map(r=>r.token):[...remove].map(String));
@@ -47,8 +52,8 @@ export function planRecipeRefresh({known=[],knownRaw=null,grantedRecipes=[],reci
   const removing=rows.filter(r=>r.remove);
   return {rows,missing,
     needsTypedConfirmation:removing.some(r=>r.needsConfirm),
-    counts:{gone:rows.filter(r=>r.group==='gone').length,remove:removing.length,add:missing.filter(m=>m.add).length,skipped:missing.filter(m=>m.status==='unreleased').length},
-    problems:rows.some(r=>r.group==='gone')||missing.some(m=>m.status==='new')};
+    counts:{gone:rows.filter(r=>r.group==='gone').length,replaced:rows.filter(r=>r.group==='replaced').length,remove:removing.length,add:missing.filter(m=>m.add).length,skipped:missing.filter(m=>m.status==='unreleased').length},
+    problems:rows.some(r=>r.defaultRemove||r.group==='replaced')||missing.some(m=>m.status==='new')};
 }
 /** How many entries of a character's recipes no longer exist in the catalog (unknown ids and non-text entries): the Individual tab's badge.
  * `exactCatalog:false` (a player: their catalog hides unreleased recipes, which still exist) counts only entries that cannot be recipe ids at all. */
