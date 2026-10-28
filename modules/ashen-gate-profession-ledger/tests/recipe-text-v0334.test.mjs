@@ -25,7 +25,7 @@ world.get=id=>world.find(x=>x.id===id);
 const values={partyRoster:['belwar','cara'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
 const mk=(id,name,known)=>({id,name,type:'character',hasPlayerOwner:true,items:Object.assign([],{get:()=>null}),flags:{'ashen-gate-profession-ledger':{knownRecipes:known}},testUserPermission:()=>true});
 const belwar=mk('belwar','[TEST] Belwar',defs.map(d=>d.id)),cara=mk('cara','[TEST] Cara',['REC-TEST-SAME']);
-const moduleObj={active:true,version:'0.37.1',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.37.2',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:[gm,alice],get:id=>[gm,alice].find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar,cara],get:id=>[belwar,cara].find(a=>a.id===id)},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async()=>{}}};
@@ -72,9 +72,9 @@ test('Party card: distinct flavour text is shown as the summary, effect separate
   assert.match(h,/<p class="agl-recipe-summary">\[TEST\] A fiddle tune/);assert.match(h,/<p class="agl-recipe-effect"><span class="agl-label">Effect<\/span> \[TEST\] Crowd draw/);
   assert.equal(card(await html('party'),'[TEST] Plain').includes('agl-recipe-summary'),false,'no description: no summary line');
 });
-test('Individual card: stays open (no fold), effect once, GM note present where Complete activity exists',async()=>{
+test('Individual card: open by default (foldable), effect once, GM note present where Complete activity exists',async()=>{
   const h=card(await html('individual','belwar'),'[TEST] Contains');
-  assert.ok(!h.includes('<details'),'not folded');assert.equal(count(text(h),'Crowd draw'),1);
+  assert.match(h,/<details class="agl-recipe-more" data-recipe-details="r[a-z0-9]+" data-stored-open="1" open>/,'0.37.2: folds like the Party card, open by default');assert.equal(count(text(h),'Crowd draw'),1);
   assert.equal(count(h,'decides at the table'),1);
 });
 test('Catalog card shares the folded card',async()=>{

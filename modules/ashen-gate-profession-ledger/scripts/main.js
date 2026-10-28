@@ -32,7 +32,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.1';
+const VERSION='0.37.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1230,6 +1230,14 @@ function itemLinkClick(button){
 }
 
 /** Baseline recipe row used by every list (Individual, Party, Catalog, sheet tab). */
+/* 0.37.2: each recipe's Details open/closed state on the Individual tab: in memory at once, localStorage per user, written once per burst of toggles. Default open. */
+let recipeDetailsMemory=null,recipeDetailsTimer=null;
+const recipeDetailsState=()=>{if(!recipeDetailsMemory){let v=null;try{v=uiState(ID).get('recipeDetails',{});}catch{v=null;}recipeDetailsMemory=v&&typeof v==='object'&&!Array.isArray(v)?{...v}:{};}return recipeDetailsMemory;};
+/** A short stable key for a recipe's remembered state: players' markup never carries a raw recipe id. */
+const recipeDetailsKey=id=>{let h=5381;for(const c of String(id??''))h=((h*33)^c.charCodeAt(0))>>>0;return `r${h.toString(36)}`;};
+const recipeDetailsOpen=id=>recipeDetailsState()[recipeDetailsKey(id)]!==false;
+function flushRecipeDetails(){clearTimeout(recipeDetailsTimer);recipeDetailsTimer=null;try{uiState(ID).set('recipeDetails',recipeDetailsState());}catch{}}
+function setRecipeDetails(entries){const st=recipeDetailsState();for(const [id,open] of entries){if(open)delete st[id];else st[id]=false;}if(!recipeDetailsTimer)recipeDetailsTimer=setTimeout(flushRecipeDetails,200);}
 function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
@@ -1269,7 +1277,9 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   const gp=extraCost(recipe);
   const effort=recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:'';
   const meta=[activity?'Activity':'',tierLabel(recipe.tier),effort].filter(Boolean);
-  const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''}`.toLowerCase();
+  // The words inside the (possibly collapsed) details are searchable too: ingredients, tool or station, and the recipe text.
+  const inside=[...(recipe.hasStructuredIngredients?recipe.ingredients.map(ing=>ingredientName(ing,lib)):[]),recipe.workstation??'',recipe.description??'',recipe.effectNote??''].join(' ');
+  const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''} ${inside}`.toLowerCase();
   // 0.32.0: header (name, tier, effort), then Needs → Makes, then the tool or station, then the quieter text, then who knows it.
   const makes=result?`<span class="agl-qty">1 ×</span> ${itemRef(result.name,recipe.resultItemId,'Item',ctx)}`
     :`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported yet':'Not available yet'}</span>`;
@@ -1282,15 +1292,18 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
       <div class="agl-recipe-makes"><span class="agl-label">Makes</span><div>${makes}</div></div>
     </div>`}
     ${gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''}
-    ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
+    ${craft||learnItem?'':requirementHTML(craftRequirement(recipe,null),null)}
     ${recipeTextHtml(recipe,{gmNote:Boolean(craft)})}`;
+  // 0.37.2: on the Individual tab the details fold like the Party's, but the tool or station line (with any "missing" warning) stays visible beside the head.
+  const requirementLine=craft||learnItem?requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null):'';
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
       <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
         <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
       <div class="agl-recipe-actions">${actions}</div>
     </div>
-    ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`:bodyHtml}
+    ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`
+      :`${requirementLine}<details class="agl-recipe-more" data-recipe-details="${recipeDetailsKey(recipe.id)}" data-stored-open="${recipeDetailsOpen(recipe.id)?1:0}" ${recipeDetailsOpen(recipe.id)?'open':''}><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
   </article>`;
 }
@@ -1409,7 +1422,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
       ${toLearn.length?`<div class="agl-section"><h3>Recipes to learn <span class="ag-badge">${toLearn.length}</span></h3>
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
       <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
-        ${refreshButton?`<div class="ag-btn-group agl-folder-actions">${refreshButton}</div>`:''}${goneNote}
+        ${refreshButton||(surface==='app'&&knownRows.length+toLearn.length>1)?`<div class="ag-btn-group agl-folder-actions">${refreshButton}${surface==='app'&&knownRows.length+toLearn.length>1?`<button type="button" class="ag-btn ag-btn--sm" data-action="details-expand"><i class="fa-solid fa-angles-down" aria-hidden="true"></i> Expand all</button><button type="button" class="ag-btn ag-btn--sm" data-action="details-collapse"><i class="fa-solid fa-angles-up" aria-hidden="true"></i> Collapse all</button>`:''}</div>`:''}${goneNote}
         ${folders(knownRows,closed)||emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.')}
         ${hiddenKnown>0?`<p class="agl-sub">${game.user.isGM?`${plural(hiddenKnown,'known recipe is','known recipes are')} not in this world’s recipe catalog, so ${hiddenKnown===1?'it isn’t':'they aren’t'} listed and can’t be crafted. Import ${hiddenKnown===1?'it':'them'} with General Manager.`
           :`${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now: your GM hasn’t released ${hiddenKnown===1?'it':'them'} in this world yet, so ${hiddenKnown===1?'it':'they'} can’t be crafted.`}</p>`:''}
@@ -2739,6 +2752,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** Asks before closing over unsaved GM Setup or node editor changes (Keep editing is the default). */
   async close(options={}){
     if(this._treeTimer)this._flushTree();
+    if(recipeDetailsTimer)flushRecipeDetails();
     if(game.user?.isGM&&!options?.force){
       if(this.view==='gm'&&this.setupDirty&&!await this._leaveGmSetup())return this;
       if(this.nodeGuard?.dirty&&!await this.nodeGuard.confirm())return this;
@@ -3564,7 +3578,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui),bindRadioGroups(this.element)];
     signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
     if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
-    this.element.addEventListener('toggle',e=>{if(e.target?.dataset?.tree!==undefined){if(!this.query){this._setTree(e.target.dataset.tree,e.target.open);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
+    this.element.addEventListener('toggle',e=>{if(e.target?.dataset?.recipeDetails!==undefined){if(!this.query){setRecipeDetails([[e.target.dataset.recipeDetails,e.target.open]]);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}if(e.target?.dataset?.tree!==undefined){if(!this.query){this._setTree(e.target.dataset.tree,e.target.open);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('input',e=>{
       if(!e.target?.matches?.('[data-rr-confirm]')||!game.user.isGM||!this.recipeRefresh)return;
       this.recipeRefresh.confirm=e.target.value;
@@ -3656,7 +3670,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _applySearch(){
     const query=this.query.trim().toLowerCase();
     const root=this.element;if(!root?.querySelectorAll)return;
-    for(const row of root.querySelectorAll('[data-recipe-search]'))row.hidden=Boolean(query)&&!row.dataset.recipeSearch.includes(query);
+    for(const row of root.querySelectorAll('[data-recipe-search]')){
+      row.hidden=Boolean(query)&&!row.dataset.recipeSearch.includes(query);
+      // A match opens its collapsed details (not remembered); clearing the search puts back what was remembered.
+      const d=row.querySelector?.('details[data-recipe-details]');
+      if(d)d.open=query?!row.hidden:d.dataset.storedOpen!=='0';
+    }
     for(const folder of root.querySelectorAll('[data-folder]')){
       const rows=[...folder.querySelectorAll('[data-recipe-search]')],tree=folder.dataset.tree!==undefined;
       folder.hidden=Boolean(query)&&rows.length>0&&rows.every(r=>r.hidden);
@@ -3696,6 +3715,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const out=await refreshRecipes({actorId:r.actorId,preview:false,remove:[...r.remove],add:[...r.add],confirmName:r.confirm});
         this.recipeRefresh=null;this.notice=`${out.actor.name}: removed ${plural(out.removed,'recipe')}, added ${plural(out.added,'starting recipe')}.`;this.render();say(this.notice);return;}
       // 0.37.1: these change the open state in place. A re-render rebuilds every recipe card (seconds in a big world) just to flip a panel.
+      if(action==='details-expand'||action==='details-collapse'){
+        const on=action==='details-expand',list=[...(this.element?.querySelectorAll?.('details[data-recipe-details]')??[])];
+        for(const d of list){d.dataset.storedOpen=on?'1':'0';if(d.open!==on)d.open=on;}
+        setRecipeDetails(list.map(d=>[d.dataset.recipeDetails,on]));return;}
       if(action==='tier-toggle'){
         const group=[...(this.element?.querySelectorAll?.('[data-tier-group]')??[])].find(g=>g.dataset.tierGroup===id);
         if(group){const open=toggleTierGroup(group);if(!this.query){group.dataset.storedOpen=open?'1':'0';this._setTree(`t:${id}`,open);}return;}
@@ -4321,7 +4344,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
+  recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

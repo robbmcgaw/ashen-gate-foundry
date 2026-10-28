@@ -48,7 +48,7 @@ const npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false,items:[alchemy
 const loner=makeActor('loner','[TEST] Hireling',{owner:false,items:[alchemy()]});
 const backup=makeActor('bak','[TEST] Ana - level 3',{items:[alchemy()],backup:true});
 const all=[ana,bo,cy,npc,loner,backup];
-const ledgerModule={active:true,version:'0.37.1',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.2',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -210,7 +210,7 @@ test('0.31.4: a granted starting recipe reads as known in Individual, Party and 
   await api.grantStartingRecipes({preview:false});
   values.libraryData={schema:'ag-ledger/0.1',recipes:[],materials:[]};
   const render=async(view,actorId)=>{const app=api.open({view,actorId});app.view=view;if(actorId)app.actorId=actorId;return (await app._prepareContext({})).html;};
-  const rowOf=(html,name)=>{const i=html.indexOf(name);assert.ok(i>=0,`${name} is listed`);return html.slice(i,i+1500);};
+  const rowOf=(html,name)=>{const i=html.indexOf(name);assert.ok(i>=0,`${name} is listed`);return html.slice(i,html.indexOf('</article>',i));};
   for(const view of ['individual','party','catalog']){
     const html=await render(view,'ana');
     const salve=rowOf(html,'[TEST] Salve');

@@ -1,3 +1,12 @@
+## 0.37.2 — 2026-10-28
+
+Recipe details fold on the Individual tab, like the Party tab's.
+
+- Each recipe card on **Individual** (Known recipes and Recipes to learn) has a **Details** fold. The title, tier and effort badges, the Craft / Learn / Complete activity button, the **tool or station line with its warning** (for example a missing tool) and the status row stay visible when it is collapsed. Needs → Makes, the cost and the recipe text fold. Open by default, so the first view reads as before. Players and GMs both get it.
+- **Expand all** and **Collapse all** in the Known recipes header. Each recipe's open or closed state is remembered per user on this device; it changes in place (no re-render, focus stays) and is written once per burst of clicks.
+- **Search** now also matches words inside the details (ingredients, tool or station, the recipe text), and a match opens its collapsed details; clearing the search puts back what you had.
+- No saved data changes.
+
 ## 0.37.1 — 2026-10-28
 
 Fix: opening and closing folders in the Recipe Catalog was slow.
