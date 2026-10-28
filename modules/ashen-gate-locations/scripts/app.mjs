@@ -1,5 +1,5 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
-import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
+import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, NPC_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, inheritedPin, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
@@ -14,6 +14,7 @@ import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guar
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
+import {actorFacts, npcSuggestions, relinkPlan, applyRelink, shopsHere, shopsForPlayer, shopsApiState} from './people-shops.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -111,6 +112,9 @@ const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, k
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
 /** 0.20.0: a linked document's name ('' when it is gone or not loaded), and the world's RollTables for the pickers. */
 const docName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? ''; } catch { return ''; } };
+/** 0.30.0: the world's Actors, and Actors plus Journals (a People link may be either), as plain arrays. */
+const worldActors = () => [...(game.actors ?? [])];
+const worldPeopleDocs = () => [...worldActors(), ...(game.journal ?? [])];
 const worldTables = () => [...(game.tables ?? [])].filter(t => t?.uuid).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(t => ({value: t.uuid, label: t.name}));
 /** Threat as a kit badge: Settled plain, Light and Normal ok, Hot warn, Deadly a solid danger fill (agl-threat--deadly). */
 const THREAT_TONES = {light: 'ok', normal: 'ok', hot: 'warn', deadly: 'danger'};
@@ -221,7 +225,7 @@ export class LocationsApp extends Base {
     // GM list view: how it is grouped, which groups are folded, and "show only one group". Per window, not saved.
     this.groupBy = 'region'; this.collapsed = new Set(); this.filters = emptyFilters(); this.sort = 'name'; this.sortDesc = false;
     // 1.8.0: Tree mode (folders), "Show representative-only too" for placing pins, and the last move (for Undo).
-    this.treeMode = false; this.showRep = false; this.lastMove = null; this.undoTimer = null;
+    this.treeMode = false; this.showRep = false; this.shopsChildren = false; this.lastMove = null; this.undoTimer = null;
     // 0.26.0: bulk select (checkboxes), the "Archived" view, the id-prefix filter and the last Archive (for Undo). Per window, not saved.
     this.picking = false; this.picked = new Set(); this.showArchived = false; this.idPrefix = ''; this.lastBulk = null; this.bulkTimer = null; this.shownIds = []; this.fopts = null;
     // 0.19.0: the editor sub-tab and whether the filter row is open, remembered per user (kit uiState).
@@ -606,6 +610,8 @@ export class LocationsApp extends Base {
         <small>${[r.skill, `Tier ${r.tier}`, r.dc && `DC ${r.dc}`].filter(Boolean).map(esc).join(' · ')}</small></span>
         ${r.exhausted ? '<span class="ag-badge">Exhausted</span>' : `<span class="ag-badge ${r.available ? 'ag-badge--ok' : ''}">${r.available ? 'Available' : 'Unavailable'}</span>`}${r.note ? `<small>${esc(r.note)}</small>` : ''}`))),
       factions: card('Factions', ul((v.factions ?? []).map(f => `${link(f.label, f.uuid)}${f.note ? ` <small>${esc(f.note)}</small>` : ''}`))),
+      // 0.30.0: a name always; a link only where Foundry lets this player open the document (otherwise the name alone).
+      npcs: card('People', ul((v.npcs ?? []).map(n => `${canOpen(n.uuid) ? link(n.label || 'Someone', n.uuid) : esc(n.label || 'Someone')}${n.note ? ` <small>${esc(n.note)}</small>` : ''}`))),
       quests: card('Quests', ul(questItems)),
       related: card('Related Locations', ul((v.related ?? []).map(r => go(r.name, 'select', {id: r.id})))),
       loot: card('Loot &amp; Rewards', ul((v.loot ?? []).map(lootItem))),
@@ -625,8 +631,37 @@ export class LocationsApp extends Base {
       ${v.parent && !crumbs.length ? `<p class="agl-meta">Part of ${place(v.parent)}</p>` : ''}
       ${v.img ? `<img class="agl-img" src="${esc(v.img)}" alt="">` : ''}
       ${(v.layout ?? normalizeLayout([], v.details ?? [])).map(k => blocks[k] ?? '').join('')}
+      ${partyNotes && !this.gm ? this.shopsCardHtml(v) : ''}
       ${partyNotes ? this.partyNotesHtml(v.key) : ''}
     </article>`;
+  }
+
+  /**
+   * 0.30.0, players: the shops the GM has shown to THIS player at this place (Utilities' own player-filtered list), each with Open shop.
+   * Nothing when none; an unshown shop, a place the player cannot see or a missing or older Utilities add nothing.
+   */
+  shopsCardHtml(v) {
+    const shops = shopsForPlayer(game.modules, v);
+    if (!shops.length) return '';
+    return `<section class="ag-card agl-shops" data-shops-card="1"><h3>Shops</h3><ul class="ag-list agl-entries">${shops.map(s => `<li><span class="agl-entry"><strong>${esc(s.name)}</strong>${s.merchant ? ` <small>${esc(s.merchant)}</small>` : ''}</span>
+      ${btn('open-shop', s.kind === 'service' ? 'Open service' : 'Open shop', {kind: 'sm', icon: 'fa-solid fa-store', data: {id: s.id}, title: `Open ${s.name}`})}</li>`).join('')}</ul></section>`;
+  }
+  /** 0.30.0, GM: the "Shops here" card (Content tab). Utilities owns the shops; this lists those linked to this place and presents them. */
+  shopsHereHtml(d) {
+    const head = `<header class="ag-card__head"><h3>Shops here</h3><span class="agl-head-tools">${NOW}</span></header>`;
+    const wrap = body => `<section class="ag-card agl-section agl-shops" data-shops-here="1">${head}${body}</section>`;
+    if (!d.id) return wrap('<p class="agl-hint">Save the location first; then the shops linked to it are listed here.</p>');
+    const {state} = shopsApiState(game.modules);
+    if (state === 'inactive') return wrap('<p class="agl-hint">Activate Ashen Gate | Utilities to list and present the shops at this place.</p>');
+    if (state === 'old') return wrap('<p class="agl-hint">Update Ashen Gate | Utilities to list the shops at this place.</p>');
+    const {rows, state: got, error} = shopsHere(game.modules, d.id, {includeChildren: this.shopsChildren});
+    const kids = `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-shops-children" ${this.shopsChildren ? 'checked' : ''}> Include places inside</label>`;
+    if (got === 'error') return wrap(`<p class="agl-hint">Could not read the shops: ${esc(error)}</p>${kids}`);
+    const list = rows.length ? `<ul class="ag-list agl-entries">${rows.map(r => `<li><span class="agl-entry"><strong>${esc(r.name)}</strong>${r.merchant ? ` <small>${esc(r.merchant)}</small>` : ''}
+      <span class="ag-badge${r.presented ? ' ag-badge--ok' : ''}">${esc(r.shown)}</span></span><span class="agl-tools">
+      ${btn('present-shop', 'Present…', {kind: 'sm', icon: 'fa-solid fa-eye', data: {id: r.id}, title: `Choose who sees ${r.name}`})}${r.presented ? `${btn('open-shop', 'Open', {kind: 'sm', icon: 'fa-solid fa-store', data: {id: r.id}, title: `Open ${r.name} as players see it`})}${btn('stop-shop', 'Stop showing', {kind: 'sm', icon: 'fa-solid fa-eye-slash', data: {id: r.id}, title: `Stop showing ${r.name} to players`})}` : ''}</span></li>`).join('')}</ul>`
+      : `<p class="agl-hint">${this.shopsChildren ? 'No shops are linked to this place or the places inside it.' : 'No shops are linked to this place.'} Link a shop to a location in Utilities, in the shop's editor.</p>`;
+    return wrap(`${list}${kids}<p class="agl-hint">Players see a shop on this location only while you present it to them. Present…, Stop showing and Open act at once (Open shows the shop as players see it, so it appears while the shop is shown); Save Changes is not needed.</p>`);
   }
 
   /** Players: who else sees a "Selected players" location, and Share with... when the GM allows it. */
@@ -715,6 +750,24 @@ export class LocationsApp extends Base {
     const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <ul class="ag-list agl-nodes">${d.resources.map(e => isNodeRef(e) ? this.nodeRefHtml(e, nodes, entryTools, handle) : this.nodeHtml(e, entryTools, handle)).join('')}</ul>` : '';
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
+    // 0.30.0: People here. Rows are the links on this location; the suggestions come from General Manager's NPC records (one click to link).
+    const relinks = new Map(relinkPlan(d.npcs, worldPeopleDocs(), uuid => !!docName(uuid)).map(r => [r.key, r]));
+    const npcRows = rows('npcs', e => {
+      const name = e.uuid ? docName(e.uuid) : '';
+      const re = relinks.get(e.key);
+      return `<span class="agl-entry agl-npc">${name ? docLink(name, e.uuid) : `<span>${esc(e.label || 'This person')}</span> <small>(not found in this world)</small>`}
+        ${text(`npcs.${e.key}.label`, e.label, 'Name shown to players', `Name shown to players for ${name || e.label || 'this person'}`)}
+        ${text(`npcs.${e.key}.note`, e.note, 'Short note shown to players (optional)', `Note shown to players for ${name || e.label || 'this person'}`)}
+        ${re ? btn('relink-npc', `Re-link to ${re.name}`, {kind: 'sm', icon: 'fa-solid fa-link', data: {key: e.key}, title: 'The linked document is gone, but a document with the same NPC record now exists'}) : ''}</span>`;
+    });
+    const suggestions = d.id ? npcSuggestions(worldActors(), d.id, d.npcs) : [];
+    const suggestHtml = suggestions.length ? `<div class="agl-suggest"><p class="agl-hint">From your imported NPC records:</p><ul class="ag-list agl-entries">${suggestions.map(sg =>
+      `<li><span class="agl-entry"><strong>${esc(sg.name)}</strong> <small>${sg.placed ? 'Its record places it here' : 'Its record only mentions this place'}</small></span>
+        <span class="agl-tools">${btn('link-npc', `Link ${sg.name}`, {kind: 'sm', icon: 'fa-solid fa-link', data: {uuid: sg.uuid}})}</span></li>`).join('')}</ul></div>` : '';
+    const linkedUuids = new Set(d.npcs.map(n => n.uuid)), linkedIds = new Set(d.npcs.map(n => n.sourceId).filter(Boolean));
+    const npcChoices = worldActors().filter(a => a.type === 'npc' && a.uuid && !linkedUuids.has(a.uuid) && !actorFacts(a).excluded && !linkedIds.has(actorFacts(a).sourceId || null))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const npcAdd = `${suggestHtml}<select id="agl-add-npcs" aria-label="Person to link"><option value="">${npcChoices.length ? 'Choose a person…' : 'No other NPC characters in this world'}</option>${npcChoices.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join('')}</select>${btn('add-npc', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`;
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
       return `<span class="agl-entry">${go(name ?? 'Unknown quest', 'open-quest', {id: e.questId}, {icon: 'fa-solid fa-scroll'})}${name ? '' : ' <small>(not found in Quest Log)</small>'}</span>`;
@@ -765,6 +818,7 @@ export class LocationsApp extends Base {
       children: this.childrenHtml(d, all, block),
       resources: sec('resources', resources, this.nodePickHtml(nodes), 'Drop material Items here, or click Add node… for a Profession Ledger node template or a custom gathering node.'),
       factions: sec('factions', factions, addText('factions', 'Custom faction name'), 'Drop Actors or Journals here, or add a custom faction.'),
+      npcs: sec('npcs', npcRows, npcAdd, 'Drop an NPC Actor or Journal here, or choose one. Each person stays hidden from players until you turn on its eye and show this section.'),
       quests: sec('quests', questRows, questAdd, 'No quests linked.'),
       related: sec('related', relatedRows, relatedAdd, 'No related locations.'),
       loot: sec('loot', lootRows, addText('loot', 'Plain reward (coins, clue, favour, key)'), 'Drag an Item here (world or compendium), or add a plain reward. A link never gives anyone the item.'),
@@ -792,6 +846,7 @@ export class LocationsApp extends Base {
           ${fld('img', `${d.img ? `<img class="agl-thumb" src="${esc(d.img)}" alt="">` : ''}<input id="agl-img" type="text" data-bind="img" value="${esc(d.img)}" placeholder="path/to/image.webp">${btn('browse-img', '', {icon: 'fa-solid fa-folder-open', title: 'Browse for an image'})}`)}
         </div>
         ${order.filter(k => k !== 'scenes').map(k => blocks[k] ?? '').join('')}
+        ${this.shopsHereHtml(d)}
         <div class="agl-add agl-add-detail">${btn('add-detail', 'Add detail', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
           <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>`,
       visibility: `${this.audienceHtml(d)}${this.placeHtml(d, all, pins)}${this.markerHtml(d, all)}${this.scenesHtml(d)}`,
@@ -1244,6 +1299,7 @@ export class LocationsApp extends Base {
     for (const el of root.querySelectorAll('[data-pick]')) el.addEventListener('change', () => this.onPick(el, root));
     root.querySelector('#agl-tree')?.addEventListener('click', async () => { this.treeMode = !this.treeMode; await this.render(); this.focusBack('#agl-tree'); });
     root.querySelector('#agl-showrep')?.addEventListener('change', e => { this.showRep = e.target.checked; this.render(); });
+    root.querySelector('#agl-shops-children')?.addEventListener('change', e => { this.shopsChildren = e.target.checked; this.render(); });
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
@@ -1397,6 +1453,13 @@ export class LocationsApp extends Base {
     this.dirty = true;
     return this.render();
   }
+  /** 0.30.0: links an NPC (or a Journal about someone) to this location. Hidden from players until its eye is turned on. A link only: nothing is copied. */
+  linkPerson(doc) {
+    if (!this.draft || !doc?.uuid) return;
+    const facts = actorFacts(doc);
+    if (this.draft.npcs.some(n => n.uuid === doc.uuid || (facts.sourceId && n.sourceId === facts.sourceId))) { ui.notifications.info(`${doc.name} is already linked here.`); return; }
+    return this.addEntry('npcs', {label: doc.name, uuid: doc.uuid, docType: doc.documentName ?? 'Actor', sourceId: facts.sourceId, note: '', visible: false});
+  }
   addEntry(section, data) {
     this.draft[section].push({key: newKey(), visible: true, ...data});
     this.dirty = true;
@@ -1433,6 +1496,10 @@ export class LocationsApp extends Base {
       if (!FACTION_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor or Journal here.');
       return this.addEntry('factions', {label: doc.name, uuid: doc.uuid, docType: type, note: ''});
     }
+    if (section === 'npcs') {
+      if (!NPC_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor or Journal here.');
+      return this.linkPerson(doc);
+    }
     if (section === 'conditions') return ui.notifications.warn('Conditions are text. Type the condition name and click Add.');
     if (section === 'hazards' || section === 'rollTables') {
       if (type !== 'RollTable') return ui.notifications.warn('Drop a Roll Table here.');
@@ -1465,6 +1532,7 @@ export class LocationsApp extends Base {
     }
     if (action === 'open-doc') return openDocument(el.dataset.uuid);
     if (action === 'open-quest') return openQuest(el.dataset.id);
+    if (action === 'open-shop') return this.openShop(el.dataset.id);
     if (action.startsWith('notes-')) return this.onNotesAction(action, el);
     if (!this.gm) return;
     const root = this.element;
@@ -1517,6 +1585,21 @@ export class LocationsApp extends Base {
       case 'preview': return this.preview();
       case 'show-players': return this.showToPlayers();
       case 'toggle-active': return this.toggleActive();
+      case 'link-npc': case 'add-npc': {
+        const uuid = action === 'link-npc' ? el.dataset.uuid : root.querySelector('#agl-add-npcs')?.value;
+        if (!uuid) return;
+        let doc = null;
+        try { doc = await fromUuid(uuid); } catch { doc = null; }
+        if (!doc) return ui.notifications.warn(MISSING_DOC);
+        return this.linkPerson(doc);
+      }
+      case 'relink-npc': {
+        const plan = relinkPlan(this.draft.npcs, worldPeopleDocs(), uuid => !!docName(uuid)).filter(r => r.key === el.dataset.key);
+        if (!plan.length) return;
+        this.draft.npcs = applyRelink(this.draft.npcs, plan); this.dirty = true; return this.render();
+      }
+      case 'present-shop': return this.presentShop(el.dataset.id);
+      case 'stop-shop': return this.stopShop(el.dataset.id);
       case 'new-child': {
         const parent = el.dataset.parent || this.draft?.id;
         if (!parent || !(await this.confirmDiscard())) return;
@@ -1800,6 +1883,40 @@ export class LocationsApp extends Base {
    * 0.24.0: GM only. Active is live play state: it applies at once, with no Save or Publish, and never touches unsaved edits.
    * A Hidden location asks first ("Reveal and make active?"); it is never revealed silently.
    */
+  /** 0.30.0: Utilities' own shop window (the GM sees it as players do; a player only for a shop shown to them). */
+  async openShop(id) {
+    const shops = shopsApiState(game.modules).shops;
+    if (!id || typeof shops?.open !== 'function') return ui.notifications.warn('Ashen Gate | Utilities is not available.');
+    try { await shops.open(id); } catch (err) { ui.notifications.warn(err?.message ?? String(err)); }
+  }
+  /** 0.30.0, GM: Present… asks who (all players or chosen ones); Utilities does the presenting and re-checks that the caller is the GM. */
+  async presentShop(id) {
+    const shops = shopsApiState(game.modules).shops;
+    if (!game.user.isGM || typeof shops?.present !== 'function') return;
+    const row = shopsHere(game.modules, this.draft?.id, {includeChildren: this.shopsChildren}).rows.find(r => r.id === id);
+    const players = worldPlayers();
+    if (!players.length) return ui.notifications.warn('There are no player users yet.');
+    const name = row?.name || 'this shop';
+    const f = await formDialog(`Present ${name}`, [
+      {name: 'mode', label: 'Show to', type: 'select', value: 'all', options: [{value: 'all', label: 'All players (also players who log in later)'}, {value: 'users', label: 'Chosen players (tick them below)'}]},
+      {name: 'users', label: 'Chosen players', type: 'checklist', options: players.map(u => ({value: u.id, label: u.name})), hint: 'Used only when Show to is Chosen players.'}
+    ], {ok: 'Present'});
+    if (!f) return;
+    const mode = f.mode === 'users' ? 'users' : 'all', userIds = [].concat(f.users ?? []);
+    try {
+      await shops.present(id, {mode, userIds});
+      ui.notifications.info(`${name} is shown to ${mode === 'all' ? 'all players' : `${userIds.length} ${userIds.length === 1 ? 'player' : 'players'}`}.`);
+    } catch (err) { ui.notifications.warn(err?.message ?? String(err)); }
+    return this.render();
+  }
+  async stopShop(id) {
+    const shops = shopsApiState(game.modules).shops;
+    if (!game.user.isGM || typeof shops?.stopShowing !== 'function') return;
+    const name = shopsHere(game.modules, this.draft?.id, {includeChildren: this.shopsChildren}).rows.find(r => r.id === id)?.name || 'this shop';
+    if (!(await confirmDialog(`Stop showing ${name}? Players can no longer see it or open it from this location. The shop itself is not changed.`, {title: 'Stop showing this shop?', yes: 'Stop showing'}))) return;
+    try { await shops.stopShowing(id); ui.notifications.info(`${name} is no longer shown to players.`); } catch (err) { ui.notifications.warn(err?.message ?? String(err)); }
+    return this.render();
+  }
   async toggleActive() {
     if (!this.gm || !this.draft?.id) return;
     const id = this.draft.id, turnOn = this.draft.active !== true;
@@ -1885,6 +2002,10 @@ export class LocationsApp extends Base {
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
         '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
         '<em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
+      topic('People and shops', [
+        '<strong>People</strong> (Content sub-tab) links NPC Actors or Journals to this place. Drop one on the block, or choose one and click <strong>Link</strong>. A link is only a link: nothing is copied, and players never see anything from the Actor itself. Each person has an eye (hidden by default), the <em>Name shown to players</em> and an optional note, both written by you. Turn on the eye and <em>Show section to players</em>, then Publish: players get a <strong>People</strong> card where a name opens the Actor or Journal only if Foundry lets them.',
+        'If General Manager imported your NPCs, People suggests the ones whose record names this place, each with <strong>Link &lt;name&gt;</strong>. A record that places the NPC here is listed first; one that only mentions the place (a plain <em>related</em> link) is listed after and says so. If you delete an NPC and import it again, the row offers <strong>Re-link to &lt;name&gt;</strong>; Save Changes and Publish keep it.',
+        '<strong>Shops here</strong> lists the shops and services linked to this place in Ashen Gate | Utilities (set a shop\'s place in the shop\'s editor). <em>Include places inside</em> adds the places below this one. <strong>Present…</strong> shows a shop to all players or chosen ones, <strong>Stop showing</strong> ends it, <strong>Open</strong> shows it as players see it. These act at once; Save Changes is not needed. Players see a <strong>Shops</strong> card with <strong>Open shop</strong> only for shops you have presented to them (and only while <em>Shops on for players</em> is on in Utilities\' GM Setup). Without Utilities, or with an older one, the card tells you to activate or update it.']),
       topic('Select, Archive and Delete', [
         '<strong>Select</strong> (toolbar) puts a tick box on every row. Tick locations one by one, or narrow the list first and click <strong>Select all N shown</strong>: use <em>Region</em>, the other Filters, the search box, or <em>Id starts with</em> (for example <code>LOC-FRONTIER-</code>; the one place an id is typed). The bar above the list counts what is selected and what is shown.',
         '<strong>Archive…</strong> is the safe way to clear the list. It shows exactly which locations it will archive, then moves them out of the Locations list and hides them from players, as if Hidden. Nothing is lost: content, state, audience, Party Notes and map pins are kept (the pins stay on the scene for you and vanish for players). <strong>Undo</strong> appears for 30 seconds, and <strong>Archived (n)</strong> lists them any time: tick some and choose <strong>Restore…</strong>. Places inside an archived Region are not archived with it unless you select them too.',
@@ -1902,7 +2023,7 @@ export class LocationsApp extends Base {
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }

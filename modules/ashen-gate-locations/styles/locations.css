@@ -104,6 +104,8 @@
 .agl-detail-title { font-weight: 600; min-width: 14rem; }
 .agl-cond, .agl-loot { display: flex; gap: var(--ag-space-2); flex-wrap: wrap; align-items: center; }
 .agl-cond input { flex: 1; min-width: 10rem; }
+.agl-npc { display: flex; flex-direction: column; gap: var(--ag-space-1); flex: 1; min-width: 14rem; }
+.agl-suggest { flex-basis: 100%; margin-bottom: var(--ag-space-2); }
 .agl-loot__fields { display: flex; flex-direction: column; gap: var(--ag-space-1); flex: 1; min-width: 14rem; }
 .agl-loot__img { width: var(--ag-slot); height: var(--ag-slot); object-fit: cover; border-radius: var(--ag-radius-sm); border: 1px solid var(--ag-border); }
 .agl-inherited { border-left: 3px solid var(--ag-accent); padding-left: var(--ag-space-3); }

@@ -12,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.29.0';
+const VERSION = '0.30.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -214,3 +214,5 @@ for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEn
   Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
 }
 Hooks.on('ashenGate.bulkFinished', () => { refresh(); embed.refreshAll(); });
+// 0.28.0: Utilities says a shop's presentation may have changed; redraw the Shops cards (the hook never fires without Utilities).
+Hooks.on('ashen-gate-utilities.shopsChanged', refresh);

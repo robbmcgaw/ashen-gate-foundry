@@ -17,6 +17,7 @@ export const SECTIONS = Object.freeze([
   {key: 'conditions', label: 'Conditions'},
   {key: 'resources', label: 'Gathering Resources'},
   {key: 'factions', label: 'Factions'},
+  {key: 'npcs', label: 'People'},
   {key: 'quests', label: 'Quests'},
   {key: 'related', label: 'Related Locations'},
   {key: 'loot', label: 'Loot & Rewards'},
@@ -33,6 +34,7 @@ export const BLOCKS = Object.freeze([
   {key: 'children', label: 'Places Inside'},
   {key: 'resources', label: 'Gathering Resources'},
   {key: 'factions', label: 'Factions'},
+  {key: 'npcs', label: 'People'},
   {key: 'quests', label: 'Quests'},
   {key: 'related', label: 'Related Locations'},
   {key: 'loot', label: 'Loot & Rewards'},
@@ -109,6 +111,10 @@ export const PIN_DEFAULTS = Object.freeze({img: 'icons/svg/castle.svg', unidenti
 export const PIN_KEY = /^[a-z0-9]{12,32}$/;
 export const NOTE_DOC_TYPES = Object.freeze(['Actor', 'Item', 'JournalEntry', 'JournalEntryPage', 'RollTable']);
 export const FACTION_DOC_TYPES = Object.freeze(['Actor', 'JournalEntry']);
+/** 0.30.0: what a People entry may link (an NPC Actor, or a Journal about the person). */
+export const NPC_DOC_TYPES = FACTION_DOC_TYPES;
+/** 0.30.0: a General Manager NPC record id; the permanent id a People link keeps beside the world-local uuid. */
+export const NPC_ID = /^NPC-[A-Z0-9]+(?:-[A-Z0-9_]+)*$/;
 
 export const clone = value => structuredClone(value);
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -145,9 +151,9 @@ export function makeLocationId(name, existingIds = []) {
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-function entry(raw, extra) {
+function entry(raw, extra, visibleByDefault = true) {
   const e = raw && typeof raw === 'object' ? raw : {};
-  return {key: line(e.key ?? e.id, 40) || newKey(), visible: bool(e.visible, true), ...extra(e)};
+  return {key: line(e.key ?? e.id, 40) || newKey(), visible: bool(e.visible, visibleByDefault), ...extra(e)};
 }
 const linked = e => ({uuid: safeUuid(e.uuid), docType: line(e.docType, 40)});
 /** Optional true/false that falls back to the template's value: null. */
@@ -175,6 +181,9 @@ const ENTRY_SHAPES = {
   },
   conditions: e => ({label: line(e.label), text: text(e.text, 2000)}),
   factions: e => ({label: line(e.label), ...linked(e), note: line(e.note, 500)}),
+  // 0.30.0: a person here. `label` and `note` are what players read (the GM's words, never read from the Actor); `uuid` is the world-local binding and
+  // `sourceId` the permanent NPC-* id, so the link can find the Actor again when it is re-imported. Players are never sent the sourceId.
+  npcs: e => ({label: line(e.label), ...linked(e), sourceId: NPC_ID.test(e.sourceId ?? '') ? e.sourceId : '', note: line(e.note, 200)}),
   quests: e => ({questId: QUEST_ID.test(e.questId ?? '') ? e.questId : ''}),
   related: e => ({locationId: LOCATION_ID.test(e.locationId ?? '') ? e.locationId : ''}),
   // A loot entry is a plain-text reward (no uuid) or a link to a native Item. `label`, `text` and `img` are what
@@ -211,6 +220,7 @@ const KEEP_ENTRY = {
   loot: e => e.label || e.text || e.uuid,
   resources: e => e.nodeId || e.label || e.materialId || e.rareMaterialId || e.uuid,
   factions: e => e.label || e.uuid,
+  npcs: e => e.uuid || e.sourceId,
   quests: e => e.questId,
   related: e => e.locationId,
   notes: e => e.title || e.text || e.uuid
@@ -257,7 +267,7 @@ function normalizeBody(r, id) {
   for (const {key} of SECTIONS) {
     body.sections[key] = bool(r.sections?.[key], false);
     const list = Array.isArray(r[key]) ? r[key] : [];
-    body[key] = list.map(e => entry(e, ENTRY_SHAPES[key])).filter(KEEP_ENTRY[key]);
+    body[key] = list.map(e => entry(e, ENTRY_SHAPES[key], key !== 'npcs')).filter(KEEP_ENTRY[key]);
   }
   body.related = body.related.filter(e => e.locationId !== id);
   // Location-local custom blocks. `visible` is the block's own reveal toggle.
@@ -528,6 +538,8 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   const on = key => pub.sections[key] ? pub[key].filter(e => e.visible) : [];
   const resources = on('resources').map(e => nodeForPlayer(e, nodeView));
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
+  // 0.30.0: only entries the GM made visible; the name and note the GM wrote, and the link. Never the sourceId.
+  const npcs = on('npcs').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
   const shown = new Map((normalized ?? all.map(normalizeLocation)).filter(l => l.id && l.state !== 'hidden' && !l.archived && l.published && covers(l, loc)).map(l => [l.id, l]));
@@ -544,7 +556,7 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   const parent = shown.get(pub.parentLocationId);
   if (parent) view.parent = ref(parent);
   const children = [...shown.values()].filter(l => l.published.parentLocationId === loc.id).map(ref).sort((a, b) => a.name.localeCompare(b.name));
-  for (const [key, list] of Object.entries({conditions, resources, factions, quests, related, loot, hazards, rollTables, notes, details, children})) if (list.length) view[key] = list;
+  for (const [key, list] of Object.entries({conditions, resources, factions, npcs, quests, related, loot, hazards, rollTables, notes, details, children})) if (list.length) view[key] = list;
   // Block order as the GM published it, listing only blocks the player actually has (so no empty or unrevealed titles).
   const present = new Set(Object.keys(view).filter(k => k !== 'details'));
   for (const d of details) present.add(DETAIL_PREFIX + d.key);
@@ -749,6 +761,8 @@ export function viewHtml(view) {
     resources: list('Gathering Resources', view.resources?.map(r => [esc(nodeName(r)), r.skill && esc(`${r.skill} T${r.tier}`), r.dc && `DC ${r.dc}`,
       r.exhausted ? '(exhausted)' : !r.available && '(unavailable)'].filter(Boolean).join(' · '))),
     factions: list('Factions', view.factions?.map(f => esc(f.label))),
+    // Names only (a Journal page never links a document), like Factions.
+    npcs: list('People', view.npcs?.map(n => [esc(n.label || 'Someone'), n.note && esc(n.note)].filter(Boolean).join(': '))),
     children: list('Places Here', view.children?.map(c => esc(c.name))),
     related: list('Related Locations', view.related?.map(r => esc(r.name))),
     // Plain text only: a Journal page never links a document, so it can't open one the reader may not see.
@@ -825,8 +839,8 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0 and 0.25.0. An update that leaves one out keeps the world's value instead of clearing it. */
-const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
+/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0 and 0.30.0. An update that leaves one out keeps the world's value instead of clearing it. */
+const ADDITIVE = ['npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
   'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
 
 /**
@@ -857,7 +871,7 @@ export function importRecords(records, existing = [], {mode = 'skip', unarchive 
     if (old) {
       for (const k of ADDITIVE) if (!(k in body)) body[k] = old[k];
       // A package from before 1.4.0 has no switch for the new sections; keep the world's.
-      body.sections = {conditions: old.sections.conditions, loot: old.sections.loot, ...(body.sections ?? {})};
+      body.sections = {conditions: old.sections.conditions, loot: old.sections.loot, npcs: old.sections.npcs, ...(body.sections ?? {})};
     }
     const incoming = normalizeLocation(body);
     if (wouldCycle(incoming.id, incoming.parentLocationId, parents)) { skipped.push({id, reason: `parentLocationId ${incoming.parentLocationId} would put it inside itself.`}); continue; }

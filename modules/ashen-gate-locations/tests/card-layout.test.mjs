@@ -382,7 +382,7 @@ test('player window shows published blocks in the GM order and no editing contro
   assert.doesNotMatch(out, /data-drag|move-block|data-toggle/);
 });
 
-test('0.29.0: Description is hidden from players until revealed, published and its eye is open; first block by default', async () => {
+test('0.30.0: Description is hidden from players until revealed, published and its eye is open; first block by default', async () => {
   const {playerView, normalizeLocation} = await import('../scripts/model.mjs');
   const base = {id: 'LOC-TEST-DESC', name: '[TEST] Hollow', description: 'Cold stone and dripping water.', sections: {loot: true}, loot: [{key: 'l1', label: 'Coins'}]};
   assert.equal(playerView({...base, state: 'hidden'}), null, 'hidden: nothing');
