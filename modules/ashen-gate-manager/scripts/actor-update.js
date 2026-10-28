@@ -1,5 +1,5 @@
 import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject, baselineFields} from './core.js';
-import {canonicalDefinition} from './source-projection.mjs';
+import {canonicalDefinition, replacingSourceFlag} from './source-projection.mjs';
 import {isArtPath, artDecision, artLabel, artSentence} from './art-fields.js';
 /**
  * Opt-in update of existing Actors on re-import (0.19.0).
@@ -141,6 +141,6 @@ export async function applyActorUpdate(doc, plan, {user, source}) {
   const updates = [...items.adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...items.update];
   if (updates.length) await doc.updateEmbeddedDocuments('Item', updates);
   if (items.create.length) await doc.createEmbeddedDocuments('Item', items.create);
-  await doc.update({...fields, [`flags.${MODULE_ID}.source`]: source, [`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`]: {version: 1}});
+  await doc.update({...fields, [`flags.${MODULE_ID}.source`]: replacingSourceFlag(doc.getFlag?.(MODULE_ID, 'source'), source), [`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`]: {version: 1}});
   return doc;
 }

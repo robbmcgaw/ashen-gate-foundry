@@ -15,6 +15,7 @@ import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
 import {applyShops} from './shop-handoff.js';
 import {applySpecialist} from './specialist-handoff.js';
+import {replacingSourceFlag} from './source-projection.mjs';
 import {bulkWrite, bulk} from './bulk.js';
 import {ConnectionLost, isInterruption} from './sync-connection.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk} from './sync.js';
@@ -77,7 +78,7 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
     if (ops.results.create.length) await doc.createEmbeddedDocuments('TableResult', structuredClone(ops.results.create), bulk());
     if (ops.results.deleteIds.length) await doc.deleteEmbeddedDocuments('TableResult', ops.results.deleteIds, bulk());
   }
-  const update = {...fields, ...extra, [`flags.${MODULE_ID}.source`]: flag};
+  const update = {...fields, ...extra, [`flags.${MODULE_ID}.source`]: replacingSourceFlag(doc.getFlag?.(MODULE_ID, 'source'), flag)};
   if (kind === 'Actor') update[`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`] = {version: 1};
   await doc.update(update, bulk());
 }
