@@ -84,6 +84,8 @@ export function normalizeRecipe(raw) {
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
     // 0.30.0: `starting: true` marks a starting recipe (the GM grants these from Assign → Starting recipes).
     starting:[canonical,src,raw].some(x=>x?.starting===true),
+    // 0.37.4: optional pack marker `former_starting: true`: the recipe WAS a starter and is not any more (never set together with `starting`).
+    formerStarting:[canonical,src,raw].some(x=>x?.former_starting===true),
     description:src?.description??src?.rules_summary??'',
     effectNote:effectNoteOf(canonical,src,raw),
     // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).

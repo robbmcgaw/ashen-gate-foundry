@@ -4,7 +4,7 @@
  *   gone      the catalog does not have it (unknown id, retired, legacy or non-text entry). It cannot work, so it is PRE-TICKED to remove.
  *   draft     in the catalog but not released to players (same rule as the starting-recipe grant). Kept unless ticked.
  *   unheld    its profession is not held any more. Kept unless ticked.
- *   replaced  a recipe the Ledger recorded granting (Actor flag grantedRecipes) that is no longer `starting: true` in the catalog: the GM swapped the starters.
+ *   replaced  a recipe that is no longer `starting: true` and either was recorded as granted (Actor flag grantedRecipes) or carries the pack marker `former_starting: true` (formerStarting): the GM swapped the starters.
  *             PRE-TICKED to remove unless the character has crafted items from it (then it stays, with its reason, and ticking it needs the typed name).
  *   starting  a starting recipe of a held profession. Kept unless ticked.
  *   learned   any other recipe of a held profession. Never pre-ticked.
@@ -37,9 +37,9 @@ export function planRecipeRefresh({known=[],knownRaw=null,grantedRecipes=[],reci
     if(why)rows.push({...base,group:'draft',why,needsConfirm:made||xp});
     else if(!holds)rows.push({...base,group:'unheld',why:'The character no longer holds this recipe’s profession.',needsConfirm:made||xp});
     else if(r.starting===true)rows.push({...base,group:'starting',why:'A starting recipe of a profession the character holds.',needsConfirm:false});
-    else if(grantedRecipes.includes(id))rows.push({...base,group:'replaced',needsConfirm:made,defaultRemove:!made,
+    else if(grantedRecipes.includes(id)||r.formerStarting===true)rows.push({...base,group:'replaced',needsConfirm:made,defaultRemove:!made,
       why:made?'Replaced starting recipe: it is no longer a starter, but this character has crafted with it, so it stays unless you tick it.'
-        :'Replaced starting recipe: it is no longer a starter. Learned starters you crafted with stay unless you tick them.'});
+        :'Replaced starting recipe: it is no longer a starter. Untick it if you want the character to keep it.'});
     else rows.push({...base,group:'learned',why:'Learned by the character.',needsConfirm:made||xp});
   }
   const ticked=new Set(remove==null?rows.filter(r=>r.defaultRemove).map(r=>r.token):[...remove].map(String));
