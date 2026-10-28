@@ -101,6 +101,7 @@ const STATE_HINTS = {
   unidentified: 'Players see only the unidentified label and teaser, on the pin and in their Locations list.',
   revealed: 'Players see the published card: the name and everything marked visible.'
 };
+const showOpens = () => { try { return game.settings.get(MODULE_ID, 'showOpensWindow') !== false; } catch { return true; } };
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; } };
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
 /** 0.20.0: a linked document's name ('' when it is gone or not loaded), and the world's RollTables for the pickers. */
@@ -191,6 +192,20 @@ export class LocationsApp extends Base {
     await app.render({force: true});
     app.bringToFront?.();
     return app;
+  }
+  /**
+   * 0.23.0: the GM used Show to Players. Switches the one window to that location (never a second window) and brings it to front,
+   * without taking focus from a field the player is typing in. Returns false, opening nothing, while the player has unsaved
+   * Party Notes or edits (the caller then only notifies).
+   */
+  static async showFromGM(ref) {
+    const open = LocationsApp.instance?.rendered ? LocationsApp.instance : null;
+    if (open && (open.notesEdit || open.dirty)) return false;
+    const active = globalThis.document?.activeElement;
+    const typing = !!active?.matches?.('input, textarea, select, [contenteditable="true"]');
+    await LocationsApp.show(ref);
+    if (typing && active?.isConnected) { try { active.focus({preventScroll: true}); } catch { /* focus stays where it lands */ } }
+    return true;
   }
   constructor(options = {}) {
     // Compact size; Comfortable (General Manager → My Appearance) opens it 1.2× larger.
@@ -652,7 +667,7 @@ export class LocationsApp extends Base {
       <div class="agl-editor__head">
         <nav class="agl-crumbs" aria-label="Where this is">${crumbs.length ? crumbs.map(c => `${go(c.name, 'select', {id: c.id})} <span aria-hidden="true">›</span> `).join('') : '<span class="agl-hint">Top level ›</span> '}
           <span>${esc(d.name || 'New location')}</span></nav>
-        <div class="ag-btn-group">${placeable ? btn('place', 'Place on Scene', {kind: 'sm', icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${d.id ? `${btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'})}${btn('delete', 'Delete location', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}` : ''}</div>
+        <div class="ag-btn-group">${d.id ? btn('show-players', 'Show to Players', {kind: 'sm', icon: 'fa-solid fa-bullseye', title: 'Opens this location in every other player\'s Locations window'}) : ''}${placeable ? btn('place', 'Place on Scene', {kind: 'sm', icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${d.id ? `${btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'})}${btn('delete', 'Delete location', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}` : ''}</div>
       </div>
       <div class="agl-title">
         <div class="ag-field agl-name"><label for="agl-name">Name</label><input id="agl-name" type="text" data-bind="name" value="${esc(d.name)}" placeholder="Location name"></div>
@@ -998,6 +1013,9 @@ export class LocationsApp extends Base {
         <div class="ag-field agl-field"><label for="agl-set-pinwrap">Wrap the name after (characters)</label><input id="agl-set-pinwrap" type="number" min="0" max="${WRAP.max}" step="1" value="${wrap}"></div>
         <p class="agl-hint">Wrap: the most characters on one line of the name; longer names break between words (a very long word is cut). ${WRAP.min} to ${WRAP.max}, or 0 for no wrapping. Only the label on the map changes, never the location's name.</p>
         <p class="agl-hint">Applies to every player's screen and only to pins placed from Locations. A pin whose Font Size you changed in its own Note settings keeps that size. <em>Image only</em> hides the square and the shaded backing (the frame shows while you hover or select a pin). <em>Name under the pin</em> is either always visible or only when you hover the pin (Foundry\'s own behaviour); the name size and wrapping apply in both; hidden pins show none, and unidentified pins show only their unidentified label. Nothing on the map is changed, so you can switch back at any time.</p></section>
+      <section class="ag-card"><h3>Show to Players</h3>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-set-showopen" ${showOpens() ? 'checked' : ''}> Players' windows open automatically when the GM shows a location</label>
+        <p class="agl-hint">Off: players only get a notification ("The GM is showing …") and open it themselves. Players with unsaved Party Notes are never interrupted; they get the notification.</p></section>
       <details class="ag-devtools"><summary>Developer Tools</summary>
         <p class="agl-hint">Runs at once; not part of Save Changes. Adds four synthetic <code>[TEST]</code> locations. Existing locations are not changed.</p>
         ${btn('import-sample', 'Import [TEST] sample locations', {kind: 'sm', icon: 'fa-solid fa-flask'})}
@@ -1022,6 +1040,8 @@ export class LocationsApp extends Base {
     const wrapRaw = root?.querySelector('#agl-set-pinwrap')?.value;
     if (wrapRaw !== undefined && wrapRaw !== '' && wrapOf(wrapRaw) !== readPinLook().wrap) await game.settings.set(MODULE_ID, 'pinNameWrap', wrapOf(wrapRaw));
     if (pinName !== readPinLook().nameMode) await game.settings.set(MODULE_ID, 'pinNameMode', pinName);
+    const showOpen = root?.querySelector('#agl-set-showopen')?.checked === true;
+    if (root?.querySelector('#agl-set-showopen') && showOpen !== showOpens()) await game.settings.set(MODULE_ID, 'showOpensWindow', showOpen);
     ui.notifications.info('Saved GM Setup.');
     await this.render();
     return true;
@@ -1306,6 +1326,7 @@ export class LocationsApp extends Base {
         return this.render();
       }
       case 'preview': return this.preview();
+      case 'show-players': return this.showToPlayers();
       case 'new-child': {
         const parent = el.dataset.parent || this.draft?.id;
         if (!parent || !(await this.confirmDiscard())) return;
@@ -1577,6 +1598,23 @@ export class LocationsApp extends Base {
       ${hiddenCard}${part('unidentified')}${part('revealed')}
       <label class="ag-field ag-field--inline agl-preview__toggle"><input type="checkbox" id="agl-preview-others" ${showOthers ? 'checked' : ''}> Also show the other states</label></div>`;
   }
+  /** 0.23.0: GM only. A Hidden location asks first (Reveal and show); nothing else is changed or saved. */
+  async showToPlayers() {
+    if (!this.gm || !this.draft?.id) return;
+    if (this.draft.state === 'hidden') {
+      if (!(await this.saveFirst('reveal and show it'))) return;
+      const ok = await confirmDialog(`${this.draft.name} is hidden. Reveal it, then show it? Players will see its name and everything marked visible, and its pins show the name.`,
+        {title: 'Reveal and show?', yes: 'Reveal and show'});
+      if (!ok) return;
+      const saved = await this.saveDraft();
+      if (!saved) return;
+      await api().setLocationState(saved.id, 'revealed');
+      this.select(saved.id);
+      await this.render();
+    }
+    const r = await api().showToPlayers(this.draft.id);
+    ui.notifications.info(r.sent ? `Shown to ${r.sent} player${r.sent === 1 ? '' : 's'}.` : 'No players are connected who can see this location.');
+  }
   /** What players would see after Publish. Built by the API from the draft; nothing is written. */
   preview() {
     const content = this.previewHtml(LocationsApp.previewOthers());
@@ -1617,6 +1655,7 @@ export class LocationsApp extends Base {
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
+        '<strong>Show to Players</strong> (editor head, GM only) opens the location in every other connected player\'s Locations window, like Foundry\'s Show to Players for journals. Players see only what they could already see: an unidentified place opens its unidentified card, and a Selected-players place goes only to those players. A hidden place asks <em>Reveal and show</em> first. Players\' windows switch to it rather than stacking, and a player who is typing or has unsaved Party Notes is not interrupted. GM Setup → Show to Players can turn the automatic opening off (they then get a notification).',
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [

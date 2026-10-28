@@ -3,6 +3,7 @@ import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migra
   syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
+import {createShowService} from './show.mjs';
 import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
@@ -10,7 +11,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.22.2';
+const VERSION = '0.23.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -62,18 +63,22 @@ Hooks.once('init', () => {
     name: 'Locations — Pin look', scope: 'world', config: false, type: String, default: DEFAULT_PIN_LOOK, restricted: true,
     choices: PIN_LOOKS, onChange: () => refreshPins()
   });
-  // 0.22.2: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
+  // 0.23.0: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
   game.settings.register(MODULE_ID, 'pinNameMode', {
     name: 'Locations — Name under the pin', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinShowName', {
-    name: 'Locations — Show name under the pin (before 0.22.2)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+    name: 'Locations — Show name under the pin (before 0.23.0)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameSize', {
     name: 'Locations — Pin name size', scope: 'world', config: false, type: Number, default: NAME_SIZE.default, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameWrap', {
     name: 'Locations — Wrap pin name after (characters)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
+  });
+  // 0.23.0: what a player's client does when the GM uses Show to Players. On: the Locations window opens. Off: a notification only.
+  game.settings.register(MODULE_ID, 'showOpensWindow', {
+    name: 'Locations — Open the window when the GM shows a location', scope: 'world', config: false, type: Boolean, default: true, restricted: true
   });
   registerPinLook();
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
@@ -89,7 +94,12 @@ Hooks.once('ready', () => {
     shared: {read: readSharedNotes, write: writeSharedNotes}, socket: game.socket});
   // 1.8.0 "Share with...": players ask the primary GM's client to add players to a location they can see (sharing.mjs).
   const sharing = createShareService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled, readAll, writeAll, socket: game.socket});
+  // 0.23.0 "Show to Players": the GM opens a location in the other clients' Locations window (show.mjs).
+  const show = createShowService({users: game.users, currentUser: () => game.user, socket: game.socket, readAll,
+    getLocation: ref => game.modules.get(MODULE_ID).api.getLocation(ref), mayOpen, autoOpen: () => game.settings.get(MODULE_ID, 'showOpensWindow') !== false,
+    open: ref => LocationsApp.showFromGM(ref), notify: text => ui.notifications?.info(text)});
   game.socket?.on?.(SOCKET, (msg, senderId) => {
+    if (msg?.type === 'show-location') { show.onSocket(msg, senderId).catch(err => console.warn(`${MODULE_ID} |`, err)); return; }
     if (typeof msg?.type === 'string' && msg.type.startsWith('share-')) sharing.onSocket(msg, senderId).catch(notifyError);
     else notes.onSocket(msg, senderId).catch(notifyError);
   });
@@ -98,7 +108,7 @@ Hooks.once('ready', () => {
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
-    sharing: {request: sharing.request},
+    sharing: {request: sharing.request}, show: {send: show.send},
     tables, storedRoutes: readStoredRoutes,
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
