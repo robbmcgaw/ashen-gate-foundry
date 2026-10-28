@@ -10,8 +10,8 @@ globalThis.CSS ??= {escape: v => String(v)};
 
 function app(state, extra = {}) {
   const g = installFoundry();
-  const mod = {version: '0.27.1', active: true};
-  mod.api = createApi({version: '0.27.1', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const mod = {version: '0.27.2', active: true};
+  mod.api = createApi({version: '0.27.2', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   game.user = gm;
   const a = new LocationsApp();

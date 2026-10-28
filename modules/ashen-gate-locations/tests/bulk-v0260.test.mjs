@@ -16,8 +16,8 @@ async function world() {
   const g = installFoundry();
   const scene = new Scene();
   g.scenes = [scene];
-  const mod = {version: '0.27.1', active: true};
-  const api = createApi({version: '0.27.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
+  const mod = {version: '0.27.2', active: true};
+  const api = createApi({version: '0.27.2', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {},
     pins: {report: pinReport, remove: removeManagedPins}, notedIds: () => new Set([...readNotesStore().values()].filter(n => n.text?.trim()).map(n => n.locationId))});
   mod.api = api;

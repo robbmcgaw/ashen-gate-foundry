@@ -394,7 +394,7 @@ export class LocationsApp extends Base {
     return `<span class="ag-row__end">${rep && !l.isRegion ? mark('fa-solid fa-layer-group', 'Representative only: not placed on maps') : ''}
         ${restricted ? mark('fa-solid fa-user-lock', gm ? 'Selected players only' : 'Shared with selected players') : ''}
         ${l.active ? `<span class="ag-badge ag-badge--ok agl-active"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${gm ? 'Active' : 'Here now'}</span>` : ''}
-        ${l.threat ? threatBadge(l.threat) : ''}
+        ${gm && l.threat ? threatBadge(l.threat) : ''}
         ${gm ? `${hasUnpublishedChanges(l) ? `<span class="agl-dot"${tip('Saved changes not published yet')} aria-hidden="true"></span><span class="ag-sr-only">Saved changes not published yet</span>` : ''}${mark(STATE_ICONS[l.state], STATE_LABELS[l.state])}` : ''}</span>`;
   }
   /** 0.26.0: GM select mode (and the Archived view): a tick box and the name in one label, so the whole row toggles and the keyboard reaches it. */
@@ -623,7 +623,8 @@ export class LocationsApp extends Base {
     const crumbs = breadcrumb(views, v.key, VIEW);
     return `<article class="agl-view">
       ${crumbs.length ? `<nav class="agl-crumbs" aria-label="Where this is">${crumbs.map(c => `${place(c)} <span aria-hidden="true">›</span> `).join('')}<span>${esc(v.name)}</span></nav>` : ''}
-      <div class="agl-title"><h2>${esc(v.name)}</h2>${v.threat ? threatBadge(v.threat) : ''}${hereNow(v)}</div>${share}
+      <div class="agl-title"><h2>${esc(v.name)}</h2>${hereNow(v)}</div>${share}
+      ${v.threat ? `<p class="agl-meta agl-threat-row"><span class="agl-threat-label">Threat Level:</span> ${threatBadge(v.threat)}</p>` : ''}
       ${v.type || v.region ? `<p class="agl-meta">${[v.type, v.region].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
       ${v.parent && !crumbs.length ? `<p class="agl-meta">Part of ${place(v.parent)}</p>` : ''}
       ${v.img ? `<img class="agl-img" src="${esc(v.img)}" alt="">` : ''}

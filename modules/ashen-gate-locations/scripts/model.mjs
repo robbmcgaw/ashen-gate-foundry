@@ -680,7 +680,7 @@ export function viewHtml(view) {
   const parts = [`<h1>${esc(view.name)}</h1>`];
   if (view.state === 'unidentified') return [...parts, view.teaser ? `<p>${p(view.teaser)}</p>` : ''].filter(Boolean).join('\n');
   if (view.parent) parts.push(`<p>Part of ${esc(view.parent.name)}</p>`);
-  const meta = [view.type, view.region, view.threat && `Threat: ${threatLabel(view.threat)}`].filter(Boolean);
+  const meta = [view.type, view.region, view.threat && `Threat Level: ${threatLabel(view.threat)}`].filter(Boolean);
   if (meta.length) parts.push(`<p><em>${meta.map(esc).join(' · ')}</em></p>`);
   if (view.img) parts.push(`<p><img src="${esc(view.img)}" alt="${esc(view.name)}"></p>`);
   if (view.description) parts.push(`<p>${p(view.description)}</p>`);
