@@ -1,3 +1,12 @@
+## 0.22.0 — 2026-10-28
+
+New: **Name size** for the name under a map pin.
+
+- **GM Setup → Map Pins → Name size (pixels):** 8 to 48, default 14, saved with **Save Changes** and applied on every screen at once. It sets the pin name's size when *Show the name under the pin* is on; the outline and shadow scale with it so a small name stays readable. Before, the name used Foundry's Note default of 32.
+- **Per pin:** activate the Notes layer, right-click or double-click the note, and set **Font Size** in its configuration. A Font Size other than Foundry's default 32 overrides the module setting for that pin.
+- Display only: no Note is written and nothing needs migrating. Pin look and Show the name work as before.
+- Tests use mocked Foundry; they do not render the canvas.
+
 ## 0.21.0 — 2026-10-28
 
 New: **Pin look**. Map pins from Locations can be drawn as just their image, with the name under them.

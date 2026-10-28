@@ -16,6 +16,9 @@ import {MODULE_ID} from './model.mjs';
 
 export const PIN_LOOKS = Object.freeze({framed: 'Framed (Foundry default)', image: 'Image only'});
 export const DEFAULT_PIN_LOOK = 'framed';
+export const NAME_SIZE = Object.freeze({min: 8, max: 48, default: 14});
+export const CORE_FONT_SIZE = 32; // Foundry's default Note font size: any other value was set by hand and wins.
+export const nameSizeOf = v => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(NAME_SIZE.max, Math.max(NAME_SIZE.min, n)) : NAME_SIZE.default; };
 export const pinLookOf = v => (v === 'image' ? 'image' : DEFAULT_PIN_LOOK);
 
 const isBound = note => {
@@ -36,7 +39,7 @@ export function labelIsOurs(doc) {
 }
 
 /** Draws one bound Note in the chosen look. Does nothing for other Notes. Never throws. */
-export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false} = {}) {
+export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false, nameSize = NAME_SIZE.default} = {}) {
   if (!isBound(note)) return false;
   const imageOnly = pinLookOf(look) === 'image';
   try {
@@ -57,8 +60,17 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false} =
       // A little more outline and a soft shadow so the name reads over a busy map. Foundry rebuilds the style whenever the text changes.
       const style = tip.style;
       if (style) {
-        if (typeof style.strokeThickness === 'number' && style.strokeThickness < 5) style.strokeThickness = 5;
-        if ('dropShadow' in style) { style.dropShadow = true; style.dropShadowColor = 0x000000; style.dropShadowAlpha = 0.7; style.dropShadowBlur = 3; style.dropShadowDistance = 1; }
+        // Core draws the label in canvas units (Note#_refreshTooltip: style.fontSize = document.fontSize, no extra scale), so this
+        // number is what core would use. A font size the GM set by hand (not Foundry's default 32) wins over the setting.
+        const handSet = Number.isFinite(note.document?.fontSize) && note.document.fontSize !== CORE_FONT_SIZE;
+        const size = handSet ? note.document.fontSize : nameSizeOf(nameSize);
+        if (!handSet && 'fontSize' in style) style.fontSize = size;
+        const stroke = handSet ? Math.max(5, size / 6) : Math.max(2, Math.round(size / 6));
+        if (typeof style.strokeThickness === 'number') style.strokeThickness = stroke;
+        if ('dropShadow' in style) {
+          style.dropShadow = true; style.dropShadowColor = 0x000000; style.dropShadowAlpha = 0.7;
+          style.dropShadowBlur = Math.max(1, Math.round(size / 8)); style.dropShadowDistance = Math.max(1, Math.round(size / 14));
+        }
       }
     }
   } catch (err) { warn(err); }
@@ -69,13 +81,13 @@ let warned = false;
 function warn(err) { if (!warned) { warned = true; console.warn(`${MODULE_ID} | pin look could not be applied`, err); } }
 
 export const readPinLook = (get = key => game.settings.get(MODULE_ID, key)) => {
-  try { return {look: pinLookOf(get('pinLook')), showName: get('pinShowName') === true}; } catch { return {look: DEFAULT_PIN_LOOK, showName: false}; }
+  try { return {look: pinLookOf(get('pinLook')), showName: get('pinShowName') === true, nameSize: nameSizeOf(get('pinNameSize') ?? NAME_SIZE.default)}; } catch { return {look: DEFAULT_PIN_LOOK, showName: false, nameSize: NAME_SIZE.default}; }
 };
 
 /** Redraws every Note on the open scene so a changed setting shows at once. */
 export function refreshPins(placeables = globalThis.canvas?.notes?.placeables) {
   for (const note of placeables ?? []) {
-    try { if (isBound(note)) note.renderFlags?.set?.({refreshState: true}); } catch (err) { warn(err); }
+    try { if (isBound(note)) note.renderFlags?.set?.({refreshState: true, refreshTooltip: true}); } catch (err) { warn(err); }
   }
 }
 

@@ -3,7 +3,7 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
-import {PIN_LOOKS, pinLookOf, readPinLook} from './pin-look.mjs';
+import {PIN_LOOKS, NAME_SIZE, pinLookOf, nameSizeOf, readPinLook} from './pin-look.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
@@ -972,7 +972,7 @@ export class LocationsApp extends Base {
    */
   setupHtml() {
     const access = api().playerAccess.getState().playerAccessEnabled;
-    const {look, showName} = readPinLook();
+    const {look, showName, nameSize} = readPinLook();
     return `<div class="agl-setup">
       <div class="agl-setup__body">
       <section class="ag-card"><h3>Player Access</h3>
@@ -985,7 +985,8 @@ export class LocationsApp extends Base {
       <section class="ag-card"><h3>Map Pins</h3>
         <div class="ag-field agl-field"><label for="agl-set-pinlook">Pin look</label><select id="agl-set-pinlook">${Object.entries(PIN_LOOKS).map(([v, t]) => `<option value="${v}"${look === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
         <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-set-pinname" ${showName ? 'checked' : ''}> Show the name under the pin</label>
-        <p class="agl-hint">Applies to every player's screen and only to pins placed from Locations. <em>Image only</em> hides the square and the shaded backing (the frame shows while you hover or select a pin). The name is always visible instead of only on hover; hidden pins show none, and unidentified pins show only their unidentified label. Nothing on the map is changed, so you can switch back at any time.</p></section>
+        <div class="ag-field agl-field"><label for="agl-set-pinsize">Name size (pixels)</label><input id="agl-set-pinsize" type="number" min="${NAME_SIZE.min}" max="${NAME_SIZE.max}" step="1" value="${nameSize}"></div>
+        <p class="agl-hint">Applies to every player's screen and only to pins placed from Locations. A pin whose Font Size you changed in its own Note settings keeps that size. <em>Image only</em> hides the square and the shaded backing (the frame shows while you hover or select a pin). The name is always visible instead of only on hover; hidden pins show none, and unidentified pins show only their unidentified label. Nothing on the map is changed, so you can switch back at any time.</p></section>
       <details class="ag-devtools"><summary>Developer Tools</summary>
         <p class="agl-hint">Runs at once; not part of Save Changes. Adds four synthetic <code>[TEST]</code> locations. Existing locations are not changed.</p>
         ${btn('import-sample', 'Import [TEST] sample locations', {kind: 'sm', icon: 'fa-solid fa-flask'})}
@@ -1005,6 +1006,8 @@ export class LocationsApp extends Base {
     const pinLook = root?.querySelector('#agl-set-pinlook')?.value;
     if (pinLook && pinLookOf(pinLook) !== readPinLook().look) await game.settings.set(MODULE_ID, 'pinLook', pinLookOf(pinLook));
     const pinName = root?.querySelector('#agl-set-pinname')?.checked === true;
+    const sizeRaw = root?.querySelector('#agl-set-pinsize')?.value;
+    if (sizeRaw !== undefined && sizeRaw !== '' && nameSizeOf(sizeRaw) !== readPinLook().nameSize) await game.settings.set(MODULE_ID, 'pinNameSize', nameSizeOf(sizeRaw));
     if (pinName !== readPinLook().showName) await game.settings.set(MODULE_ID, 'pinShowName', pinName);
     ui.notifications.info('Saved GM Setup.');
     await this.render();
@@ -1583,7 +1586,7 @@ export class LocationsApp extends Base {
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
-        '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Show the name under the pin</em> keeps the name visible instead of only on hover. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
+        '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Show the name under the pin</em> keeps the name visible instead of only on hover, and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is. To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
