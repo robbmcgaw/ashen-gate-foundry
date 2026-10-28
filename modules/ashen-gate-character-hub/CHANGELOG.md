@@ -1,3 +1,11 @@
+## 0.62.1 — 2026-10-28
+
+Features → Group → Origin: profession names read without " — Profession".
+
+- A profession Item or Skill Trees tree named like "Archaeology — Profession" now shows as **Professions: Archaeology** in the heading and **Archaeology** on its row (a hyphen or en dash works the same, and a leading "[TEST]" stays). Only the Hub's own Features rows in a profession group and the profession lists in the Hub's Ashen Gate → Professions view change.
+- Display only: no Item, tree or Ledger record is renamed, and the standard sheet, Items, Profession Ledger, Skill Trees and Manager are untouched. Hidden groups from 0.62.0 stay hidden (they are stored by id, not by name). Search still finds a profession row by its full name ("Archaeology — Profession") as well as the short one.
+- Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.62.0 — 2026-10-28
 
 Hide a profession (or any Origin group) from the Features list.

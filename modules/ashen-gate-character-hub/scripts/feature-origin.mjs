@@ -15,6 +15,7 @@
 import {partnerApi} from './partners.mjs';
 import {cinderPowerItems} from './cinders.mjs';
 import {featuresData} from './items.mjs';
+import {displayProfessionName} from './profession-name.mjs';
 
 export const ORIGIN_SECTIONS = Object.freeze([['class', 'Class and Subclass'], ['heritage', 'Species and Background'], ['feat', 'Feats'],
   ['profession', 'Professions'], ['cinder', 'Cinder powers'], ['pantheon', 'Pantheon'], ['other', 'Everything else']]);
@@ -58,7 +59,7 @@ export function featureOrigins(actor, rows) {
   const idByName = new Map([...names].map(([id, n]) => [n.toLowerCase(), id]));
   const profGroup = (id, fallback) => {
     const key = id || idByName.get(String(fallback ?? '').toLowerCase()) || (fallback ? `name:${String(fallback).toLowerCase()}` : 'other');
-    return {section: 'profession', key, label: names.get(key) || fallback || 'Other professions', order: 0};
+    return {section: 'profession', key, label: displayProfessionName(names.get(key) || fallback || 'Other professions'), order: 0};
   };
   for (const r of rows) {
     const item = actor.items?.get?.(r.id) ?? null, flags = item?.flags ?? {}, grant = grants.get(r.id);

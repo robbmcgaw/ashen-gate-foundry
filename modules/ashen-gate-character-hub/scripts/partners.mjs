@@ -5,6 +5,7 @@
  * module is missing, or its Player Access is off (see visibility.mjs); the GM sees it with a "Hidden from players" badge.
  */
 import {esc, num} from './constants.mjs';
+import {displayProfessionName} from './profession-name.mjs';
 import {btn} from './buttons.mjs';
 import {coinChip} from './coins.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
@@ -85,12 +86,12 @@ function professions(actor, api) {
   const ids = knownRecipeIds(actor, api);
   const counts = typeof api.recipeLabel === 'function' && ids ? recipeCounts(actor, ids) : null;
   if (typeof api.getProfessions === 'function') {
-    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(p.name || 'Profession')}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}${recipeCountHtml(api, p.professionId, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
+    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(displayProfessionName(p.name || 'Profession'))}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}${recipeCountHtml(api, p.professionId, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
     return list(rows, 'No professions yet.') + knownRecipes(actor, api, ids);
   }
   const trees = partnerApi('ashen-gate-skill-trees');
   let refs = [];
-  try { refs = (trees?.listTrees?.() ?? []).filter(t => t?.provider?.kind === 'profession' && t.sourceRef).map(t => ({id: t.sourceRef, name: t.name || 'Profession'})); } catch { refs = []; }
+  try { refs = (trees?.listTrees?.() ?? []).filter(t => t?.provider?.kind === 'profession' && t.sourceRef).map(t => ({id: t.sourceRef, name: displayProfessionName(t.name || 'Profession')})); } catch { refs = []; }
   const rows = [];
   for (const ref of refs) {
     const p = api.getProfessionProgress(actor, ref.id);
