@@ -43,6 +43,12 @@ const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const artMode = {replace: false};
 const objects = list => (Array.isArray(list) ? list : []).filter(v => v && typeof v === 'object');
 const same = (a, b) => equal(a ?? null, b ?? null);
+/**
+ * 0.71.5: Foundry stores the same HTML with its quotes written another way (a package's `&#x27;` comes back as `'`). Text that differs only
+ * in how an apostrophe or quote is written is the same text, so it is not a difference and not a "GM edit". Rich text only; never writes.
+ */
+export const quoteForm = text => String(text).replace(/&#x0*27;|&#0*39;|&apos;/gi, "'").replace(/&#x0*22;|&#0*34;|&quot;/gi, '"');
+export const sameText = (a, b) => same(a, b) || (typeof a === 'string' && typeof b === 'string' && quoteForm(a) === quoteForm(b));
 const emptyObject = v => isPlainObject(v) && !Object.keys(v).length;
 const show = value => { const t = JSON.stringify(value ?? null); return t.length > 160 ? `${t.slice(0, 157)}…` : t; };
 const hasMarker = v => typeof v === 'string' && v.includes('[[AGREF:');
@@ -164,6 +170,7 @@ const weightParts = v => {
 };
 export function equivalentValue(path, live, incoming) {
   if (same(live, incoming)) return true;
+  if (typeof live === 'string' && typeof incoming === 'string' && quoteForm(live) === quoteForm(incoming)) return true;
   if (path === 'system.weight') {
     const a = weightParts(live), b = weightParts(incoming);
     return Number.isFinite(a.value) && Number.isFinite(b.value) && a.value === b.value && a.units === b.units;
@@ -271,11 +278,15 @@ function effectsPlan(defs, liveRaw) {
     const want = effectDefinition(def), fields = effectFields(want), raw = found[0], patch = {};
     for (const [path, value] of Object.entries(fields)) {
       const cur = liveEffectValue(raw, path);
-      if (!same(path === 'statuses' ? [...value].sort() : value, cur)) patch[path] = value;
+      if (!sameText(path === 'statuses' ? [...value].sort() : value, cur)) patch[path] = value;
     }
-    let baselineSame = false;
-    try { baselineSame = same(upgradeBaseline(JSON.parse(effectFlagOf(raw).baseline ?? 'null')), want); } catch { baselineSame = false; }
-    if (Object.keys(patch).length || !baselineSame) out.update.push({_id: raw._id, ...patch, [`flags.${MODULE_ID}.effect.baseline`]: JSON.stringify(want), changed: Object.keys(patch)});
+    let baselineSame = false, base = null;
+    try { base = upgradeBaseline(JSON.parse(effectFlagOf(raw).baseline ?? 'null')); baselineSame = same(base, want); } catch { baselineSame = false; }
+    // 0.71.5: "edited" only when the live value is neither what the package says nor what the last import wrote (a baseline that is
+    // missing, or a value Foundry rewrote, is not a GM edit).
+    const baseFields = isPlainObject(base) ? effectFields(base) : null;
+    const edited = Object.keys(patch).filter(path => baseFields && own(baseFields, path) && !sameText(liveEffectValue(raw, path), baseFields[path]));
+    if (Object.keys(patch).length || !baselineSame) out.update.push({_id: raw._id, ...patch, [`flags.${MODULE_ID}.effect.baseline`]: JSON.stringify(want), changed: Object.keys(patch), edited});
   }
   const inFile = new Set(defs.map(d => d.eff_id));
   for (const raw of ours) if (!inFile.has(effectFlagOf(raw).effId)) out.delete.push(raw._id);
@@ -298,7 +309,7 @@ function planItem(record, snap) {
   const defs = objects(data.effects);
   const fx = effectsPlan(defs, raw.effects);
   if (fx.create.length) changes.push({path: 'effects', label: 'effects', from: '—', to: `${fx.create.length} new`, gmEdited: false});
-  for (const u of fx.update) if (u.changed.length) changes.push({path: 'effects', label: `effect ${u._id}`, from: 'edited or older', to: u.changed.join(', '), gmEdited: true});
+  for (const u of fx.update) if (u.changed.length) changes.push({path: 'effects', label: `effect ${u._id}`, from: 'edited or older', to: u.changed.join(', '), gmEdited: u.edited.length > 0});
   if (fx.delete.length) changes.push({path: 'effects', label: 'effects', from: `${fx.delete.length} Manager-made effect(s) no longer in the package`, to: 'removed', gmEdited: false});
   notes.push(...fx.notes);
   return {fields: patch, effects: fx, changes, notes, artKept, contentChange: changes.length > 0 || fx.update.length > 0};
@@ -343,7 +354,7 @@ function planTable(record, snap) {
   if (Array.isArray(data.results)) {
     const sortR = list => [...list].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
     const want = sortR(objects(data.results)), have = sortR(objects(raw.results));
-    const identical = want.length === have.length && want.every((w, i) => resultMatches(w, have[i], same, globalThis.game?.packs));
+    const identical = want.length === have.length && want.every((w, i) => resultMatches(w, have[i], sameText, globalThis.game?.packs));
     if (!identical) {
       results = {create: want.map(w => resultCreateData(w, globalThis.game?.packs)), deleteIds: have.map(h => h._id)};
       changes.push({path: 'results', label: 'results', from: `${have.length} result(s)`, to: `${want.length} result(s) (the table's draw history resets)`, gmEdited: false});
