@@ -16,9 +16,11 @@ export function readGmSetupForm(root) {
   const skinValue = !skin ? undefined : radio ? radio.dataset?.agSkinValue : skin.value;
   const auto = q('[data-ag-setup-auto]');
   const pause = q('[data-ag-setup-pause]');
+  const items = q('[data-ag-setup-items]');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
+    ...(items ? {itemsReadable: items.value === 'player' ? 'player' : 'gm'} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
       auto: auto.checked !== false,
@@ -40,7 +42,7 @@ function sameSources(next, current) {
  * Writes the GM Setup values. GM only (rejected here, not just hidden). Writes a setting only when its value changed,
  * except core sources, which are saved as one list. Returns {ok, message, saved:[labels]}.
  */
-export async function saveGmSetup(values, {game, moduleId, codexAccessKey, appearance = null, coreLinks = null}) {
+export async function saveGmSetup(values, {game, moduleId, codexAccessKey, itemsKey = null, appearance = null, coreLinks = null}) {
   if (!game?.user?.isGM) throw new Error('Only the GM can change GM Setup.');
   const saved = [], problems = [];
   if (values.worldSkin !== undefined && appearance) {
@@ -55,6 +57,14 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, appea
     if (Boolean(values.compactPause) !== Boolean(appearance.getState().compactPause)) {
       await appearance.setCompactPause(values.compactPause);
       saved.push(values.compactPause ? 'pause shown as a small indicator' : 'pause shown as the large banner');
+    }
+  }
+  if (values.itemsReadable !== undefined && itemsKey) {
+    // 0.72.0: who can read the Items Manager creates. Read when a record is created or updated; existing Items are never changed by it.
+    const next = values.itemsReadable === 'player' ? 'player' : 'gm';
+    if (next !== (game.settings.get(moduleId, itemsKey) === 'player' ? 'player' : 'gm')) {
+      await game.settings.set(moduleId, itemsKey, next);
+      saved.push(next === 'gm' ? 'new Items are hidden from players' : 'new approved, player-visible Items are readable by players');
     }
   }
   if (values.codexAccess !== undefined) {

@@ -6,7 +6,7 @@ import {NAME_SIZE, nameSizeOf, applyPinLook, registerPinLook, readPinLook, refre
 import {MODULE_ID} from '../scripts/model.mjs';
 
 const gfx = () => ({visible: true});
-function note({bound = true, text = 'Ashenford', pageView = '', hasPage = false, hover = false, controlled = false, anchor = 3, fontSize} = {}) {
+function note({bound = true, text = 'Ashenford', pageView = '', hasPage = false, hover = false, controlled = false, anchor = 1, fontSize} = {}) {
   const flags = bound ? {[MODULE_ID]: {pinKey: 'PIN-abc'}} : {};
   const page = hasPage ? {getFlag: (s, k) => (s === MODULE_ID && k === 'view' ? pageView : undefined)} : undefined;
   const style = {strokeThickness: 4, dropShadow: false, fontSize: fontSize ?? 32};
@@ -23,10 +23,10 @@ test('the setting values round-trip and default to Foundry\'s framed look', () =
   assert.deepEqual(Object.keys(PIN_LOOKS), ['framed', 'image']);
   assert.equal(PIN_LOOKS.framed, 'Framed (Foundry default)');
   assert.equal(pinLookOf('nonsense'), 'framed');
-  assert.deepEqual(readPinLook(() => undefined), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0});
+  assert.deepEqual(readPinLook(() => undefined), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0, nameOffset: 0});
   const store = {pinLook: 'image', pinShowName: true, pinNameSize: 20};
-  assert.deepEqual(readPinLook(k => store[k]), {look: 'image', nameMode: 'always', showName: true, nameSize: 20, wrap: 0});
-  assert.deepEqual(readPinLook(() => { throw new Error('no settings'); }), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0});
+  assert.deepEqual(readPinLook(k => store[k]), {look: 'image', nameMode: 'always', showName: true, nameSize: 20, wrap: 0, nameOffset: 0});
+  assert.deepEqual(readPinLook(() => { throw new Error('no settings'); }), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0, nameOffset: 0});
 });
 
 test('main.mjs registers both settings as world scope, GM-restricted, default Framed and name off', () => {
@@ -69,7 +69,7 @@ test('interactivity is untouched: event mode, cursor, hit area and the icon stay
   const n = note(); applyPinLook(n, {look: 'image', showName: true});
   assert.equal(n.eventMode, 'static'); assert.equal(n.interactive, true); assert.equal(n.cursor, 'pointer');
   assert.equal(n.controlIcon.eventMode, 'static'); assert.deepEqual(n.controlIcon.hitArea, {width: 48});
-  assert.equal(n.document.textAnchor, 3);
+  assert.equal(n.document.textAnchor, 1);
 });
 
 test('Show name makes the label always visible, with a readable outline, and leaves the text alone', () => {
@@ -194,9 +194,9 @@ test('the hook wraps only the displayed tooltip text, never the document, and re
   assert.equal(n.tooltip.text, 'The Ashen\nGate\nWatchtower'); assert.equal(n.tooltip.style.align, 'center');
   assert.equal(JSON.stringify(n.document), before); assert.equal(n.document.label, 'The Ashen Gate Watchtower');
   const off = note({text: 'The Ashen Gate Watchtower'}); off.tooltip.text = off.document.label;
-  applyPinLook(off, {showName: true, wrap: 0}); assert.equal(off.tooltip.text, 'The Ashen Gate Watchtower');
+  applyPinLook(off, {showName: true, wrap: 0, nameOffset: 0}); assert.equal(off.tooltip.text, 'The Ashen Gate Watchtower');
   const nameOff = note({text: 'The Ashen Gate Watchtower'}); nameOff.tooltip.text = nameOff.document.label;
-  applyPinLook(nameOff, {nameMode: 'hover', wrap: 0}); assert.equal(nameOff.tooltip.text, 'The Ashen Gate Watchtower');
+  applyPinLook(nameOff, {nameMode: 'hover', wrap: 0, nameOffset: 0}); assert.equal(nameOff.tooltip.text, 'The Ashen Gate Watchtower');
 });
 test('unidentified labels wrap the same way; hidden and unbound pins are never wrapped or revealed', () => {
   const u = note({text: 'Unknown settlement nearby'}); u.tooltip.text = u.document.label;
@@ -245,4 +245,44 @@ test('label style (size, outline, wrap) applies in hover mode too, to our labels
 test('GM Setup offers a Name under the pin choice and saves pinNameMode', () => {
   const app = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
   assert.match(app, /<select id="agl-set-pinname">/); assert.match(app, /set\(MODULE_ID, 'pinNameMode'/);
+});
+
+import {OFFSET, offsetOf} from '../scripts/pin-look.mjs';
+function pnote(o = {}) {
+  const n = note(o); n.tooltip.position = {x: 0, y: 0, set(x, y) { this.x = x; this.y = y; }};
+  n.document.iconSize = o.iconSize ?? 48; return n;
+}
+globalThis.CONST = {...(globalThis.CONST ?? {}), TEXT_ANCHOR_POINTS: {CENTER: 0, BOTTOM: 1, TOP: 2, LEFT: 3, RIGHT: 4}};
+test('Name distance: 0 leaves core\'s position alone; clamp is -40..40', () => {
+  const n = pnote({anchor: 1}); n.tooltip.position.set(0, 36); applyPinLook(n, {nameMode: 'always', nameOffset: 0});
+  assert.deepEqual([n.tooltip.position.x, n.tooltip.position.y], [0, 36]);
+  assert.deepEqual({...OFFSET}, {min: -40, max: 40, default: 0});
+  assert.equal(offsetOf(-999), -40); assert.equal(offsetOf(999), 40); assert.equal(offsetOf('x'), 0); assert.equal(offsetOf('-7.6'), -8);
+  assert.equal(readPinLook(k => ({pinNameOffset: -8})[k]).nameOffset, -8); assert.equal(readPinLook(() => undefined).nameOffset, 0);
+});
+test('Name distance is computed from core\'s rule, once, and does not accumulate over refreshes', () => {
+  const n = pnote({anchor: 1, iconSize: 48}); // core: halfPad = 24 + 12 = 36
+  for (let i = 0; i < 5; i++) applyPinLook(n, {nameMode: 'always', nameOffset: -8});
+  assert.equal(n.tooltip.position.y, 28); assert.equal(n.tooltip.position.x, 0);
+  n.tooltip.position.set(0, 36); applyPinLook(n, {nameMode: 'always', nameOffset: -8}); assert.equal(n.tooltip.position.y, 28, 'core re-positioned it; same answer');
+  const big = pnote({anchor: 1, iconSize: 100}); applyPinLook(big, {nameMode: 'hover', nameOffset: -8}); assert.equal(big.tooltip.position.y, 54);
+  const far = pnote({anchor: 1}); applyPinLook(far, {nameMode: 'always', nameOffset: 10}); assert.equal(far.tooltip.position.y, 46);
+});
+test('Name distance never goes past the pin edge, and works for each anchor and with Image only', () => {
+  const n = pnote({anchor: 1, iconSize: 32}); applyPinLook(n, {look: 'image', nameMode: 'always', nameOffset: -40}); assert.equal(n.tooltip.position.y, 16);
+  for (const [anchor, x, y] of [[2, 0, -28], [3, -28, 0], [4, 28, 0]]) { const m = pnote({anchor}); applyPinLook(m, {nameMode: 'always', nameOffset: -8}); assert.deepEqual([m.tooltip.position.x, m.tooltip.position.y], [x, y]); }
+  const c = pnote({anchor: 0}); c.tooltip.position.set(0, 0); applyPinLook(c, {nameMode: 'always', nameOffset: -8}); assert.deepEqual([c.tooltip.position.x, c.tooltip.position.y], [0, 0]);
+});
+test('Name distance touches only our bound Notes\' tooltip, and writes nothing', () => {
+  const other = pnote({bound: false, anchor: 1}); other.tooltip.position.set(0, 36); applyPinLook(other, {nameMode: 'always', nameOffset: -8}); assert.equal(other.tooltip.position.y, 36);
+  const hidden = pnote({anchor: 1, text: '', hasPage: true, pageView: ''}); hidden.tooltip.position.set(0, 36); applyPinLook(hidden, {nameMode: 'always', nameOffset: -8}); assert.equal(hidden.tooltip.position.y, 36);
+  const n = pnote({anchor: 1}); const before = JSON.stringify(n.document); applyPinLook(n, {nameMode: 'always', nameOffset: -8});
+  assert.equal(JSON.stringify(n.document), before); assert.equal(n.document.textAnchor, 1);
+  assert.doesNotThrow(() => applyPinLook({document: {getFlag: () => 'k', text: 'x', label: 'x', iconSize: 48}, tooltip: {}}, {nameMode: 'always', nameOffset: -8}));
+});
+test('main.mjs registers pinNameOffset (world Number, default 0); GM Setup saves it', () => {
+  const main = fs.readFileSync(new URL('../scripts/main.mjs', import.meta.url), 'utf8');
+  assert.match(main, /register\(MODULE_ID, 'pinNameOffset',[^]*?scope: 'world'[^]*?type: Number, default: 0, restricted: true/);
+  const app = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
+  assert.match(app, /id="agl-set-pinoffset" type="number"/); assert.match(app, /set\(MODULE_ID, 'pinNameOffset'/); assert.match(app, /Negative numbers move the name closer to the pin|negative numbers move the name closer to the pin/i);
 });

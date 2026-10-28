@@ -3,6 +3,7 @@ import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migra
   syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
+import {createActiveWatcher} from './active.mjs';
 import {createShowService} from './show.mjs';
 import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
@@ -11,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.23.0';
+const VERSION = '0.24.1';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -39,10 +40,19 @@ function attachActorsLauncher(app, html, visible = mayOpen()) {
     onClick: () => game.modules.get(MODULE_ID).api.open(), visible});
 }
 function applyPlayerAccess(enabled) {
+  setTimeout(checkActive, 300);
   embed.refreshAll();
   attachActorsLauncher(ui.actors, null, isGM() || enabled);
   if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
 }
+// 0.24.0: every client reports when the active set changes (see active.mjs). Re-checked after any Locations journal change.
+let activeTimer = null;
+const active = createActiveWatcher({read: () => game.modules.get(MODULE_ID)?.api?.activeLocations() ?? [], isGM,
+  fire: (name, payload) => Hooks.callAll(name, payload), notify: text => ui.notifications?.info(text)});
+const checkActive = () => { clearTimeout(activeTimer); activeTimer = setTimeout(() => { try { active.check(); } catch (err) { console.warn(`${MODULE_ID} |`, err); } }, 150); };
+for (const hook of ['createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage', 'updateJournalEntry', 'ashenGate.bulkFinished'])
+  Hooks.on(hook, (doc, ...rest) => { if (hook === 'ashenGate.bulkFinished' || (doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) checkActive(); });
+
 Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'playerAccessEnabled', {
     name: 'Locations — Player Access',
@@ -63,18 +73,21 @@ Hooks.once('init', () => {
     name: 'Locations — Pin look', scope: 'world', config: false, type: String, default: DEFAULT_PIN_LOOK, restricted: true,
     choices: PIN_LOOKS, onChange: () => refreshPins()
   });
-  // 0.23.0: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
+  // 0.22.2: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
   game.settings.register(MODULE_ID, 'pinNameMode', {
     name: 'Locations — Name under the pin', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinShowName', {
-    name: 'Locations — Show name under the pin (before 0.23.0)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+    name: 'Locations — Show name under the pin (before 0.22.2)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameSize', {
     name: 'Locations — Pin name size', scope: 'world', config: false, type: Number, default: NAME_SIZE.default, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameWrap', {
     name: 'Locations — Wrap pin name after (characters)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
+  });
+  game.settings.register(MODULE_ID, 'pinNameOffset', {
+    name: 'Locations — Pin name distance from the pin (pixels)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
   });
   // 0.23.0: what a player's client does when the GM uses Show to Players. On: the Locations window opens. Off: a notification only.
   game.settings.register(MODULE_ID, 'showOpensWindow', {
@@ -126,6 +139,7 @@ Hooks.once('ready', () => {
     }).then(() => reconcileShared()).catch(notifyError);
   }
   attachActorsLauncher(ui.actors);
+  active.check(); // starting set; no event
   console.info(`${MODULE_ID} | ${VERSION} ready`);
 });
 

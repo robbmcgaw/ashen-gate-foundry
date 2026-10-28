@@ -23,9 +23,28 @@ export const LEVEL = Object.freeze({NONE: 0, OBSERVER: 2});
 export const CHUNK = 50;
 const EXAMPLES = 8;
 
-/** True when a source record is meant to be visible to players: approved and `player` visibility, on a kind that carries it. */
-export function playerVisible(source, kind) {
+/**
+ * 0.72.0: who may read the Items Manager creates. 'gm' (the default for a new install): Items are created hidden (default ownership
+ * None) and a later update never raises them; the GM releases chosen folders or records with the Release tool. 'player': the
+ * 0.55.0 rule above. Journals and Actors always follow the 0.55.0 rule. Handout Items (entity type HandoutItem) are player-facing
+ * by design and always follow it, so an item link in a revealed handout still opens. main.js sets this from the world setting.
+ */
+export const ITEMS_READABLE_SETTING = 'itemsReadable';
+export const ITEMS_POLICIES = Object.freeze(['gm', 'player']);
+export const PLAYER_FACING_ITEM_TYPES = Object.freeze(['HandoutItem']);
+let itemsPolicy = 'player';
+export function setItemsPolicy(value) { itemsPolicy = value === 'gm' ? 'gm' : 'player'; return itemsPolicy; }
+export const getItemsPolicy = () => itemsPolicy;
+
+/** The raw 0.55.0 test: approved and `player` visibility, on a kind that carries it (ignores the Items policy). */
+export function approvedPlayerSource(source, kind) {
   return RELEASE_KINDS.includes(kind) && source?.status === 'approved' && source?.visibility === 'player';
+}
+/** True when a source record is meant to be readable by players now: approved, `player` visibility, and allowed by the Items policy. */
+export function playerVisible(source, kind) {
+  if (!approvedPlayerSource(source, kind)) return false;
+  if (kind === 'Item' && itemsPolicy === 'gm' && !PLAYER_FACING_ITEM_TYPES.includes(source?.entityType ?? source?.entity_type)) return false;
+  return true;
 }
 
 /** The default ownership Manager gives a document it creates for `record` (a source record or source flag). */
