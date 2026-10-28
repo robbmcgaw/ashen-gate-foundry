@@ -1,3 +1,11 @@
+## 0.29.0 — 2026-10-28
+
+Changed: the Description block is easier to find and says what it is for.
+
+- The editor's **Description** (Content sub-tab, first block by default) is taller (6 rows) and says "A few sentences on what this place looks and feels like." Help now explains it.
+- Nothing about how Description works changed: the eye beside it decides whether players see it once the location is Revealed and Published, it is the first block by default and you can still move it, and it is in Export / Import as before. No new data fields.
+- Tests use mocked Foundry; they check the data and HTML, not the live window.
+
 ## 0.27.3 — 2026-10-28
 
 Fixed: clicking a location in the list no longer scrolls the list back to the top.

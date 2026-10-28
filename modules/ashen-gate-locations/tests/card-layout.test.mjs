@@ -381,3 +381,22 @@ test('player window shows published blocks in the GM order and no editing contro
   assert.ok(out.indexOf('Coins') < out.indexOf('Reeds') && out.indexOf('Reeds') < out.indexOf('Roof'), 'loot, resources, description');
   assert.doesNotMatch(out, /data-drag|move-block|data-toggle/);
 });
+
+test('0.29.0: Description is hidden from players until revealed, published and its eye is open; first block by default', async () => {
+  const {playerView, normalizeLocation} = await import('../scripts/model.mjs');
+  const base = {id: 'LOC-TEST-DESC', name: '[TEST] Hollow', description: 'Cold stone and dripping water.', sections: {loot: true}, loot: [{key: 'l1', label: 'Coins'}]};
+  assert.equal(playerView({...base, state: 'hidden'}), null, 'hidden: nothing');
+  const un = playerView({...base, state: 'unidentified'});
+  assert.equal(un.description, undefined, 'unidentified: no description');
+  const open = playerView({...base, state: 'revealed'});
+  assert.equal(open.description, 'Cold stone and dripping water.');
+  assert.equal(open.layout[0], 'description', 'first block by default');
+  const closed = playerView({...base, state: 'revealed', show: {description: false}});
+  assert.equal(closed.description, undefined, 'eye closed: omitted');
+  assert.ok(!closed.layout.includes('description'));
+  assert.ok(!JSON.stringify(closed).includes('Cold stone'));
+  // Unpublished edits stay private: players keep the published text.
+  const loc = normalizeLocation({...base, state: 'revealed'});
+  const edited = {...loc, description: 'SECRET DRAFT'};
+  assert.equal(playerView(edited).description, 'Cold stone and dripping water.');
+});
