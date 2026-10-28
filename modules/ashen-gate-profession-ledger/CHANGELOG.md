@@ -1,3 +1,23 @@
+## 0.37.11 — 2026-10-28
+
+Choose who is in a gather.
+
+- **Gather** tab: every character who could roll has an **Included** checkbox (all ticked to start), plus **Include all** and **Include none**. Unticked characters stay listed as "Not included". The choice is remembered on this device.
+- **Start gather** offers the roll pop-up only to the owners of included characters. A roll for a character who isn't included is refused by the Ledger (GM, the Gathering tab and `api.gathering.roll`): "The GM did not include <name> in this gather."
+- While a gather is open the GM can tick or untick: ticking sends that player the pop-up, unticking an unrolled character withdraws it. Someone who already rolled stays recorded (cancel the gather to start again). The panel says "N of M included · R of N have rolled"; Reveal and the "Did not roll" list count only included characters.
+- An approved player request always includes the requesting character. History lists the characters who rolled. An open gather is held in memory as before, so it does not survive a reload.
+- API: `gathering.start({include: [actorIds]})`, `gathering.include(roundId, actorId, on)`, `gathering.includeAll(roundId, on)`.
+- No saved data changes.
+
+## 0.37.10 — 2026-10-28
+
+Players can look at what a recipe makes.
+
+- The Makes line of a recipe card now shows the result item's picture and name as a button for players; it opens a small read-only preview (picture, type, price, the item's description). No actions.
+- It works without any permission on the world Item (Items are GM-only by default now): the GM client stores a snapshot of each released recipe's result in the world setting `resultPreviews`, refreshed at start-up and when Items change. Only player-facing fields; Foundry secret blocks, GM notes and ids are never copied. Recipes a player can't see, and unreleased results, are not in it.
+- Without a snapshot the name stays plain text as before. GM view unchanged. Materials and tools keep their current behaviour.
+- No saved data changes beyond the new setting.
+
 ## 0.37.9 — 2026-10-28
 
 Players can only request gathering at active places.

@@ -121,7 +121,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY',{recipeLabel:'Tincture'}),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.37.9',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.37.11',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};

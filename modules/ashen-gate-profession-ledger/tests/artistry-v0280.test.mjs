@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.37.9',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.37.11',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -340,5 +340,49 @@ test('Complete activity is disabled and refused without the tool; owned tool or 
     assert.match(await html('individual'),/data-action="craft" data-id="REC-TEST-SALVE"/,'Craft stays enabled without the Alchemist tool');
   }finally{
     for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(scribe),1);values.partyRoster=['bard','smith'];smith.system.tools={alchemist:{value:1,total:4}};game.user=gm;
+  }
+});
+
+/* ---- 0.37.11: result-item preview for players, from a GM-taken snapshot ---------------------------------- */
+test('result preview: a player with no permission on the world Item sees the picture and name as a button and a read-only preview of player-facing fields only; unreleased recipes expose nothing; no snapshot falls back to plain text',async()=>{
+  const craftDef=(id,name,result,extra={})=>def(id,'Recipe',{name,profession_id:'PROF-TEST-ALCHEMY',result_item_id:result,tier:'apprentice',effort:'short',ingredients:[{material_id:'MAT-TEST-HERB',quantity:1}],...extra});
+  const gmOnlyItem=(wid,id,name,desc,status='approved')=>({...worldDoc(wid,name,src(id,'Item',{status,definition:def(id,'Item',{name})})),img:'icons/tonic.webp',type:'consumable',testUserPermission:u=>u.isGM,
+    system:{description:{value:desc},price:{value:25,denomination:'gp'}},toObject(){return {_id:this.id,name:this.name,img:this.img,type:this.type,flags:structuredClone(this.flags),system:structuredClone(this.system)};}});
+  const added=[worldDoc('wr1','Recipe: [TEST] Tonic',src('REC-TEST-TONIC','Recipe',{definition:craftDef('REC-TEST-TONIC','[TEST] Tonic','ITEM-TEST-TONIC')})),
+    worldDoc('wr2','Recipe: [TEST] Secret Brew',src('REC-TEST-BREW','Recipe',{status:'draft',definition:craftDef('REC-TEST-BREW','[TEST] Secret Brew','ITEM-TEST-BREW',{status:'draft'})})),
+    gmOnlyItem('wi1','ITEM-TEST-TONIC','[TEST] Bright Tonic','<p>Restores <b>vigor</b>.</p><table><tr><td>Type</td><td>Potion</td></tr></table><section class="secret"><p>GM: poisoned in act 3</p></section>'),
+    gmOnlyItem('wi2','ITEM-TEST-BREW','[TEST] Brew Item','<p>Unreleased.</p>','draft')];
+  world.push(...added);
+  const maker=makeActor('maker','[TEST] Maker','u1',[profItem('malch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('mherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-TONIC','REC-TEST-BREW'],{skills:{},tools:{},abilities:{int:{mod:2}}});
+  actors.push(maker);values.partyRoster=['maker'];
+  const flush=()=>new Promise(r=>setImmediate(r));
+  const orig=values.resultPreviews,P=foundry.applications.api.DialogV2,prompts=[];P.prompt=async o=>{prompts.push(o);};
+  const card=async name=>{app.actorId='maker';const h=await html('individual');const at=h.indexOf(name);return at<0?'':h.slice(h.lastIndexOf('<article',at),h.indexOf('</article>',at));};
+  try{
+    // Before any snapshot: today's plain text, no button.
+    game.user=alice;let row=await card('[TEST] Tonic');assert.doesNotMatch(row,/data-action="preview-item"/);
+    // The GM client takes the snapshot: released recipes only.
+    game.user=gm;const kept=await _test.publishResultPreviews();assert.ok(kept>=1);
+    const stored=JSON.stringify(values.resultPreviews);
+    assert.match(stored,/Bright Tonic/);assert.doesNotMatch(stored,/poisoned in act 3|ITEM-TEST-BREW|Brew Item|Unreleased/,'no GM secret, no unreleased result');
+    await assert.rejects(()=>{game.user=alice;return _test.publishResultPreviews();},/Only the GM/);
+    // The player: picture + name as a real button, no permission on the Item needed; no ids in the markup.
+    game.user=alice;row=await card('[TEST] Tonic');
+    assert.match(row,/<button type="button" class="ag-link agl-item-link agl-preview-link" data-action="preview-item" data-key="[a-z0-9]+"[^>]*><img class="agl-item-thumb" src="icons\/tonic\.webp" alt="" width="20" height="20"> \[TEST\] Bright Tonic<\/button>/);
+    assert.doesNotMatch(row,/ITEM-TEST/);
+    // The unreleased recipe is not shown to the player at all, and its result has no preview.
+    assert.equal(await card('[TEST] Secret Brew'),'');
+    // Pressing it opens a read-only preview with the player-facing fields only; focus goes back to the button.
+    const btn=/data-key="([a-z0-9]+)"/.exec(row)[1];let focused=0;
+    const button={dataset:{action:'preview-item',key:btn,ctx:''},focus(){focused++;}};
+    assert.equal(_test.itemLinkClick(button),true);await flush();
+    assert.equal(prompts.length,1);const body=prompts[0].content;
+    assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores vigor\./);assert.match(body,/Type: Potion/);
+    assert.doesNotMatch(body,/poisoned|GM:|ITEM-TEST|data-action|<button/,'read-only: no GM text, no ids, no actions');
+    assert.equal(focused,1,'focus returns to the opening button');
+    // The GM still gets the real link behaviour (unchanged).
+    game.user=gm;assert.doesNotMatch(await card('[TEST] Tonic'),/data-action="preview-item"/);
+  }finally{
+    delete P.prompt;for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(maker),1);values.partyRoster=['bard','smith'];values.resultPreviews=orig;game.user=gm;
   }
 });
