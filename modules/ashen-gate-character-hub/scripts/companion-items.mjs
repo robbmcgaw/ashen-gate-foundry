@@ -9,6 +9,7 @@
  * applies nothing and works out no numbers of its own.
  */
 import {MODULE_ID, num} from './constants.mjs';
+import {effectKeyLabel} from './effect-keys.mjs';
 
 export const COMPANION_ROLES = {
   'mount-gear': {kind: 'mount', list: 'gear', label: 'Mount gear'},
@@ -77,25 +78,18 @@ export function routeForRole(item, kind, want = null) {
 const KEY_LABELS = [
   [/^system\.attributes\.ac\.(bonus|flat|value|base)$/, 'AC'],
   [/^system\.attributes\.ac\.armor$/, 'Armor AC'],
-  [/^system\.attributes\.movement\.(speeds\.)?(walk|fly|swim|climb|burrow|jump)$/, m => `${cap(m[2])} speed`],
   [/^system\.attributes\.movement\.bonus$/, 'Speed (all)'],
   [/^system\.attributes\.movement\.hover$/, 'Hover'],
   [/^system\.attributes\.hp\.(bonuses\.overall|bonuses\.level|tempmax|max)$/, 'Max HP'],
-  [/^system\.attributes\.init\.bonus$/, 'Initiative'],
   [/^system\.abilities\.(\w+)\.value$/, m => abil(m[1])],
-  [/^system\.abilities\.(\w+)\.bonuses\.save$/, m => `${abil(m[1])} saves`],
-  [/^system\.abilities\.(\w+)\.bonuses\.check$/, m => `${abil(m[1])} checks`],
-  [/^system\.bonuses\.abilities\.save$/, 'Saving throws'],
-  [/^system\.bonuses\.abilities\.check$/, 'Ability checks'],
-  [/^system\.bonuses\.(mwak|rwak|msak|rsak)\.(attack|damage)$/, m => `${{mwak: 'Melee weapon', rwak: 'Ranged weapon', msak: 'Melee spell', rsak: 'Ranged spell'}[m[1]]} ${m[2]}`],
-  [/^system\.skills\.(\w+)\.bonuses\.(check|passive)$/, m => `${skill(m[1])}${m[2] === 'passive' ? ' (passive)' : ''}`],
   [/^system\.attributes\.senses\.(ranges\.)?(\w+)$/, m => cap(m[2])],
   [/^system\.traits\.(dr|di|dv|ci)\.value$/, m => ({dr: 'Resistance', di: 'Immunity', dv: 'Vulnerability', ci: 'Condition immunity'})[m[1]]]
 ];
 const cap = s => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 const abil = k => globalThis.CONFIG?.DND5E?.abilities?.[k]?.label ?? k.toUpperCase();
-const skill = k => globalThis.CONFIG?.DND5E?.skills?.[k]?.label ?? k;
+/** 0.62.2: effect-keys.mjs labels the keys that moved in dnd5e 6.0 (old and new shape alike); the table above covers the rest. */
 export function keyLabel(key) {
+  const known = effectKeyLabel(key); if (known) return known;
   for (const [re, label] of KEY_LABELS) { const m = String(key).match(re); if (m) return typeof label === 'function' ? label(m) : label; }
   return humanKey(key);
 }
