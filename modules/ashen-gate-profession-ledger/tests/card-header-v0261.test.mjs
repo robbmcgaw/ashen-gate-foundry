@@ -19,7 +19,7 @@ globalThis.document={documentElement:{dataset:{}}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicationMixin:x=>x,DialogV2:{}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:()=>{}}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.38.0'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.39.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:[actor],get:id=>id==='a'?actor:null},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{values[key]=v;}}};
@@ -29,7 +29,7 @@ const sheet=()=>{const target={innerHTML:'',dataset:{},matches:()=>true,addEvent
 
 test('card header: the name carries its full text as a tooltip; Level and Draft sit in one badge group',()=>{
   game.user=gm;
-  assert.match(sheet(),/<div class="agl-prof-head"><strong class="agl-prof-name" data-tooltip="\[TEST\] Gemcutting">\[TEST\] Gemcutting<\/strong><span class="agl-prof-badges"><span class="ag-badge ag-badge--ok">Level 1<\/span><span class="ag-badge ag-badge--warn">Draft<\/span><\/span><\/div>/);
+  assert.match(sheet(),/<div class="agl-prof-head"><button[^>]*data-action="fav-profession"[^>]*>.*?<\/button><strong class="agl-prof-name" data-tooltip="\[TEST\] Gemcutting">\[TEST\] Gemcutting<\/strong><span class="agl-prof-badges"><span class="ag-badge ag-badge--ok">Level 1<\/span><span class="ag-badge ag-badge--warn">Draft<\/span><\/span><\/div>/);
 });
 test('card header: players still see no Draft badge',()=>{
   game.user=player;

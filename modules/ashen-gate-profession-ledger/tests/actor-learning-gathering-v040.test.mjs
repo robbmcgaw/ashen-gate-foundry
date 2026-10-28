@@ -108,6 +108,6 @@ test('Known recipe IDs survive catalog replacement and do not disclose restricte
  app.view='individual';game.user=player;
  const html=(await app._prepareContext({})).html;
  assert.doesNotMatch(html,/Secret Reagent|MAT-SECRET/);
- assert.doesNotMatch(html,/REC-RARE|REC-FIELD-TONIC|PROF-HERBALISM/,'players never see raw IDs');
+ assert.doesNotMatch(html.replace(/ data-id="[^"]*"/g,''),/REC-RARE|REC-FIELD-TONIC|PROF-HERBALISM/,'players never see raw IDs (apart from the action buttons’ own data-id)');
  assert.match(html,/1 known recipe is not available right now/);
 });

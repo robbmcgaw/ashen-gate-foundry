@@ -249,3 +249,8 @@
 .agl-item-thumb{vertical-align:middle;border-radius:3px;margin-inline-end:.25em}
 .agl-preview{display:grid;gap:.4em}
 .agl-preview__img{justify-self:start;border-radius:6px}
+/* 0.39.0: favorites. The star is filled when on, outline when off; the state is also in aria-pressed and hidden text. */
+.agl-fav{flex:0 0 auto;color:var(--ag-muted-strong)}
+.agl-fav.is-on{color:var(--ag-warn-ink)}
+.agl-fav.is-on i{color:var(--ag-warn)}
+.agl-favs .ag-row__main{flex-wrap:wrap}
