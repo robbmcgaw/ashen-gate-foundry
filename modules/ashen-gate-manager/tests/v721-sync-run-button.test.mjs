@@ -1,4 +1,4 @@
-/** 0.72.1: the Sync run button and confirm block say what the plan does. Mocked data only. */
+/** 0.72.2: the Sync run button and confirm block say what the plan does. Mocked data only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -67,5 +67,5 @@ test('wiring: jump handler, metadata-only confirmation, version', () => {
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   assert.match(main, /data-ag-sync-jump/); assert.match(main, /plan\.metadataOnly\s*\?await confirmDialog/);
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.72.1'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.72.1/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.72.2'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.72.2/ashen-gate-manager.zip'));
 });
