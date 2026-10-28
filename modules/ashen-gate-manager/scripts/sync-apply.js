@@ -18,6 +18,7 @@ import {applySpecialist} from './specialist-handoff.js';
 import {replacingSourceFlag} from './source-projection.mjs';
 import {bulkWrite, bulk} from './bulk.js';
 import {ConnectionLost, isInterruption} from './sync-connection.js';
+import {writeArchive, writeRestore, applyPartnerArchive} from './sync-archive.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk, phraseRequired} from './sync.js';
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -229,12 +230,12 @@ export async function removeDoc(doc, row, {user}) {
  * public exports hold. The package files themselves are what a rebuild needs for created records.
  */
 export function buildSyncBackup(plan, {world = null, now = new Date(), modules = null} = {}) {
-  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind', 'recreate', 'rename'].includes(r.group) && r.snap);
+  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind', 'recreate', 'rename', 'archive', 'restore'].includes(r.group) && r.snap);
   return {
     schema_version: 'ag-foundry-snapshot/0.3', created_at: now.toISOString(), reason: 'before-sync-from-package', world_id: world?.id ?? null,
     sync: {phrase: SYNC_PHRASE, counts: plan.counts, lines: plan.scope.lines, files: plan.scope.files},
     documents: rows.map(r => ({document_type: r.snap.documentName, uuid: r.snap.uuid, document_id: r.snap.id, source_id: r.id, sync_action: r.group, raw: r.snap.raw})),
-    module_records: plan.rows.filter(r => r.external && r.group === 'overwrite').map(r => ({id: r.id, kind: r.kind, module: r.module})),
+    module_records: plan.rows.filter(r => r.external && ['overwrite', 'archive', 'restore'].includes(r.group)).map(r => ({id: r.id, kind: r.kind, module: r.module, ...(['archive', 'restore'].includes(r.group) ? {sync_action: r.group} : {})})),
     module_exports: modules ?? null
   };
 }
@@ -316,7 +317,9 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const specialistSupersedes = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0);
   const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group));
   const deletes = plan.rows.filter(r => r.group === 'delete');
-  const total = rebinds.length + renames.length + recreates.length + creates.length + overwrites.length + external.length + deletes.length;
+  const docRestores = plan.rows.filter(r => r.group === 'restore' && !r.external), partnerRestores = plan.rows.filter(r => r.group === 'restore' && r.external);
+  const docArchives = plan.rows.filter(r => r.group === 'archive' && !r.external), partnerArchives = plan.rows.filter(r => r.group === 'archive' && r.external);
+  const total = rebinds.length + renames.length + recreates.length + creates.length + overwrites.length + external.length + deletes.length + docRestores.length + partnerRestores.length + docArchives.length + partnerArchives.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
   const co = {guard, ensure, halted};
@@ -353,6 +356,12 @@ async function runSync(plan, adapter, options = {}, log, state) {
       catch (e) { if (isInterruption(e)) throw e; log.push({action: 'supersede-ids', status: 'error', id: sp.filename, message: String(e?.message ?? e)}); }
     }
   }
+  // 0.75.0: documents an earlier Sync archived and the chosen packs carry again come back first, so the writes below find them as they were.
+  r = await chunked(docRestores, chunk, signal, async row => {
+    try { await writeRestore(row.snap?.doc ?? adapter.docFor(row), row, {user, restoreFolderFor: adapter.restoreFolder, bulk: bulk()}); ok(row, 'restore'); } catch (e) { fail(row, 'restore', e); }
+    mark('restore', row.name)();
+  }, adapter.pause, null, co);
+  if (r.cancelled) return result(plan, log, true);
   r = await chunked(creates, chunk, signal, async row => {
     try { const doc = await adapter.create(row); if (!doc) throw new Error('Foundry did not return a saved document.'); touched.push(row); ok(row, 'create', {uuid: doc.uuid}); } catch (e) { fail(row, 'create', e); }
     mark('create', row.name)();
@@ -467,6 +476,25 @@ async function runSync(plan, adapter, options = {}, log, state) {
   };
   const ext = kind => external.filter(x => x.kind === kind && !x.specialist);
   const ledgerAdds = [];
+  // 0.75.0: Locations / Quest Log records that an earlier Sync had their module archive, and the packs carry again: restored there before the hand-off.
+  const partnerLedger = [];
+  const partnerPass = async (rows, mode) => {
+    for (const kind of [...new Set(rows.map(x => x.kind))]) {
+      const mine = rows.filter(x => x.kind === kind);
+      say('modules', `${mode === 'restore' ? 'Restoring' : 'Archiving'} ${mine.length} ${kind} record${mine.length === 1 ? '' : 's'}…`, finished, total);
+      await ensure();
+      const res = await guard(applyPartnerArchive(kind, mine.map(x => x.id), adapter.partnerApi?.(kind) ?? null, mode));
+      for (const x of res) {
+        log.push({...x, name: mine.find(m => m.id === x.id)?.name}); finished++;
+        const row = mine.find(m => m.id === x.id);
+        if (x.status === 'ok' && row?.ledgerKey) {
+          const {archived, archivedAt, ...rest} = row.ledgerInfo ?? {};
+          partnerLedger.push({key: row.ledgerKey, id: row.id, info: mode === 'archive' ? {...rest, archived: true, archivedAt: new Date().toISOString()} : rest});
+        }
+      }
+    }
+  };
+  if (partnerRestores.length && !signal?.aborted) await partnerPass(partnerRestores, 'restore');
   if (!signal?.aborted) {
     await pass(ext('Location'), (recs, a) => applyLocations(recs, a.locations, {updateExisting: true}), 'Locations');
     await pass(ext('Route'), (recs, a) => applyRoutes(recs, a.routes, {updateExisting: true}), 'Routes');
@@ -488,10 +516,30 @@ async function runSync(plan, adapter, options = {}, log, state) {
     }
     if (ledgerAdds.length) await guard(adapter.saveLedger?.(ledgerAdds));
   }
+  if (partnerLedger.length) { await guard(adapter.saveLedger?.(partnerLedger)); partnerLedger.length = 0; }
   if (signal?.aborted) return result(plan, log, true);
 
-  // Deletes: only when every earlier step worked, the id is retired first, and each document is checked again as it goes.
   const failedBefore = log.filter(x => x.status === 'error').length;
+  // Archives (0.75.0): reversible, nothing retired. Like deletes they wait until every earlier step worked, so a half-failed run is finished by running it again.
+  if ((docArchives.length || partnerArchives.length) && failedBefore) {
+    log.push({action: 'archive', status: 'skipped', message: `${docArchives.length + partnerArchives.length} archive(s) were not run because ${failedBefore} earlier step(s) failed. Fix the errors and run the same sync again.`});
+  } else if (docArchives.length || partnerArchives.length) {
+    await ensure();
+    const referenced = plan.archive?.referencedIds ?? null;
+    r = await chunked(docArchives, chunk, signal, async row => {
+      try { await writeArchive(row.snap?.doc ?? adapter.docFor(row), row, {user, folderFor: adapter.archiveFolder, set: plan.set, referenced, bulk: bulk()}); ok(row, 'archive'); } catch (e) { fail(row, 'archive', e); }
+      mark('archive', row.name)();
+    }, adapter.pause, null, co);
+    if (r.cancelled) return result(plan, log, true);
+    if (partnerArchives.length) {
+      // The data layer re-checks what the plan said: nothing in the chosen packs, nothing still referenced.
+      const allowed = partnerArchives.filter(x => !plan.set?.allIds?.has(x.id) && !referenced?.has(x.id));
+      await partnerPass(allowed, 'archive');
+      if (partnerLedger.length) await guard(adapter.saveLedger?.(partnerLedger));
+    }
+  }
+
+  // Deletes: only when every earlier step worked, the id is retired first, and each document is checked again as it goes.
   if (deletes.length && failedBefore) {
     log.push({action: 'delete', status: 'skipped', message: `${deletes.length} deletion(s) were not run because ${failedBefore} earlier step(s) failed. Fix the errors and run the same sync again.`});
   } else if (deletes.length) {
@@ -514,7 +562,7 @@ const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
   const counts = {rebound: n('rebind'), renamed: n('rename'), created: n('create'), recreated: n('recreate'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
-    deleted: n('delete'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
+    deleted: n('delete'), archived: n('archive'), restored: n('restore'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
   return {cancelled, log, counts, completed: !cancelled && !counts.failed && !counts.skipped};
 }
 
