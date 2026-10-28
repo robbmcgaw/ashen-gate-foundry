@@ -63,7 +63,7 @@ finishes, and a failure leaves it unset so the next login tries again. It is saf
 | Renown | Items: held reward copies | `Ashen Gate Rewards (Renown)` (top level, Item) | Renown | No | Ashen Gate / Backups / Renown Rewards |
 | Utilities | Journal `Utilities Shops (GM Data)` | none (loose) | n/a | No | Ashen Gate / Shops |
 | Utilities | Journal `Utilities Shops (Player View)` | none (loose) | n/a | Yes (Observer) | Ashen Gate / Shops |
-| Utilities | Actor `Ashen Gate - Party Stash` | none (loose) | n/a | Yes when the stash is on | Ashen Gate / Party (Actor) |
+| Utilities | Actor `Party` (found by its flag; was `Ashen Gate | Party Stash` before 0.34.0) | none (loose) | n/a | Yes when the stash is on | Ashen Gate / Party (Actor) |
 | Quest Log | Journals: `Quest Log`, `Quest Character Notes`, `Quest GM`, `Quest Notes Archive`, `Quest Assignment`, `Game Journal` | `Ashen Gate / Quests / <kind>` | Quest Log | Quest Log and notes: per audience. The rest: No | unchanged (lookup is now race-safe) |
 | Quest Log | Items: held reward copies | `Ashen Gate Rewards (Quest Log)` (top level, Item) | Quest Log | No | Ashen Gate / Backups / Quest Rewards |
 | Locations | Journals `Locations (GM Data)`, `(Party Notes)`, `(Player View)`, `(Shared Notes)` | `Ashen Gate / Locations` | Locations | GM Data and Party Notes: No. Player View and Shared Notes: Yes | unchanged (lookup is now race-safe) |

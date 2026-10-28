@@ -1,6 +1,8 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.33.2';
+export const VERSION = '0.34.0';
+/** The Party Stash character Actor's default name (0.34.0; was the legacy name). The Actor is found by its flag, never by name. */
+export const DEFAULT_STASH_NAME = 'Party', LEGACY_STASH_NAME = 'Ashen Gate | Party Stash';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;

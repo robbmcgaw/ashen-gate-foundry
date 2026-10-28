@@ -54,7 +54,7 @@ export async function reset({deleteStash=false}={}){
  await game.settings.set(MODULE,'history',[]);
  let stashDeleted=false;
  if(deleteStash){
-  const stash=[...game.actors].find(a=>a.getFlag(MODULE,'partyStash')===true&&a.name==='Ashen Gate | Party Stash');
+  const stash=[...game.actors].find(a=>a.getFlag(MODULE,'partyStash')===true);
   if(stash){if(!await confirmDialog('Also delete the native Party Stash Actor AND all its test items?',{title:'Delete Party Stash',yes:'Delete Party Stash'}))return {fixtureDeleted:true,stashDeleted:false};await stash.delete();stashDeleted=true;}
  }
  ui.notifications?.info('Utilities fixture reset completed.');

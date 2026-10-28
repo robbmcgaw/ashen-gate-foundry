@@ -24,7 +24,7 @@ From **GM's F12 → Console** in the disposable world:
 await (await import('/modules/ashen-gate-utilities/fixtures/setup.mjs')).reset()
 ```
 
-After confirmation this deletes **only the five fixture-tagged native documents** and clears the Utilities active check/history. It does **not** delete the stash or any untagged documents. To additionally delete the **default-named module-created stash and contents**, use the intentionally more destructive command (with an extra confirmation):
+After confirmation this deletes **only the five fixture-tagged native documents** and clears the Utilities active check/history. It does **not** delete the stash or any untagged documents. To additionally delete the **module-created Party Stash character (found by its flag, whatever it is named) and its contents**, use the intentionally more destructive command (with an extra confirmation):
 
 ```js
 await (await import('/modules/ashen-gate-utilities/fixtures/setup.mjs')).reset({deleteStash:true})
