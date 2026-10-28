@@ -1,3 +1,12 @@
+## 0.37.9 — 2026-10-28
+
+Players can only request gathering at active places.
+
+- With Locations' Active places (`isLocationActive`, `activeLocations`), the player's **Request gather** picker offers only nodes at places set Active, refreshes when the Active set changes (`ashen-gate-locations.activeChanged`), and shows "No gathering spots are active. Ask your GM where the party is." instead of hiding the tab.
+- The GM client refuses a request for an inactive place with that reason (so no entry point can bypass the picker). A request already waiting when the place stops being active stays in the queue with a note, and Approve still works. The GM can still open a gather at any node.
+- Without Locations or with an older Locations, requests work exactly as before.
+- No saved data changes.
+
 ## 0.37.5 — 2026-10-28
 
 Refresh recipes shows a pack check, so a missing former-starter marker is visible.

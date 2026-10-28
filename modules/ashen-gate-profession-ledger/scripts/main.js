@@ -32,7 +32,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.5';
+const VERSION='0.37.9';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -2355,11 +2355,17 @@ function receiveGatherRequestResult(message){
 const gatherReply=(request,status,text,extra={})=>{const ok=status==='queued'||status==='approved';
   sendSocket({type:'gather-request-result',requestId:request.requestId,toUserId:request.requesterId,actorId:request.actorId,ok,status,message:text,...extra});return {ok,status,message:text};};
 /** GM: the checks a request must pass now (and again on Approve). Returns {verdict, actor, node, setup}. */
-function verifyGatherRequest(request,requester,{ignoreId=null}={}){
+/** 0.37.9: Locations' Active places, or null when Locations is absent or too old (then every revealed place stays requestable, as before). */
+function activePlaces(){
+  const api=locationsApi();
+  if(typeof api?.isLocationActive!=='function'||typeof api?.activeLocations!=='function')return null;
+  return {isActive:ref=>{try{return api.isLocationActive(ref)===true;}catch{return false;}}};
+}
+function verifyGatherRequest(request,requester,{ignoreId=null,requireActive=true}={}){
   const actor=game.actors?.get?.(request.actorId);
   const {location,node}=findNode(request.locationId,typeof request.nodeId==='string'?request.nodeId:null);
   const busy=Boolean(node)&&([...gatherRounds.values()].some(s=>s.node.key===node.key)||[...gatherRequests.values()].some(r=>r.requestId!==ignoreId&&r.node.key===node.key));
-  const verdict=checkGatherRequest({ownsActor:Boolean(actor)&&!requester.isGM&&userOwns(requester,actor),inParty:Boolean(actor)&&!isLevelBackup(actor)&&rosterIds().includes(actor.id),location,node,busy});
+  const verdict=checkGatherRequest({ownsActor:Boolean(actor)&&!requester.isGM&&userOwns(requester,actor),inParty:Boolean(actor)&&!isLevelBackup(actor)&&rosterIds().includes(actor.id),location,node,busy,inactive:requireActive&&!requester.isGM&&Boolean(location)&&(()=>{const gate=activePlaces();return Boolean(gate)&&!gate.isActive(request.locationId);})()});
   return {verdict,actor,node};
 }
 /**
@@ -2396,7 +2402,7 @@ const queuedRequest=requestId=>{const r=gatherRequests.get(requestId);if(!r)thro
 async function approveGatherRequest(requestId,{allowDraft=false}={}){
   if(!canRunGathering(game.user))throw Error('Only the GM can approve gathering');
   const r=queuedRequest(requestId),requester=userById(r.requesterId);
-  const {verdict,actor,node}=requester?verifyGatherRequest(r,requester,{ignoreId:requestId}):{verdict:{ok:false,reason:'The player who asked is no longer in this world'}};
+  const {verdict,actor,node}=requester?verifyGatherRequest(r,requester,{ignoreId:requestId,requireActive:false}):{verdict:{ok:false,reason:'The player who asked is no longer in this world'}};
   if(!verdict.ok){gatherRequests.delete(requestId);gatherReply(r,'declined',`The gathering request for ${r.actorName} can’t go ahead: ${verdict.reason}`);refreshLedger();throw Error(`Request removed: ${verdict.reason}`);}
   gatherRequests.delete(requestId);
   let session;
@@ -3156,6 +3162,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Party:</strong> every party member’s materials and recipes, by player or by profession.</p>
     <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked':''}.</p>
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
+    <p><strong>Request gather:</strong> when Locations tracks Active places, you can only ask to gather at places your GM has set Active; if there are none, ask your GM where the party is.</p>
     <p><strong>Gathering:</strong> when the GM opens a gather, every character who holds one of the chosen gathering professions can roll one check (your own skill or tool bonus, advantage preset from the sheet). Roll from the popup or from Gathering. When the GM reveals the results, a slot-machine reel lands on what each successful character found. <em>Skip animation</em> jumps to the result, and with reduced motion on you get a plain list. Nothing is given until the GM presses Give loot; the result is posted in chat. You can also pick a gathering spot at a location your party knows and press <b>Request gather</b>: it waits in the GM’s Requests list until they approve or decline (with a reason).</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
@@ -3340,7 +3347,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!list.length)return emptyState('No gathering requests waiting.','Players ask to gather from their own Gathering tab. Their requests wait here for you to approve or decline.');
     const cards=list.map(r=>{
       const node=r.node,who=roundCandidates(nodeProfessionDefaults(node)).map(c=>c.actor.name);
-      const draftNote=r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'';
+      const stale=activePlaces()&&!activePlaces().isActive(r.locationId)?`<p class="agl-reason" role="status">${esc(r.node.locationName||'This place')} is not active any more. You can still approve it.</p>`:'';
+      const draftNote=stale+(r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'');
       return `<article class="ag-card ag-card--compact agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
         <p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(materialName(node.materialId))}${node.rareMaterialId?`, rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}</p>
         <p class="agl-sub">${who.length?`Can roll: ${esc(who.join(', '))}`:'Nobody in the party holds a profession this spot allows.'}</p>
@@ -3373,16 +3381,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ${result?this._revealMarkup(round.roundId,result,result.seenAt)+'<p class="agl-sub">The GM gives the loot when they confirm.</p>'
           :`<ul class="ag-rows">${rows}</ul><p class="agl-sub">Each character rolls once. The GM reveals the results when everyone has rolled.</p>`}</section>`;}).join('');
     const last=!incomingRounds.size&&lastPlayerResult?`<section class="ag-card agl-panel"><h2>Last gather: ${esc(lastPlayerResult.title)}</h2>${this._revealMarkup(`last:${lastPlayerResult.at}`,lastPlayerResult,lastPlayerResult.seenAt)}</section>`:'';
-    const where=gatherLocations();
+    const everywhere=gatherLocations(),gate=activePlaces();
+    // 0.37.9: with Locations' Active places the picker offers only the places the party is at now.
+    const where=gate&&everywhere.ok?{...everywhere,locations:everywhere.locations.filter(l=>gate.isActive(l.id))}:everywhere;
+    const nothingActive=Boolean(gate)&&everywhere.ok&&everywhere.locations.length>0&&!where.locations.length;
     const nodes=where.locations.map(loc=>`<fieldset class="agl-node-group"><legend>${esc(loc.name)}</legend>${[...loc.nodes].sort((a,b)=>compareSpots({range:spotRange(a.tier),activity:skillText(a.skill),name:nodeTitle(a)},{range:spotRange(b.tier),activity:skillText(b.skill),name:nodeTitle(b)})).map(n=>{
       const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&n.id&&!n.blocked;
       return `<label class="agl-node ${ok?'':'is-off'}"><input type="radio" name="agl-node" data-gather-field="nodeRef" value="${esc(value)}" ${this.gather.nodeRef===value&&ok?'checked':''} ${ok?'':'disabled'}>
         <span><strong>${esc(nodeTitle(n))}</strong> <small>${esc(nodeSummary(n,{forPlayers:true}))}</small>${ok?'':` <small class="agl-reason">${esc(n.blocked||n.why)}</small>`}${n.note?`<small class="agl-sub">${esc(n.note)}</small>`:''}</span></label>`;}).join('')}</fieldset>`).join('');
     const waiting=mine.map(a=>myGatherRequests.get(a.id)).find(Boolean),pending=this.gather.pending||Boolean(waiting);
-    const blocker=playerBlocker({rosterCount:rosterIds().length,mine:actor?mine.length:0,where});
+    const blocker=nothingActive?'NONE_ACTIVE':playerBlocker({rosterCount:rosterIds().length,mine:actor?mine.length:0,where});
     return `${rounds}${last}<section class="ag-card agl-panel"><h2>Request gathering</h2>
       <p class="agl-sub">Pick a gathering spot at a location your party knows. The GM approves it, then every character with the right profession rolls one check.</p>
-      ${blocker?emptyState('Gathering isn’t ready yet.',esc(blocker))
+      ${blocker==='NONE_ACTIVE'?emptyState('No gathering spots are active.','Ask your GM where the party is.'):blocker?emptyState('Gathering isn’t ready yet.',esc(blocker))
         :`<div class="agl-nodes">${nodes}</div>
           <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-request" ${pending?'disabled':''}><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${pending?'Waiting for the GM…':'Request gather'}</button></div>
           ${waiting?`<p class="agl-sub" role="status">Your request${waiting.title?` (${esc(waiting.title)})`:''} is waiting for the GM. You’ll be told when they answer.</p>`:''}`}
@@ -4313,6 +4324,8 @@ Hooks.once('ready',()=>{
   const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();});
   Hooks.on('ashenGate.bulkFinished',()=>refresh());
+  // 0.37.9: Locations' Active places changed on this client: the player's request picker and the GM's queue notes re-read.
+  Hooks.on('ashen-gate-locations.activeChanged',()=>refreshLedger());
   // 0.31.0: signature perks are granted on the GM client that wrote the XP (the only client that fires this hook).
   Hooks.on(PROGRESSION_HOOK,payload=>{void onProgressionChanged(payload).catch(err=>{console.error(`[${ID}] signature perks`,err);try{say(`Signature perks were not granted: ${err.message}`,true);}catch{}});});
   // Another GM client saved node templates.

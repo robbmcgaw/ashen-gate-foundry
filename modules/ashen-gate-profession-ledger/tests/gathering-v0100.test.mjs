@@ -632,3 +632,36 @@ test('0.22.0: a re-render keeps the scroll position of the same tab (Gathering, 
   assert.equal(next.main.scrollTop,0,'switching tab starts at the top');
  }finally{app.element=saved;}
 });
+
+/* ---- 0.37.9: requests only at active places (Locations Active places) ------------------------------- */
+test('Active places: a player can only request at an active place (picker, empty state, data layer); pending requests keep a note and the GM can still approve; no API: unchanged',async()=>{
+ _test.setGatherRequestCooldown(0);locs[0].resources.push({id:'n9',label:'Test thistle',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,rareQuantity:1,finite:true,exhausted:false,available:true,visible:true});
+ const active=new Set();
+ locApi.isLocationActive=ref=>active.has(ref);locApi.activeLocations=()=>[...active].map(id=>({id,key:id,name:id,state:'revealed'}));
+ const ask=async()=>{game.user=alice;sent.length=0;const pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n9'});await flush();
+  const req=nextSent('gather-request');game.user=gm;await _test.onSocket(req,'u1');const res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');return {res,out:await pending};};
+ try{
+  game.user=alice;
+  // Nothing active: the picker offers nothing and says so; the tab stays.
+  let h=await html('gathering');
+  assert.match(h,/No gathering spots are active\./);assert.match(h,/Ask your GM where the party is\./);assert.doesNotMatch(h,/name="agl-node"/);assert.match(h,/Request gathering/);
+  // A forged request for an inactive place is refused on the GM client with the reason.
+  let {res,out}=await ask();assert.equal(out.ok,false);assert.match(out.message,/That place is not active right now\. Ask your GM where the party is\./);assert.equal(api.gathering.requests?.length??0,0);
+  // GM view of the same data is unaffected: the GM can open a gather at any node.
+  game.user=gm;assert.ok(api.gathering.nodes().locations.some(l=>l.id==='LOC-TG-MEADOW'),'the GM still sees and can start at every place, active or not');
+  // Active: it shows up and the request is queued.
+  active.add('LOC-TG-MEADOW');game.user=alice;
+  h=await html('gathering');assert.match(h,/Test thistle/);assert.doesNotMatch(h,/No gathering spots are active/);
+  ({res,out}=await ask());assert.equal(out.status,'queued');
+  // The place stops being active while the request waits: it stays for the GM with a note, and Approve still works.
+  active.clear();game.user=gm;
+  h=await html('gathering');app.gatherTab='requests';h=await html('gathering');
+  assert.match(h,/Alice<\/strong> asks to gather/);assert.match(h,/is not active any more\. You can still approve it\./);
+  sent.length=0;await app._click('gather-approve',api.gathering.requests()[0].requestId);assert.equal(_test.gatherRounds.size,1);
+  for(const r of [..._test.gatherRounds.keys()])_test.cancelRound(r);
+  // Old Locations (no API): every revealed place is requestable, exactly as before.
+  delete locApi.isLocationActive;delete locApi.activeLocations;game.user=alice;
+  _test.myGatherRequests.clear();h=await html('gathering');assert.match(h,/Test thistle/);({res,out}=await ask());assert.equal(out.status,'queued');
+  game.user=gm;api.gathering.decline(api.gathering.requests()[0].requestId);
+ }finally{locs[0].resources.pop();delete locApi.isLocationActive;delete locApi.activeLocations;game.user=gm;app.gatherTab=null;}
+});
