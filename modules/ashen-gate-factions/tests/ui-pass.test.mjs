@@ -56,7 +56,7 @@ const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8')
 test('D4: GM Setup writes Player Access, damping and group name only on Save Changes',async()=>{
   // Nothing in the window listens for changes to the setup inputs, so ticking a box writes nothing.
   assert.doesNotMatch(code,/player-access-enabled\][^;]*addEventListener|matches\('\[name=player-access-enabled\]'\)/);
-  const values={'player-access-enabled':false,'group-name-enabled':true,'group-name':'[TEST] Wardens','pantheon-damping':'0.25','faction-damping':'0.5'};
+  const values={'player-access-enabled':false,'group-name-enabled':true,'group-name':'[TEST] Wardens','pantheon-damping':'0.25','faction-damping':'0.5','hide-later-tiers':true};
   const form={querySelector:sel=>{const k=sel.match(/name="?([\w-]+)/)?.[1];return k in values?{value:String(values[k]),checked:values[k]===true}:null;}};
   dashboard.element={querySelector:sel=>sel==='[data-setup-form]'?form:null};
   writes.length=0;

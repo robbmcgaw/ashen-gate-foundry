@@ -79,7 +79,16 @@ A faction can list **Related factions** (Factions tab, Profile): each has a slid
 
 ## Known and recruited (0.23.0)
 
-Showing a faction to a player makes it **Known (not recruited)**: they see its name, leader, description and the information they have learned, and nothing about standing. The GM then **Recruits** the party or a character (Visibility, Group or Character tab), which brings in ranks, progress, rewards, claims and history. Recruiting also shows the faction; hiding it also removes the recruit; removing a recruit hides standing and deletes nothing. Awarding Renown to someone who is not recruited offers to recruit them first, and faction knock-ons only reach factions the character is recruited into. Worlds from 0.22.0 or earlier keep everything already shown as recruited. State shape and rules: [docs/renown-known-vs-recruit.md](../../docs/renown-known-vs-recruit.md). Deities are unchanged. API: `setMembership(factionId, {party:true | actorId, on})` (GM).
+Showing a faction to a player makes it **Known (not recruited)**: they see its name, leader, description and the information they have learned, and nothing about standing. The GM then **Recruits** the party or a character (Visibility, Group or Character tab), which brings in ranks, progress, rewards, claims and history. Recruiting also shows the faction; hiding it also removes the recruit; removing a recruit hides standing and deletes nothing. Awarding Renown to someone who is not recruited offers to recruit them first, and faction knock-ons only reach factions the character is recruited into. Worlds from 0.22.0 or earlier keep everything already shown as recruited. State shape and rules: [docs/renown-known-vs-recruit.md](../../docs/renown-known-vs-recruit.md). Deities do not use recruiting (see below). API: `setMembership(factionId, {party:true | actorId, on})` (GM).
+
+## First unlock only (0.24.0)
+
+The GM Setup switch **Hide later tiers until recruited or sworn** (world setting `hideLaterTiers`, default **on**) decides how much of a ladder a player gets before they have earned the rest.
+
+- **Faction, Known but not recruited:** the player sees the first unlock of the group track and of the individual track (the first, lowest-threshold milestone) with its name and the usual locked reward teasers, marked **Unlocks when recruited** and not claimable, plus "More ranks unlock when you are recruited." Every later milestone is left out of the player's data, not just hidden. Once recruited the full ladder shows as before. A player with two characters sees the full ladder only for the recruited one.
+- **Deity, no Vow sworn to it:** the player sees the first tier (the Seeker card, with the Vow toggle) fully and "More tiers unlock when you swear a vow." Once that character has sworn a Vow to that god the whole ladder shows; if the GM breaks the Vow it is hidden again (piety is unchanged). Evaluated per character; rank and next-tier fields are clamped as well. Only the first tier's rewards can be claimed until a Vow is sworn.
+- **Off:** exactly 0.23.0: Known factions show no ranks at all and gods show the whole ladder.
+- The GM always sees everything. `getFactions()`, `getDeities()`, `getPantheon()` and the Character Hub embed follow the same rules for players. Details: [docs/renown-known-vs-recruit.md](../../docs/renown-known-vs-recruit.md).
 
 ## Install
 
