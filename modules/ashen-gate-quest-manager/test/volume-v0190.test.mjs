@@ -65,7 +65,7 @@ test('without Locations (no region lookup) the list still works',()=>{
 });
 // The real sandbox files are in the private supplement repo; this runs only where it is checked out.
 const SANDBOX='/home/user/ashen-gate-supplement/campaign/content-packs/sandbox-v0.1.0/';
-test('sandbox quest, order and contract files import without errors and list sensibly',{skip:!fs.existsSync(SANDBOX)},()=>{
+test('sandbox quest, order and contract files import without errors and list sensibly',{skip:!['S03_Frontier_Quests_v0.1.0.json','S07_Fosstryn_Trainer_Orders_v0.1.0.json','S12_Blight_Quests_v0.1.0.json'].every(f=>fs.existsSync(SANDBOX+f))},()=>{
  const all=[];
  for(const f of ['S03_Frontier_Quests_v0.1.0.json','S07_Fosstryn_Trainer_Orders_v0.1.0.json','S12_Blight_Quests_v0.1.0.json']){
   const plan=planQuestImport(JSON.parse(fs.readFileSync(SANDBOX+f,'utf8')));assert.deepEqual(plan.errors,[],f);all.push(...plan.rows.map(x=>x.source));

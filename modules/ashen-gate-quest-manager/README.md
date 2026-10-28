@@ -88,6 +88,12 @@ GM only. At the top of a quest's editor (Quests tab), **Show to Players** opens 
 - GM Setup > Players' screens: **Players' windows open automatically when the GM shows a quest** (on by default). Off: players get a notification only.
 - Only an opaque key goes over the socket. Each player's client checks the sender is a GM and that the player may see the quest before opening it; if not, nothing opens and no message appears.
 
+## Select, Archive and Delete (0.29.0)
+
+GM only. On the Quests tab, tick quests (or **Select all N shown** after narrowing with Search, Filters → Source pack / **Id starts with** / Type / Location, or the status views). **Archive…** previews, then hides them from the list and from players, keeping status, progress, notes and rewards; **Undo** for 30 seconds; the **Archived** view lists them and **Restore…** brings them back. **Delete…** previews, downloads a JSON backup of exactly those quests, then asks **Delete N quests** (Cancel is the default); quests with assignments are skipped. Archived quests stay archived when Manager imports them again.
+
+API (GM only): `previewBulk('archive'|'restore'|'delete', ids)`, `archiveQuests(ids, {source, reason})` → `{archived, alreadyArchived, skipped: [{id, reason}]}`, `restoreQuests(ids, {source})` → `{restored, skipped}`, `deleteQuests(ids)` → `{done, failed, skipped, backup}`, `idsWithPrefix(prefix, {archived})`, `countArchived()`, `listQuests({includeArchived})`.
+
 ## Relation to other modules
 
 Independent. General Manager can hand Quest files to `api.previewQuestImport` / `api.importQuests` (GM only); Quest's own Import keeps working. Locations links appear on quests when Locations is active. Factions can reference Objective ids and only reads Quest data through feature-detected, GM-only diagnostics.
