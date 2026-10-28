@@ -108,7 +108,8 @@ test('Archive then Restore round-trips: list, counts, player views, state, conte
 
   const again = await api.archiveLocations([ids.fort]);
   assert.deepEqual(again.archived, []);
-  assert.equal(again.skipped[0].reason, 'Already archived.');
+  assert.deepEqual(again.alreadyArchived, [ids.fort]);
+  assert.deepEqual(again.skipped, []);
 
   const back = await api.restoreLocations([ids.fort, ids.camp]);
   assert.deepEqual(back.restored.sort(), [ids.camp, ids.fort].sort());
@@ -300,7 +301,7 @@ test('window: Select shows tick boxes, "Id starts with" narrows the list, Select
   assert.match(html, /Select all 4 shown/);
   assert.equal((listPane(html).match(/<input type="checkbox" data-pick="[^"]+" checked>/g) ?? []).length, 4);
   assert.match(html, /data-action="bulk-archive"[^>]*>[\s\S]*?Archive…/);
-  assert.match(html, /placeholder="LOC-FRONTIER-"/, 'the prefix box is the one place an id shows');
+  assert.match(html, /placeholder="Start of an id, e.g. LOC-"/, 'the prefix box is the one place an id shows');
   assert.doesNotMatch(listPane(html).replace(/data-pick="[^"]*"/g, '').replace(/placeholder="[^"]*"/g, '').replace(/value="[^"]*"/g, ''), /LOC-/, 'no raw ids in the list text');
   // Region narrowing works with it.
   app.idPrefix = ''; app.filters.region = 'Core';
@@ -407,4 +408,31 @@ test('window: other lists (related links) still name an archived place instead o
   app.select(ids.fort);
   const html = await app._renderHTML();
   assert.ok(html.length > 0);
+});
+
+test('Manager hand-off: archiveLocations(ids, {source}) skips a parent with unlisted children (has-children), keeps Party Notes, reports alreadyArchived; restore pairs with it', async () => {
+  const { g, api, ids } = await world();
+  const opts = {source: 'ashen-gate-manager', reason: 'sync-not-in-package'};
+  await writeNotes(readAll().find(l => l.id === ids.mill), {text: 'kept', rev: 1});
+  const r = await api.archiveLocations([ids.outpost, ids.mill, ids.mill, 'LOC-NOPE'], opts);
+  assert.deepEqual(r.archived, [ids.mill]);
+  assert.ok(r.skipped.some(s => s.id === ids.outpost && s.reason === 'has-children'), 'the outpost has a child that is not in the list');
+  assert.ok(r.skipped.some(s => s.id === 'LOC-NOPE'));
+  const r2 = await api.archiveLocations([ids.outpost, ids.watch, ids.mill], opts);
+  assert.deepEqual(r2.archived.sort(), [ids.outpost, ids.watch].sort());
+  assert.deepEqual(r2.alreadyArchived, [ids.mill]);
+  const r3 = await api.archiveLocations([ids.region], opts);
+  assert.deepEqual(r3.skipped, [{id: ids.region, reason: 'has-children'}]);
+  assert.equal(readNotesStore().get(ids.mill).text, 'kept');
+  assert.equal(readAll().find(l => l.id === ids.mill).state, 'revealed');
+  // a refresh import of an archived record keeps it archived; only restoreLocations brings it back
+  await api.importLocations([{id: ids.mill, entity_type: 'Location', name: 'Millbrook', location: {}}], {mode: 'update'});
+  assert.equal(readAll().find(l => l.id === ids.mill).archived, true);
+  const back = await api.restoreLocations([ids.mill, ids.keep], {source: 'ashen-gate-manager'});
+  assert.deepEqual(back.restored, [ids.mill]);
+  assert.deepEqual(back.skipped, [{id: ids.keep, reason: 'Not archived.'}]);
+  g.user = player;
+  await assert.rejects(() => api.archiveLocations([ids.mill], opts), /Only the GM/);
+  await assert.rejects(() => api.restoreLocations([ids.mill], opts), /Only the GM/);
+  g.user = gm;
 });

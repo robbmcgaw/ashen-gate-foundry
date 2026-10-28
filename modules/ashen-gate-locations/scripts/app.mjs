@@ -484,7 +484,7 @@ export class LocationsApp extends Base {
       <span class="agl-bulk__count" role="status" aria-live="polite">${n} selected${hidden ? ` (${hidden} not shown)` : ''} · ${shown} shown</span>
       <div class="agl-bulk__narrow"><label class="ag-field ag-field--inline agl-ctl"><span>Region</span><select data-filter="region" aria-label="Filter by region"><option value="">All</option>${region.map(o =>
         `<option value="${esc(o.value)}" ${this.filters.region === o.value ? 'selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>
-        <label class="ag-field ag-field--inline agl-ctl"><span>Id starts with</span><input type="search" id="agl-prefix" value="${esc(this.idPrefix)}" placeholder="LOC-FRONTIER-" autocomplete="off" spellcheck="false" aria-label="Show only locations whose id starts with"></label></div>
+        <label class="ag-field ag-field--inline agl-ctl"><span>Id starts with</span><input type="search" id="agl-prefix" value="${esc(this.idPrefix)}" placeholder="Start of an id, e.g. LOC-" autocomplete="off" spellcheck="false" aria-label="Show only locations whose id starts with"></label></div>
       <div class="ag-btn-group">${btn('bulk-all', `Select all ${shown} shown`, {kind: 'sm', icon: 'fa-solid fa-check-double'})}${btn('bulk-clear', 'Clear selection', {kind: 'ghost sm'})}
         ${this.showArchived ? act('bulk-restore', 'Restore…', {icon: 'fa-solid fa-box-open'}) : act('bulk-archive', 'Archive…', {icon: 'fa-solid fa-box-archive'})}${act('bulk-delete', 'Delete…', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}</div></div>`;
   }

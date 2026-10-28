@@ -315,18 +315,24 @@ export function createApi(deps) {
       return bulkPreview(action, ids);
     },
     /** 0.26.0 GM: archives these locations: off the list, invisible to players, nothing lost. Reversible with restoreLocations. Returns {archived: [id], skipped}. */
-    async archiveLocations(ids) {
+    async archiveLocations(ids, {source = 'window', reason = ''} = {}) {
       requireGM();
       const plan = planBulk('archive', deps.readAll(), idList(ids));
-      if (plan.targets.length) await deps.writeAll(applyArchive(deps.readAll(), plan.targets.map(l => l.id)));
-      return {archived: plan.targets.map(l => l.id), skipped: [...plan.skipped, ...plan.unknown.map(id => ({id, name: '', reason: 'No such location.'}))]};
+      // A caller that is not the window (General Manager's sync: source 'ashen-gate-manager') never leaves a visible child behind:
+      // a location with places inside that are not in the same list is skipped with reason 'has-children'.
+      const unsafe = source === 'window' ? [] : plan.outsideChildren.map(b => b.id);
+      const targets = plan.targets.filter(l => !unsafe.includes(l.id));
+      if (targets.length) await deps.writeAll(applyArchive(deps.readAll(), targets.map(l => l.id)));
+      const already = plan.skipped.filter(s => s.reason === 'Already archived.');
+      return {archived: targets.map(l => l.id), alreadyArchived: already.map(s => s.id), source, reason,
+        skipped: [...unsafe.map(id => ({id, reason: 'has-children'})), ...plan.skipped.filter(s => !already.includes(s)).map(({id, reason}) => ({id, reason})), ...plan.unknown.map(id => ({id, reason: 'No such location.'}))]};
     },
     /** 0.26.0 GM: brings archived locations back with the state they had (none becomes active). Returns {restored: [id], skipped}. */
-    async restoreLocations(ids) {
+    async restoreLocations(ids, {source = 'window'} = {}) {
       requireGM();
       const plan = planBulk('restore', deps.readAll(), idList(ids));
       if (plan.targets.length) await deps.writeAll(applyRestore(deps.readAll(), plan.targets.map(l => l.id)));
-      return {restored: plan.targets.map(l => l.id), skipped: [...plan.skipped, ...plan.unknown.map(id => ({id, name: '', reason: 'No such location.'}))]};
+      return {restored: plan.targets.map(l => l.id), source, skipped: [...plan.skipped, ...plan.unknown.map(id => ({id, reason: 'No such location.'}))].map(({id, reason}) => ({id, reason}))};
     },
     /**
      * 0.26.0 GM: permanently deletes these locations. Refuses (throws, nothing changed) if any has a child that is not in `ids`.
