@@ -1,4 +1,4 @@
-// 0.28.0 Show to players: a GM presses "Show to players" on a quest and every other connected client that may see it
+// 0.28.0 Show to Players: a GM presses "Show to Players" on a quest and every other connected client that may see it
 // opens the player Quest Log at that quest, like Foundry's own Show to Players for journals. No Foundry globals here:
 // main.mjs hands in everything the Foundry side provides (users, socket, the visibility check, the opener).
 //

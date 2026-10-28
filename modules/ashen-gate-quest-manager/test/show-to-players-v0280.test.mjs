@@ -1,4 +1,4 @@
-// 0.28.0 Show to players. Mocked Foundry only: this proves the logic and the wiring (who may send, who accepts, what is
+// 0.28.0 Show to Players. Mocked Foundry only: this proves the logic and the wiring (who may send, who accepts, what is
 // on the wire, what is written), not the live Foundry socket, windows or focus behaviour.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {MOD} from '../scripts/core.mjs';

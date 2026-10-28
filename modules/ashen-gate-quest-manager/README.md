@@ -79,9 +79,9 @@ A quest record can list item rewards in `outcomes.item_rewards` (at most 50):
 
 `api.supersedeIds({OLD: 'NEW'}, {dryRun})` (GM only, safe to run again) renames an id a quest names (giver, faction, typed link) and the remembered link name; progress is untouched. General Manager calls it when you apply a package with `supersedes`. See `docs/supersedes-schema.md`.
 
-## Show to players (0.28.0)
+## Show to Players (0.28.0)
 
-GM only. At the top of a quest's editor (Quests tab), **Show to players** opens that quest in the Quest Log on every other connected player's screen that may see it, like Foundry's Show to Players for journals. A character-only (Individual) quest goes only to the players who own that character, and you see "Shown to N players".
+GM only. At the top of a quest's editor (Quests tab), **Show to Players** opens that quest in the Quest Log on every other connected player's screen that may see it, like Foundry's Show to Players for journals. A character-only (Individual) quest goes only to the players who own that character, and you see "Shown to N players".
 
 - If the quest is not visible to players yet, you are asked **Reveal it, then show it?** first. Nothing is revealed without that confirmation. A Hidden quest is revealed and set to Available; drafts and GM-only definitions are refused.
 - The player's one Quest Log window switches to the quest (it does not stack another). If they are typing in the Quest Log, or Player Access is off, they are not interrupted; with Player Access off nothing is sent.

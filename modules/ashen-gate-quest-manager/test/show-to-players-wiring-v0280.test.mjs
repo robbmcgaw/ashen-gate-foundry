@@ -1,4 +1,4 @@
-// 0.28.0 Show to players, wired through main.mjs with mocked Foundry (no real sockets, windows or focus).
+// 0.28.0 Show to Players, wired through main.mjs with mocked Foundry (no real sockets, windows or focus).
 import test from 'node:test';import assert from 'node:assert/strict';
 import {MOD} from '../scripts/core.mjs';
 
@@ -6,7 +6,7 @@ const once=new Map(),defs=new Map(),sets=[],written=[],handlers=new Map(),emitte
 globalThis.Hooks={once:(e,fn)=>once.set(e,fn),on:()=>{},off:()=>{}};
 let lastApp;
 globalThis.foundry={applications:{api:{ApplicationV2:class{constructor(){lastApp=this;}async render(){this.rendered=true;return this._renderHTML();}async close(){this.rendered=false;}}}}};
-const settings={playerAccessEnabled:true,compendiumPackIds:'',openForPlayers:false,openOnShow:true};
+const settings={playerAccessEnabled:true,compendiumPackIds:'',openForPlayers:false,showOpensWindow:true};
 const gm={id:'gm',isGM:true,active:true},alice={id:'alice',isGM:false,active:true},bob={id:'bob',isGM:false,active:true};
 const users=[gm,alice,bob];users.get=id=>users.find(u=>u.id===id);
 const src={id:'QUEST-TEST-LANTERN',entity_type:'Objective',objective_kind:'quest',status:'approved',version:'0.1.0',provenance:{sources:['synthetic']},visibility:'reveal_gated',refs:[],name:'[TEST] Lantern',source:{},public_summary:'',objectives:[{key:'a',goal:'[TEST] Light it',visibility:'player'}],locations:[],parameters:{},outcomes:{}};
@@ -29,21 +29,21 @@ once.get('init')();once.get('ready')();
 console.error=origError;
 
 test('the setting is on by default, a world setting, and sits in GM Setup; it saves with Save Changes', async()=>{
- assert.equal(defs.get('openOnShow').default,true);assert.equal(defs.get('openOnShow').scope,'world');assert.equal(defs.get('openOnShow').config,false);
+ assert.equal(defs.get('showOpensWindow').default,true);assert.equal(defs.get('showOpensWindow').scope,'world');assert.equal(defs.get('showOpensWindow').config,false);
  await mod.api.open();lastApp.tab='setup';let html=await lastApp.render();
  assert.match(html,/id="ag-open-on-show" checked> Players' windows open automatically when the GM shows a quest/);
  sets.length=0;
  const form=on=>({querySelector:s=>s==='#ag-player-access'?{checked:true}:s==='#ag-compendium-packs'?{value:''}:s==='#ag-open-for-players'?{checked:false}:s==='#ag-open-on-show'?{checked:on}:null});
  await lastApp.action({dataset:{action:'save-setup'}},form(true));assert.deepEqual(sets,[],'unchanged means nothing written');
- await lastApp.action({dataset:{action:'save-setup'}},form(false));assert.deepEqual(sets,[['openOnShow',false]]);
+ await lastApp.action({dataset:{action:'save-setup'}},form(false));assert.deepEqual(sets,[['showOpensWindow',false]]);
  html=await lastApp.render();assert.doesNotMatch(html,/id="ag-open-on-show" checked/);
- await lastApp.action({dataset:{action:'save-setup'}},form(true));assert.equal(settings.openOnShow,true);
+ await lastApp.action({dataset:{action:'save-setup'}},form(true));assert.equal(settings.showOpensWindow,true);
 });
-test('the GM editor has Show to players beside Delete; a new unsaved quest has neither', async()=>{
+test('the GM editor has Show to Players beside Delete; a new unsaved quest has neither', async()=>{
  game.user=gm;await mod.api.open();lastApp.tab='quests';lastApp.gmId=src.id;
  const html=await lastApp.render();
  const head=html.slice(html.indexOf('agq-edit__head'),html.indexOf('</header>',html.indexOf('agq-edit__head')));
- assert.match(head,/data-action="show-to-players"[^>]*>[\s\S]*Show to players[\s\S]*data-action="delete"/);
+ assert.match(head,/data-action="show-to-players"[^>]*>[\s\S]*Show to Players[\s\S]*data-action="delete"/);
  lastApp.gmId=null;assert.doesNotMatch(await lastApp.render(),/data-action="show-to-players"/);
  game.user=alice;lastApp.tab='party';assert.doesNotMatch(await lastApp.render(),/show-to-players/,'players do not get the button');
  game.user=gm;

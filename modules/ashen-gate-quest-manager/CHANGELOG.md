@@ -1,8 +1,8 @@
 ## 0.28.0 — 2026-10-28
 
-Show to players: a GM button that opens a quest on everyone else's screen.
+Show to Players: a GM button that opens a quest on everyone else's screen.
 
-- **Show to players** sits at the top of a quest's editor, beside Delete quest. It opens that quest in the Quest Log on every other connected player's client that may see it, and tells you "Shown to N players". A character-only quest reaches only the players who own that character.
+- **Show to Players** sits at the top of a quest's editor, beside Delete quest. It opens that quest in the Quest Log on every other connected player's client that may see it, and tells you "Shown to N players". A character-only quest reaches only the players who own that character.
 - **Not visible yet?** You are asked **Reveal it, then show it?** (button **Reveal and show**). The confirmation says what changes (marked Revealed; a Hidden quest becomes Available). Cancel changes nothing. Drafts and GM-only definitions are refused and never revealed this way.
 - **On the player's screen** the one Quest Log window switches to the quest instead of stacking, does not take the cursor from a field they are typing in, and ignores repeats within 1.5 seconds. If they are typing in the Quest Log itself, or the setting below is off, they get a notification instead.
 - **New GM Setup setting, Players' screens:** "Players' windows open automatically when the GM shows a quest" (world setting, on by default; off means a notification only). Saved with Save Changes.
