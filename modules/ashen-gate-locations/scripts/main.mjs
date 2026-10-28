@@ -201,3 +201,5 @@ for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEn
   Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
 }
 Hooks.on('ashenGate.bulkFinished', () => { refresh(); embed.refreshAll(); });
+// 0.28.0: Utilities says a shop's presentation may have changed; redraw the Shops cards (the hook never fires without Utilities).
+Hooks.on('ashen-gate-utilities.shopsChanged', refresh);

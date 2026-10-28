@@ -5,7 +5,7 @@
    helpers exported here. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedElectrum,coinsText,normalizeShop,normalizeLine,normalizePurse,
  priceToCp,shopIdFromName,validId,SHOPS_CONTRACT,SHOP_SORTS,SHOP_BUY_TYPES,SHOP_LOG_CAP,listShops,shopPlace,initials,lineFromItem,lineRepeats,
- duplicateShop,restockLines,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX,coinStripHTML,coinChipsHTML,isSettlementLocation,groupByCategory,
+ duplicateShop,restockLines,placeIdSet,shopsAtPlaces,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX,coinStripHTML,coinChipsHTML,isSettlementLocation,groupByCategory,
  merchantActorRef,SETTLEMENT_WORDS} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
 import {shopsFolderId} from './folder-nesting.mjs';
@@ -129,6 +129,8 @@ const stamp=()=>({updatedAt:Date.now(),updatedBy:game.user?.id??null});
 const withLines=data=>({...data,lines:(Array.isArray(data?.lines)?data.lines:[]).map(l=>normalizeLine(l,{randomId}))});
 export const norm=data=>normalizeShop(withLines(data),{electrum:electrumEnabled()});
 function list({search='',sort='location'}={}){gmOnly();return listShops(readAll(),{search,sort,locations:locationMap(),isSettlement:isTown()}).flatMap(g=>g.shops).map(clone);}
+/** 0.35.0: GM only. The shops and services linked to a place, optionally with the places inside it (for Locations' "Shops here"). */
+function atPlace(locationId,{includeChildren=false}={}){gmOnly();return shopsAtPlaces([...readAll(),...servicesAll()],placeIdSet(locationId,locationMap(),includeChildren===true));}
 function get(id){gmOnly();const s=readAll().find(x=>x.id===id);return s?clone(s):null;}
 async function create(data={}){
  gmOnly();
@@ -222,7 +224,7 @@ async function restockCash(id){
  });
 }
 export function shopsApi(){
- return {contract:SHOPS_CONTRACT,sorts:[...SHOP_SORTS],list,get,create,save,duplicate,delete:remove,addItems,restock,adjustPurse,setPurse,restockCash,
+ return {contract:SHOPS_CONTRACT,sorts:[...SHOP_SORTS],list,atPlace,get,create,save,duplicate,delete:remove,addItems,restock,adjustPurse,setPurse,restockCash,
   log:id=>{gmOnly();mustGet(id);return clone(logOf(id));}};
 }
 

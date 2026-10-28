@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.34.0';
+export const VERSION = '0.35.0';
 /** The Party Stash character Actor's default name (0.34.0; was the legacy name). The Actor is found by its flag, never by name. */
 export const DEFAULT_STASH_NAME = 'Party', LEGACY_STASH_NAME = 'Ashen Gate | Party Stash';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
@@ -1075,8 +1075,11 @@ export function bankQuote({hold, from, to, receive, feePercent = 0, electrum = f
 export const stripSecrets = html => String(html ?? '').replace(/<section\b[^>]*\bclass\s*=\s*["'][^"']*\bsecret\b[^"']*["'][^>]*>[\s\S]*?<\/section>/gi, '');
 /** The place players see: the revealed linked location, else (no link at all) the settlement the GM typed. */
 const shownPlace = (rec, locationName) => locationName || (!rec.locationId && rec.settlement ? rec.settlement : null);
-const projectBase = (rec, locationName, place = shownPlace(rec, locationName)) => ({id: rec.id, name: rec.name, merchant: {name: rec.merchant?.name ?? '', img: rec.merchant?.img ?? ''},
-  flavour: rec.flavour ?? '', ...(place ? {location: {name: String(place)}} : {}), rev: rec.rev ?? 0});
+const projectBase = (rec, locationName, place = shownPlace(rec, locationName), placeKey = '') => ({id: rec.id, name: rec.name, merchant: {name: rec.merchant?.name ?? '', img: rec.merchant?.img ?? ''},
+  flavour: rec.flavour ?? '', ...(place ? {location: {name: String(place)}} : {}),
+  // 0.35.0: the linked place's player-facing key (its map-pin key in Locations, never its LOC id), only while its name is shown too
+  // (revealed to everyone), so Locations can list the shop on that place's card.
+  ...(locationName && placeKey ? {placeKey: String(placeKey)} : {}), rev: rec.rev ?? 0});
 const TIP_DROP = ['container', 'identifier'];
 /**
  * 0.24.0: the item data a player's tooltip and item sheet are built from, for one shown line. Only what the shop
@@ -1105,7 +1108,7 @@ export function groupByCategory(lines, categoryOf = l => l.type) {
  * (each line's `tip` is the trimmed copy from playerTipItem), purseStart, presented, the merchant's Actor or sales; `purse` only when the shop has one and showPurse is on. `locationName` only when
  * Locations says it is revealed (the caller decides). `typeLabel` turns a dnd5e item type into its label.
  */
-export function projectShop(shop, {electrum = false, locationName = null, typeLabel = t => t} = {}) {
+export function projectShop(shop, {electrum = false, locationName = null, placeKey = '', typeLabel = t => t} = {}) {
   const lines = [...(shop?.lines ?? [])].filter(l => !l.hidden).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)).map(l => {
     const it = l.item ?? {}, sys = it.system ?? {}, unid = sys.identified === false;
     return {lineId: l.lineId, name: String((unid && sys.unidentified?.name) || it.name || 'Unnamed Item'), img: typeof it.img === 'string' ? it.img : '',
@@ -1118,13 +1121,13 @@ export function projectShop(shop, {electrum = false, locationName = null, typeLa
   const b = shop?.buys, buys = b?.enabled === true ? {percent: Number.isInteger(b.percent) ? b.percent : SELL_DEFAULTS.percent,
     types: Array.isArray(b.types) && b.types.length ? SELL_DEFAULTS.types.filter(t => b.types.includes(t)) : [...SELL_DEFAULTS.types],
     purse: !shop.purse ? 'none' : shop.showPurse !== false ? 'shown' : 'hidden'} : null;
-  return {...projectBase(shop, locationName), lines, purse, buys};
+  return {...projectBase(shop, locationName, undefined, placeKey), lines, purse, buys};
 }
 /** The player view of a service; null for a type this version doesn't know. */
-export function projectService(service, {locationName = null} = {}) {
+export function projectService(service, {locationName = null, placeKey = ''} = {}) {
   const type = SERVICE_TYPES[service?.service?.type];
   if (!type) return null;
-  return {...projectBase(service, locationName), kind: 'service', service: {type: type.id, label: type.label, settings: type.checkSettings(service.service.settings ?? {})}};
+  return {...projectBase(service, locationName, undefined, placeKey), kind: 'service', service: {type: type.id, label: type.label, settings: type.checkSettings(service.service.settings ?? {})}};
 }
 
 /* Selling to a shop (§7c). The S1–S9 decisions live in SELL_DEFAULTS so a change of mind is one place. */
@@ -1301,6 +1304,31 @@ ${li(sale ? 'Sold' : 'Bought', item)}${money('Total', h?.totalText)}${paid}</ul>
 
 /* ---- 0.17.0: the GM's Shops tab. Pure helpers for the shop list, the editor, drops and the shop purse. ---- */
 export const SHOPS_CONTRACT = 'ag-utilities-shops/1';
+/**
+ * 0.35.0: the ids of a place and (optionally) every place inside it. `locations` maps id -> {parentLocationId}. A loop in the
+ * tree ends; an id Locations does not know still matches itself.
+ */
+export function placeIdSet(locationId, locations = new Map(), includeChildren = false) {
+  const id = String(locationId ?? '').trim();
+  const out = new Set(id ? [id] : []);
+  if (!id || !includeChildren) return out;
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [lid, l] of locations) if (!out.has(lid) && out.has(String(l?.parentLocationId ?? '').trim())) { out.add(lid); grew = true; }
+  }
+  return out;
+}
+/**
+ * 0.35.0, api.shops.atPlace: shops and known services whose linked place is in `ids`, as small GM rows
+ * [{id, name, merchant, kind: 'shop' | 'service', presented: boolean, mode: 'all' | 'users' | null, count}] by name.
+ * Never the stock, coins or GM notes. A service of a type this version does not know is left out (it cannot be shown).
+ */
+export function shopsAtPlaces(records, ids) {
+  return (records ?? []).filter(r => r?.locationId && ids.has(r.locationId) && (r.kind !== 'service' || r.known !== false))
+    .map(r => ({id: r.id, name: String(r.name ?? ''), merchant: String(r.merchant?.name ?? ''), kind: r.kind === 'service' ? 'service' : 'shop', presented: Boolean(r.presented),
+      mode: r.presented ? (r.presented.mode === 'users' ? 'users' : 'all') : null, count: r.presented?.mode === 'users' ? (r.presented.userIds ?? []).length : 0}))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
 export const SHOP_SORTS = Object.freeze(['location', 'name', 'merchant', 'updated']);
 /** Physical item types a shop may buy (design §7c S2); containers are never bought. */
 export const SHOP_BUY_TYPES = Object.freeze(['weapon', 'equipment', 'consumable', 'tool', 'loot']);

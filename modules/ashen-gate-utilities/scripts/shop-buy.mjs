@@ -48,13 +48,15 @@ export const shopsVisible=()=>isGM()||(access()&&shopsOn());
 /* ---------- The player projection (GM client) ---------- */
 const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):String(t||'Other').replace(/[_-]+/g,' ').replace(/^./,c=>c.toUpperCase());};
 /** The linked place's name, only while Locations says it is revealed to everyone. */
-function revealedPlace(id){
- if(!id)return null;const api=locationsApi();if(!api)return null;
- try{const l=api.listLocations({revealedOnly:true}).find(x=>x?.id===id);return l&&l.revealed===true&&l.audience?.mode!=='selected'?(l.published?.name||l.name||null):null;}catch{return null;}
+function revealedPlace(id){return revealedPlaceInfo(id).name;}
+/** 0.35.0: the revealed place's name and its player-facing key (map-pin key), both null unless it is revealed to everyone. */
+function revealedPlaceInfo(id){
+ const none={name:null,key:''};if(!id)return none;const api=locationsApi();if(!api)return none;
+ try{const l=api.listLocations({revealedOnly:true}).find(x=>x?.id===id);return l&&l.revealed===true&&l.audience?.mode!=='selected'?{name:l.published?.name||l.name||null,key:l.pinKey??''}:none;}catch{return none;}
 }
-export const projectionOf=shop=>projectShop(shop,{electrum:electrum(),locationName:revealedPlace(shop.locationId),typeLabel});
+export const projectionOf=shop=>{const p=revealedPlaceInfo(shop.locationId);return projectShop(shop,{electrum:electrum(),locationName:p.name,placeKey:p.key,typeLabel});};
 /** 0.20.0: a service's player view; null for a type this version doesn't know (never shown to players). */
-export const serviceProjectionOf=svc=>svc?.known?projectService(svc,{locationName:revealedPlace(svc.locationId)}):null;
+export const serviceProjectionOf=svc=>{if(!svc?.known)return null;const p=revealedPlaceInfo(svc.locationId);return projectService(svc,{locationName:p.name,placeKey:p.key});};
 /** Shops and known services shown to someone right now (GM data). */
 const presentedRecords=()=>[...readAll().filter(s=>s.presented).map(s=>({rec:s,view:projectionOf(s)})),...servicesAll().filter(s=>s.presented&&s.known).map(s=>({rec:s,view:serviceProjectionOf(s)}))].filter(x=>x.view);
 /** The projection of a saved shop or known service by id, for a merchant list; null when missing or unknown. */
@@ -570,6 +572,8 @@ export function tradeHooks(rerender){
  const onPage=(page,...rest)=>{
   if(isBulk(...rest))return;
   const store=page?.parent?.flags?.[ID]?.store;
+  // 0.35.0: tell partners (Locations' Shops cards) that who a shop is shown to may have changed.
+  if(store==='shops-gm'||store===VIEW_STORE)try{Hooks.callAll(`${ID}.shopsChanged`);}catch{/* a partner's listener failed */}
   if(store==='shops-gm')scheduleSync();
   if(store===VIEW_STORE){refreshShopWindows();rerender();if(!isGM())openNewShops();}
  };
