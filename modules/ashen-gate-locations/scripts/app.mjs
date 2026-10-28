@@ -3,7 +3,7 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
-import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
+import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
@@ -1002,7 +1002,7 @@ export class LocationsApp extends Base {
    */
   setupHtml() {
     const access = api().playerAccess.getState().playerAccessEnabled;
-    const {look, nameMode, nameSize, wrap} = readPinLook();
+    const {look, nameMode, nameSize, wrap, nameOffset} = readPinLook();
     return `<div class="agl-setup">
       <div class="agl-setup__body">
       <section class="ag-card"><h3>Player Access</h3>
@@ -1017,6 +1017,8 @@ export class LocationsApp extends Base {
         <div class="ag-field agl-field"><label for="agl-set-pinname">Name under the pin</label><select id="agl-set-pinname">${Object.entries(NAME_MODES).map(([v, t]) => `<option value="${v}"${nameMode === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
         <div class="ag-field agl-field"><label for="agl-set-pinsize">Name size (pixels)</label><input id="agl-set-pinsize" type="number" min="${NAME_SIZE.min}" max="${NAME_SIZE.max}" step="1" value="${nameSize}"></div>
         <div class="ag-field agl-field"><label for="agl-set-pinwrap">Wrap the name after (characters)</label><input id="agl-set-pinwrap" type="number" min="0" max="${WRAP.max}" step="1" value="${wrap}"></div>
+        <div class="ag-field agl-field"><label for="agl-set-pinoffset">Name distance from the pin (pixels)</label><input id="agl-set-pinoffset" type="number" min="${OFFSET.min}" max="${OFFSET.max}" step="1" value="${nameOffset}"></div>
+        <p class="agl-hint">Distance: negative numbers move the name closer to the pin. ${OFFSET.min} to ${OFFSET.max}; 0 is Foundry's own spot, and the name never goes past the pin's edge. Try -8.</p>
         <p class="agl-hint">Wrap: the most characters on one line of the name; longer names break between words (a very long word is cut). ${WRAP.min} to ${WRAP.max}, or 0 for no wrapping. Only the label on the map changes, never the location's name.</p>
         <p class="agl-hint">Applies to every player's screen and only to pins placed from Locations. A pin whose Font Size you changed in its own Note settings keeps that size. <em>Image only</em> hides the square and the shaded backing (the frame shows while you hover or select a pin). <em>Name under the pin</em> is either always visible or only when you hover the pin (Foundry\'s own behaviour); the name size and wrapping apply in both; hidden pins show none, and unidentified pins show only their unidentified label. Nothing on the map is changed, so you can switch back at any time.</p></section>
       <section class="ag-card"><h3>Show to Players</h3>
@@ -1043,6 +1045,8 @@ export class LocationsApp extends Base {
     const pinName = nameModeOf(root?.querySelector('#agl-set-pinname')?.value);
     const sizeRaw = root?.querySelector('#agl-set-pinsize')?.value;
     if (sizeRaw !== undefined && sizeRaw !== '' && nameSizeOf(sizeRaw) !== readPinLook().nameSize) await game.settings.set(MODULE_ID, 'pinNameSize', nameSizeOf(sizeRaw));
+    const offRaw = root?.querySelector('#agl-set-pinoffset')?.value;
+    if (offRaw !== undefined && offRaw !== '' && offsetOf(offRaw) !== readPinLook().nameOffset) await game.settings.set(MODULE_ID, 'pinNameOffset', offsetOf(offRaw));
     const wrapRaw = root?.querySelector('#agl-set-pinwrap')?.value;
     if (wrapRaw !== undefined && wrapRaw !== '' && wrapOf(wrapRaw) !== readPinLook().wrap) await game.settings.set(MODULE_ID, 'pinNameWrap', wrapOf(wrapRaw));
     if (pinName !== readPinLook().nameMode) await game.settings.set(MODULE_ID, 'pinNameMode', pinName);
@@ -1685,7 +1689,7 @@ export class LocationsApp extends Base {
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
         '<strong>Active</strong> (editor head, GM only) marks where the party is now; several places can be active. It applies at once (no Publish), shows a <em>Here now</em> badge to players who can see the place and tells them "The party is now at …". A hidden place asks <em>Reveal and make active?</em> first. Filters → Status → Active lists them. Other modules read the active places through the Locations API.',
         '<strong>Show to Players</strong> (editor head, GM only) opens the location in every other connected player\'s Locations window, like Foundry\'s Show to Players for journals. Players see only what they could already see: an unidentified place opens its unidentified card, and a Selected-players place goes only to those players. A hidden place asks <em>Reveal and show</em> first. Players\' windows switch to it rather than stacking, and a player who is typing or has unsaved Party Notes is not interrupted. GM Setup → Show to Players can turn the automatic opening off (they then get a notification).',
-        '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
+        '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
