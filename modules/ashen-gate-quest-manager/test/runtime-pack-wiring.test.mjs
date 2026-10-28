@@ -19,7 +19,7 @@ globalThis.ui={actors:{element:null},notifications:{info(){},error(){}}};
 await import('../scripts/main.mjs?runtime-pack-wire');
 readyCallbacks.get('init')();readyCallbacks.get('ready')();
 test('standalone Quest v0.3.1 manifest-facing API loads configured pack via bundled pin',async()=>{
- assert.equal(quest.api.version,'0.27.2');
+ assert.equal(quest.api.version,'0.28.0');
  assert.equal(registered.get('compendiumPackIds').scope,'world');
  const res=await quest.api.consumer.refreshCompendiums();assert.equal(res.status,'ok');
  const r=quest.api.consumer.resolveObjective('CONTRACT-PACK',{entityType:'Objective'});

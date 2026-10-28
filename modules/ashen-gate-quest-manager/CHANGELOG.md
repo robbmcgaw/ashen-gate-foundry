@@ -1,3 +1,14 @@
+## 0.28.0 — 2026-10-28
+
+Show to Players: a GM button that opens a quest on everyone else's screen.
+
+- **Show to Players** sits at the top of a quest's editor, beside Delete quest. It opens that quest in the Quest Log on every other connected player's client that may see it, and tells you "Shown to N players". A character-only quest reaches only the players who own that character.
+- **Not visible yet?** You are asked **Reveal it, then show it?** (button **Reveal and show**). The confirmation says what changes (marked Revealed; a Hidden quest becomes Available). Cancel changes nothing. Drafts and GM-only definitions are refused and never revealed this way.
+- **On the player's screen** the one Quest Log window switches to the quest instead of stacking, does not take the cursor from a field they are typing in, and ignores repeats within 1.5 seconds. If they are typing in the Quest Log itself, or the setting below is off, they get a notification instead.
+- **New GM Setup setting, Players' screens:** "Players' windows open automatically when the GM shows a quest" (world setting, on by default; off means a notification only). Saved with Save Changes.
+- **Permissions:** the GM button and send are GM-only. The socket message is just a type and the opaque id of the quest's published view (no name, id, objectives, rewards or notes), sent only to connected players who may see that view, on the Quest Log's existing socket channel. Each receiving client ignores it unless the sender is a GM, then re-checks Player Access and its own permission to the quest; if either fails, nothing opens and no error shows.
+- No saved data changes. Tests use mocked Foundry; they prove the logic and wiring, not the live socket, windows or focus. Check in Forge with two browsers: see the PR.
+
 ## 0.27.2 — 2026-10-26
 
 Narrow-window fixes (shared kit 2.4.0).
