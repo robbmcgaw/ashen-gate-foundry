@@ -49,7 +49,7 @@ const makeActor=(id,name,{type='character',owner=true,backup=false}={})=>{
   return a;};
 const dee=makeActor('dee','[TEST] Dee'),npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false}),loner=makeActor('loner','[TEST] Hireling',{owner:false}),bak=makeActor('bak','[TEST] Dee - level 3',{backup:true});
 const all=[dee,npc,loner,bak];
-const ledgerModule={active:true,version:'0.37.4',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.5',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},journal:[],
   modules:{get:id=>id===ID?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -185,7 +185,7 @@ test('Individual tab: everyone sees “N recipes no longer exist”; only the GM
  game.user=alice;await app._click('rr-open','dee');assert.equal(app.recipeRefresh,null,'a player cannot open it');game.user=gm;
 });
 
-/* ---- 0.37.4: replaced starters ----------------------------------------------------------------------- */
+/* ---- 0.37.5: replaced starters ----------------------------------------------------------------------- */
 test('pure, Blacksmithing worked example: 4 old + 4 new starters; the 4 demoted ones are pre-ticked unless crafted with; learned ones never',()=>{
  const smith={ids:new Set(['PROF-B']),keys:new Set()};
  const old=['Iron Caltrops','Iron Pitons','Riveted Field Brace','Silvered Blade'],fresh=['Trail Spikes','Edge Whetstone','Riveted Shield Fittings','Reinforced Buckle'];
@@ -274,7 +274,7 @@ test('Assign: Replace or remove starting recipes… opens Refresh recipes with t
  game.user=alice;assert.doesNotMatch(await html('assign'),/Replace or remove starting recipes/);game.user=gm;
 });
 
-/* ---- 0.37.4: pack marker former_starting ------------------------------------------------------------- */
+/* ---- 0.37.5: pack marker former_starting ------------------------------------------------------------- */
 test('pure: former_starting pre-ticks replaced starters that were never recorded as granted; no marker, no pre-tick; older data behaves as before',()=>{
  const smith={ids:new Set(['PROF-B']),keys:new Set()};
  const old=[0,1,2,3].map(i=>({id:`REC-O${i}`,name:`Old ${i}`,professionId:'PROF-B',starting:false,formerStarting:true}));
@@ -329,5 +329,34 @@ test('party view and grant with the pack marker (Robb’s numbers: 4 new + extra
   assert.equal((await api.refreshRecipes({actorId:'ann'})).counts.replaced,0);
  }finally{
   for(const d of added)world.splice(world.indexOf(d),1);all.splice(all.indexOf(ann),1);all.splice(all.indexOf(bo),1);values.partyRoster=['dee'];app.recipeRefresh=null;app.actorId='dee';
+ }
+});
+
+/* ---- 0.37.5: the marker through the full Manager flag shape, and the pack check -------------------------- */
+test('regression: a recipe stored exactly as Manager writes it (full source flag with definition, sourceVersion, provenance, refs) reaches the planner as replaced; the pack check line reports the marker',async()=>{
+ reset();
+ const managerDoc=(wid,id,name,extra)=>{const definition={id,entity_type:'Recipe',status:'approved',version:'0.3.7',visibility:'player',scope:'generic_rules',provenance:{source:'[TEST]'},name,
+   refs:[{relation:'crafted_by',target_id:'PROF-TG-SMITH3',mode:'optional'}],profession_id:'PROF-TG-SMITH3',tier:'apprentice',starting:false,ingredients:[{material_id:'MAT-TEST-LEAF',quantity:1}],...extra};
+  return {id:wid,uuid:`Item.${wid}`,name:`Recipe: ${name}`,img:'',type:'loot',ownership:{default:2},system:{description:{value:''}},testUserPermission:()=>true,
+   flags:{'ashen-gate-manager':{source:{sourceId:id,entityType:'Recipe',status:'approved',visibility:'player',version:'0.3.7',sourceVersion:'0.3.7',provenance:{source:'[TEST]'},refs:structuredClone(definition.refs),scope:'generic_rules',schemaVersion:'ag-foundry-import/0.2',packageId:'AG-TEST',packageVersion:'1.0.0',definition,managedFields:{},pagesDefinition:[]}}},
+   toObject(){return {_id:this.id,name:this.name,type:this.type,flags:structuredClone(this.flags),system:structuredClone(this.system)};}};};
+ const added=[prof('wsm3','PROF-TG-SMITH3','[TEST] Smithing Three',{skillProficienciesAnyOf:['Athletics']}),managerDoc('mo1','REC-TEST-MO1','[TEST] Old One',{former_starting:true}),managerDoc('mo2','REC-TEST-MO2','[TEST] Unmarked',{}),managerDoc('mn1','REC-TEST-MN1','[TEST] Current',{starting:true})];
+ world.push(...added);
+ const cat=makeActor('cat','[TEST] Cat');cat.items=[held('c-s','PROF-TG-SMITH3','[TEST] Smithing Three',true)];cat.flags={[ID]:{knownRecipes:['REC-TEST-MO1','REC-TEST-MO2','REC-TEST-MN1'],grantedRecipes:[]}};
+ all.push(cat);values.partyRoster=['cat'];
+ try{
+  const r=rows(await api.refreshRecipes({actorId:'cat'}));
+  assert.deepEqual([r['[TEST] Old One'].group,r['[TEST] Old One'].remove],['replaced',true]);
+  assert.deepEqual([r['[TEST] Unmarked'].group,r['[TEST] Unmarked'].remove],['learned',false]);
+  assert.equal(r['[TEST] Current'].group,'starting');
+  app.actorId='cat';await app._click('rr-open','cat');
+  assert.match((await app._prepareContext({})).html,/Pack check: 1 recipe is marked as former starters in this world \(.*Smithing Three: 1 starting, 1 former/);
+  assert.doesNotMatch((await app._prepareContext({})).html.match(/Pack check[^<]*/)[0],/PROF-/,'no raw ids');
+  // Without the marker anywhere, the line says how to fix it.
+  for(const d of added)if(d.flags['ashen-gate-manager'].source.definition.former_starting)delete d.flags['ashen-gate-manager'].source.definition.former_starting;
+  app.recipeRefresh=null;await app._click('rr-open','cat');
+  assert.match((await app._prepareContext({})).html,/Pack check: no recipe in this world carries the former-starter marker/);
+ }finally{
+  for(const d of added)world.splice(world.indexOf(d),1);all.splice(all.indexOf(cat),1);values.partyRoster=['dee'];app.recipeRefresh=null;app.actorId='dee';
  }
 });

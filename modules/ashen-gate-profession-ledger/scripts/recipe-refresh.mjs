@@ -62,3 +62,21 @@ export function missingRecipeCount({known=[],knownRaw=null,recipes=[],exactCatal
   const byId=new Map(recipes.map(r=>[r.id,r]));
   return unrecognisedRecipes({known,knownRaw,byId}).reduce((n,u)=>n+(u.token===RECIPE_NON_TEXT?(Array.isArray(knownRaw)?knownRaw.filter(e=>typeof e!=='string').length:1):1),0);
 }
+
+/** 0.37.5: what the world catalog says about starters, for the GM: how many recipes carry the pack marker `former_starting`,
+ * and per profession the number of starting and marked recipes. Pure; `recipes` is the normalised catalog. */
+export function starterCheck(recipes=[],nameOf=r=>r.profession||r.professionId||''){
+  const by=new Map();let marked=0;
+  for(const r of recipes){
+    const s=r.starting===true,f=r.formerStarting===true&&!s;if(f)marked++;
+    if(!s&&!f)continue;
+    const key=nameOf(r);const row=by.get(key)??{profession:key,starting:0,former:0};
+    if(s)row.starting++;else row.former++;by.set(key,row);
+  }
+  return {marked,professions:[...by.values()].sort((a,b)=>a.profession.localeCompare(b.profession))};
+}
+/** The GM line under the Refresh recipes intro. */
+export function starterCheckText(check){
+  if(!check.marked)return 'Pack check: no recipe in this world carries the former-starter marker, so only starters this Ledger granted itself can be found. In General Manager, sync or import the updated recipe packs, then reopen this window.';
+  return `Pack check: ${check.marked} ${check.marked===1?'recipe is':'recipes are'} marked as former starters in this world (${check.professions.filter(p=>p.former||p.starting).map(p=>`${p.profession||'Other'}: ${p.starting} starting, ${p.former} former`).join('; ')}).`;
+}
