@@ -75,7 +75,7 @@ seedState('OLDCHAR',{discovery:{party:false,actors:['A1']},groupScore:2,personal
 seedState('OLDNONE',{discovery:{party:false,actors:[]},groupScore:5});
 seedState('OLDMEMBER',{discovery:{party:false,actors:['A1']},membership:{party:false,actors:['A1']},personal:{A1:1}});
 for(const k of ['CONCORD','NEW','KNOWN','SHARE','FRESH'])seedDef(k);
-await import('../scripts/module.mjs');hooks.get('init')();settings.hideLaterTiers=false;// 0.23.0 behaviour (Known = nothing); first-unlock-preview.test.mjs covers the 0.24.0 default
+await import('../scripts/module.mjs');hooks.get('init')();settings.lockedRanks='all';settings.lockedRanksMigrated=true;// show everything (closest to 0.23.0); locked-ranks.test.mjs and first-unlock-preview.test.mjs cover the other modes
 // Snapshot what a player saw BEFORE the update (the old module's rule: Known = recruit).
 hooks.get('ready')();
 await new Promise(r=>setTimeout(r,60));
@@ -115,9 +115,9 @@ test(state('NEW').discovery.actors.join()==='A1'&&state('NEW').membership.actors
 let p=fx('p1','NEW');
 test(p&&p.name==='[TEST] NEW'&&p.leader==='[TEST] Leader NEW'&&p.public_role==='[TEST] Role NEW','Known: name, leader and description are shown');
 test(p.status==='Known (not recruited)'&&p.member===false,'Known: the status text says Known (not recruited)');
-test(p.group===null&&p.groupTrack===null&&p.individualTrack===null&&Object.keys(p.personal).length===0,'Known: no group, track or personal data in the payload');
+test(p.group===null&&Object.keys(p.personal).length===0&&p.groupTrack?.preview===true&&p.individualTrack?.preview===true,'Known: no group or personal standing (only the locked rank previews of 0.24.0 and later)');
 const raw=JSON.stringify(p);
-test(!/score|rank|milestone|history|claims|threshold|rw-NEW|Boon|requests/i.test(raw),'Known: nothing about score, rank, milestones, history, claims or rewards is serialised');
+test(!/"score"|history|claims|requests/i.test(raw),'Known: no score, history, claims or requests are serialised (rank previews are covered by first-unlock-preview and locked-ranks tests)');
 test(p.entries.length===0,'Known: information entries stay hidden until they are shown');
 await choose('NEW','A1');const ek=state('NEW');
 await actions.showEntry.call(dashboard,null,{dataset:{entry:'info_NEW',mode:'actor'}});
@@ -217,7 +217,7 @@ let t2=false;try{await mod.api.setMembership('FACTION-QA-MISSING',{party:true,on
 // Player getFactions reflects the split.
 game.user=p1;const gf=mod.api.getFactions().find(f=>f.id==='FACTION-QA-SHARE');
 test(gf.group===null&&gf.status==='Known (not recruited)','player getFactions reflects Known (not recruited)');
-test(!JSON.stringify(mod.api.getFactions().filter(f=>f.member===false)).match(/score|rank|milestone|history|claims/i),'player getFactions has no standing for Known factions');
+test(!JSON.stringify(mod.api.getFactions().filter(f=>f.member===false)).match(/\"score\"|history|claims/i),'player getFactions has no standing for Known factions');
 game.user=gm;
 // GM list chips: text.
 const g=M.recruitChip({discovery:{party:false,actors:['A1']},membership:{party:false,actors:['A1']}});

@@ -38,7 +38,7 @@ const deityDoc=(key,name,extra={})=>{const d=makeDeity({id:`DEITY-QA-${key}`,tra
 deityDoc('SUN','[TEST] Sun Deity',{relations:[{deity_id:'DEITY-QA-MOON',resonance:1}]});
 deityDoc('MOON','[TEST] Moon Deity',{tier:'lesser'});
 makeDoc({name:'[TEST] Guild',ownership:{default:0},flags:{[ns]:{faction:sourceDefinition(makeFaction({id:'FACTION-QA-G',trackId:'RENOWN-QA-G',name:'[TEST] Guild'}))}}});
-await import('../scripts/module.mjs');hooks.get('init')();settings.hideLaterTiers=false;/* 0.23.0 behaviour; first-unlock-preview.test.mjs covers the 0.24.0 default */hooks.get('ready')();
+await import('../scripts/module.mjs');hooks.get('init')();settings.lockedRanks='all';settings.lockedRanksMigrated=true;/* show everything; the other modes are covered by locked-ranks.test.mjs and first-unlock-preview.test.mjs */hooks.get('ready')();
 await new Promise(r=>setTimeout(r,30));
 const view=uid=>journal.find(d=>d.getFlag(ns,'playerView')?.user_id===uid).getFlag(ns,'playerView');
 const sunGroup=()=>journal.find(d=>d.getFlag(ns,'groupClaims')?.faction_id==='DEITY-QA-SUN').getFlag(ns,'groupClaims');

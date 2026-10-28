@@ -1,3 +1,16 @@
+## 0.25.0 — 2026-10-28
+
+**Players see every rank; ranks they have not unlocked are flavor-only locked cards.**
+
+- **Locked cards.** A faction a player can see (Known or Recruited) and a god shown to them now give the player every rank in order. A rank the character or party has not unlocked is a **Locked** card (lock icon and the word Locked) with its rank number, its threshold and a line of flavor text. Its name, benefit text, reward names, descriptions, teasers, item links and numbers are not sent to the player at all (not just hidden), and there is no Claim button. Unlocked ranks show everything as before.
+- **Flavor text.** Every milestone (group and individual tracks, deity ladders) takes an optional `flavor` string, 1-2 sentences, 400 characters at most. The faction editor has **Flavor when locked** on each rank. Without one the card says "A further rank, earned through renown." (gods: "A further tier, opened by a sworn Vow."). Older records without it keep working. `flavor` is part of the reusable definition: it validates in factions import/export files and General Manager packages, is exported, imported and Synced like the rank text, and shows in the update preview as a changed milestone.
+- **Known (not recruited).** The first rank is the 0.24.0 preview in full ("Unlocks when recruited", not claimable); ranks 2 to 5 are locked cards. Recruited: ranks open as the standing reaches them. A player with two characters sees each one's own ladder.
+- **Gods.** Tier 1 in full with the Vow toggle; tiers 2 to 5 stay locked cards for a character who has not sworn a Vow to that god, whatever their piety, and open as piety is earned once the Vow is sworn (per character; breaking the Vow locks them again). The next-rank pointer is a generic "Tier n".
+- **GM Setup: Locked ranks** replaces the 0.24.0 switch "Hide later tiers until recruited or sworn". Choices: *Flavor text only* (default), *Hide locked ranks* (exactly 0.24.0) and *Show everything* (locked ranks show names and reward teasers; a god's whole ladder; as before 0.24.0). A world whose GM had turned the old switch off is carried over once to *Show everything*; everyone else gets the default.
+- **Claims.** Unchanged on the server: a reward on a rank that has not been reached is refused; a later tier of a god is refused without that character's Vow (not in *Show everything*, as before 0.24.0).
+- API (`getFactions`, `getDeities`, `getPantheon`) and the Character Hub embed follow the same rules for players; the embed's "Next" names a generic "Rank n" / "Tier n". The GM view and GM API are unchanged.
+- Details: docs/renown-known-vs-recruit.md, docs/renown-deity-schema.md.
+
 ## 0.24.0 — 2026-10-28
 
 **First unlock visible, later tiers hidden until recruited or sworn.**

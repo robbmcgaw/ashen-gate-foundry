@@ -65,3 +65,23 @@ World setting `hideLaterTiers` (GM Setup, default **on**). All of this is built 
 - Claims: a later-tier reward of a god is refused for a character without a Vow to it (setting on). Faction claims already need membership.
 - GM views and the GM API are unchanged. `getPantheon` rows carry `limited`; the Hub embed shows "More tiers unlock when you swear a vow." instead of "Top rank".
 - Hints shown to players: "Unlocks when recruited", "More ranks unlock when you are recruited.", "More tiers unlock when you swear a vow." No counts or later names.
+
+## Locked ranks as flavor-only cards (0.25.0)
+
+World setting `lockedRanks` (GM Setup, **Locked ranks**; replaces the 0.24.0 Boolean `hideLaterTiers`). Values: `flavor` (default), `hide`, `all`. Built GM-side into the player payload; nothing is hidden by the template.
+
+**Data.** Every milestone (group and individual tracks, deity ladders) may carry an optional string `flavor` (1-2 sentences, 400 characters at most). It is part of the reusable definition: it validates in `ag-factions-source-export/0.3` and `/0.4` files (the closed milestone shape now allows it), in `ag-foundry-import/0.2` Faction/Deity records that Manager hands to Renown, and it is exported, imported and updated like `benefit`. A milestone without it is fine. Fallback shown to players: factions "A further rank, earned through renown."; gods "A further tier, opened by a sworn Vow."
+
+**A locked card** (`lockedCard:true`) is built field by field and has exactly: `id, order, threshold, name` (generic "Rank n" / "Tier n"), `benefit:""`, `flavor`, `locked:true, lockedCard:true, unlocked:false, rewards:[]`. The real name, benefit, `selection_mode`, rewards (names, teasers, descriptions, item links, ids) are not in the payload. Unlocked cards are sent in full as before.
+
+| Case | `flavor` (default) | `hide` (0.24.0) | `all` (before 0.24.0) |
+|---|---|---|---|
+| Faction, Known only | both tracks `{preview:true}`: rank 1 as the 0.24.0 preview (full name, teasers, "Unlocks when recruited", not claimable), ranks 2-5 locked cards | rank 1 only | all five ranks as locked teaser previews (names and teasers, no standing) |
+| Faction, recruited | `personal[id].milestones` and `groupTrack.milestones`: ranks the standing has reached in full, the rest locked cards. The shared `individualTrack.milestones` names a rank only when one of the player's recruited characters reached it (generic otherwise); `individualPreview` (the Known preview above) is added when a character of the player is not recruited | as 0.24.0 (locked ranks keep name and teaser) | as 0.24.0 |
+| Deity, no Vow to it | tier 1 in full (Vow toggle), tiers 2-5 locked cards whatever the piety; `limited:true`; `rank` = tier 1, `next:null` | tier 1 only | whole ladder |
+| Deity, Vow sworn | tiers the piety reached in full, the rest locked; `next` = `{name:"Tier n", threshold}` (generic) | whole ladder with real names | whole ladder |
+
+- Shared `ladder` (deity): a tier is named only if a sworn character of the player has reached it.
+- `getFactions()`, `getDeities()`, `getPantheon()` (rows' `next.name` is generic in `flavor` mode) and the Hub embed read the same payload. GM views and the GM API are unchanged (the GM API carries `flavor`).
+- Claims: unchanged server rules. A reward on a rank the standing has not reached is refused ("Reward not available for request."); a later-tier reward of a god is refused without that character's Vow in `flavor` and `hide` modes; not in `all` (as before 0.24.0).
+- Migration: on the first GM start of 0.25.0 the old switch is read once. Explicit OFF becomes `all`; ON or never touched becomes `flavor`. `lockedRanksMigrated` records that it ran and later picks are never overwritten.
