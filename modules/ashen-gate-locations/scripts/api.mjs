@@ -20,7 +20,7 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
  *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
- *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc),
+ *        sharing?: {request({ref, userIds})}, show?: {send(ref)}, playerIds?(), pinsOf?(loc),
  *        tables?: {draw(uuid) → {results: [text]}, uuidByName?(name)} (0.20.0: GM rolls a linked RollTable to chat),
  *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion)}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
@@ -340,6 +340,17 @@ export function createApi(deps) {
       if (!v.share.canShare) throw new Error('The GM has turned sharing off for this location.');
       if (!deps.sharing) throw new Error('Sharing is unavailable.');
       return deps.sharing.request({ref: v.key, userIds});
+    },
+
+    /**
+     * GM (0.23.0): opens a Revealed or Unidentified location in every other connected client's Locations window.
+     * Selected-players locations reach only the selected players. Resolves to {sent: players reached}. Hidden: throws.
+     */
+    async showToPlayers(ref) {
+      requireAccess();
+      if (!gm()) throw new Error('Only the GM can show a location to players.');
+      if (!deps.show) throw new Error('Show to Players is unavailable.');
+      return deps.show.send(ref);
     },
 
     // Party Notes: shared by the whole party, separate from the GM's Notes section. Not part of the definition.

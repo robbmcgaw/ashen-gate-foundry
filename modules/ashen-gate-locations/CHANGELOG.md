@@ -1,3 +1,14 @@
+## 0.23.0 — 2026-10-28
+
+New: **Show to Players**. The GM opens a location in everyone else's Locations window.
+
+- **Where:** the location editor's head, beside Place on Scene (GM only, shown for saved locations). Press **Show to Players**: every other connected client who may see that location gets its Locations window opened on it, like Foundry's own Show to Players for journals. You get "Shown to N players", or a note that nobody who can see it is connected.
+- **Who sees what:** Revealed and Unidentified locations only (an unidentified one opens its unidentified card and label, never the name); a Selected-players location goes only to those players. A **Hidden** location asks **Reveal and show** first and is never revealed silently. Each player's client checks again with the module's own player view and opens nothing if it would not show them the location.
+- **On the player's side:** the one window switches to the location (no second window) and comes to the front. It does not take keyboard focus from a field the player is typing in, and a player with unsaved Party Notes is not interrupted (they get "The GM is showing …"). The same location shown twice within a second opens once.
+- **GM Setup → Show to Players:** "Players' windows open automatically when the GM shows a location" (on by default). Off: players get only the notification.
+- Uses the module's existing socket (the same channel as Party Notes and Share with…); the message carries only the location's pin key. Only a GM's message is accepted. No world data is written, so there is no migration. New API: `showToPlayers(ref)` (GM).
+- Tests use mocked Foundry; they do not prove the real socket or window.
+
 ## 0.22.2 — 2026-10-28
 
 New: **Wrap the name after (characters)** for the name under a map pin.

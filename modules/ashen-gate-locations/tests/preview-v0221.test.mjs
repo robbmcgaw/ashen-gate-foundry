@@ -1,4 +1,4 @@
-/** 0.22.2 Player Preview: current state only, with an in-place "Also show the other states" toggle. Mocked Foundry; logic only. */
+/** 0.23.0 Player Preview: current state only, with an in-place "Also show the other states" toggle. Mocked Foundry; logic only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installFoundry, gm} from './foundry-mock.mjs';
@@ -10,8 +10,8 @@ globalThis.CSS ??= {escape: v => String(v)};
 
 function app(state, extra = {}) {
   const g = installFoundry();
-  const mod = {version: '0.22.2', active: true};
-  mod.api = createApi({version: '0.22.2', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const mod = {version: '0.23.0', active: true};
+  mod.api = createApi({version: '0.23.0', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   game.user = gm;
   const a = new LocationsApp();
