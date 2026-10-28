@@ -358,7 +358,7 @@ test('no lead: old callers still work (leadId, helperIds ignored), an old rememb
  assert.equal(app._gatherTabNow(),'start');
  app._ui.set('gatherTab','requests');app.gatherTab=null;assert.equal(app._gatherTabNow(),'requests','a still-valid remembered tab is kept');
  app._ui.set('gatherTab','start');app.gatherTab=null;
- assert.deepEqual(Object.keys(values).filter(k=>/lead|gather/i.test(k)),[],'no setting holds gather state');
+ assert.deepEqual(Object.keys(values).filter(k=>/lead|gather/i.test(k)),['gatherHistory'],'only the history (0.37.8) holds gather state');assert.ok(!/lead/i.test(JSON.stringify(values.gatherHistory)));
  // The old resolve(sessionId,{total}) shape: with one character left to roll it records for them.
  const solo=await api.gathering.start({node:adhoc,professions:['fishing'],tiers:[1],dc:10});
  assert.equal(api.gathering.resolve(solo.id,{total:12}).total,12);
@@ -518,4 +518,135 @@ test('players never get the advantage lists or reasons in the reveal they are se
   assert.doesNotMatch(JSON.stringify(_test.roundView(_test.openRound(),{players:true})),/Advantage|advantage/);
   _test.cancelRound(round.id);
  }finally{bo.items.splice(bo.items.indexOf(kit),1);setAdv({});}
+});
+
+/* ---- 0.37.8: gather history and clearing ------------------------------------------------------------ */
+import {readHistory,upsertEntry,setRowXp,HISTORY_MAX,humanWhen} from '../scripts/gather-history.mjs';
+const histRound=async(totals={ana:14,bo:12})=>{
+ const round=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10});
+ for(const [id,t] of Object.entries(totals))_test.recordRoll(round.id,{actorId:id,total:t});
+ return round;
+};
+const clearHistoryNow=()=>{game.user=gm;api.gathering.clearHistory({alsoLast:true});};
+
+test('history, pure: capped at 10, newest first, no duplicates; malformed stored data is dropped without throwing; dates are human',()=>{
+ let list=[];
+ for(let i=0;i<13;i++)list=upsertEntry(list,{id:`g${i}`,at:1000+i,title:'[TEST] Spot',tiers:[1],dc:10,professions:['Herbalism'],rows:[{actorId:'ana',name:'Ana',total:12,result:'common',drops:[{name:'Leaf',quantity:1,kind:'common',given:true}]}]});
+ assert.equal(list.length,HISTORY_MAX);assert.deepEqual(list.map(e=>e.id).slice(0,2),['g12','g11']);assert.ok(!list.some(e=>e.id==='g0'||e.id==='g2'),'the oldest were dropped');
+ assert.deepEqual(upsertEntry(list,{id:'g12',at:5000,title:'again',rows:[]}).filter(e=>e.id==='g12').length,1,'same id replaces');
+ assert.deepEqual(readHistory(undefined),[]);assert.deepEqual(readHistory('x'),[]);assert.deepEqual(readHistory({entries:[null,{},{id:'a'},{id:'b',at:'z'},{id:'ok',at:1,rows:[{name:'A',total:'7',result:'bogus',drops:[{name:'L',quantity:-3}]}]}]}).map(e=>e.id),['ok']);
+ const clean=readHistory({entries:[{id:'ok',at:1,rows:[{name:'A',total:'7',result:'bogus',drops:[{name:'L',quantity:-3}]}]}]})[0];
+ assert.deepEqual([clean.rows[0].total,clean.rows[0].result,clean.rows[0].drops[0].quantity,clean.given],[7,'fail',1,false]);
+ const noon=new Date(2026,9,28,21,42).getTime();
+ assert.match(humanWhen(noon,noon),/^Today, 9:42\s?PM$/);assert.equal(humanWhen(new Date(2026,9,20,10,0).getTime(),noon),'Oct 20');
+ assert.doesNotMatch(humanWhen(noon,noon),/\d{10}/);
+});
+
+test('history: written at Reveal, “Given” updates when loot is given, cancelled gathers are not listed, newest first, capped at 10',async()=>{
+ clearHistoryNow();_test.setExoticRoll(dice(50,50));
+ const r1=await histRound();_test.revealRound(r1.id);
+ let h=api.gathering.history();assert.equal(h.length,1);assert.equal(h[0].given,false,'revealed, nothing given yet');
+ assert.ok(h[0].rows.some(r=>r.drops.length&&r.drops.every(d=>!d.given)));
+ await _test.giveRound(r1.id);
+ h=api.gathering.history();assert.equal(h[0].given,true,'Given after Give loot');assert.deepEqual(h[0].rows.map(r=>r.name).sort(),['[TEST] Ana','[TEST] Bo']);
+ // Cancelled before the reveal: never listed. Cancelled after the reveal: taken out.
+ const r2=await histRound();_test.cancelRound(r2.id);assert.equal(api.gathering.history().length,1);
+ const r3=await histRound();_test.revealRound(r3.id);assert.equal(api.gathering.history().length,2);_test.cancelRound(r3.id);assert.equal(api.gathering.history().length,1);
+ // Order and cap.
+ for(let i=0;i<11;i++){const r=await histRound();_test.revealRound(r.id);await _test.giveRound(r.id);}
+ h=api.gathering.history();assert.equal(h.length,10);assert.ok(h.every((e,i)=>i===0||h[i-1].at>=e.at));
+ assert.equal(JSON.parse(JSON.stringify(values.gatherHistory)).entries.length,10,'persisted in the world setting, same cap');
+ clearHistoryNow();
+});
+
+test('history: the gather card carries the history id, and XP awarded or taken back lands on that row',async()=>{
+ clearHistoryNow();chats.length=0;_test.setExoticRoll(dice(50,50));
+ const r=await histRound({ana:14});_test.revealRound(r.id);await _test.giveRound(r.id);
+ const card=chats.find(m=>m.flags?.['ashen-gate-profession-ledger']?.xp?.kind==='gather');
+ assert.equal(card.flags['ashen-gate-profession-ledger'].historyId,r.id,'the card points at its history entry');
+ const e=api.gathering.history()[0];assert.equal(e.id,r.id);assert.equal(e.rows.find(x=>x.actorId==='ana').xp,null);
+ const withXp=setRowXp(readHistory({entries:[e]}),r.id,'ana',3);assert.equal(withXp[0].rows.find(x=>x.actorId==='ana').xp,3);
+ assert.equal(setRowXp(withXp,r.id,'ana',null)[0].rows.find(x=>x.actorId==='ana').xp,null,'taken back');
+ assert.equal(upsertEntry(withXp,{...withXp[0]})[0].rows.find(x=>x.actorId==='ana').xp,3,'a refresh keeps the XP');
+ clearHistoryNow();
+});
+
+test('history and clearing: GM only in the data layer; the banner and the entry are cleared per the tick box; players see no history and their copy is cleared; nothing else changes',async()=>{
+ clearHistoryNow();_test.setExoticRoll(dice(50,50));
+ const r=await histRound();_test.revealRound(r.id);const bag=of(ana,'MAT-TG-H1')+of(ana,'MAT-TG-H2');await _test.giveRound(r.id);
+ const after=of(ana,'MAT-TG-H1')+of(ana,'MAT-TG-H2');
+ // Players: refused in the API, and no History tab.
+ game.user=alice;
+ assert.throws(()=>api.gathering.history(),/Only the GM/);assert.throws(()=>api.gathering.clearHistory(),/Only the GM/);assert.throws(()=>api.gathering.clearLast(),/Only the GM/);
+ assert.throws(()=>_test.clearGatherHistory(),/Only the GM/);assert.throws(()=>_test.clearLastGather(),/Only the GM/);
+ game.user=gm;
+ // GM view: the tab, the entry (human date, no raw timestamp), the banner button.
+ app.gatherTab='history';let h=await html();
+ assert.match(h,/>History</);assert.match(h,/<details class="agl-history-entry" open>/);assert.match(h,/Today, \d{1,2}:\d{2}\s?[AP]M/);assert.doesNotMatch(h,/\b1[67]\d{11}\b/);
+ assert.match(h,/data-action="gather-clear-history"[^>]*><i[^>]*><\/i> Clear history…/);
+ app.gatherTab='start';h=await html();assert.match(h,/Last gather,/);assert.match(h,/data-action="gather-clear-last"/);
+ // Clear last gather: banner gone, entry kept (default tick off).
+ sent.length=0;const out=api.gathering.clearLast();assert.deepEqual([out.cleared,out.historyRemoved],[true,false]);
+ assert.equal(api.gathering.history().length,1);app.gatherTab='start';assert.doesNotMatch(await html(),/Last gather,/);assert.equal(sentOf('gather-last-cleared').length,1);
+ // Players: their own copy goes when told.
+ game.user=bob;const keep=_test.playerResults.size;await _test.onSocket({type:'gather-last-cleared'},'gm');game.user=gm;
+ // Ticked: the entry goes too (a banner must be present to know the entry).
+ const r2=await histRound();_test.revealRound(r2.id);await _test.giveRound(r2.id);
+ assert.deepEqual([api.gathering.clearLast({alsoHistory:true}).historyRemoved,api.gathering.history().length],[true,1]);
+ // Clear history: default also clears the banner; the option keeps it.
+ const r3=await histRound();_test.revealRound(r3.id);await _test.giveRound(r3.id);
+ api.gathering.clearHistory({alsoLast:false});assert.equal(api.gathering.history().length,0);app.gatherTab='start';assert.match(await html(),/Last gather,/,'banner kept when unticked');
+ app.gatherTab='history';assert.match(await html(),/No gathers yet\./);
+ const r4=await histRound();_test.revealRound(r4.id);await _test.giveRound(r4.id);api.gathering.clearHistory();app.gatherTab='start';assert.doesNotMatch(await html(),/Last gather,/);
+ assert.ok(of(ana,'MAT-TG-H1')+of(ana,'MAT-TG-H2')>=after&&after>=bag,'loot already given is never taken back');
+ // The labelled confirmation: Cancel is the default; nothing happens unless the action is chosen.
+ const W=foundry.applications.api.DialogV2,orig=W.wait;let seen;
+ try{
+  const r5=await histRound();_test.revealRound(r5.id);await _test.giveRound(r5.id);
+  W.wait=async o=>{seen=o;return null;};app.gatherTab='history';await app._click('gather-clear-history');
+  assert.equal(api.gathering.history().length,1,'cancelled: nothing cleared');assert.equal(seen.window.title,'Clear gather history?');
+  assert.deepEqual(seen.buttons.map(b=>[b.label,Boolean(b.default)]),[['Cancel',true],['Clear history',false]]);assert.match(seen.content,/name="last" checked/,'ticked by default');
+  W.wait=async o=>{seen=o;return {history:true};};await app._click('gather-clear-last');
+  assert.equal(seen.window.title,'Clear the last gather?');assert.equal(seen.buttons[1].label,'Clear last gather');assert.doesNotMatch(seen.content,/name="history" checked/,'unticked by default');
+  assert.equal(api.gathering.history().length,0,'ticked: entry removed too');
+ }finally{W.wait=orig;}
+ clearHistoryNow();
+});
+
+test('history: a stored setting from before (missing or of another shape) reads as empty and is not rewritten until a gather is recorded',()=>{
+ const was=values.gatherHistory;
+ try{
+  values.gatherHistory=undefined;_test.getHistory();game.user=gm;
+  assert.deepEqual(readHistory(values.gatherHistory),[]);
+  values.gatherHistory={schema:'something-else',entries:'nope'};assert.deepEqual(readHistory(values.gatherHistory),[]);
+ }finally{values.gatherHistory=was;}
+});
+
+test('player flow: Roll as <name> from the pop-up opens the Ledger on Gathering and shows the player’s roll; the reveal opens it with the reel; the GM is untouched',async()=>{
+ game.user=gm;sent.length=0;dialogs.length=0;_test.setExoticRoll(dice(50,50));
+ const round=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10});
+ const prompt=sentOf('gather-round').find(p=>p.toUserIds[0]==='u1');sent.length=0;
+ game.user=alice;
+ await _test.onSocket(prompt,'gm');
+ const popup=dialogs.find(d=>d.opts?.window?.title==='Gather — roll your check');assert.ok(popup,'the small pop-up still appears');
+ const btn=popup.opts.buttons.find(b=>b.action==='roll:ana');
+ ana.nextRoll=14;btn.callback();
+ for(let i=0;i<10;i++)await new Promise(r=>setTimeout(r));
+ const app=api.open();   // the same window the flow used
+ assert.equal(app.view,'gathering','the Ledger is on Gathering');
+ let h=(await app._prepareContext({})).html;
+ assert.match(h,/Gather at /);assert.match(h,/Rolled 14/,'her own roll, as the tab shows it');
+ assert.doesNotMatch(h,/data-agl-reveal/,'no reel before the reveal');
+ // The GM reveals: the reel appears on the player’s screen, from the public view only.
+ game.user=gm;const rolled=sent.find(m=>m.type==='gather-rolled');
+ assert.equal(await _test.receiveGatherRoll(rolled,'u1'),true);_test.recordRoll(round.id,{actorId:'bo',total:12});sent.length=0;
+ _test.revealRound(round.id);const reveal=sentOf('gather-round-reveal').find(m=>m.toUserIds.includes('u1'));
+ game.user=alice;app.view='individual';
+ await _test.onSocket(reveal,'gm');
+ assert.equal(app.view,'gathering','opened on Gathering at the reveal');
+ h=(await app._prepareContext({})).html;assert.match(h,/data-agl-reveal/);
+ assert.ok(!/materialId|pool|Exotic chance/i.test(JSON.stringify(reveal.view)),'nothing hidden travels with the reveal');
+ // GM client: the same socket message never opens a window for the GM.
+ game.user=gm;app.view='individual';await _test.onSocket(reveal,'gm');assert.equal(app.view,'individual');
+ _test.cancelRound(round.id);
 });
