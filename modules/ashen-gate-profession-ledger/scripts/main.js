@@ -1133,6 +1133,16 @@ function craftRequirement(recipe,actor=null){
     check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,anyOf??checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
     lacks:missing.length>0,missing:missing.map(toolRefLabel)};
 }
+/** 0.37.6: why an activity cannot be completed for lack of its tool, or ''. Blocks only when the requirement is a TOOL (the recipe's own
+ * tools or the profession's default tool, any one of them) and the character carries none of them, by the same test the "doesn't have this"
+ * badge uses (craftRequirement.missing: owned Item or tool proficiency, tool groups included). An activity with a workstation (Journeyman
+ * and up: the station is confirmed with the GM) never blocks: its tools are a check choice and keep today's warning. Craft is unchanged. */
+function activityToolBlocker(recipe,actor){
+  if(!isActivity(recipe)||!actor)return '';
+  const req=craftRequirement(recipe,actor);
+  if(req.workstation||!req.tool||!req.lacks)return '';
+  return req.tools.length>1?`Needs one of: ${req.toolLabel}`:`Needs ${req.toolLabel}`;
+}
 /** "A", "A or B", "A, B or C". */
 const orList=names=>names.length<2?names.join(''):`${names.slice(0,-1).join(', ')} or ${names.at(-1)}`;
 /** 0.32.2: the tools GM Setup allows for a profession (Tools column: GM edits, baseline file, imported content, else the
@@ -1261,8 +1271,10 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   const activity=isActivity(recipe);
   // 0.28.0: an activity has Complete activity in place of Craft (no materials to check).
   if(craft&&actor&&activity){
+    const toolBlock=activityToolBlocker(recipe,actor),needId=`agl-need-${ctxKey(`${recipe.id}:${actor.id}`)}`;
     const button=(attrs='disabled')=>`<button type="button" class="ag-btn" ${attrs}><i class="fa-solid fa-masks-theater" aria-hidden="true"></i> Complete activity</button>`;
     if(craft.blockers.length)actions=`${owned(actor)?button():''}<span class="agl-reason">${esc(craft.blockers[0])}</span>`;
+    else if(toolBlock)actions=`${owned(actor)?button(`disabled aria-describedby="${needId}"`):''}<span class="agl-reason" id="${needId}">${esc(toolBlock)}</span>`;
     else if(owned(actor))actions=button(`data-action="complete-activity" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"`);
   }else if(craft&&actor){
     const {blockers,plan}=craft;
@@ -1686,6 +1698,7 @@ async function completeActivity(actor,recipeId,{confirm=true}={}){
   if(!isActivity(recipe))throw Error(`${recipe.name} is crafted, not completed as an activity`);
   const ctx=craftContext(actor,recipe,lib);
   if(ctx.blockers.length)throw Error(ctx.blockers[0]);
+  const toolBlock=activityToolBlocker(recipe,actor);if(toolBlock)throw Error(`${toolBlock} (${actor.name} doesn’t have it).`);
   const req=craftRequirement(recipe,actor),cplan=req.checkPlan;
   let picked=cplan?.selected??null,option=picked?checkOption(actor,picked):null;
   const preset=picked?.key?rollModeFor(actor,{kind:picked.kind,key:picked.key}):{mode:0,sources:[]};
@@ -3170,7 +3183,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Gathering:</strong> when the GM opens a gather, every character who holds one of the chosen gathering professions can roll one check (your own skill or tool bonus, advantage preset from the sheet). Roll from the popup or from Gathering. When the GM reveals the results, a slot-machine reel lands on what each successful character found. <em>Skip animation</em> jumps to the result, and with reduced motion on you get a plain list. Nothing is given until the GM presses Give loot; the result is posted in chat. You can also pick a gathering spot at a location your party knows and press <b>Request gather</b>: it waits in the GM’s Requests list until they approve or decline (with a reason).</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
-    <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
+    <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: An activity that needs a tool is disabled (with the reason shown) until the character carries one; compositions at a station are not blocked. <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
