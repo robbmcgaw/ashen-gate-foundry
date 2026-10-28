@@ -1,5 +1,5 @@
 /**
- * Ashen Gate Locations 0.28.0: "People here" and "Shops here". Pure: no Foundry globals, so everything here is unit-tested.
+ * Ashen Gate Locations 0.30.0: "People here" and "Shops here". Pure: no Foundry globals, so everything here is unit-tested.
  *
  * People: a location keeps links to the NPC Actors (or Journals) the GM says are here. General Manager records where an NPC
  * lives in the record's refs (`found_at` is the documented relation; `located_at`, `based_at` and the like are read the same

@@ -112,7 +112,7 @@ const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, k
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
 /** 0.20.0: a linked document's name ('' when it is gone or not loaded), and the world's RollTables for the pickers. */
 const docName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? ''; } catch { return ''; } };
-/** 0.28.0: the world's Actors, and Actors plus Journals (a People link may be either), as plain arrays. */
+/** 0.30.0: the world's Actors, and Actors plus Journals (a People link may be either), as plain arrays. */
 const worldActors = () => [...(game.actors ?? [])];
 const worldPeopleDocs = () => [...worldActors(), ...(game.journal ?? [])];
 const worldTables = () => [...(game.tables ?? [])].filter(t => t?.uuid).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(t => ({value: t.uuid, label: t.name}));
@@ -610,7 +610,7 @@ export class LocationsApp extends Base {
         <small>${[r.skill, `Tier ${r.tier}`, r.dc && `DC ${r.dc}`].filter(Boolean).map(esc).join(' · ')}</small></span>
         ${r.exhausted ? '<span class="ag-badge">Exhausted</span>' : `<span class="ag-badge ${r.available ? 'ag-badge--ok' : ''}">${r.available ? 'Available' : 'Unavailable'}</span>`}${r.note ? `<small>${esc(r.note)}</small>` : ''}`))),
       factions: card('Factions', ul((v.factions ?? []).map(f => `${link(f.label, f.uuid)}${f.note ? ` <small>${esc(f.note)}</small>` : ''}`))),
-      // 0.28.0: a name always; a link only where Foundry lets this player open the document (otherwise the name alone).
+      // 0.30.0: a name always; a link only where Foundry lets this player open the document (otherwise the name alone).
       npcs: card('People', ul((v.npcs ?? []).map(n => `${canOpen(n.uuid) ? link(n.label || 'Someone', n.uuid) : esc(n.label || 'Someone')}${n.note ? ` <small>${esc(n.note)}</small>` : ''}`))),
       quests: card('Quests', ul(questItems)),
       related: card('Related Locations', ul((v.related ?? []).map(r => go(r.name, 'select', {id: r.id})))),
@@ -637,7 +637,7 @@ export class LocationsApp extends Base {
   }
 
   /**
-   * 0.28.0, players: the shops the GM has shown to THIS player at this place (Utilities' own player-filtered list), each with Open shop.
+   * 0.30.0, players: the shops the GM has shown to THIS player at this place (Utilities' own player-filtered list), each with Open shop.
    * Nothing when none; an unshown shop, a place the player cannot see or a missing or older Utilities add nothing.
    */
   shopsCardHtml(v) {
@@ -646,7 +646,7 @@ export class LocationsApp extends Base {
     return `<section class="ag-card agl-shops" data-shops-card="1"><h3>Shops</h3><ul class="ag-list agl-entries">${shops.map(s => `<li><span class="agl-entry"><strong>${esc(s.name)}</strong>${s.merchant ? ` <small>${esc(s.merchant)}</small>` : ''}</span>
       ${btn('open-shop', s.kind === 'service' ? 'Open service' : 'Open shop', {kind: 'sm', icon: 'fa-solid fa-store', data: {id: s.id}, title: `Open ${s.name}`})}</li>`).join('')}</ul></section>`;
   }
-  /** 0.28.0, GM: the "Shops here" card (Content tab). Utilities owns the shops; this lists those linked to this place and presents them. */
+  /** 0.30.0, GM: the "Shops here" card (Content tab). Utilities owns the shops; this lists those linked to this place and presents them. */
   shopsHereHtml(d) {
     const head = `<header class="ag-card__head"><h3>Shops here</h3><span class="agl-head-tools">${NOW}</span></header>`;
     const wrap = body => `<section class="ag-card agl-section agl-shops" data-shops-here="1">${head}${body}</section>`;
@@ -750,7 +750,7 @@ export class LocationsApp extends Base {
     const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <ul class="ag-list agl-nodes">${d.resources.map(e => isNodeRef(e) ? this.nodeRefHtml(e, nodes, entryTools, handle) : this.nodeHtml(e, entryTools, handle)).join('')}</ul>` : '';
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
-    // 0.28.0: People here. Rows are the links on this location; the suggestions come from General Manager's NPC records (one click to link).
+    // 0.30.0: People here. Rows are the links on this location; the suggestions come from General Manager's NPC records (one click to link).
     const relinks = new Map(relinkPlan(d.npcs, worldPeopleDocs(), uuid => !!docName(uuid)).map(r => [r.key, r]));
     const npcRows = rows('npcs', e => {
       const name = e.uuid ? docName(e.uuid) : '';
@@ -1453,7 +1453,7 @@ export class LocationsApp extends Base {
     this.dirty = true;
     return this.render();
   }
-  /** 0.28.0: links an NPC (or a Journal about someone) to this location. Hidden from players until its eye is turned on. A link only: nothing is copied. */
+  /** 0.30.0: links an NPC (or a Journal about someone) to this location. Hidden from players until its eye is turned on. A link only: nothing is copied. */
   linkPerson(doc) {
     if (!this.draft || !doc?.uuid) return;
     const facts = actorFacts(doc);
@@ -1883,13 +1883,13 @@ export class LocationsApp extends Base {
    * 0.24.0: GM only. Active is live play state: it applies at once, with no Save or Publish, and never touches unsaved edits.
    * A Hidden location asks first ("Reveal and make active?"); it is never revealed silently.
    */
-  /** 0.28.0: Utilities' own shop window (the GM sees it as players do; a player only for a shop shown to them). */
+  /** 0.30.0: Utilities' own shop window (the GM sees it as players do; a player only for a shop shown to them). */
   async openShop(id) {
     const shops = shopsApiState(game.modules).shops;
     if (!id || typeof shops?.open !== 'function') return ui.notifications.warn('Ashen Gate | Utilities is not available.');
     try { await shops.open(id); } catch (err) { ui.notifications.warn(err?.message ?? String(err)); }
   }
-  /** 0.28.0, GM: Present… asks who (all players or chosen ones); Utilities does the presenting and re-checks that the caller is the GM. */
+  /** 0.30.0, GM: Present… asks who (all players or chosen ones); Utilities does the presenting and re-checks that the caller is the GM. */
   async presentShop(id) {
     const shops = shopsApiState(game.modules).shops;
     if (!game.user.isGM || typeof shops?.present !== 'function') return;
@@ -2002,6 +2002,10 @@ export class LocationsApp extends Base {
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
         '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
         '<em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
+      topic('People and shops', [
+        '<strong>People</strong> (Content sub-tab) links NPC Actors or Journals to this place. Drop one on the block, or choose one and click <strong>Link</strong>. A link is only a link: nothing is copied, and players never see anything from the Actor itself. Each person has an eye (hidden by default), the <em>Name shown to players</em> and an optional note, both written by you. Turn on the eye and <em>Show section to players</em>, then Publish: players get a <strong>People</strong> card where a name opens the Actor or Journal only if Foundry lets them.',
+        'If General Manager imported your NPCs, People suggests the ones whose record names this place, each with <strong>Link &lt;name&gt;</strong>. A record that places the NPC here is listed first; one that only mentions the place (a plain <em>related</em> link) is listed after and says so. If you delete an NPC and import it again, the row offers <strong>Re-link to &lt;name&gt;</strong>; Save Changes and Publish keep it.',
+        '<strong>Shops here</strong> lists the shops and services linked to this place in Ashen Gate | Utilities (set a shop\'s place in the shop\'s editor). <em>Include places inside</em> adds the places below this one. <strong>Present…</strong> shows a shop to all players or chosen ones, <strong>Stop showing</strong> ends it, <strong>Open</strong> shows it as players see it. These act at once; Save Changes is not needed. Players see a <strong>Shops</strong> card with <strong>Open shop</strong> only for shops you have presented to them (and only while <em>Shops on for players</em> is on in Utilities\' GM Setup). Without Utilities, or with an older one, the card tells you to activate or update it.']),
       topic('Select, Archive and Delete', [
         '<strong>Select</strong> (toolbar) puts a tick box on every row. Tick locations one by one, or narrow the list first and click <strong>Select all N shown</strong>: use <em>Region</em>, the other Filters, the search box, or <em>Id starts with</em> (for example <code>LOC-FRONTIER-</code>; the one place an id is typed). The bar above the list counts what is selected and what is shown.',
         '<strong>Archive…</strong> is the safe way to clear the list. It shows exactly which locations it will archive, then moves them out of the Locations list and hides them from players, as if Hidden. Nothing is lost: content, state, audience, Party Notes and map pins are kept (the pins stay on the scene for you and vanish for players). <strong>Undo</strong> appears for 30 seconds, and <strong>Archived (n)</strong> lists them any time: tick some and choose <strong>Restore…</strong>. Places inside an archived Region are not archived with it unless you select them too.',
@@ -2019,7 +2023,7 @@ export class LocationsApp extends Base {
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }

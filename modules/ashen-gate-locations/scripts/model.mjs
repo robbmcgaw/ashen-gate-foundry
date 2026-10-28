@@ -111,9 +111,9 @@ export const PIN_DEFAULTS = Object.freeze({img: 'icons/svg/castle.svg', unidenti
 export const PIN_KEY = /^[a-z0-9]{12,32}$/;
 export const NOTE_DOC_TYPES = Object.freeze(['Actor', 'Item', 'JournalEntry', 'JournalEntryPage', 'RollTable']);
 export const FACTION_DOC_TYPES = Object.freeze(['Actor', 'JournalEntry']);
-/** 0.28.0: what a People entry may link (an NPC Actor, or a Journal about the person). */
+/** 0.30.0: what a People entry may link (an NPC Actor, or a Journal about the person). */
 export const NPC_DOC_TYPES = FACTION_DOC_TYPES;
-/** 0.28.0: a General Manager NPC record id; the permanent id a People link keeps beside the world-local uuid. */
+/** 0.30.0: a General Manager NPC record id; the permanent id a People link keeps beside the world-local uuid. */
 export const NPC_ID = /^NPC-[A-Z0-9]+(?:-[A-Z0-9_]+)*$/;
 
 export const clone = value => structuredClone(value);
@@ -181,7 +181,7 @@ const ENTRY_SHAPES = {
   },
   conditions: e => ({label: line(e.label), text: text(e.text, 2000)}),
   factions: e => ({label: line(e.label), ...linked(e), note: line(e.note, 500)}),
-  // 0.28.0: a person here. `label` and `note` are what players read (the GM's words, never read from the Actor); `uuid` is the world-local binding and
+  // 0.30.0: a person here. `label` and `note` are what players read (the GM's words, never read from the Actor); `uuid` is the world-local binding and
   // `sourceId` the permanent NPC-* id, so the link can find the Actor again when it is re-imported. Players are never sent the sourceId.
   npcs: e => ({label: line(e.label), ...linked(e), sourceId: NPC_ID.test(e.sourceId ?? '') ? e.sourceId : '', note: line(e.note, 200)}),
   quests: e => ({questId: QUEST_ID.test(e.questId ?? '') ? e.questId : ''}),
@@ -538,7 +538,7 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   const on = key => pub.sections[key] ? pub[key].filter(e => e.visible) : [];
   const resources = on('resources').map(e => nodeForPlayer(e, nodeView));
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
-  // 0.28.0: only entries the GM made visible; the name and note the GM wrote, and the link. Never the sourceId.
+  // 0.30.0: only entries the GM made visible; the name and note the GM wrote, and the link. Never the sourceId.
   const npcs = on('npcs').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
@@ -839,7 +839,7 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0 and 0.28.0. An update that leaves one out keeps the world's value instead of clearing it. */
+/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0 and 0.30.0. An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
   'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
 

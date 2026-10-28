@@ -1,4 +1,4 @@
-/** 0.28.0: "People here" (links to NPC Actors, suggestions from General Manager records) and "Shops here" / the player's Shops card
+/** 0.30.0: "People here" (links to NPC Actors, suggestions from General Manager records) and "Shops here" / the player's Shops card
  *  (through Ashen Gate | Utilities' API). Mocked Foundry and a mocked Utilities: proves the logic and the markup, not the live windows. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,7 +73,7 @@ test('People entries are GM only by default (entry and section), keep the NPC id
   assert.equal(loc.npcs[1].visible, true);
   assert.equal(loc.npcs[0].sourceId, 'NPC-TEST-MIRA');
   assert.equal(normalizeLocation({id: LOC, name: 'x'}).sections.npcs, false);
-  assert.deepEqual(normalizeLocation({id: LOC, name: 'x'}).npcs, [], 'a record from before 0.28.0 has no people');
+  assert.deepEqual(normalizeLocation({id: LOC, name: 'x'}).npcs, [], 'a record from before 0.30.0 has no people');
   assert.deepEqual(normalizeLocation({id: LOC, name: 'x', npcs: [{key: 'k'}, {key: 'j', uuid: '', sourceId: 'not-an-id'}, 5, null]}).npcs, [], 'nothing to link to is dropped');
   const byId = normalizeLocation({id: LOC, name: 'x', npcs: [{key: 'k', sourceId: 'NPC-TEST-ONLY'}]}).npcs;
   assert.equal(byId.length, 1, 'a link kept by NPC id alone survives (it re-binds later)');
@@ -109,7 +109,7 @@ test('Publish rules: people are part of the published content, so an edit shows 
   const published = {...edited, published: publishable(edited)};
   assert.equal(playerView(published, [published]).npcs.length, 2);
   const old = normalizeLocation({id: LOC, name: 'Old', state: 'revealed', published: {name: 'Old'}});
-  assert.equal(hasUnpublishedChanges(old), false, 'content published before 0.28.0 is not flagged');
+  assert.equal(hasUnpublishedChanges(old), false, 'content published before 0.30.0 is not flagged');
 });
 
 test('the Journal page lists visible people by name only: no link, no id', () => {
@@ -159,8 +159,8 @@ function utilities({shops = [], old = false, fail = false, extra = {}} = {}) {
 let access = true;
 async function world({util, locs = []} = {}) {
   const game = installFoundry();
-  const mod = {version: '0.28.0', active: true};
-  mod.api = createApi({version: '0.28.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async v => { access = v; },
+  const mod = {version: '0.30.0', active: true};
+  mod.api = createApi({version: '0.30.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async v => { access = v; },
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   const docs = new Map();
   globalThis.fromUuidSync = uuid => docs.get(uuid) ?? null;

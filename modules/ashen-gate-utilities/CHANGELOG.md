@@ -6,7 +6,7 @@ Added: a read-only way for Locations to list the shops at a place. No window or 
 - **Player view: `placeKey`.** A shop shown to a player now carries the linked place's map-pin key (the same key Locations gives players for that place; never its LOC id), but only when its name is already shown to them (the place is revealed to everyone in Locations). A place that is hidden, unidentified or limited to chosen players leaves nothing behind in the player's data. Nothing visible in the shop window changed.
 - **Hook `ashen-gate-utilities.shopsChanged`** fires on every client when Present, Stop showing or a shop change reaches the journals, so Locations can redraw its Shops cards.
 - Tests use mocked Foundry; they check the API, the stored view and the hook, not the live windows.
-- Check in Forge: update Utilities. Nothing looks different on its own. With Locations 0.28.0 the **Shops here** section lists the shops linked to a location.
+- Check in Forge: update Utilities. Nothing looks different on its own. With Locations 0.30.0 the **Shops here** section lists the shops linked to a location.
 
 ## 0.34.0 — 2026-10-28
 
