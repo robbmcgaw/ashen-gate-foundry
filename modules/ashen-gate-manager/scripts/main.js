@@ -3957,8 +3957,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
       await github.recordPull(game.user,{store:this.#ghStore(),config,state:r.state});
       const usable=r.files.filter(f=>!f.ledger);
-      this.gh.pulled={files:r.files,count:usable.length,ledger:[...r.files.filter(f=>f.ledger).map(f=>f.path),...(r.ledgerListed??[])],commit:r.commit};
-      this.gh.message={tone:'ok',text:`Read ${r.files.length} file${r.files.length===1?'':'s'} from GitHub. Nothing in your world has changed.${r.notes?.length?` ${r.notes.join(' ')}`:''}`};
+      this.gh.pulled={files:r.files,count:usable.length,ledger:[...r.files.filter(f=>f.ledger).map(f=>f.path),...(r.ledgerListed??[])],commit:r.commit,where:`${config.repo}@${config.branch}`};
+      this.gh.message={tone:'ok',text:`Read ${r.files.length} file${r.files.length===1?'':'s'} from ${config.repo}@${config.branch} at commit ${String(r.commit??'').slice(0,7)}. Nothing in your world has changed.${r.notes?.length?` ${r.notes.join(' ')}`:''}`};
     });
   }
   /** The pulled files through Sync's own input stage; if any one is refused none is added (a half-read pack would look like deletions). */
@@ -3978,6 +3978,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     if(problems.length) { this.gh.message={tone:'danger',text:`Nothing was sent to Sync. ${problems.slice(0,3).join(' ')}`};await this.render();return; }
     // An earlier pull's files are replaced as a set, so a file the manifest dropped does not linger; files you chose by hand stay.
     this.sync.inputs=[...this.sync.inputs.filter(i=>!i.github),...inputs];
+    this.sync.github={commit:this.gh.pulled.commit,where:this.gh.pulled.where,files:inputs.length};
     this.sync.on=true;
     this.#syncDrop('Files pulled from GitHub. Review the preview below; nothing in your world changes until you confirm.');
     this.gh.message={tone:'info',text:`${inputs.length} file${inputs.length===1?'':'s'} sent to Sync from package.`};
@@ -4085,7 +4086,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   #syncHtml() {
     const s=this.sync, joined=joinSyncInputs(s.inputs);
     return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
-      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message,unfinished:Boolean(s.unfinished),shown:s.shown??{}});
+      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message,unfinished:Boolean(s.unfinished),shown:s.shown??{},github:s.inputs.some(i=>i.github)?s.github:null});
   }
   #syncFileButton() {
     return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
