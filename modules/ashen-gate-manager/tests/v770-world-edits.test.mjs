@@ -62,7 +62,7 @@ test('an Item whose description was edited is listed with its changed field; an 
   const scan = scanWorldEdits(world({docs: [a, b]}));
   assert.deepEqual(scan.records.map(r => r.id), ['MAT-ROPE']);
   const r = scan.records[0];
-  assert.deepEqual(r.changed_fields, ['system.description.value']);
+  assert.deepEqual(r.changed_fields, ['foundry.data.system.description.value']);
   assert.equal(r.record.foundry.data.system.description.value, '<p>Stronger rope.</p>');
   assert.equal(r.record.foundry.data.name, 'Hemp Rope [TEST]');
   assert.equal(r.record.foundry.data.type, 'loot');
@@ -77,7 +77,7 @@ test('a renamed NPC is listed with name; unedited fields come from the import, n
   d.raw.name = 'Orin the Wary [TEST]';
   const scan = scanWorldEdits(world({docs: [d]}));
   const r = only(scan, 'NPC-ORIN');
-  assert.deepEqual(r.changed_fields, ['name']);
+  assert.deepEqual(r.changed_fields, ['foundry.data.name']);
   assert.equal(r.entity_type, 'NPC'); assert.equal(r.document_type, 'Actor');
   assert.equal(r.record.foundry.data.name, 'Orin the Wary [TEST]');
   assert.equal(r.record.foundry.data.type, 'npc');
@@ -110,7 +110,7 @@ test('an embedded package Item of an NPC that was edited is a changed field (pla
   d.raw.items[0].system.description.value = 'Sharper claw';
   d.raw.items[0].system.quantity = 3;
   const r = only(scanWorldEdits(world({docs: [d]})), 'NPC-CLAW');
-  assert.deepEqual(r.changed_fields, ['items[weapon:Claw].system.description.value']);
+  assert.deepEqual(r.changed_fields, ['foundry.data.items[0].system.description.value']);
   assert.equal(r.record.foundry.data.items[0].system.description.value, 'Sharper claw');
   assert.equal(r.record.foundry.data.items[0].system.quantity, 1);
 });
@@ -139,7 +139,7 @@ test('Journal page, Roll Table result and Macro edits are found', () => {
   const m2 = flagged(macro('MAC-2', 'Crlf [TEST]')); m2.raw.command = 'ui.notifications.info(1)'.replace('(', '(');
   const scan = scanWorldEdits(world({docs: [j, t, same, m, m2]}));
   assert.deepEqual(scan.records.map(r => [r.id, r.changed_fields]), [
-    ['JRN-1', ['pages[P1].text.content']], ['MAC-1', ['command']], ['TBL-1', ['results[2].description']]]);
+    ['JRN-1', ['foundry.data.pages[0].text.content']], ['MAC-1', ['foundry.data.command']], ['TBL-1', ['foundry.data.results[1].description']]]);
   assert.equal(only(scan, 'JRN-1').record.foundry.data.pages[0].text.content, '<p>new</p>');
   assert.equal(only(scan, 'TBL-1').record.foundry.data.results[1].description, 'B changed');
   assert.equal(only(scan, 'TBL-1').record.foundry.data.results[0].description, 'a');
@@ -152,7 +152,7 @@ test('a Manager-made effect that was edited is a changed field of its Item', () 
   d.raw.effects = [{_id: 'e1', name: 'Glow', disabled: false, transfer: true, changes: [{key: 'system.attributes.ac.bonus', type: 'add', value: '2', priority: null}],
     flags: {[MODULE_ID]: {effect: {effId: 'glow', baseline: JSON.stringify(base)}}}}];
   const r = only(scanWorldEdits(world({docs: [d]})), 'ITM-FX');
-  assert.deepEqual(r.changed_fields, ['effects[glow].changes']);
+  assert.deepEqual(r.changed_fields, ['foundry.data.effects[0].changes']);
   assert.equal(r.record.foundry.data.effects[0].eff_id, 'glow');
   assert.equal(r.record.foundry.data.effects[0].changes[0].value, '2');
 });
@@ -162,13 +162,13 @@ test('links to other Manager records go back to [[AGREF:ID|label]] markers; the 
   const d = flagged(item('ITM-LINK', 'Letter [TEST]', {description: {value: '<p>Original.</p>'}}));
   d.raw.system.description.value = `<p>Ask @UUID[${target.uuid}]{Target &amp; Co} about it.</p>\n<section class="ag-managed-links" data-ag-managed-links="1"><ul><li>x</li></ul></section>`;
   const r = only(scanWorldEdits(world({docs: [d, target]})), 'ITM-LINK');
-  assert.deepEqual(r.changed_fields, ['system.description.value']);
+  assert.deepEqual(r.changed_fields, ['foundry.data.system.description.value']);
   assert.equal(r.record.foundry.data.system.description.value, '<p>Ask [[AGREF:NPC-TARGET|Target & Co]] about it.</p>');
 });
 
 test('an unedited description that holds a resolved link is not an edit', () => {
   const target = npcDoc(npc('NPC-T2', 'T2 [TEST]'));
-  const d = flagged(item('ITM-OK', 'Note [TEST]', {description: {value: '<p>See [[AGREF:NPC-T2|T2 [TEST]]] now.</p>'.replace('[TEST]]]', 'Two]]')}}));
+  const d = flagged(item('ITM-OK', 'Note [TEST]', {description: {value: '<p>See [[AGREF:NPC-T2|Two]] now.</p>'}}));
   d.raw.system.description.value = `<p>See @UUID[${target.uuid}]{Two} now.</p>`;
   assert.deepEqual(scanWorldEdits(world({docs: [d, target]})).records, []);
 });
@@ -245,7 +245,7 @@ test('preview lists edited records with their changed field names; copy summary 
   const scan = scanWorldEdits(world({docs: [a, d]}));
   const html = previewHtml(scan);
   assert.match(html, /Nothing is changed in your world/);
-  assert.match(html, /Rope \[TEST\]/); assert.match(html, /<code>system\.description\.value<\/code>/); assert.match(html, /<code>name<\/code>/);
+  assert.match(html, /Rope \[TEST\]/); assert.match(html, /<code>foundry\.data\.system\.description\.value<\/code>/); assert.match(html, /<code>foundry\.data\.name<\/code>/);
   assert.match(html, /2 edited records/);
   const text = summaryText(scan);
   assert.match(text, /Edited records: 2/); assert.match(text, /Items \(1\): Rope \[TEST\]/); assert.match(text, /NPC Actors \(1\): Orin 2 \[TEST\]/);

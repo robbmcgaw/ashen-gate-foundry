@@ -45,7 +45,7 @@ import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist, updatesExisting} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
-import {EDIT_TYPES, TYPE_LABELS, scanWorldEdits, buildEditsFile, saveWorldEdits, previewHtml, summaryText as editsSummaryText} from './world-edits.js';
+import {EDIT_TYPES, TYPE_LABELS, scanWorldEdits, buildEditsFile, saveWorldEdits, previewHtml as editsPreviewHtml, summaryText as editsSummaryText} from './world-edits.js';
 import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, phraseRequired, ledgerKey} from './sync.js';
 import {executeSync, buildSyncBackup, writeRebind, summarizeErrors} from './sync-apply.js';
 import {archiveFolderName, partnerArchiveApi} from './sync-archive.js';
@@ -475,7 +475,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(!types.length)return toast('Tick at least one record type.',true);
       const scan=scanWorldEdits(game,{types,includeUnchanged:Boolean(form.unchanged?.length),includeWorldOnly:Boolean(form.worldOnly?.length)});
       for(;;){
-        const pick=await choiceDialog('Edited records',previewHtml(scan),[
+        const pick=await choiceDialog('Edited records',editsPreviewHtml(scan),[
           {action:'copy',label:'Copy summary',icon:'fa-solid fa-copy'},
           {action:'download',label:'Download file',icon:'fa-solid fa-download',default:true}]);
         if(pick==='copy'){

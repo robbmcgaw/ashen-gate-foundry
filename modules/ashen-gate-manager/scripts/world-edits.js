@@ -25,6 +25,7 @@ export const TYPE_LABELS = Object.freeze({Item: 'Items', JournalEntry: 'Journals
 const COLLECTIONS = {Item: 'items', JournalEntry: 'journal', Actor: 'actors', RollTable: 'tables', Macro: 'macros'};
 /** Actor types that are player characters or groups: never read, never exported. */
 const PC_ACTOR_TYPES = new Set(['character', 'group']);
+const D = 'foundry.data';
 const NO_BASELINE = '(no import baseline)';
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
@@ -94,18 +95,18 @@ function journalPages(snap, idOfUuid) {
     const key = liveKeys[i], def = baseByKey.get(key);
     if (page.type && page.type !== 'text') return; // only text pages are package content
     const text = {content: page.text?.content ?? '', ...(page.text?.format !== undefined ? {format: page.text.format} : {})};
-    if (!def) { changed.push(`pages[${key}]`); pages.push({name: page.name, type: 'text', text: packDeep(text, idOfUuid)}); return; }
+    if (!def) { changed.push(`${D}.pages[${pages.length}]`); pages.push({name: page.name, type: 'text', text: packDeep(text, idOfUuid)}); return; }
     const out = clone(def);
     out.text = {...(out.text ?? {})};
     for (const path of ['content', ...(own(def.text ?? {}, 'format') ? ['format'] : [])]) {
       const liveValue = text[path], baseValue = def.text?.[path];
       if (sameValue(`page:${key}:text.${path}`, liveValue, baseValue, idOfUuid)) continue;
-      changed.push(`pages[${key}].text.${path}`);
+      changed.push(`${D}.pages[${pages.length}].text.${path}`);
       out.text[path] = packDeep(liveValue, idOfUuid);
     }
     pages.push(out);
   });
-  for (const [key] of baseByKey) if (!liveKeys.includes(key)) changed.push(`pages[${key}] (removed)`);
+  for (const [key] of baseByKey) if (!liveKeys.includes(key)) changed.push(`${D}.pages`);
   return {pages, changed};
 }
 
@@ -125,14 +126,14 @@ function tableResults(snap, idOfUuid) {
     return out;
   };
   const n = Math.max(baseDefs.length, live.length);
-  if (baseDefs.length !== live.length) changed.push('results');
+  if (baseDefs.length !== live.length) changed.push(`${D}.results`);
   for (let i = 0; i < live.length; i++) {
     const def = baseDefs[i], out = rowOf(live[i], def);
     results.push(out);
     if (!def) continue;
     const a = normalizePackageResult(def), b = normalizeLiveResult(live[i]);
-    for (const key of ['type', 'name', 'range', 'weight']) if (!equal(a[key], b[key]) && !sameText(a[key], b[key])) changed.push(`results[${i + 1}].${key}`);
-    if (!sameValue('results.description', b.description, a.description, idOfUuid)) changed.push(`results[${i + 1}].description`);
+    for (const key of ['type', 'name', 'range', 'weight']) if (!equal(a[key], b[key]) && !sameText(a[key], b[key])) changed.push(`${D}.results[${i}].${key}`);
+    if (!sameValue('results.description', b.description, a.description, idOfUuid)) changed.push(`${D}.results[${i}].description`);
   }
   return {results, changed: n ? [...new Set(changed)] : []};
 }
@@ -144,13 +145,13 @@ function actorItems(snap, idOfUuid) {
   const changed = [], items = [];
   baseDefs.forEach((def, i) => {
     const key = keys[i], liveItem = marked.get(key);
-    if (!liveItem) { changed.push(`items[${key}] (removed)`); return; }
+    if (!liveItem) { changed.push(`${D}.items`); return; }
     const out = clone(def);
     for (const [path, incoming] of Object.entries(itemLeaves(def))) {
       if (ITEM_PLAY_STATE.has(path) || emptyObject(incoming)) continue;
       const live = getPath(liveItem, path);
       if (sameValue(`item:${key}:${path}`, live, incoming, idOfUuid)) continue;
-      changed.push(`items[${key}].${path}`);
+      changed.push(`${D}.items[${items.length}].${path}`);
       if (live !== undefined) setPath(out, path, packDeep(clone(live), idOfUuid));
     }
     items.push(packDeep(out, idOfUuid));
@@ -171,7 +172,7 @@ function itemEffects(snap, idOfUuid) {
     for (const [path, want] of Object.entries(effectFields(base))) {
       const live = liveEffectValue(raw, path);
       if (sameText(path === 'statuses' ? [...want].sort() : want, live) || sameValue(`effect:${path}`, live, want, idOfUuid)) continue;
-      changed.push(`effects[${flag.effId}].${path}`);
+      changed.push(`${D}.effects[${effects.length}].${path}`);
       if (live !== undefined) setPath(out, path, clone(live));
     }
     effects.push(packDeep(out, idOfUuid));
@@ -199,7 +200,7 @@ function managedEntry(doc, idOfUuid) {
   }
   const base = flag.managedFields, raw = snap.raw;
   const edited = topLevelEdits(snap, idOfUuid), editedSet = new Set(edited);
-  const changed = [...edited];
+  const changed = edited.map(p => `${D}.${p}`);
   const data = {};
   for (const [path, baseValue] of Object.entries(base)) {
     if (path === 'items' || (kind === 'RollTable' && path === 'results')) continue;

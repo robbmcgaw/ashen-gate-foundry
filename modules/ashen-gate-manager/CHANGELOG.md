@@ -1,3 +1,13 @@
+## 0.77.0 — 2026-10-28
+
+Export edited records.
+
+- **New Items > Export > Export edited records…** (GM only; the data layer refuses anyone else). Pick the record types (all ticked), optionally **Include unchanged records** and **Include records not in any package**, read the preview (a count per type, then each edited record with the names of its changed fields), and download one file, `AG_World_Edits_<date>.json` (`ag-world-edits/0.1`). **Copy summary** in the preview copies the edited records' names only.
+- It uses Sync's own judgement of "edited in your world", so a weight, rarity, quote or resolved link that only looks different is not listed. It covers Items (and their Manager-made effects), Journals (pages), NPC Actors (and their package Items), Roll Tables (results) and Macros. Player characters are never read.
+- Each record is in the shape of the import record, so the content pack can be updated from it. Unedited fields hold the import value and edited fields the world's value. Play state (HP, spell slots, currency, resources, the biography), art, ownership, folders, ids, sort and stats are never in the file.
+- Read-only: no document, flag or setting is written. Format: [`docs/world-edits-export.md`](../../docs/world-edits-export.md). API: `api.exportEdits(options)`.
+- No saved data changes.
+
 ## 0.76.0 — 2026-10-28
 
 Sync: you decide whether existing locations, routes and shops are replaced.
