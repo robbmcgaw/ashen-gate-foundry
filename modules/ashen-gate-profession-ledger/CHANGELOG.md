@@ -1,3 +1,34 @@
+## 0.37.12 — 2026-10-28
+
+Recipe previews that do not need the world Items to be readable, and a clearer requirement line.
+
+- **Previews are kept on the character, not in a world setting.** The GM client copies what a player may see about each recipe the character knows (what it makes, the ingredients, the tools) onto the Actor's Ledger flags: player-facing fields only (name, picture, type, description with secret blocks removed, price). Only the character's owners and the GMs receive it; recipes the character doesn't know, unreleased recipes, GM notes and ids are never in it. This replaces the 0.37.10 world setting `resultPreviews`, which is no longer written or read.
+- Makes and ingredient names on recipe cards are picture-and-name buttons that open a small read-only preview. Tools stay as text.
+- **Crafting works with GM-only Items.** When the player's client cannot read the result Item, Craft goes to the GM client as an owner-authenticated request (the shared-materials request: the player must own the character, know the recipe and the recipe must be released); the GM client uses the same material checks and makes the item on the character. Nothing in the message carries item data.
+- **Assign → Recipe previews** (GM): Rebuild recipe previews (also automatic when recipes, Items or a character's known recipes change), and a list of items players still can't open in Foundry. It is information only; nothing needs releasing for the Ledger to work.
+- **Requirement line:** a recipe with no tool and no station, in a profession whose check is a skill (from GM Setup), now reads "Check: Arcana" instead of "Tool or station: None needed". "None needed" stays for professions with no tool, station or skill. Craft is not blocked either way.
+- No saved data changes beyond the new Actor flag.
+
+## 0.37.11 — 2026-10-28
+
+Choose who is in a gather.
+
+- **Gather** tab: every character who could roll has an **Included** checkbox (all ticked to start), plus **Include all** and **Include none**. Unticked characters stay listed as "Not included". The choice is remembered on this device.
+- **Start gather** offers the roll pop-up only to the owners of included characters. A roll for a character who isn't included is refused by the Ledger (GM, the Gathering tab and `api.gathering.roll`): "The GM did not include <name> in this gather."
+- While a gather is open the GM can tick or untick: ticking sends that player the pop-up, unticking an unrolled character withdraws it. Someone who already rolled stays recorded (cancel the gather to start again). The panel says "N of M included · R of N have rolled"; Reveal and the "Did not roll" list count only included characters.
+- An approved player request always includes the requesting character. History lists the characters who rolled. An open gather is held in memory as before, so it does not survive a reload.
+- API: `gathering.start({include: [actorIds]})`, `gathering.include(roundId, actorId, on)`, `gathering.includeAll(roundId, on)`.
+- No saved data changes.
+
+## 0.37.10 — 2026-10-28
+
+Players can look at what a recipe makes.
+
+- The Makes line of a recipe card now shows the result item's picture and name as a button for players; it opens a small read-only preview (picture, type, price, the item's description). No actions.
+- It works without any permission on the world Item (Items are GM-only by default now): the GM client stores a snapshot of each released recipe's result in the world setting `resultPreviews`, refreshed at start-up and when Items change. Only player-facing fields; Foundry secret blocks, GM notes and ids are never copied. Recipes a player can't see, and unreleased results, are not in it.
+- Without a snapshot the name stays plain text as before. GM view unchanged. Materials and tools keep their current behaviour.
+- No saved data changes beyond the new setting.
+
 ## 0.37.9 — 2026-10-28
 
 Players can only request gathering at active places.
