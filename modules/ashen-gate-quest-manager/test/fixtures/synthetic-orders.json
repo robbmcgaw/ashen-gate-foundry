@@ -1,0 +1,357 @@
+{
+ "schema_version": "ag-quest-source/0.1",
+ "domain": "quests_orders",
+ "version": "0.0.1",
+ "records": [
+  {
+   "id": "ORDER-T-FIX-01",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture order 1",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-02",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture order 2",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-03",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture order 3",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-04",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture order 4",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-05",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture order 5",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-06",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture order 6",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-07",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture order 7",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-08",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture order 8",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-09",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture order 9",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  },
+  {
+   "id": "ORDER-T-FIX-10",
+   "entity_type": "Objective",
+   "objective_kind": "work_order",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture order 10",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ],
+   "work_order_domain": "crafting"
+  }
+ ]
+}
