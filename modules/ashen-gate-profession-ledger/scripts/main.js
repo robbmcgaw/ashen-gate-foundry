@@ -26,6 +26,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGa
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
+import {snapshotItem,readPreviews,storedPreviews,samePreviews} from './result-preview.mjs';
 import {readHistory,storedHistory,upsertEntry,removeEntry,setRowXp,humanWhen,HISTORY_MAX} from './gather-history.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
@@ -33,7 +34,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.9';
+const VERSION='0.37.10';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1211,6 +1212,46 @@ function itemAccess(sourceId,entityType){
   }
   return {state:'ok',doc:hit.document};
 }
+/* ---- 0.37.10: result-item previews (a GM-taken snapshot, so players need no permission on the world Item) ---- */
+const previewMemo=()=>{try{return readPreviews(game.settings.get(ID,'resultPreviews'));}catch{return {};}};
+const previewFor=sourceId=>(sourceId&&previewMemo()[sourceId])||null;
+/** GM client: refresh the snapshot of what every released recipe makes. Only recipes a player may see, only player-facing fields.
+ * Writes only when something changed. Returns the number of previews kept. */
+async function publishResultPreviews(){
+  if(!game.user?.isGM)throw Error('Only the GM can publish recipe previews');
+  const items={};
+  for(const recipe of catalog().recipes){
+    if(!recipe.resultItemId||!sourceAvailableToPlayer(recipe)||items[recipe.resultItemId])continue;
+    const hit=lookupWorldDefinition(game,recipe.resultItemId,{entityType:'Item'});
+    if(hit?.status!=='ok'||hit.source?.visibility!=='player'||hit.source?.status!=='approved')continue;
+    const snap=snapshotItem(hit.document.toObject?.()??hit.document);
+    if(snap)items[recipe.resultItemId]=snap;
+  }
+  if(!samePreviews(items,previewMemo()))await game.settings.set(ID,'resultPreviews',storedPreviews(items));
+  return Object.keys(items).length;
+}
+let previewTimer=null;
+const publishPreviewsSoon=()=>{
+  if(!game.user?.isGM)return;
+  clearTimeout(previewTimer);
+  previewTimer=setTimeout(()=>{void publishResultPreviews().catch(err=>console.warn(`[${ID}] recipe previews`,err));},1500);
+  previewTimer?.unref?.();
+};
+/** A player's button for a previewed result: the picture and name; pressing it opens the read-only preview. */
+function previewButton(sourceId,ctx=''){
+  const p=previewFor(sourceId);if(!p)return '';
+  return `<button type="button" class="ag-link agl-item-link agl-preview-link" data-action="preview-item" data-key="${esc(ctxKey(sourceId))}" data-ctx="${esc(ctx)}" ${tip('Show what this makes')}>${p.img?`<img class="agl-item-thumb" src="${esc(p.img)}" alt="" width="20" height="20"> `:''}${esc(p.name)}</button>`;
+}
+async function openPreview(button){
+  const key=button.dataset.key,found=Object.entries(previewMemo()).find(([id])=>ctxKey(id)===key);
+  if(!found)return say('That item can’t be shown.',true);
+  const p=found[1];
+  const body=`<div class="agl-preview">${p.img?`<img src="${esc(p.img)}" alt="" width="64" height="64" class="agl-preview__img">`:''}<p class="agl-sub">${esc([p.type,p.price].filter(Boolean).join(' · '))}</p>${p.text?p.text.split('\n').map(l=>`<p>${esc(l)}</p>`).join(''):'<p class="agl-sub">No description yet.</p>'}</div>`;
+  await infoDialog(p.name,body);
+  // Put focus back on the button that opened it (the window may have re-rendered meanwhile).
+  const again=globalThis.document?.querySelector?.(`[data-action="preview-item"][data-key="${key}"][data-ctx="${button.dataset.ctx??''}"]`);
+  (again??button).focus?.();
+}
 /** 0.32.0: one item a recipe names, as a link when the user may open it. A link is a real button; otherwise the name is plain
  * text, with a tooltip for a player and a GM-only hint for the GM (never an id). `sourceId` may be null (name only). */
 function itemRef(name,sourceId,entityType,ctx=''){
@@ -1221,6 +1262,7 @@ function itemRef(name,sourceId,entityType,ctx=''){
     return `<button type="button" class="ag-link agl-item-link" data-action="open-item" data-uuid="${esc(access.doc.uuid)}" data-ctx="${esc(ctx)}" ${tip('Show this item')}>${label}</button>`;
   if(game.user?.isGM)
     return `<span class="agl-item-plain">${label}</span> <small class="agl-sub">GM: ${access.state==='missing'?'not imported yet':'can’t be opened (duplicate or wrong record type)'}</small>`;
+  if(entityType==='Item'&&previewFor(sourceId))return previewButton(sourceId,ctx);
   return `<span class="agl-item-plain" ${tip('Your GM hasn’t released this item to you yet.')}>${label}</span>`;
 }
 /** 0.32.0: open the world Item behind an item link, re-checking permission now (the markup is never trusted). */
@@ -1236,6 +1278,7 @@ async function openItemLink(uuid){
 }
 /** Click on an item link (any surface: window, Tidy5e tab, Character Hub embed). Returns true when it handled the click. */
 function itemLinkClick(button){
+  if(button?.dataset?.action==='preview-item'){void openPreview(button).catch(err=>{console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);});return true;}
   if(button?.dataset?.action!=='open-item')return false;
   void openItemLink(button.dataset.uuid).catch(err=>{console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);});
   return true;
@@ -1296,6 +1339,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''} ${inside}`.toLowerCase();
   // 0.32.0: header (name, tier, effort), then Needs → Makes, then the tool or station, then the quieter text, then who knows it.
   const makes=result?`<span class="agl-qty">1 ×</span> ${itemRef(result.name,recipe.resultItemId,'Item',ctx)}`
+    :!gm&&previewFor(recipe.resultItemId)?`<span class="agl-qty">1 ×</span> ${previewButton(recipe.resultItemId,ctx)}`
     :`<span class="agl-reason">${gm&&recipe.resultItemId?'The result item is not imported yet':'Not available yet'}</span>`;
   // 0.33.4: lists with no craft context (Party, Catalog) fold the body under the title; Known by stays visible.
   const compact=!craft&&!learnItem;
@@ -2431,7 +2475,7 @@ function receiveGatherRequestResult(message){
 const gatherReply=(request,status,text,extra={})=>{const ok=status==='queued'||status==='approved';
   sendSocket({type:'gather-request-result',requestId:request.requestId,toUserId:request.requesterId,actorId:request.actorId,ok,status,message:text,...extra});return {ok,status,message:text};};
 /** GM: the checks a request must pass now (and again on Approve). Returns {verdict, actor, node, setup}. */
-/** 0.37.9: Locations' Active places, or null when Locations is absent or too old (then every revealed place stays requestable, as before). */
+/** 0.37.10: Locations' Active places, or null when Locations is absent or too old (then every revealed place stays requestable, as before). */
 function activePlaces(){
   const api=locationsApi();
   if(typeof api?.isLocationActive!=='function'||typeof api?.activeLocations!=='function')return null;
@@ -3245,6 +3289,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked':''}.</p>
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Request gather:</strong> when Locations tracks Active places, you can only ask to gather at places your GM has set Active; if there are none, ask your GM where the party is.</p>
+    <p><strong>What a recipe makes:</strong> the Makes item on a recipe card is a button; press it to see its picture, type, price and description.</p>
     <p><strong>Gathering:</strong> when the GM opens a gather, every character who holds one of the chosen gathering professions can roll one check (your own skill or tool bonus, advantage preset from the sheet). Roll from the popup or from Gathering. When the GM reveals the results, a slot-machine reel lands on what each successful character found. <em>Skip animation</em> jumps to the result, and with reduced motion on you get a plain list. Nothing is given until the GM presses Give loot; the result is posted in chat. You can also pick a gathering spot at a location your party knows and press <b>Request gather</b>: it waits in the GM’s Requests list until they approve or decline (with a reason).</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
@@ -3465,7 +3510,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           :`<ul class="ag-rows">${rows}</ul><p class="agl-sub">Each character rolls once. The GM reveals the results when everyone has rolled.</p>`}</section>`;}).join('');
     const last=!incomingRounds.size&&lastPlayerResult?`<section class="ag-card agl-panel"><h2>Last gather: ${esc(lastPlayerResult.title)}</h2>${this._revealMarkup(`last:${lastPlayerResult.at}`,lastPlayerResult,lastPlayerResult.seenAt)}</section>`:'';
     const everywhere=gatherLocations(),gate=activePlaces();
-    // 0.37.9: with Locations' Active places the picker offers only the places the party is at now.
+    // 0.37.10: with Locations' Active places the picker offers only the places the party is at now.
     const where=gate&&everywhere.ok?{...everywhere,locations:everywhere.locations.filter(l=>gate.isActive(l.id))}:everywhere;
     const nothingActive=Boolean(gate)&&everywhere.ok&&everywhere.locations.length>0&&!where.locations.length;
     const nodes=where.locations.map(loc=>`<fieldset class="agl-node-group"><legend>${esc(loc.name)}</legend>${[...loc.nodes].sort((a,b)=>compareSpots({range:spotRange(a.tier),activity:skillText(a.skill),name:nodeTitle(a)},{range:spotRange(b.tier),activity:skillText(b.skill),name:nodeTitle(b)})).map(n=>{
@@ -4307,6 +4352,7 @@ Hooks.once('init',()=>{
   game.settings.register(ID,FOLDER_SETTING,{name:'Profession Ledger folder nesting',scope:'world',config:false,type:String,default:''});
   game.settings.register(ID,'libraryData',{name:'Profession Ledger catalog',scope:'world',config:false,type:Object,
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
+  game.settings.register(ID,'resultPreviews',{name:'Profession Ledger recipe result previews',scope:'world',config:false,type:Object,default:{schema:'ag-result-previews/0.1',items:{}},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'gatherHistory',{name:'Profession Ledger gather history',scope:'world',config:false,type:Object,default:{schema:'ag-gather-history/0.1',entries:[]},onChange:()=>{historyCache=null;if(current?.rendered)current.render();}});
   game.settings.register(ID,CORE_AWARD_SETTING,{name:'Award linked core items when crafting',scope:'world',config:false,type:Boolean,default:true});
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
@@ -4441,9 +4487,10 @@ Hooks.once('ready',()=>{
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
   // 0.33.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
   const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
-  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();});
-  Hooks.on('ashenGate.bulkFinished',()=>refresh());
-  // 0.37.9: Locations' Active places changed on this client: the player's request picker and the GM's queue notes re-read.
+  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();if(doc?.documentName==='Item'&&!doc.parent)publishPreviewsSoon();});
+  Hooks.on('ashenGate.bulkFinished',()=>{refresh();publishPreviewsSoon();});
+  publishPreviewsSoon();
+  // 0.37.10: Locations' Active places changed on this client: the player's request picker and the GM's queue notes re-read.
   Hooks.on('ashen-gate-locations.activeChanged',()=>refreshLedger());
   // 0.31.0: signature perks are granted on the GM client that wrote the XP (the only client that fires this hook).
   Hooks.on(PROGRESSION_HOOK,payload=>{void onProgressionChanged(payload).catch(err=>{console.error(`[${ID}] signature perks`,err);try{say(`Signature perks were not granted: ${err.message}`,true);}catch{}});});
@@ -4484,6 +4531,6 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
-  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
+  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishResultPreviews,previewFor,itemLinkClick,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

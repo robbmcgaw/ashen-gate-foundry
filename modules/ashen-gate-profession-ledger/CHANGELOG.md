@@ -1,3 +1,12 @@
+## 0.37.10 — 2026-10-28
+
+Players can look at what a recipe makes.
+
+- The Makes line of a recipe card now shows the result item's picture and name as a button for players; it opens a small read-only preview (picture, type, price, the item's description). No actions.
+- It works without any permission on the world Item (Items are GM-only by default now): the GM client stores a snapshot of each released recipe's result in the world setting `resultPreviews`, refreshed at start-up and when Items change. Only player-facing fields; Foundry secret blocks, GM notes and ids are never copied. Recipes a player can't see, and unreleased results, are not in it.
+- Without a snapshot the name stays plain text as before. GM view unchanged. Materials and tools keep their current behaviour.
+- No saved data changes beyond the new setting.
+
 ## 0.37.9 — 2026-10-28
 
 Players can only request gathering at active places.
