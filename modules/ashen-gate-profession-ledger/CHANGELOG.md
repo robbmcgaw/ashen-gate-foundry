@@ -1,3 +1,11 @@
+## 0.37.1 — 2026-10-28
+
+Fix: opening and closing folders in the Recipe Catalog was slow.
+
+- Pressing a tier name, **Expand all** or **Collapse all** rebuilt the whole window (every recipe card) just to flip a panel. They now change the open state in place, with no re-render, so they are instant and focus never moves. Profession folders were already native and are unchanged.
+- The remembered open state is kept in memory at once and written to the browser once per burst of clicks, not once per click (and once more when the window closes).
+- Search, "big lists start shut", the remembered state and focus after a re-render behave as before. No saved data changes.
+
 ## 0.37.0 — 2026-10-27
 
 The Recipe Catalog is a tree: profession folders with tier groups inside.

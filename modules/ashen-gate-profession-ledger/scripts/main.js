@@ -19,7 +19,7 @@ import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {spotRange,compareSpots,spotLabel,groupByTier,tierHeading} from './spot-order.mjs';
-import {buildTree,treeHtml,treeKeys,applyTreeSearch} from './catalog-tree.mjs';
+import {buildTree,treeHtml,treeKeys,applyTreeSearch,toggleTierGroup,setAllTree} from './catalog-tree.mjs';
 import {planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
@@ -32,7 +32,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.0';
+const VERSION='0.37.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -2738,6 +2738,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   get _ui(){return this.__ui??=uiState(ID);}
   /** Asks before closing over unsaved GM Setup or node editor changes (Keep editing is the default). */
   async close(options={}){
+    if(this._treeTimer)this._flushTree();
     if(game.user?.isGM&&!options?.force){
       if(this.view==='gm'&&this.setupDirty&&!await this._leaveGmSetup())return this;
       if(this.nodeGuard?.dirty&&!await this.nodeGuard.confirm())return this;
@@ -2756,7 +2757,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return names.map(([key,title])=>`<button type="button" role="tab" id="agl-tab-${key}" aria-controls="agl-panel" data-action="tab" data-id="${key}" class="${[onTab(key)?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${onTab(key)}" tabindex="${onTab(key)?0:-1}">${title}</button>`).join('');}
   /** 0.37.0: the remembered open/closed state of the recipe tree (professions and tiers), per user on this device. */
   _treeState(){if(!this.__tree){let v=null;try{v=this._ui.get('catalogTree',{});}catch{v=null;}this.__tree=v&&typeof v==='object'&&!Array.isArray(v)?{...v}:{};}return this.__tree;}
-  _setTree(key,value){const st=this._treeState();st[key]=Boolean(value);try{this._ui.set('catalogTree',st);}catch{}}
+  /** Remember one folder or tier. The state lives in memory at once; the localStorage write is coalesced (one write per burst of toggles). */
+  _setTree(key,value){this._treeState()[key]=Boolean(value);this._saveTreeSoon();}
+  _saveTreeSoon(){if(this._treeTimer)return;this._treeTimer=setTimeout(()=>this._flushTree(),200);}
+  _flushTree(){clearTimeout(this._treeTimer);this._treeTimer=null;try{this._ui.set('catalogTree',this._treeState());}catch{}}
   /** Profession folders with tier groups inside: the one renderer for the Recipe Catalog and the Party tab's By profession view. */
   _recipeTree(rows){
     if(!rows.length)return '';
@@ -3691,9 +3695,16 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           this.recipeRefresh=null;this.render();say(this.notice,bad.length>0);return;}
         const out=await refreshRecipes({actorId:r.actorId,preview:false,remove:[...r.remove],add:[...r.add],confirmName:r.confirm});
         this.recipeRefresh=null;this.notice=`${out.actor.name}: removed ${plural(out.removed,'recipe')}, added ${plural(out.added,'starting recipe')}.`;this.render();say(this.notice);return;}
-      if(action==='tier-toggle'){const st=this._treeState(),key=`t:${id}`;this._setTree(key,st[key]===undefined?false:!st[key]);this.render();return;}
-      if(action==='tree-expand'||action==='tree-collapse'){const on=action==='tree-expand',k=this._lastTreeKeys??{folders:[],tiers:[]};
-        for(const f of k.folders)this._setTree(`p:${f}`,on);for(const t of k.tiers)this._setTree(`t:${t}`,on);this.render();return;}
+      // 0.37.1: these change the open state in place. A re-render rebuilds every recipe card (seconds in a big world) just to flip a panel.
+      if(action==='tier-toggle'){
+        const group=[...(this.element?.querySelectorAll?.('[data-tier-group]')??[])].find(g=>g.dataset.tierGroup===id);
+        if(group){const open=toggleTierGroup(group);if(!this.query){group.dataset.storedOpen=open?'1':'0';this._setTree(`t:${id}`,open);}return;}
+        const st=this._treeState(),key=`t:${id}`;this._setTree(key,st[key]===undefined?false:!st[key]);this.render();return;}
+      if(action==='tree-expand'||action==='tree-collapse'){
+        const on=action==='tree-expand',did=this.element?.querySelectorAll&&!this.query?setAllTree(this.element,on):null;
+        const inPlace=Boolean(did&&(did.folders.length||did.tiers.length)),k=inPlace?did:(this._lastTreeKeys??{folders:[],tiers:[]});
+        for(const f of k.folders)this._treeState()[`p:${f}`]=on;for(const t of k.tiers)this._treeState()[`t:${t}`]=on;this._saveTreeSoon();
+        if(!inPlace)this.render();return;}
       if(action==='gather-tab'){
         if(!game.user.isGM)throw Error('GM only');
         if(id==='nodes'){this.view='nodes';this.render();return;}

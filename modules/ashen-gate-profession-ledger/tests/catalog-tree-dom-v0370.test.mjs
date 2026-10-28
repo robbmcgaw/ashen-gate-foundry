@@ -67,3 +67,26 @@ for(const width of [360,980])
       assert.equal(r.overflow,false);assert.equal(r.heads,true);assert.equal(r.folders,4);assert.equal(r.groups,24);assert.equal(r.rows,104);
     }finally{await browser.close();}
   });
+
+test('real DOM, 0.37.1: toggling a tier or Expand/Collapse all in place is far cheaper than rebuilding the tree (what a re-render does)',{skip:!chromium&&'Playwright is not installed here'},async()=>{
+  const many=Array.from({length:600},(_,i)=>{const g=PROFS[i%4],tier=TIERS[Math.floor(i/4)%6],name=`[TEST] ${g} recipe ${i}`;
+    return {group:g,recipe:{name,tier},html:`<article class="ag-card agl-recipe-row" data-recipe-search="${name.toLowerCase()}"><div class="agl-recipe-head"><strong>${name}</strong><span class="agl-recipe-meta">Alchemist's Supplies · 2 × Herb · 1 × Vial</span></div><details><summary>Details</summary><p>${'text '.repeat(40)}</p></details></article>`};});
+  const html=treeHtml(buildTree(many),{isOpen:(k,d)=>k.startsWith('p:')?true:d});
+  const browser=await chromium.launch();
+  try{
+    const p=await browser.newPage({viewport:{width:980,height:900}});
+    await p.setContent(`<!doctype html><meta charset=utf-8><style>${css}</style><body style="margin:0"><div class="ag-app agl-app"><div class="agl-main" id="host">${html}</div></div>`);
+    const t=await p.evaluate(({source,html})=>{
+      const {toggleTierGroup,setAllTree}=new Function(`${source};return {toggleTierGroup,setAllTree};`)();
+      const host=document.getElementById('host'),time=fn=>{const a=performance.now();fn();void host.offsetHeight;return performance.now()-a;};
+      const median=a=>[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)];
+      const g=host.querySelector('[data-tier-group]');
+      const rebuild=median(Array.from({length:5},()=>time(()=>{host.innerHTML=html;})));
+      const tier=median(Array.from({length:5},()=>time(()=>toggleTierGroup(host.querySelector('[data-tier-group]')))));
+      const all=median(Array.from({length:5},(_,i)=>time(()=>setAllTree(host,i%2===0))));
+      return {rebuild,tier,all,rows:host.querySelectorAll('[data-recipe-search]').length};
+    },{source:treeSource,html});
+    console.log(`TIMING 600 recipes: rebuild ${t.rebuild.toFixed(1)} ms, in-place tier toggle ${t.tier.toFixed(1)} ms, in-place expand/collapse all ${t.all.toFixed(1)} ms`);
+    assert.equal(t.rows,600);assert.ok(t.tier<t.rebuild/3,'one tier toggle is far cheaper than a rebuild');assert.ok(t.all<t.rebuild,'expand/collapse all is cheaper than a rebuild');
+  }finally{await browser.close();}
+});
