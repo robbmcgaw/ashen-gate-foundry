@@ -168,6 +168,15 @@ function questName(id, choices) {
 }
 
 const Base = foundry.applications.api.ApplicationV2;
+/** In-place toggle for the Player Preview: shows or hides the cards of the other states. No re-render, so focus stays on the checkbox. */
+export function bindPreviewToggle(root) {
+  const box = root?.querySelector?.('#agl-preview-others');
+  if (!box) return;
+  box.addEventListener('change', () => {
+    for (const el of root.querySelectorAll('.agl-preview__part')) if (el.dataset.current !== '1') el.hidden = !box.checked;
+    LocationsApp.previewOthers(box.checked);
+  });
+}
 export class LocationsApp extends Base {
   static DEFAULT_OPTIONS = {id: 'ag-locations', classes: ['ag-app', 'agl-app'], window: {title: 'Ashen Gate | Locations', resizable: true}, position: {width: 980, height: 720}};
   static instance = null;
@@ -1540,18 +1549,36 @@ export class LocationsApp extends Base {
     this.select(saved.id);
     return saved;
   }
-  /** What players would see after Publish, in each visible state. Built by the API from the draft; nothing is written. */
-  preview() {
-    const d = normalizeLocation(this.draft);
+  /** 0.22.1: the Player Preview's "Also show the other states" choice, remembered per client. Never throws. */
+  static previewOthers(set) {
+    const key = `${MODULE_ID}.previewOthers`;
+    try {
+      if (set === undefined) return globalThis.localStorage?.getItem(key) === '1';
+      globalThis.localStorage?.setItem(key, set ? '1' : '0');
+    } catch { /* storage blocked: the choice just is not remembered */ }
+    return set === true;
+  }
+  /** The Player Preview body. Shows the current state's card; the other states' cards are present but hidden until the toggle is on. */
+  previewHtml(showOthers = false) {
+    const d = normalizeLocation(this.draft), cur = this.draft.state;
     const part = st => {
       const v = api().previewLocation(d, st);
-      return `<section class="agl-preview__part"><h3>${STATE_LABELS[st]}${this.draft.state === st ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false})}</section>`;
+      const current = cur === st;
+      return `<section class="agl-preview__part" data-state="${st}"${current ? ' data-current="1"' : showOthers ? '' : ' hidden'}><h3>${STATE_LABELS[st]}${current ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false})}</section>`;
     };
-    const content = `<div class="agl-app agl-preview">
-      <p class="agl-hint">${this.draft.state === 'hidden' ? 'Hidden: players see nothing now. ' : ''}This is what players would see after you publish your current edits. Quest names follow Quest Log's own visibility.</p>
-      ${part('unidentified')}${part('revealed')}</div>`;
+    const hiddenCard = cur === 'hidden'
+      ? `<section class="agl-preview__part" data-state="hidden" data-current="1"><h3>${STATE_LABELS.hidden} (current)</h3><p>Hidden: players see nothing.${isPlaceable(d) ? ' Its pins on a map are invisible to them too.' : ''}</p></section>` : '';
+    return `<div class="agl-app agl-preview">
+      <p class="agl-hint">This is what players would see after you publish your current edits. Quest names follow Quest Log's own visibility.</p>
+      ${hiddenCard}${part('unidentified')}${part('revealed')}
+      <label class="ag-field ag-field--inline agl-preview__toggle"><input type="checkbox" id="agl-preview-others" ${showOthers ? 'checked' : ''}> Also show the other states</label></div>`;
+  }
+  /** What players would see after Publish. Built by the API from the draft; nothing is written. */
+  preview() {
+    const content = this.previewHtml(LocationsApp.previewOthers());
     // Stays a custom DialogV2 window for its 560px width; same kit classes and single Close button as infoDialog.
     return foundry.applications.api.DialogV2.wait({classes: ['ag-app', 'ag-dialog'], window: {title: `Player Preview: ${this.draft.name}`}, position: {width: 560}, content, // ag-lint-allow: custom dialog, has ag-dialog classes
+      render: (_event, dialog) => bindPreviewToggle(dialog?.element ?? _event?.target?.element),
       buttons: [{action: 'close', label: 'Close', default: true}], rejectClose: false});
   }
   async importFile(file) {
@@ -1581,7 +1608,7 @@ export class LocationsApp extends Base {
         'Quests come from Quest Log. Clicking one opens the Quest Log.']),
       topic('Visibility', [
         'Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it at once.',
-        '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see. A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
+        '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see in the location\'s current state; tick <em>Also show the other states</em> to compare (your choice is remembered on this computer). A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
         'The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.',
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [

@@ -1,3 +1,11 @@
+## 0.22.1 — 2026-10-28
+
+Player Preview shows only the card for the location's current state.
+
+- **Before:** it always showed both Unidentified and Revealed, which read as noise. **Now:** one card, for the state the location is in (Hidden shows "Hidden: players see nothing.", and says its map pins are invisible to them when the location is placeable). Selected-players locations show the same view and the same list of who sees it, as before.
+- **Also show the other states** (a checkbox at the bottom of the preview, off by default) shows the other states' cards as before, with **(current)** on the current one. It changes in place without reopening the dialog, and Locations remembers your choice on this computer.
+- Display only: what players actually see is unchanged, and nothing is saved by previewing. Tests use mocked Foundry. Check in Forge: Locations > open a location > Player Preview.
+
 ## 0.22.0 — 2026-10-28
 
 New: **Name size** for the name under a map pin.
