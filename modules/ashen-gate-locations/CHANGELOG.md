@@ -1,3 +1,11 @@
+## 0.24.1 — 2026-10-28
+
+New: **Name distance from the pin** (GM Setup → Map Pins), for the name under a map pin.
+
+- Whole pixels, −40 to 40, default 0 (Foundry's own position, so nothing changes until you set it). **Negative numbers move the name closer to the pin.** Foundry leaves a 12 px gap between the pin's edge and the label's box, and the label box itself has room above the letters (line spacing plus the outline), so the visible gap is larger than 12 px; **−8 is a good starting value**, then adjust. The name never goes past the pin's edge.
+- Works with Pin look *Image only*, any icon size and any text anchor, in both *Always shown* and *Only when hovering*. Display only: the Note's own text anchor and settings are never written, and the position is recalculated from Foundry's rule on every refresh, so it does not drift.
+- Tests use mocked Foundry; they do not render the canvas.
+
 ## 0.24.0 — 2026-10-28
 
 New: **Active locations**, where the party is now.

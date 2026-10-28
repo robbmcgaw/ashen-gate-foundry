@@ -12,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.24.0';
+const VERSION = '0.24.1';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -73,12 +73,12 @@ Hooks.once('init', () => {
     name: 'Locations — Pin look', scope: 'world', config: false, type: String, default: DEFAULT_PIN_LOOK, restricted: true,
     choices: PIN_LOOKS, onChange: () => refreshPins()
   });
-  // 0.24.0: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
+  // 0.22.2: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
   game.settings.register(MODULE_ID, 'pinNameMode', {
     name: 'Locations — Name under the pin', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinShowName', {
-    name: 'Locations — Show name under the pin (before 0.24.0)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+    name: 'Locations — Show name under the pin (before 0.22.2)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameSize', {
     name: 'Locations — Pin name size', scope: 'world', config: false, type: Number, default: NAME_SIZE.default, restricted: true, onChange: () => refreshPins()
@@ -86,7 +86,10 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'pinNameWrap', {
     name: 'Locations — Wrap pin name after (characters)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
   });
-  // 0.24.0: what a player's client does when the GM uses Show to Players. On: the Locations window opens. Off: a notification only.
+  game.settings.register(MODULE_ID, 'pinNameOffset', {
+    name: 'Locations — Pin name distance from the pin (pixels)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
+  });
+  // 0.23.0: what a player's client does when the GM uses Show to Players. On: the Locations window opens. Off: a notification only.
   game.settings.register(MODULE_ID, 'showOpensWindow', {
     name: 'Locations — Open the window when the GM shows a location', scope: 'world', config: false, type: Boolean, default: true, restricted: true
   });
@@ -104,7 +107,7 @@ Hooks.once('ready', () => {
     shared: {read: readSharedNotes, write: writeSharedNotes}, socket: game.socket});
   // 1.8.0 "Share with...": players ask the primary GM's client to add players to a location they can see (sharing.mjs).
   const sharing = createShareService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled, readAll, writeAll, socket: game.socket});
-  // 0.24.0 "Show to Players": the GM opens a location in the other clients' Locations window (show.mjs).
+  // 0.23.0 "Show to Players": the GM opens a location in the other clients' Locations window (show.mjs).
   const show = createShowService({users: game.users, currentUser: () => game.user, socket: game.socket, readAll,
     getLocation: ref => game.modules.get(MODULE_ID).api.getLocation(ref), mayOpen, autoOpen: () => game.settings.get(MODULE_ID, 'showOpensWindow') !== false,
     open: ref => LocationsApp.showFromGM(ref), notify: text => ui.notifications?.info(text)});
