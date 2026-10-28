@@ -18,7 +18,7 @@ function gmEntries(){assertGM(game.user);return [...game.journal].filter(j=>j.ge
 export function getPrivate(id){assertGM(game.user);const matches=gmEntries().filter(j=>j.getFlag(MOD,'source')?.id===id);if(matches.length>1)throw new Error(`Duplicate Quest source ID ${id}`);return matches[0]||null;}
 export function allPrivate(){return gmEntries().map(j=>({document:j,source:j.getFlag(MOD,'source'),state:j.getFlag(MOD,'state')})).filter(x=>x.source&&x.state);}
 function publicDocs(){return [...game.journal].filter(j=>j.getFlag(MOD,'public')===true);}
-function findProjection(id){assertGM(game.user);return publicDocs().find(j=>j.getFlag(MOD,'view')?.id===id)||null;}
+export function findProjection(id){assertGM(game.user);return publicDocs().find(j=>j.getFlag(MOD,'view')?.id===id)||null;}
 export function visibleViews(){
   const gm=game.user?.isGM;
   return publicDocs().filter(j=>gm||j.testUserPermission(game.user,'OBSERVER')).map(j=>({document:j,view:j.getFlag(MOD,'view')})).filter(x=>x.view);

@@ -9,7 +9,7 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 - **Party** and **Individual:** what players can see. Tick **Track** on a quest, then **Show objectives overlay** (right end of the toolbar) for a small on-screen tracker (display only; it does not change progress). Individual is scoped to the character's owner.
 - **Quests** (GM): every quest, order and contract as one line (0.26.0): title and status always, then progress, visible to players or GM only, kind and level, location, giver and last change as the list column widens; the chevron opens a row with every fact in place (full title, type, level, visibility, location, giver or faction (a typed ref when the quest names one, otherwise its source / issuer notes as the Source line), audience, tags, rewards, last change). Facts: giver or faction (a typed ref when the quest names one, otherwise its source / issuer notes as the Source line), audience (party, or the individual character), objectives done (e.g. 2/5), rewards (item rewards and the suggested-rewards text) and when it last changed. Views with counts under the tabs: All, Drafts, Hidden, Active (Available or Active), Completed / Failed, Orders, Contracts. The toolbar has search (title, ID, location, giver, tags), **Filters (n)** (type, location and visibility in a second row), group (status, location, type, giver) and sort (title, status, location, recently changed, type, ID); **New quest** is on the right. Import JSON… (with a preview) and Export JSON sit under *Advanced: import here, or use General Manager* at the end of the list; General Manager's importer is the usual path. Your view, sort, grouping and editor sections are remembered for you. Tick cards for bulk actions (a row above the list): set status, hide, reveal, duplicate (a GM-only draft copy) and delete (asks first). A bulk reveal never publishes a draft. The editor has sections that fold (Basics, Audience, Objectives, Rewards, Campaign status and reveal, GM notes, Advanced: source JSON) and one save bar at the bottom: Cancel, an unsaved-changes note, **Save changes**. Item rewards save as you change them (*Applies now*); delegated assignments have their own section after the save bar with **Save assignment**. Drafts are never shown to players.
 - **Journal:** session notes in an open book, for players and the GM (see *Game Journal* below).
-- **GM Setup** (GM): Player access, players' screens and compendium pack IDs, saved together with **Save Changes**.
+- **GM Setup** (GM): Player access, players' screens (including whether a quest you show opens on their screens) and compendium pack IDs, saved together with **Save Changes**.
 
 Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting, production or creative work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
 
@@ -78,6 +78,15 @@ A quest record can list item rewards in `outcomes.item_rewards` (at most 50):
 ## Superseded ids (0.25.0)
 
 `api.supersedeIds({OLD: 'NEW'}, {dryRun})` (GM only, safe to run again) renames an id a quest names (giver, faction, typed link) and the remembered link name; progress is untouched. General Manager calls it when you apply a package with `supersedes`. See `docs/supersedes-schema.md`.
+
+## Show to Players (0.28.0)
+
+GM only. At the top of a quest's editor (Quests tab), **Show to Players** opens that quest in the Quest Log on every other connected player's screen that may see it, like Foundry's Show to Players for journals. A character-only (Individual) quest goes only to the players who own that character, and you see "Shown to N players".
+
+- If the quest is not visible to players yet, you are asked **Reveal it, then show it?** first. Nothing is revealed without that confirmation. A Hidden quest is revealed and set to Available; drafts and GM-only definitions are refused.
+- The player's one Quest Log window switches to the quest (it does not stack another). If they are typing in the Quest Log, or Player Access is off, they are not interrupted; with Player Access off nothing is sent.
+- GM Setup > Players' screens: **Players' windows open automatically when the GM shows a quest** (on by default). Off: players get a notification only.
+- Only an opaque key goes over the socket. Each player's client checks the sender is a GM and that the player may see the quest before opening it; if not, nothing opens and no message appears.
 
 ## Relation to other modules
 

@@ -5,7 +5,7 @@ import {filterActive,openStates,readStored,setAll,storeKey,domKey,toolbarState} 
 import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED} from './quests-tab.mjs';
 import {planBulk,runBulk,confirmText} from './bulk.mjs';
 import {runSupersede} from './supersede.mjs';
-import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
+import {getPrivate,allPrivate,findProjection,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
@@ -20,8 +20,9 @@ import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantR
 import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
+import {createShowToPlayers,showQuestFlow,SHOW_SOCKET_TYPE} from './show-to-players.mjs';
 
-const VERSION='0.27.2';
+const VERSION='0.28.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -217,7 +218,8 @@ function stateFromForm(root,source,old){
 }
 function editorHead(selected,dirty){
  const name=selected?.source?.name||UNTITLED;
- return `<header class="agq-edit__head"><h2 class="agq-detail__title">${selected?E(name):'New quest'}</h2><span class="ag-badge ag-badge--warn agq-dirty-badge"${dirty?'':' hidden'}><i class="fa-solid fa-pen" aria-hidden="true"></i>Unsaved changes</span>${selected?safeButton('Delete quest…','delete',{kind:'danger',sm:true,icon:'fa-trash'}):''}</header>`;
+ const actions=selected?`<span class="agq-edit__actions">${safeButton('Show to Players','show-to-players',{sm:true,icon:'fa-bullseye',title:'Open this quest in the Quest Log on every other connected player\'s screen'})}${safeButton('Delete quest…','delete',{kind:'danger',sm:true,icon:'fa-trash'})}</span>`:'';
+ return `<header class="agq-edit__head"><h2 class="agq-detail__title">${selected?E(name):'New quest'}</h2><span class="ag-badge ag-badge--warn agq-dirty-badge"${dirty?'':' hidden'}><i class="fa-solid fa-pen" aria-hidden="true"></i>Unsaved changes</span>${actions}</header>`;
 }
 const linksSummary=(source,state)=>{const l=readLinks(source,state),n=(l.giver?1:0)+(l.faction?1:0)+l.locations.length+l.prerequisites.length;return n?`${n} linked`:'None yet';};
 // 0.17.0 Sections after Audience and Objectives start closed (QL-02); the GM's open/closed choice is kept (gmView flag).
@@ -259,7 +261,7 @@ function questsPanel(app,rewardsHtml=''){
  return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,folds:app.fold})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split" data-ag-scroll="split:gm"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
-function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
+function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true,showOpensWindow:game.settings.get(MOD,'showOpensWindow')!==false});}
 const TABS=[['party','Party','fa-users',false],['individual','Individual','fa-user',false],['journal','Journal','fa-book',false],['quests','Quests','fa-scroll',true],['setup','GM Setup','fa-gears',true]];
 /* ---- Game Journal: session notes for the party and each player (journal-core.mjs, journal-store.mjs, journal-ui.mjs).
    Players see it when Player Access is on and the Character Hub (if active) shows 'quests'. ---- */
@@ -383,6 +385,7 @@ class QuestLogApplication extends Base {
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). <em><em>Export</em> opens the list of downloads: <em>Export Journal</em> (on a player journal) and <em>Export Group Journal</em> download every session of that journal as one Markdown file. The GM and whoever started a session can rename it (pencil); the GM can also set its date and its <em>Session number</em> (the first session is 0). <em>More… &gt; Next session number…</em> sets the number the next <em>New session</em> uses. The toolbar has bold, italic, underline, strikethrough, highlight, headings, lists, quote and divider; <em>Auto format…</em> shows what it would tidy (spaces, blank lines, bullet and numbered lines, punctuation spacing) and <em>Undo auto format</em> puts the text back.${gm?' Under the party journal, <em>GM-only notes</em> is a section players cannot see. <em>Export GM Journal</em>, <em>Export This Session</em>, <em>Archive session</em> and, for an archived session, <em>Delete session…</em> sit under the session title.':''}</p>
   ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest is one line: the title and status, then progress, visibility, kind, level, location, giver and last change as the list gets wider (a long title ends in an ellipsis; hover it for the full name). The chevron at the end of a row opens every fact in place. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver. Each group header folds open and closed (Enter or Space on it too), with <em>Collapse all</em> and <em>Expand all</em> next to Sort; while a search or filter is on, groups with matches stay open. Your open and closed choices are remembered for you, per grouping.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>A new quest's ID is made from its title and never changes; you never type one. In <em>Links</em>, pick the quest giver, faction, locations and prerequisite quests by name. A link to something that has been deleted reads <em>Missing</em> with <em>Replace…</em>.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  <h3>Show to Players</h3><p>At the top of a quest's editor, <em>Show to Players</em> opens that quest in the Quest Log on every other connected player's screen that may see it (a character-only quest goes to that character's players) and tells you how many players it reached. If the quest is not visible to players yet, you are asked <em>Reveal it, then show it?</em> first; drafts and GM-only quests are never revealed this way. A player who is typing in the Quest Log gets a notification instead of the window switching. Turn off <em>Players' windows open automatically when the GM shows a quest</em> in GM Setup to send notifications only.</p>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
  }
@@ -640,6 +643,8 @@ class QuestLogApplication extends Base {
      const packsChanged=ids!==String(game.settings.get(MOD,'compendiumPackIds')||''),openFor=!!root.querySelector('#ag-open-for-players')?.checked;
      if(access!==!!game.settings.get(MOD,'playerAccessEnabled'))await game.settings.set(MOD,'playerAccessEnabled',access);
      if(openFor!==(game.settings.get(MOD,'openForPlayers')===true))await game.settings.set(MOD,'openForPlayers',openFor);
+     const showBox=root.querySelector('#ag-open-on-show');
+     if(showBox&&!!showBox.checked!==(game.settings.get(MOD,'showOpensWindow')!==false))await game.settings.set(MOD,'showOpensWindow',!!showBox.checked);
      if(packsChanged)await game.settings.set(MOD,'compendiumPackIds',ids);
      ui.notifications.info(packsChanged?'GM Setup saved. Reload Foundry to apply the compendium change.':'GM Setup saved.');return await this.render();
    }
@@ -675,6 +680,7 @@ class QuestLogApplication extends Base {
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
    if(action==='remove-assignment'){if(!await confirmDanger(`This cannot be undone.`,{title:'Delete this assignment?',yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
    if(action==='delete'){const name=getPrivate(this.gmId)?.getFlag(MOD,'source')?.name||'this quest';if(!await confirmDanger(`This removes its published Quest Log view. Character-owned notes are kept.`,{title:`Delete ${name}?`,yes:'Delete quest'}))return;await removeRecord(this.gmId);this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='show-to-players'){assertGM(game.user);if(!this.gmId)return;await showQuestFlow(this.gmId,showFlowDeps(this));return;}
    if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportPackage(allPrivate().map(x=>x.source)),null,2));}
   }catch(err){notifyError(err);}
  }
@@ -749,6 +755,23 @@ function renderTracker(){
 }
 async function open(){assertUI(game.user,openAllowed());if(!instance||!instance.rendered)instance=new QuestLogApplication();await instance.render({force:true});return instance;}
 async function openObjective(id){assertUI(game.user,openAllowed());const found=visibleById(id);if(!found)return {status:'not_found'};await open();instance.tab=found.view.scope==='individual'?'individual':'party';instance.actorId=found.view.scope==='individual'?found.view.actorId:instance.actorId;instance.selectedId=id;await instance.render();return {status:'opened'};}
+// 0.28.0 Show to Players (show-to-players.mjs): GM presses it, other clients that may see the quest open it.
+const editableFocus=()=>{const a=globalThis.document?.activeElement;return a&&(a.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(a.tagName))?a:null;};
+async function openShown(viewId){
+ const prev=editableFocus();await openObjective(viewId);
+ // The window comes up beside whatever the player was typing in; it does not take the cursor.
+ if(prev&&prev.isConnected&&globalThis.document?.activeElement!==prev)prev.focus?.({preventScroll:true});
+}
+const showToPlayers=createShowToPlayers({moduleId:MOD,user:()=>game.user,users:()=>game.users,get socket(){return game.socket;},
+ access:()=>game.settings.get(MOD,'playerAccessEnabled')===true,now:()=>Date.now(),sleep:ms=>new Promise(r=>setTimeout(r,ms)),
+ projection:id=>findProjection(id),visibleViews:()=>visibleViews(),journalDoc:key=>game.journal?.get?.(key)??null,
+ autoOpen:()=>game.settings.get(MOD,'showOpensWindow')!==false,
+ busy:()=>{const a=editableFocus();return !!(a&&instance?.rendered&&instance.element?.contains?.(a));},
+ openQuest:openShown,notify:m=>ui.notifications?.info(m)});
+function showFlowDeps(app){
+ return {entries:stateForGM,confirm:confirmDialog,info:infoDialog,updateState,send:showToPlayers.send,sleep:ms=>new Promise(r=>setTimeout(r,ms)),
+  dirty:()=>!!app?.unsavedSource,notify:(m,kind)=>kind==='warn'?ui.notifications?.warn(m):ui.notifications?.info(m)};
+}
 function locationList(id){return visibleViews().filter(x=>Array.isArray(x.view.locationIds)&&x.view.locationIds.includes(id)).map(x=>structuredClone(x.view));}
 function refreshLaunchers(){
  if(!openAllowed()&&!hasGM())document.querySelectorAll?.('[data-ag-launcher="ashen-gate-quest-manager"]').forEach(x=>x.remove());
@@ -852,6 +875,7 @@ Hooks.once('init',()=>{
  game.settings.register(MOD,FOLDER_SETTING,{scope:'world',config:false,type:String,default:''});
  game.settings.register(MOD,'playerAccessEnabled',{name:'Quest Log: Player Access',hint:'Show the player Quest Log interface (new module defaults Hidden). Does not change gameplay, documents or GM access.',scope:'world',config:false,type:Boolean,default:false,onChange:updateWindows});
  game.settings.register(MOD,'nextSessionNumber',{name:'Quest Log: Next session number',hint:'Set from Journal > More… > Next session number…. Empty means one more than the highest session number.',scope:'world',config:false,type:Number,default:null,nullable:true});
+ game.settings.register(MOD,'showOpensWindow',{name:'Quest Log: Open quests the GM shows',hint:'GM Setup. On by default: when the GM presses Show to Players on a quest, it opens in the Quest Log on each player\'s screen that may see it. Off: players only get a notification.',scope:'world',config:false,type:Boolean,default:true});
  game.settings.register(MOD,'openForPlayers',{name:'Quest Log: Open newly revealed quests for players',hint:'GM Setup. Off by default: nothing opens on players\' screens.',scope:'world',config:false,type:Boolean,default:false});
 });
 Hooks.once('ready',()=>{
@@ -920,7 +944,7 @@ Hooks.once('ready',()=>{
  // Overlay and tracking prefs are this module's own User flags: they change no audience, so no reconcile for them.
  Hooks.on('updateUser',(user,change)=>{if(user?.id===game.user?.id&&onlyGmView(change))return;if(hasGM()&&!onlyOwnFlags(change))reconcileActorAudience().catch(notifyError);updateWindows();});
   // Game Journal: the primary GM carries out players' New session / rename requests and adds missing player pages.
-  game.socket?.on?.(`module.${MOD}`,(msg,senderId)=>{journalStore.onSocket(msg,senderId).catch(notifyError);});
+  game.socket?.on?.(`module.${MOD}`,(msg,senderId)=>{(msg?.type===SHOW_SOCKET_TYPE?showToPlayers.onSocket(msg,senderId):journalStore.onSocket(msg,senderId)).catch(notifyError);});
   const addPages=()=>{if(hasGM()&&(game.users?.activeGM?.isSelf??true))journalStore.ensurePages().catch(notifyError);};
   addPages();Hooks.on('createUser',addPages);
   for(const hook of ['createJournalEntryPage','deleteJournalEntryPage'])Hooks.on(hook,(doc,options)=>{if(isBulk(options))return;updateWindows();});

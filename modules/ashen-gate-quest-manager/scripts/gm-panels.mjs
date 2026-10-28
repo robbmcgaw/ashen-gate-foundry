@@ -121,7 +121,7 @@ export function editorSection(key,title,body,{open=true,summary=''}={}){
  return fold({title,hint:summary||undefined,open,body}).replace('<details class="ag-fold"',`<details class="ag-fold agq-sec" data-section="${E(key)}"`);
 }
 /** GM Setup: settings only, saved together by the footer's Save Changes (Player Access included, decision D4). */
-export function setupPanel({playerAccess,packIds,openForPlayers=false}){
+export function setupPanel({playerAccess,packIds,openForPlayers=false,showOpensWindow=true}){
  return `<div class="agq-setup"><div class="agq-setup__body ag-scroll ag-pad" data-ag-scroll="setup">
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Player access</h3></div>
  <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-player-access" ${playerAccess?'checked':''}> Show Quest Log to players</label>
@@ -129,6 +129,8 @@ export function setupPanel({playerAccess,packIds,openForPlayers=false}){
  <p class="ag-field__hint">The Journal tab also follows Character Hub's Quests visibility, when Character Hub is active.</p></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Players' screens</h3></div>
  <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-for-players" ${openForPlayers?'checked':''}> Open the Quest Log for players when a quest is revealed to them</label>
+ <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-on-show" ${showOpensWindow?'checked':''}> Players' windows open automatically when the GM shows a quest</label>
+ <p class="ag-field__hint">On by default: Show to Players (in the quest editor) opens the quest in the Quest Log on every player's screen that may see it. Off: those players only get a notification.</p>
  <p class="ag-field__hint">Off by default: assigning, revealing or completing a quest, or giving rewards, opens nothing on players' screens. When on, a newly revealed quest opens the player's Quest Log window at that quest (never a journal page).</p></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Compendium packs</h3></div>
  <label class="ag-field">Compendium pack IDs<input id="ag-compendium-packs" value="${E(packIds||'')}" placeholder="world.my-quests"><span class="ag-field__hint">Optional read-only quest definitions, not player quests. Leave blank unless you use a quest compendium. Reload Foundry after changing.</span></label></section></div>

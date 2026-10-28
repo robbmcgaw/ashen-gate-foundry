@@ -79,6 +79,7 @@
 .agq-savebar.is-dirty { border-top-color: var(--ag-accent); }
 .agq-savebar.is-dirty .ag-footer__status { color: var(--ag-text); font-weight: 600; }
 .agq-edit__head .agq-dirty-badge { margin-right: auto; }
+.agq-edit__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
 
 /* List column (player tabs and the GM Quests tab) */
 .agq-list { display: flex; flex-direction: column; gap: var(--ag-space-3); padding: var(--ag-space-3); }
