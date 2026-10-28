@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.37.11',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.37.12',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -343,46 +343,105 @@ test('Complete activity is disabled and refused without the tool; owned tool or 
   }
 });
 
-/* ---- 0.37.11: result-item preview for players, from a GM-taken snapshot ---------------------------------- */
-test('result preview: a player with no permission on the world Item sees the picture and name as a button and a read-only preview of player-facing fields only; unreleased recipes expose nothing; no snapshot falls back to plain text',async()=>{
-  const craftDef=(id,name,result,extra={})=>def(id,'Recipe',{name,profession_id:'PROF-TEST-ALCHEMY',result_item_id:result,tier:'apprentice',effort:'short',ingredients:[{material_id:'MAT-TEST-HERB',quantity:1}],...extra});
-  const gmOnlyItem=(wid,id,name,desc,status='approved')=>({...worldDoc(wid,name,src(id,'Item',{status,definition:def(id,'Item',{name})})),img:'icons/tonic.webp',type:'consumable',testUserPermission:u=>u.isGM,
-    system:{description:{value:desc},price:{value:25,denomination:'gp'}},toObject(){return {_id:this.id,name:this.name,img:this.img,type:this.type,flags:structuredClone(this.flags),system:structuredClone(this.system)};}});
-  const added=[worldDoc('wr1','Recipe: [TEST] Tonic',src('REC-TEST-TONIC','Recipe',{definition:craftDef('REC-TEST-TONIC','[TEST] Tonic','ITEM-TEST-TONIC')})),
-    worldDoc('wr2','Recipe: [TEST] Secret Brew',src('REC-TEST-BREW','Recipe',{status:'draft',definition:craftDef('REC-TEST-BREW','[TEST] Secret Brew','ITEM-TEST-BREW',{status:'draft'})})),
-    gmOnlyItem('wi1','ITEM-TEST-TONIC','[TEST] Bright Tonic','<p>Restores <b>vigor</b>.</p><table><tr><td>Type</td><td>Potion</td></tr></table><section class="secret"><p>GM: poisoned in act 3</p></section>'),
-    gmOnlyItem('wi2','ITEM-TEST-BREW','[TEST] Brew Item','<p>Unreleased.</p>','draft')];
-  world.push(...added);
-  const maker=makeActor('maker','[TEST] Maker','u1',[profItem('malch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('mherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-TONIC','REC-TEST-BREW'],{skills:{},tools:{},abilities:{int:{mod:2}}});
-  actors.push(maker);values.partyRoster=['maker'];
+/* ---- 0.37.12: recipe previews on the character; crafting through the GM when the Item is hidden ------------- */
+test('previews: a player with no permission on any world Item sees previews of the recipes the character knows and crafts through the GM; nothing for unknown recipes; nothing in world settings; no GM notes',async()=>{
   const flush=()=>new Promise(r=>setImmediate(r));
-  const orig=values.resultPreviews,P=foundry.applications.api.DialogV2,prompts=[];P.prompt=async o=>{prompts.push(o);};
+  const craftDef=(id,name,result,extra={})=>def(id,'Recipe',{name,profession_id:'PROF-TEST-ALCHEMY',result_item_id:result,tier:'apprentice',effort:'short',ingredients:[{material_id:'MAT-TEST-HERB',quantity:1}],...extra});
+  const gmItem=(wid,id,name,desc,{status='approved',type='consumable',entity='Item'}={})=>({...worldDoc(wid,name,src(id,entity,{status,definition:def(id,entity,{name})})),gmOnly:true,img:'icons/tonic.webp',type,testUserPermission:u=>u.isGM,
+    system:{description:{value:desc},price:{value:25,denomination:'gp'},quantity:1},toObject(){return {_id:this.id,name:this.name,img:this.img,type:this.type,flags:structuredClone(this.flags),system:structuredClone(this.system)};}});
+  const added=[worldDoc('wr1','Recipe: [TEST] Tonic',src('REC-TEST-TONIC','Recipe',{definition:craftDef('REC-TEST-TONIC','[TEST] Tonic','ITEM-TEST-TONIC')})),
+    worldDoc('wr2','Recipe: [TEST] Secret Brew',src('REC-TEST-BREW','Recipe',{status:'draft',definition:craftDef('REC-TEST-BREW','[TEST] Secret Brew','ITEM-TEST-BREW')})),
+    worldDoc('wr3','Recipe: [TEST] Other Draught',src('REC-TEST-OTHER','Recipe',{definition:craftDef('REC-TEST-OTHER','[TEST] Other Draught','ITEM-TEST-OTHER')})),
+    gmItem('wi1','ITEM-TEST-TONIC','[TEST] Bright Tonic','<p>Restores <b>vigor</b>.</p><table><tr><td>Type</td><td>Potion</td></tr></table><section class="secret"><p>GM: poisoned in act 3</p></section>'),
+    gmItem('wi2','ITEM-TEST-BREW','[TEST] Brew Item','<p>Unreleased.</p>',{status:'draft'}),
+    gmItem('wi3','ITEM-TEST-OTHER','[TEST] Other Item','<p>Other recipe result.</p>')];
+  const herbDoc=world.find(d=>d.id==='wherb');herbDoc.gmOnly=true;herbDoc.testUserPermission=u=>u.isGM;
+  world.push(...added);
+  const maker=makeActor('maker','[TEST] Maker','u1',[profItem('malch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('mherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-TONIC'],{skills:{},tools:{},abilities:{int:{mod:2}}});
+  maker.flags['ashen-gate-profession-ledger'].professionProgress=undefined;
+  actors.push(maker);values.partyRoster=['maker'];
+  // The player's client never receives Items it has no permission on.
+  const itemsDesc=Object.getOwnPropertyDescriptor(game.items,'contents');
+  Object.defineProperty(game.items,'contents',{configurable:true,get:()=>game.user.isGM?world:world.filter(d=>!d.gmOnly)});
+  const emitted=[],origEmit=game.socket.emit;game.socket.emit=(n,m)=>emitted.push(m);
+  const P=foundry.applications.api.DialogV2,prompts=[];P.prompt=async o=>{prompts.push(o);};
   const card=async name=>{app.actorId='maker';const h=await html('individual');const at=h.indexOf(name);return at<0?'':h.slice(h.lastIndexOf('<article',at),h.indexOf('</article>',at));};
   try{
-    // Before any snapshot: today's plain text, no button.
+    // Before any preview: today's plain text, no button.
     game.user=alice;let row=await card('[TEST] Tonic');assert.doesNotMatch(row,/data-action="preview-item"/);
-    // The GM client takes the snapshot: released recipes only.
-    game.user=gm;const kept=await _test.publishResultPreviews();assert.ok(kept>=1);
-    const stored=JSON.stringify(values.resultPreviews);
-    assert.match(stored,/Bright Tonic/);assert.doesNotMatch(stored,/poisoned in act 3|ITEM-TEST-BREW|Brew Item|Unreleased/,'no GM secret, no unreleased result');
-    await assert.rejects(()=>{game.user=alice;return _test.publishResultPreviews();},/Only the GM/);
-    // The player: picture + name as a real button, no permission on the Item needed; no ids in the markup.
+    // The GM client copies the previews onto the character (only the owner and GMs receive an Actor's flags).
+    game.user=gm;const built=await _test.publishAllPreviews();assert.ok(built.changed>=1);
+    const stored=JSON.stringify(maker.flags['ashen-gate-profession-ledger'].recipePreviews);
+    assert.match(stored,/Bright Tonic/);assert.match(stored,/Restores vigor/);
+    assert.doesNotMatch(stored,/poisoned in act 3|GM:|ITEM-TEST|Brew Item|Other Item|Unreleased|Other recipe result/,'no GM secret, no ids, nothing for recipes the character does not know');
+    assert.doesNotMatch(JSON.stringify(values),/Bright Tonic|Restores vigor/,'nothing in world settings, which every client receives');
+    assert.equal((await _test.publishAllPreviews()).changed,0,'idempotent');
+    // The player: picture + name buttons for what it makes and for the ingredient; no ids.
     game.user=alice;row=await card('[TEST] Tonic');
-    assert.match(row,/<button type="button" class="ag-link agl-item-link agl-preview-link" data-action="preview-item" data-key="[a-z0-9]+"[^>]*><img class="agl-item-thumb" src="icons\/tonic\.webp" alt="" width="20" height="20"> \[TEST\] Bright Tonic<\/button>/);
-    assert.doesNotMatch(row,/ITEM-TEST/);
-    // The unreleased recipe is not shown to the player at all, and its result has no preview.
-    assert.equal(await card('[TEST] Secret Brew'),'');
-    // Pressing it opens a read-only preview with the player-facing fields only; focus goes back to the button.
-    const btn=/data-key="([a-z0-9]+)"/.exec(row)[1];let focused=0;
-    const button={dataset:{action:'preview-item',key:btn,ctx:''},focus(){focused++;}};
-    assert.equal(_test.itemLinkClick(button),true);await flush();
+    assert.match(row,/data-action="preview-item" data-actor="maker" data-key="[a-z0-9]+" data-part="result"[^>]*><img class="agl-item-thumb" src="icons\/tonic\.webp" alt="" width="20" height="20"> \[TEST\] Bright Tonic<\/button>/);
+    assert.match(row,/data-part="i0"/);assert.doesNotMatch(row,/ITEM-TEST|MAT-TEST/);
+    // Other recipes are not shown to this player at all.
+    assert.equal(await card('[TEST] Other Draught'),'');assert.equal(await card('[TEST] Secret Brew'),'');
+    assert.equal(_test.previewOf(maker,'REC-TEST-OTHER'),null);
+    // Pressing it opens a read-only preview from the snapshot (no world Item read); focus returns.
+    const key=/data-part="result"/.test(row)?/data-key="([a-z0-9]+)"/.exec(row)[1]:'';let focused=0;
+    const button={dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){focused++;}};
+    assert.equal(_test.itemLinkClick(button),true);await flush();await flush();
     assert.equal(prompts.length,1);const body=prompts[0].content;
     assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores vigor\./);assert.match(body,/Type: Potion/);
-    assert.doesNotMatch(body,/poisoned|GM:|ITEM-TEST|data-action|<button/,'read-only: no GM text, no ids, no actions');
-    assert.equal(focused,1,'focus returns to the opening button');
-    // The GM still gets the real link behaviour (unchanged).
-    game.user=gm;assert.doesNotMatch(await card('[TEST] Tonic'),/data-action="preview-item"/);
+    assert.doesNotMatch(body,/poisoned|GM:|ITEM-TEST|data-action|<button/);assert.equal(focused,1);
+    // Another player cannot open it.
+    game.user=bob;prompts.length=0;_test.itemLinkClick({dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){}});await flush();assert.equal(prompts.length,0,'not an owner or observer');
+    // Crafting: the player's client cannot read the Item, so the request goes to the GM, who creates it.
+    game.user=alice;emitted.length=0;
+    const crafting=_test.craft(maker,'REC-TEST-TONIC',{confirm:false});await flush();await flush();
+    const req=emitted.find(m=>m.type==='craft-request');assert.ok(req,'sent to the GM');
+    assert.equal(maker.items.some(i=>/Bright Tonic/.test(i.name)),false,'the player client creates nothing itself');
+    // A forged request: another player, or a recipe the character does not know, is refused by the GM client.
+    game.user=gm;emitted.length=0;
+    await _test.onSocket({...req,userId:'u2',requesterId:'u2'},'u2');
+    assert.equal(maker.items.some(i=>/Bright Tonic/.test(i.name)),false);
+    maker.flags['ashen-gate-profession-ledger'].knownRecipes=[];
+    await _test.onSocket(req,'u1');assert.equal(maker.items.some(i=>/Bright Tonic/.test(i.name)),false,'not known: refused');
+    maker.flags['ashen-gate-profession-ledger'].knownRecipes=['REC-TEST-TONIC'];
+    await _test.onSocket(req,'u1');
+    assert.ok(maker.items.some(i=>/Bright Tonic/.test(i.name)),'the GM client made the item on the character');
+    assert.equal(maker.items.find(i=>/Herb/.test(i.name)).system.quantity,1,'one herb used, as before');
+    const result=emitted.filter(m=>m.type==='craft-result').at(-1);assert.equal(result?.ok,true);
+    game.user=alice;await _test.onSocket(result,'gm');assert.equal((await crafting).ok,true,'the player is told it worked');game.user=gm;
+    game.user=gm;const report=_test.unreadableItemsReport();
+    assert.ok(report.some(r=>r.name==='[TEST] Bright Tonic'&&r.role==='makes'));assert.ok(!report.some(r=>/Other|Brew/.test(r.name)),'only items of known recipes');
+    assert.throws(()=>{game.user=alice;_test.unreadableItemsReport();},/Only the GM/);
   }finally{
-    delete P.prompt;for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(maker),1);values.partyRoster=['bard','smith'];values.resultPreviews=orig;game.user=gm;
+    delete P.prompt;game.socket.emit=origEmit;Object.defineProperty(game.items,'contents',itemsDesc);herbDoc.gmOnly=false;herbDoc.testUserPermission=u=>u.isGM||herbDoc.flags['ashen-gate-manager'].source.visibility==='player';
+    for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(maker),1);values.partyRoster=['bard','smith'];game.user=gm;
+  }
+});
+
+/* ---- 0.37.12: no tool and no station: say which check ------------------------------------------------------ */
+test('requirement line: a recipe with no tool and no station shows “Check: <skill>” from the mapping; tool and station recipes unchanged; no skill keeps “None needed”; the mapping drives it',async()=>{
+  const mk=(wid,id,name,prof,extra={})=>worldDoc(wid,`Recipe: ${name}`,src(id,'Recipe',{definition:def(id,'Recipe',{name,profession_id:prof,result_item_id:'ITEM-TEST-SALVE',tier:'apprentice',effort:'short',ingredients:[{material_id:'MAT-TEST-HERB',quantity:1}],...extra})}));
+  const prof=(wid,id,name)=>worldDoc(wid,`${name} — Profession`,src(id,'Profession',{definition:def(id,'Profession',{name})}));
+  const added=[prof('wpe','PROF-TEST-ENCHANTING','Enchanting'),prof('wpw','PROF-TEST-WHITTLING','Whittling'),
+    mk('wr1','REC-TEST-CHALK','[TEST] Chalk','PROF-TEST-ENCHANTING'),mk('wr2','REC-TEST-CHAMBER','[TEST] Chamber Piece','PROF-TEST-ENCHANTING',{workstation:'Enchanting Chamber'}),
+    mk('wr3','REC-TEST-SPOON','[TEST] Spoon','PROF-TEST-WHITTLING'),mk('wr4','REC-TEST-SALVE2','[TEST] Salve Two','PROF-TEST-ALCHEMY')];
+  world.push(...added);
+  const crafter=makeActor('crafter','[TEST] Crafter','u1',[profItem('ce','Enchanting','PROF-TEST-ENCHANTING'),profItem('cw','Whittling','PROF-TEST-WHITTLING'),profItem('ca','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('ch','[TEST] Herb',src('MAT-TEST-HERB','Material'),3)],
+    ['REC-TEST-CHALK','REC-TEST-CHAMBER','REC-TEST-SPOON','REC-TEST-SALVE2'],{skills:{},tools:{},abilities:{int:{mod:2}}});
+  actors.push(crafter);values.partyRoster=['crafter'];const orig=values.checkMapping;
+  const card=async name=>{app.actorId='crafter';const h=await html('individual');const at=h.indexOf(name);return at<0?'':h.slice(h.lastIndexOf('<article',at),h.indexOf('</article>',at));};
+  try{
+    game.user=alice;
+    let row=await card('[TEST] Chalk');
+    assert.match(row,/<i class="fa-solid fa-dice-d20" aria-hidden="true"><\/i><span class="agl-label agl-label--inline">Check<\/span> <span>Arcana<\/span>/);assert.doesNotMatch(row,/None needed/);
+    assert.match(row,/data-action="craft" data-id="REC-TEST-CHALK"/,'Craft is not blocked');
+    assert.match(await card('[TEST] Chamber Piece'),/Station<\/span> <span>Enchanting Chamber/);
+    assert.match(await card('[TEST] Salve Two'),/Tool<\/span>|Uses<\/span>/);
+    row=await card('[TEST] Spoon');assert.match(row,/Tool or station<\/span> <span>None needed/,'a profession with neither a tool, a station nor a check skill');
+    // The GM changes the mapping and the label follows.
+    values.checkMapping={skills:{whittling:'his'}};
+    row=await card('[TEST] Spoon');assert.match(row,/Check<\/span> <span>History<\/span>/);assert.doesNotMatch(row,/None needed/);
+  }finally{
+    values.checkMapping=orig;for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(crafter),1);values.partyRoster=['bard','smith'];game.user=gm;
   }
 });

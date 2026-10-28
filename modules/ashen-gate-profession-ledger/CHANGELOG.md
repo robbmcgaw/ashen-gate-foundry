@@ -1,3 +1,14 @@
+## 0.37.12 — 2026-10-28
+
+Recipe previews that do not need the world Items to be readable, and a clearer requirement line.
+
+- **Previews are kept on the character, not in a world setting.** The GM client copies what a player may see about each recipe the character knows (what it makes, the ingredients, the tools) onto the Actor's Ledger flags: player-facing fields only (name, picture, type, description with secret blocks removed, price). Only the character's owners and the GMs receive it; recipes the character doesn't know, unreleased recipes, GM notes and ids are never in it. This replaces the 0.37.10 world setting `resultPreviews`, which is no longer written or read.
+- Makes and ingredient names on recipe cards are picture-and-name buttons that open a small read-only preview. Tools stay as text.
+- **Crafting works with GM-only Items.** When the player's client cannot read the result Item, Craft goes to the GM client as an owner-authenticated request (the shared-materials request: the player must own the character, know the recipe and the recipe must be released); the GM client uses the same material checks and makes the item on the character. Nothing in the message carries item data.
+- **Assign → Recipe previews** (GM): Rebuild recipe previews (also automatic when recipes, Items or a character's known recipes change), and a list of items players still can't open in Foundry. It is information only; nothing needs releasing for the Ledger to work.
+- **Requirement line:** a recipe with no tool and no station, in a profession whose check is a skill (from GM Setup), now reads "Check: Arcana" instead of "Tool or station: None needed". "None needed" stays for professions with no tool, station or skill. Craft is not blocked either way.
+- No saved data changes beyond the new Actor flag.
+
 ## 0.37.11 — 2026-10-28
 
 Choose who is in a gather.

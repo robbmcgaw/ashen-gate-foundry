@@ -31,16 +31,23 @@ export function snapshotItem(data){
   if(!name)return null;
   return {name,img:safeImg(data?.img),type:TYPE_LABELS[data?.type]??'Item',text:plainText(data?.system?.description?.value),price:priceText(data?.system?.price)};
 }
-/** The stored setting → {[itemId]: snapshot}. Anything malformed is dropped; never throws. */
-export function readPreviews(raw){
-  const src=raw&&typeof raw==='object'&&raw.items&&typeof raw.items==='object'?raw.items:{};
+const cleanSnap=v=>{
+  if(!v||typeof v!=='object')return null;
+  const name=String(v.name??'').trim().slice(0,120);if(!name)return null;
+  return {name,img:safeImg(v.img),type:String(v.type??'Item').slice(0,40),text:String(v.text??'').slice(0,PREVIEW_TEXT_MAX),price:String(v.price??'').slice(0,40)};
+};
+/** 0.37.12: what a character may see about the recipes it knows, stored on the Actor (owners and GMs read it; never a world setting):
+ * {[recipeId]: {result: snapshot|null, ingredients:[{name,img,text,quantity}], tools:'text', workstation:'text'}}. Malformed parts are dropped; never throws. */
+export function readRecipePreviews(raw){
+  const src=raw&&typeof raw==='object'&&raw.recipes&&typeof raw.recipes==='object'?raw.recipes:{};
   const out={};
   for(const [id,v] of Object.entries(src)){
-    if(!/^ITEM-[A-Z0-9-]+$/.test(id)||!v||typeof v!=='object')continue;
-    const name=String(v.name??'').trim().slice(0,120);if(!name)continue;
-    out[id]={name,img:safeImg(v.img),type:String(v.type??'Item').slice(0,40),text:String(v.text??'').slice(0,PREVIEW_TEXT_MAX),price:String(v.price??'').slice(0,40)};
+    if(!/^REC-[A-Z0-9-]+$/.test(id)||!v||typeof v!=='object')continue;
+    out[id]={result:cleanSnap(v.result),
+      ingredients:(Array.isArray(v.ingredients)?v.ingredients:[]).slice(0,24).map(i=>({...(cleanSnap(i)??{name:'',img:'',type:'Material',text:'',price:''}),quantity:Math.max(1,Number(i?.quantity)||1)})).filter(i=>i.name),
+      tools:String(v.tools??'').slice(0,200),workstation:String(v.workstation??'').slice(0,120)};
   }
   return out;
 }
-export const storedPreviews=items=>({schema:PREVIEW_SCHEMA,items});
+export const storedRecipePreviews=recipes=>({schema:PREVIEW_SCHEMA,recipes});
 export const samePreviews=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
