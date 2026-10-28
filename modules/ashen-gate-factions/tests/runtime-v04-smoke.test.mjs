@@ -94,10 +94,15 @@ await dashboard._onRender({},{});test(root.listeners.click!==undefined,'tab dele
 await actions.select.call(dashboard,null,{dataset:{id:'FACTION-SECRET'}});
 // Award additional Group Renown to an undiscovered organization.
 const award=(scope,delta,reason)=>({dataset:{scope},closest:()=>({querySelector:sel=>sel.includes('renown-delta')?{value:String(delta)}:{value:reason}})});
+// 0.23.0: a faction nobody is recruited into asks first; with the prompt declined nothing is recorded. Standing is then written directly, as an older world already holds it.
 await actions.award.call(dashboard,null,award('group',2,'Secret negotiation'));
+test(groupSecret.getFlag(ns,'groupClaims').standing.score===7,'a not-recruited faction records nothing when the Recruit prompt is declined');
+{const g=structuredClone(groupSecret.getFlag(ns,'groupClaims'));g.standing=adjustStanding(g.standing,{delta:2,reason:'Secret negotiation',eventId:'RENOWN-EVT-SEED',when:'2026-01-01T00:00:00.000Z'}).standing;await groupSecret.setFlag(ns,'groupClaims',g);}
 test(groupSecret.getFlag(ns,'groupClaims').standing.score===9,'undiscovered faction tracks Renown');
 test(!JSON.stringify(view1.getFlag(ns,'playerView').payload).includes('Secret negotiation'),'undiscovered history is hidden');
 await actions.discovery.call(dashboard,null,{dataset:{mode:'party'}});
+test(view1.getFlag(ns,'playerView').payload.factions.find(f=>f.id==='FACTION-SECRET')?.group===null,'0.23.0: revealing alone shows no standing');
+await actions.membership.call(dashboard,null,{dataset:{mode:'party'}});
 let v1=view1.getFlag(ns,'playerView').payload.factions.find(f=>f.id==='FACTION-SECRET');
 test(v1?.group?.score===9,'score revealed after discovery');
 test(v1?.group?.history?.length===2,'prior Renown events revealed after discovery');

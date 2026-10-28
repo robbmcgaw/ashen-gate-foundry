@@ -1,6 +1,7 @@
 // Factions tab (GM-only) logic: roster rows, chips, filter, sort, group, editor sub-tabs and display labels. No Foundry globals.
 import {objectiveRefs} from './objective-refs.mjs';
 import {OTHER_FOLDER} from './core.mjs';
+import {recruitChip,recruitBadge} from './membership.mjs';
 export const CHIPS=Object.freeze(['Hidden','Characters only','Revealed to party']);
 export const SORTS=Object.freeze([['name','Name A-Z'],['status','Visibility'],['renown','Group Renown (high first)'],['folder','Folder']]);
 export const GROUPS=Object.freeze([['status','Visibility'],['folder','Folder'],['none','No grouping']]);
@@ -25,8 +26,10 @@ export function orgRow({faction,score=0,rank='',folderName=''}){
   chip:visibilityChip(faction),badgeClass:chipBadge(visibilityChip(faction)),characters:(d.actors??[]).length,placeholder:Boolean(d.placeholder),
   selective:faction.field_reveals?.mode==='selective',score:Number(score)||0,rank:rank||'',
   folder:folderName||OTHER_FOLDER,objectives:objectiveRefs(faction).length};
+ // 0.23.0: factions also carry a Recruited chip (text, not colour alone). Deities have no membership.
+ row.recruitChip=faction.entity_type==='Deity'?'':recruitChip(faction);row.recruitBadge=recruitBadge(row.recruitChip);
  // Lower-case text the search box matches, so the window can filter rows as you type without re-rendering.
- row.search=[row.name,row.id,row.leader,row.chip,row.folder,row.rank,...row.tags].join('\n').toLowerCase();
+ row.search=[row.name,row.id,row.leader,row.chip,row.recruitChip,row.folder,row.rank,...row.tags].join('\n').toLowerCase();
  return row;
 }
 /** Whether search text q matches a row's search text (case-insensitive substring). */

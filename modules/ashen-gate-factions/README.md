@@ -77,6 +77,10 @@ A deity is a definition with `entity_type: "Deity"` in the same import/export fi
 
 A faction can list **Related factions** (Factions tab, Profile): each has a slider from Dissonance (rival) to Resonance (ally). When the GM adds **personal** Renown for a character with one faction, Renown lists what each related faction would change (scaled by **GM Setup → Faction knock-on damping**) and the GM confirms each row. Group Renown never spreads, knock-ons never chain, only factions the character already knows are affected, scores stay at 0 or above and claimed ranks and rewards are kept. Personal history has **Undo…**, which also undoes its knock-ons. Players see relations only to factions they know. Schema: `docs/renown-faction-relations-schema.md`.
 
+## Known and recruited (0.23.0)
+
+Showing a faction to a player makes it **Known (not recruited)**: they see its name, leader, description and the information they have learned, and nothing about standing. The GM then **Recruits** the party or a character (Visibility, Group or Character tab), which brings in ranks, progress, rewards, claims and history. Recruiting also shows the faction; hiding it also removes the recruit; removing a recruit hides standing and deletes nothing. Awarding Renown to someone who is not recruited offers to recruit them first, and faction knock-ons only reach factions the character is recruited into. Worlds from 0.22.0 or earlier keep everything already shown as recruited. State shape and rules: [docs/renown-known-vs-recruit.md](../../docs/renown-known-vs-recruit.md). Deities are unchanged. API: `setMembership(factionId, {party:true | actorId, on})` (GM).
+
 ## Install
 
 Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, paste

@@ -149,8 +149,10 @@ export async function runImport(plan,io){
       await io.updateGroup(row.id,state=>{
         const next=structuredClone(state);
         next.discovery={party:false,actors:[],...(next.discovery??{})};
-        if(start.party_discovered)next.discovery.party=true;
-        for(const {found,spec} of actors)if(spec.discovered&&!next.discovery.actors.includes(found.id))next.discovery.actors.push(found.id);
+        // 0.23.0: starting_state's "discovered" keeps its old meaning (the party or character starts as a recruit with their Renown); the file format is unchanged.
+        next.membership={party:false,actors:[],...(next.membership??{})};
+        if(start.party_discovered){next.discovery.party=true;next.membership.party=true;}
+        for(const {found,spec} of actors)if(spec.discovered&&!next.discovery.actors.includes(found.id)){next.discovery.actors.push(found.id);if(!next.membership.actors.includes(found.id))next.membership.actors.push(found.id);}
         if(start.group_renown?.length)next.standing=standing(next.standing,start.group_renown);
         return next;
       });
