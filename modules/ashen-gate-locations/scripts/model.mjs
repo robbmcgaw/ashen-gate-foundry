@@ -306,6 +306,10 @@ export function normalizeLocation(raw = {}) {
   // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
   loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
   loc.audience = normalizeAudience(r.audience);
+  // 0.28.0, GM-only: the opaque key of this location's companion pin/page (see companionActive). It is kept off the real pin and page so the
+  // two can't be matched from what a player's client holds; only the GM Data record maps it back. Present only while the option is on.
+  if (loc.audience.mode === 'selected' && loc.audience.othersUnidentified === true)
+    loc.companionKey = PIN_KEY.test(r.companionKey ?? '') && r.companionKey !== loc.pinKey ? r.companionKey : newPinKey();
   // 0.25.0, GM-only: the default pin art/size for places inside this one (see inheritedPin). Not published; players never get it.
   loc.childPin = normalizeChildPin(r.childPin);
   // 0.27.0, GM-only presentation: draw this location's pin art at its own proportions (see pin-proportions.mjs). Default off; a record
@@ -360,8 +364,18 @@ export function normalizeAudience(raw) {
   const userIds = [...new Set((Array.isArray(r.userIds) ? r.userIds : []).filter(u => PLAYER_ID.test(u ?? '')))].slice(0, 100);
   const sharedBy = {};
   for (const u of userIds) if (PLAYER_ID.test(r.sharedBy?.[u] ?? '') && r.sharedBy[u] !== u) sharedBy[u] = r.sharedBy[u];
-  return {mode, userIds, sharedBy, sharing: bool(r.sharing, true)};
+  const out = {mode, userIds, sharedBy, sharing: bool(r.sharing, true)};
+  // 0.28.0, GM-only: with 'selected', everyone else sees an unidentified companion pin instead of nothing. Written only when on, so records
+  // from before 0.28.0 (and every location that never asked) are byte-for-byte what they were; absent reads false.
+  if (r.othersUnidentified === true) out.othersUnidentified = true;
+  return out;
 }
+/**
+ * 0.28.0: does this location get a companion (an unidentified pin and page for the players NOT in its audience)? Selected players, the
+ * option on, and a visible marker state: Hidden wins (it shows nobody anything), an archived or never-published location has nothing to show.
+ */
+export const companionActive = loc => !!loc && loc.audience?.mode === 'selected' && loc.audience.othersUnidentified === true
+  && loc.state !== 'hidden' && !loc.archived && !!loc.published && PIN_KEY.test(loc.companionKey ?? '');
 /** May this player see the location at all (marker state aside)? */
 export const inAudience = (loc, userId) => loc.audience?.mode !== 'selected' || (loc.audience.userIds ?? []).includes(userId);
 /** Can everyone who may read `reader` also see `target`? (reader null: the GM, who sees everything.) */
@@ -422,6 +436,12 @@ export function uniquePinKeys(list) {
   for (const loc of list) {
     while (seen.has(loc.pinKey)) loc.pinKey = newPinKey();
     seen.add(loc.pinKey);
+  }
+  // 0.28.0: a companion key never equals any pin key or another companion key.
+  for (const loc of list) {
+    if (loc.companionKey === undefined) continue;
+    while (seen.has(loc.companionKey)) loc.companionKey = newPinKey();
+    seen.add(loc.companionKey);
   }
   return list;
 }
@@ -594,6 +614,44 @@ export function inheritedPin(parentId, all, selfId = '') {
     id = anc.parentLocationId;
   }
   return out;
+}
+
+/**
+ * 0.28.0: the player-safe view of a location's companion: the generic unidentified entry the players NOT in its audience read.
+ * Only the opaque companion key and the unidentified label (the location's own, else the world's): never the real name, id, pin key,
+ * teaser, description or any other content.
+ */
+export function companionView(raw, {label = ''} = {}) {
+  const loc = normalizeLocation(raw);
+  if (!companionActive(loc)) return null;
+  return {key: loc.companionKey, state: 'unidentified', name: loc.published.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL};
+}
+
+/**
+ * 0.28.0: what a companion Map Note should be, given the real Note it follows: same spot and size, the unidentified art, no text (Foundry
+ * labels it from the generic page). Flags carry only the opaque companion key, the real Note's document id and the art/size the module wrote.
+ */
+export function companionNoteData(real, loc, {pageId, entryId, src}) {
+  const size = real.iconSize ?? PIN_DEFAULTS.size;
+  return {entryId, pageId, x: real.x, y: real.y, text: '', texture: {src}, iconSize: size,
+    flags: {[MODULE_ID]: {companionKey: loc.companionKey, companionFor: real.id, pin: {src, size}}}};
+}
+/** 0.28.0: the update a companion Note needs to match `want` (companionNoteData), or null. Position and page binding always follow; art and
+ *  size follow unless the GM changed them by hand on the companion (same rule as notePatch). */
+export function companionPatch(note, want) {
+  const ours = note.flags?.[MODULE_ID] ?? {};
+  const last = ours.pin;
+  const src = note.texture?.src ?? '';
+  const ownSrc = last ? src === last.src : true, ownSize = last ? note.iconSize === last.size : true;
+  const pin = {src: ownSrc ? want.texture.src : last?.src ?? '', size: ownSize ? want.iconSize : last?.size ?? 0};
+  const patch = {};
+  for (const k of ['x', 'y', 'entryId', 'pageId']) if (note[k] !== want[k]) patch[k] = want[k];
+  if (note.text !== '') patch.text = '';
+  if (ownSrc && src !== want.texture.src) patch.texture = {src: want.texture.src};
+  if (ownSize && note.iconSize !== want.iconSize) patch.iconSize = want.iconSize;
+  if (ours.companionKey !== want.flags[MODULE_ID].companionKey || ours.companionFor !== want.flags[MODULE_ID].companionFor || last?.src !== pin.src || last?.size !== pin.size)
+    patch.flags = {[MODULE_ID]: {companionKey: want.flags[MODULE_ID].companionKey, companionFor: want.flags[MODULE_ID].companionFor, pin}};
+  return Object.keys(patch).length ? patch : null;
 }
 
 /** 0.26.0: has the GM changed this Note's image or size by hand (so it is theirs, not wholly the module's)? Same test as notePatch. */
@@ -809,6 +867,8 @@ export function importRecords(records, existing = [], {mode = 'skip', unarchive 
     const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
     // Who may see it is play state too, like the marker state.
     Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, active: old.active, published: old.published, audience: old.audience});
+    // 0.28.0: the companion key travels with the audience (it is the world's play state, not part of the definition).
+    if (old.companionKey) incoming.companionKey = old.companionKey; else delete incoming.companionKey;
     // 0.26.0: an archived location stays archived when it is imported again, unless the caller says `unarchive` (a package never decides).
     Object.assign(incoming, old.archived && !unarchive ? {archived: true, archivedAt: old.archivedAt, active: false} : {archived: false, archivedAt: ''});
     for (const n of incoming.resources) if (n.finite !== false && exhausted.has(n.key)) n.exhausted = true;

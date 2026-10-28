@@ -80,8 +80,14 @@ export const noteBannerWidth = note => {
 };
 
 const isBound = note => {
-  try { return !!(note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId')); } catch { return false; }
+  try { return !!(note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId') || note?.document?.getFlag?.(MODULE_ID, 'companionKey')); } catch { return false; }
 };
+/** 0.28.0: is this Note a companion (the unidentified pin the players who are not selected see)? */
+export const isCompanion = note => {
+  try { return !!note?.document?.getFlag?.(MODULE_ID, 'companionKey'); } catch { return false; }
+};
+/** 0.28.0: the GM's marker on a companion's drawn label, so the two pins at one spot can be told apart. Players never get it. */
+export const COMPANION_MARK = 'Unidentified view: ';
 
 /**
  * True when the label Foundry would show is one this module wrote or one a player may read. A Note's own `text` is managed by
@@ -129,8 +135,10 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
       if (always) tip.visible = true;
       // Wrap the displayed text only: the Note's own text is never touched. Core rebuilds tooltip.text from document.label on its
       // refreshTooltip flag, so wrap 0 (or the name off) is restored by refreshPins().
-      const lines = wrapLabel(note.document.label, wrap);
-      if (wrapOf(wrap) && tip.text !== lines) tip.text = lines;
+      // 0.28.0: on the GM's client only, a companion's label starts with COMPANION_MARK. Display only; the Note's text and label data are untouched.
+      const gmMark = isCompanion(note) && globalThis.game?.user?.isGM === true ? COMPANION_MARK : '';
+      const lines = gmMark + wrapLabel(note.document.label, wrap);
+      if ((wrapOf(wrap) || gmMark) && tip.text !== lines) tip.text = lines;
       moveLabel(note, offsetOf(nameOffset), layout);
       // Core's canvas text style is already align 'center' with wordWrap off; it only switches to right/left for side anchors.
       if (wrapOf(wrap) && tip.style && ![CONST_ANCHOR().LEFT, CONST_ANCHOR().RIGHT].includes(note.document.textAnchor)) tip.style.align = 'center';
