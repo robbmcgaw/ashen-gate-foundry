@@ -1,6 +1,6 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore} from './store.mjs';
+  syncSharedNotes, syncSceneCompanions, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createActiveWatcher} from './active.mjs';
@@ -12,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.27.3';
+const VERSION = '0.28.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -156,12 +156,25 @@ Hooks.on('renderSceneDirectory', (app, html) => {
 Hooks.on('activateNote', (note, options) => {
   // 0.20.0: journeys are retired; an old party marker opens nothing (the GM can delete it from the scene).
   if (note?.document?.getFlag?.(MODULE_ID, 'partyMarker') === true) return false;
-  const ref = note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId');
+  let ref = note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId');
+  // 0.28.0: a companion Note opens the generic unidentified entry (its companion key is a view key). The GM, who has no such view, gets the real location.
+  const companion = note?.document?.getFlag?.(MODULE_ID, 'companionKey');
+  if (!ref && companion) ref = isGM() ? readAll().find(l => l.companionKey === companion)?.pinKey : companion;
   if (!ref) return;
   if (!mayOpen()) { ui.notifications.warn('Locations is hidden from players right now.'); return false; }
   game.modules.get(MODULE_ID).api.openLocation(ref).catch(notifyError);
   return false;
 });
+// 0.28.0: a real Map Note's companion follows it. Only the GM who made the change reacts (so it runs once), only for Notes with our pin key
+// (a companion's own update is ignored, so there is no loop), and the sync is idempotent. A companion the GM deletes by hand comes back on the
+// next save of any location; delete the location's option instead.
+for (const hook of ['createNote', 'updateNote', 'deleteNote']) {
+  Hooks.on(hook, (doc, ...rest) => {
+    const userId = rest.at(-1);
+    if (!isGM() || userId !== game.user?.id || !doc?.getFlag?.(MODULE_ID, 'pinKey')) return;
+    syncSceneCompanions(doc.parent).catch(notifyError);
+  });
+}
 // Dragging a location from the GM list onto the canvas places a Map Note there. (The list only offers this for
 // locations marked Placeable on a map, unless the GM shows representative-only ones too.)
 Hooks.on('dropCanvasData', (canvas, data) => {

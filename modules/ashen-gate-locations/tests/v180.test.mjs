@@ -225,7 +225,7 @@ async function restricted() {
 
 test('selected players: only listed players get the location on every read path; everyone else gets the Hidden answer', async () => {
   const {api, secret, vale, shrine} = await restricted();
-  assert.deepEqual(api('gm').getAudience(secret.id), {mode: 'selected', userIds: ['p1'], sharedBy: {}, sharing: true}, 'audience kept from the new draft');
+  assert.deepEqual(api('gm').getAudience(secret.id), {mode: 'selected', userIds: ['p1'], sharedBy: {}, sharing: true, othersUnidentified: false}, 'audience kept from the new draft');
   const p1 = api('p1'), p2 = api('p2');
   assert.equal(p1.getLocation(secret.id).name, '[TEST] Secret Grove');
   assert.deepEqual(p1.resourcesAt(secret.id).map(r => r.label), ['[TEST] Moonleaf']);
@@ -289,7 +289,7 @@ test('a notes receipt over the socket never carries a "Selected players" locatio
 test('sharing: a player adds others (recorded as shared by them); GM sees it and can undo; every refusal is safe', async () => {
   const {api, secret, vale, users, sharing} = await restricted();
   assert.deepEqual(await api('p1').shareLocation(secret.pinKey, ['p2']), {added: 1});
-  assert.deepEqual(api('gm').getAudience(secret.id), {mode: 'selected', userIds: ['p1', 'p2'], sharedBy: {p2: 'p1'}, sharing: true});
+  assert.deepEqual(api('gm').getAudience(secret.id), {mode: 'selected', userIds: ['p1', 'p2'], sharedBy: {p2: 'p1'}, sharing: true, othersUnidentified: false});
   assert.equal(api('p2').getLocation(secret.id).name, '[TEST] Secret Grove', 'p2 now sees it');
   await assert.rejects(api('p3').shareLocation(secret.pinKey, ['p3']), /isn't available/, 'p3 cannot see it, so cannot share it');
   await assert.rejects(sharing.perform({ref: secret.pinKey, userIds: ['p3']}, users.get('p3')), {message: NOT_AVAILABLE}, 'nor by hand over the socket');
@@ -433,7 +433,7 @@ test('regression: Everyone locations behave as in 1.7.0 for every player', async
   assert.equal(pinPresentation(gm.getLocation(mill.id)).text, '[TEST] Mill', 'Everyone pins keep their label');
   const page = game.journal.find(j => j.getFlag(MOD, 'role') === 'player-view').pages.find(p => p.getFlag(MOD, 'pinKey') === mill.pinKey);
   assert.deepEqual(page.ownership, {default: -1, p1: -1, p2: -1, p3: -1});
-  assert.deepEqual(gm.getAudience(mill.id), {mode: 'everyone', userIds: [], sharedBy: {}, sharing: true});
+  assert.deepEqual(gm.getAudience(mill.id), {mode: 'everyone', userIds: [], sharedBy: {}, sharing: true, othersUnidentified: false});
   // Saving a stale draft never undoes a share made meanwhile.
   await gm.setAudience(mill.id, {mode: 'selected', userIds: ['p1']});
   await gm.saveLocation({...mill, name: '[TEST] Mill (renamed)'});
