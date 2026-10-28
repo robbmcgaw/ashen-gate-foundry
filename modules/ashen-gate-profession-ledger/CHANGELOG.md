@@ -1,3 +1,13 @@
+## 0.37.3 — 2026-10-28
+
+Refresh recipes handles starting recipes the pack has replaced.
+
+- **Replaced starting recipes**: a recipe recorded as granted as a starter that is no longer a starter is its own group. It is pre-ticked to remove unless the character has crafted with it (then it stays, with the reason, and removing it keeps the typed-name rule). Learned recipes are never pre-ticked. Missing new starters are offered as before. Single character, whole party and `refreshRecipes` behave the same; Preview, then Apply with a snapshot Journal first; running it again changes nothing.
+- **Party view fix**: characters whose only problem is a replaced starter are now listed (with their ticks) and counted; "No problems found" appears only when none remain. The Individual tab shows "N replaced starting recipes" to the GM.
+- **Assign → Starting recipes**: new **Replace or remove starting recipes…** opens Refresh recipes for the whole party; a hint on "Already known" rows explains it. **Assign → Professions → Refresh…** is now **Refresh professions…** with a line pointing to Refresh recipes….
+- Limit: only starters recorded in a character's granted list (since 0.33.0) are identified; older grants look like learned recipes and are never pre-ticked.
+- No saved data changes.
+
 ## 0.37.2 — 2026-10-28
 
 Recipe details fold on the Individual tab, like the Party tab's.

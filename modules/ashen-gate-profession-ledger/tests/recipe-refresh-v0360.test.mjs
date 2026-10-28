@@ -49,7 +49,7 @@ const makeActor=(id,name,{type='character',owner=true,backup=false}={})=>{
   return a;};
 const dee=makeActor('dee','[TEST] Dee'),npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false}),loner=makeActor('loner','[TEST] Hireling',{owner:false}),bak=makeActor('bak','[TEST] Dee - level 3',{backup:true});
 const all=[dee,npc,loner,bak];
-const ledgerModule={active:true,version:'0.37.2',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.3',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},journal:[],
   modules:{get:id=>id===ID?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -183,4 +183,93 @@ test('Individual tab: everyone sees “N recipes no longer exist”; only the GM
  const party=await html('party');assert.match(party,/data-action="rr-open" data-id="party"[^>]*>.*Refresh recipes for the whole party…/s);
  game.user=alice;assert.doesNotMatch(await html('party'),/rr-open/);game.user=gm;
  game.user=alice;await app._click('rr-open','dee');assert.equal(app.recipeRefresh,null,'a player cannot open it');game.user=gm;
+});
+
+/* ---- 0.37.3: replaced starters ----------------------------------------------------------------------- */
+test('pure, Blacksmithing worked example: 4 old + 4 new starters; the 4 demoted ones are pre-ticked unless crafted with; learned ones never',()=>{
+ const smith={ids:new Set(['PROF-B']),keys:new Set()};
+ const old=['Iron Caltrops','Iron Pitons','Riveted Field Brace','Silvered Blade'],fresh=['Trail Spikes','Edge Whetstone','Riveted Shield Fittings','Reinforced Buckle'];
+ const recipes=[...old.map((n,i)=>({id:`REC-O${i}`,name:n,professionId:'PROF-B',starting:false})),...fresh.map((n,i)=>({id:`REC-N${i}`,name:n,professionId:'PROF-B',starting:true,status:'approved',sourceVisibility:'player'})),
+  {id:'REC-LEARNED',name:'Hand-learned Hinge',professionId:'PROF-B',starting:false}];
+ const known=[...old.map((_,i)=>`REC-O${i}`),...fresh.map((_,i)=>`REC-N${i}`),'REC-LEARNED'];
+ const plan=planRecipeRefresh({known,grantedRecipes:[...old.map((_,i)=>`REC-O${i}`),...fresh.map((_,i)=>`REC-N${i}`)],recipes,held:smith,actor:{id:'a',name:'A'}});
+ const by=Object.fromEntries(plan.rows.map(r=>[r.name,r]));
+ assert.deepEqual(old.map(n=>[by[n].group,by[n].remove]),old.map(()=>['replaced',true]),'the four old starters: Replaced, pre-ticked');
+ assert.deepEqual(fresh.map(n=>[by[n].group,by[n].remove]),fresh.map(()=>['starting',false]),'the four new ones stay');
+ assert.deepEqual([by['Hand-learned Hinge'].group,by['Hand-learned Hinge'].remove],['learned',false],'a learned recipe is never pre-ticked');
+ assert.match(by['Iron Caltrops'].why,/^Replaced starting recipe: it is no longer a starter\. Learned starters you crafted with stay unless you tick them\.$/);
+ assert.ok(plan.rows.every(r=>!/REC-/.test(r.name+r.why)));assert.equal(plan.needsTypedConfirmation,false);assert.equal(plan.problems,true);assert.equal(plan.counts.replaced,4);
+ // One who crafted Iron Caltrops: that one stays, with its reason; ticking it needs the typed name.
+ const crafter=planRecipeRefresh({known,grantedRecipes:old.map((_,i)=>`REC-O${i}`),recipes,held:smith,crafted:[{recipeId:'REC-O0'}],actor:{id:'a',name:'A'}});
+ const c0=crafter.rows.find(r=>r.name==='Iron Caltrops');
+ assert.deepEqual([c0.group,c0.remove,c0.needsConfirm],['replaced',false,true]);assert.match(c0.why,/has crafted with it, so it stays unless you tick it/);
+ assert.equal(crafter.rows.filter(r=>r.group==='replaced'&&r.remove).length,3);assert.equal(crafter.needsTypedConfirmation,false,'the defaults never need the name');
+ assert.equal(planRecipeRefresh({known,grantedRecipes:['REC-O0'],recipes,held:smith,crafted:[{recipeId:'REC-O0'}],remove:['REC-O0'],actor:{id:'a',name:'A'}}).needsTypedConfirmation,true,'ticked by hand: the name');
+ // A starter the character was never recorded as granted (older grants, learned by hand) is simply Learned.
+ assert.equal(planRecipeRefresh({known:['REC-O1'],grantedRecipes:[],recipes,held:smith,actor:{id:'a',name:'A'}}).rows[0].group,'learned');
+});
+
+test('Refresh recipes swaps starters: preview pre-ticks the demoted ones, Apply removes them (and their granted record), adds the new ones; snapshot first; idempotent; party agrees',async()=>{
+ reset();
+ // Dee was granted Lore as a starter; the pack demoted it. Poultice stays a starter; Tea is a new starter she lacks.
+ dee.items=dee.items.filter(i=>i.id!=='i-craft');
+ dee.flags[ID].knownRecipes=['REC-TEST-POULTICE','REC-TEST-LORE'];dee.flags[ID].grantedRecipes=['REC-TEST-POULTICE','REC-TEST-LORE'];
+ const p=await api.refreshRecipes({actorId:'dee'});
+ const r=rows(p);
+ assert.deepEqual([r['[TEST] Herb Lore'].group,r['[TEST] Herb Lore'].remove],['replaced',true]);assert.deepEqual([r['[TEST] Poultice'].group,r['[TEST] Poultice'].remove],['starting',false]);
+ assert.deepEqual(p.missing.filter(m=>m.add).map(m=>m.name),['[TEST] Tea']);assert.equal(p.needsTypedConfirmation,false);
+ const party=await api.refreshRecipes({party:true});assert.deepEqual(party.characters.map(c=>c.actor.name),['[TEST] Dee'],'the party view lists a character whose only problem is a replaced starter');
+ await api.refreshRecipes({party:true,preview:false});
+ assert.equal(journals.length,1,'snapshot first');
+ assert.deepEqual(flagsOf(dee).knownRecipes.sort(),['REC-TEST-POULTICE','REC-TEST-TEA']);assert.ok(!flagsOf(dee).grantedRecipes.includes('REC-TEST-LORE'),'its granted record goes with it');
+ const again=await api.refreshRecipes({actorId:'dee',preview:false});assert.deepEqual([again.removed,again.added],[0,0]);assert.equal(journals.length,1);
+ // The same through the single-character API with a crafter: nothing is removed for the crafted one.
+ reset();dee.flags[ID].knownRecipes=['REC-TEST-LORE'];dee.flags[ID].grantedRecipes=['REC-TEST-LORE'];
+ const kept=await api.refreshRecipes({actorId:'dee'});const lore=rows(kept)['[TEST] Herb Lore'];
+ assert.deepEqual([lore.group,lore.remove,lore.needsConfirm],['replaced',false,true],'crafted with it (i-craft): stays');
+ game.user=alice;await assert.rejects(()=>api.refreshRecipes({actorId:'dee',preview:false}),/Only the GM/);game.user=gm;
+});
+
+test('party view: a character carrying 4 replaced Blacksmithing starters is listed with them pre-ticked, never “No problems found”; the Individual badge counts them',async()=>{
+ reset();
+ const smith=prof('wsmith','PROF-TG-SMITH','[TEST] Blacksmithing',{skillProficienciesAnyOf:['Athletics']});
+ const olds=['Trail Spikes','Riveted Fittings','Reinforced Buckle','Edge Whetstone'].map((n,i)=>rec(`so${i}`,`REC-TEST-OLD${i}`,`[TEST] ${n}`,'PROF-TG-SMITH',false));
+ const news=['Hinge Pin','Rivet Set','Chain Link','Strap Ring'].map((n,i)=>rec(`sn${i}`,`REC-TEST-NEW${i}`,`[TEST] ${n}`,'PROF-TG-SMITH',true));
+ const added=[smith,...olds,...news];world.push(...added);
+ const gus=makeActor('gus','[TEST] Gus');gus.items=[held('g-smith','PROF-TG-SMITH','[TEST] Blacksmithing',true)];
+ gus.flags={[ID]:{knownRecipes:olds.map((_,i)=>`REC-TEST-OLD${i}`),grantedRecipes:olds.map((_,i)=>`REC-TEST-OLD${i}`)}};
+ all.push(gus);values.partyRoster=['gus'];
+ const prevActor=app.actorId;
+ try{
+  const p=await api.refreshRecipes({party:true});
+  assert.deepEqual(p.characters.map(c=>c.actor.name),['[TEST] Gus']);
+  assert.equal(p.characters[0].rows.filter(r=>r.group==='replaced'&&r.remove).length,4);
+  await app._click('rr-open','party');app.view='party';
+  const h=(await app._prepareContext({})).html;
+  assert.doesNotMatch(h,/No problems found/);
+  assert.match(h,/<h3>\[TEST\] Gus <span class="ag-badge">8<\/span>/,'4 replaced to remove + 4 new starters to add');
+  assert.equal((h.match(/data-rr-remove="REC-TEST-OLD\d" data-rr-actor="gus" checked/g)||[]).length,4,'the replaced starters are pre-ticked');
+  assert.equal((h.match(/data-rr-add="REC-TEST-NEW\d" data-rr-actor="gus" checked/g)||[]).length,4);
+  assert.match(h,/Replaced starting recipe: it is no longer a starter\./);
+  app.recipeRefresh=null;app.actorId='gus';app.view='individual';
+  const ind=(await app._prepareContext({})).html;assert.match(ind,/4 replaced starting recipes/);
+  await api.refreshRecipes({party:true,preview:false});
+  const after=await api.refreshRecipes({party:true});assert.equal(after.characters.length,0);
+  await app._click('rr-open','party');app.view='party';
+  const e=(await app._prepareContext({})).html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
+  assert.match(e,/No problems found\./);
+ }finally{
+  for(const d of added)world.splice(world.indexOf(d),1);all.splice(all.indexOf(gus),1);values.partyRoster=['dee'];app.recipeRefresh=null;app.actorId=prevActor;
+ }
+});
+
+test('Assign: Replace or remove starting recipes… opens Refresh recipes with the chosen target, the hint explains it, and Cancel returns to Assign',async()=>{
+ reset();
+ const h=await html('assign');
+ assert.match(h,/data-action="rr-open" data-id="party" data-from="assign">.*Replace or remove starting recipes…/s);
+ assert.match(h,/Granting only <b>adds<\/b>/);assert.match(h,/Refresh professions…/);assert.doesNotMatch(h,/>\s*Refresh…\s*</);
+ await app._click('rr-open','dee',{from:'assign'});
+ assert.equal(app.recipeRefresh.from,'assign');assert.equal(app.recipeRefresh.actorId,'dee');
+ await app._click('rr-cancel');assert.equal(app.recipeRefresh,null);
+ game.user=alice;assert.doesNotMatch(await html('assign'),/Replace or remove starting recipes/);game.user=gm;
 });
