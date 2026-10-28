@@ -25,12 +25,12 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/<header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate<\/span> \| Profession Ledger<\/h1>/);
- assert.match(html,/<span class="ag-version">v0\.37\.12<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i> Help<\/button>/,'version, then Help (ghost, small) on the right');
+ assert.match(html,/<span class="ag-version">v0\.38\.0<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i> Help<\/button>/,'version, then Help (ghost, small) on the right');
  assert.doesNotMatch(html.slice(0,html.indexOf('</header>')),/Alpha|Beta/,'no Alpha/Beta in the window header');
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  assert.match(html,/role="tab" id="agl-tab-individual" aria-controls="agl-panel" data-action="tab" data-id="individual" class="" aria-selected="false" tabindex="-1">Individual/);
  assert.match(html,/role="tab" id="agl-tab-assign" aria-controls="agl-panel" data-action="tab" data-id="assign" class="ag-tab--gm" aria-selected="false" tabindex="-1">Assign<\/button><button type="button" role="tab" id="agl-tab-gm" aria-controls="agl-panel" data-action="tab" data-id="gm" class="active ag-tab--gm" aria-selected="true" tabindex="0">GM Setup<\/button><\/nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-gm"/,'GM-only tabs last, GM Setup at the end');
- assert.match(html,/v0\.37\.12/);
+ assert.match(html,/v0\.38\.0/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);

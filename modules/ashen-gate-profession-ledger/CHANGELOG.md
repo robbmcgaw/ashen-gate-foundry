@@ -1,3 +1,12 @@
+## 0.38.0 — 2026-10-28
+
+GM-applied enchantments: **Request enchanting…**.
+
+- A Recipe with `kind: "activity"` and `gm_applied: true` (plus `bring`, `ingredients`, `effect_note`) adds an effect to an item the player already owns and makes nothing. Its card shows **Request enchanting…** instead of Craft or Complete activity, with the materials and what is on hand, **Bring: <text>**, the fee ("the GM collects it", still not deducted), the effect, and **Check: Arcana** (Enchanting's skill) even for a short recipe with no tool or station. The button is disabled with the reason when the character lacks the materials or has nothing to bring.
+- **Request enchanting…** opens a dialog: the item to bring (items matching `bring` first; every other bringable item is offered under "Other items (the GM decides)" because the filter is only advisory; "None of these" settles it at the table), the effect, the materials (used only when the GM marks it done), the fee and the check roll. It posts one chat card whispered to the GMs and the character's owners. Nothing is used or made at request time.
+- The card carries **Done** and **Decline…** for the GM. Done re-reads the recipe, the character's knowledge and inventory on the GM client, confirms, uses up the materials (all or nothing; restored if a write fails), marks the card and opens the usual XP award (suggested XP from tier and effort). Decline asks for an optional reason, uses nothing, and the player sees it on the card and in a whisper. Both are GM only in the API (`api.resolveEnchantRequest`), and a card whose author does not own the character, or whose recipe is no longer a GM-applied enchantment, is refused. The card prints the table rule for the GM only: one enchantment per item; not attuned by default; not magical unless the GM says so. Nothing enforces it, and the Ledger never renames or edits the player's item.
+- `api.requestEnchanting(actor, recipeId, {confirm, itemId})` and `api.resolveEnchantRequest(message, outcome, {reason, confirm})`. `completeActivity` and `craft` now refuse a GM-applied recipe ("use Request enchanting").
+- Help: a paragraph on enchantments. No saved data changes. The recipe pack that uses these fields must be imported only after this Ledger is installed (an older Ledger would show Complete activity and use nothing).
 ## 0.37.12 — 2026-10-28
 
 Recipe previews that do not need the world Items to be readable, and a clearer requirement line.

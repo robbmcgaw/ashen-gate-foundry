@@ -185,6 +185,51 @@ export async function executeCraft({crafter,recipe,allocations,resultData,result
 }
 
 /**
+ * 0.38.0: use up the ingredients of a GM-applied enchantment (nothing is produced). Same verification and rollback as executeCraft:
+ * every row is checked before anything is written, and if a write fails the earlier writes are reversed. The caller (the GM
+ * client, when the GM presses Done) has already re-planned the allocations from the crafter's current inventory.
+ */
+export async function executeConsume({crafter,recipe,allocations,actorOf,canWrite}){
+  if(!crafter||!recipe)throw Error('Choose a character and a recipe');
+  if(!canWrite(crafter))throw Error(`You need to own ${crafter.name} to use their materials`);
+  const rows=consumptionRows(allocations);
+  if(!rows.length||!recipe.ingredients?.length)throw Error(`${recipe.name} has no ingredient list`);
+  const steps=rows.map(row=>{
+    const actor=actorOf(row.actorId);
+    if(!actor)throw Error(`${row.actorName} is no longer in this world`);
+    if(!canWrite(actor))throw Error(`Permission to use ${row.actorName}'s materials was not granted`);
+    const item=actor.items?.get?.(row.itemId)??Array.from(actor.items??[]).find(i=>i.id===row.itemId);
+    if(!item)throw Error(`${row.actorName} no longer has ${row.name}`);
+    const have=quantity(item);
+    if(have<row.quantity)throw Error(`${row.actorName} has only ${have} × ${row.name} (needs ${row.quantity})`);
+    return {actor,item,row,have,snapshot:typeof item.toObject==='function'?item.toObject():structuredClone({...item})};
+  });
+  const total=ing=>rows.filter(r=>ing.materialId?r.materialId===ing.materialId:norm(r.name)===norm(ing.name)).reduce((n,r)=>n+r.quantity,0);
+  for(const ing of recipe.ingredients)if(total(ing)<ing.quantity)throw Error(`Not enough materials for ${recipe.name}`);
+  const done=[];
+  const rollback=async()=>{
+    for(const step of done.reverse()){
+      try{
+        if(step.deleted)await step.actor.createEmbeddedDocuments('Item',[step.snapshot],{keepId:true});
+        else await step.actor.updateEmbeddedDocuments('Item',[{_id:step.item.id,'system.quantity':step.have}]);
+      }catch(err){console.error(`[${LEDGER_SCOPE}] Enchanting rollback failed for ${step.row.actorName}: ${step.row.name}`,err);}
+    }
+  };
+  try{
+    for(const step of steps){
+      const left=step.have-step.row.quantity;
+      if(left>0)await step.actor.updateEmbeddedDocuments('Item',[{_id:step.item.id,'system.quantity':left}]);
+      else await step.actor.deleteEmbeddedDocuments('Item',[step.item.id]);
+      done.push({...step,deleted:left<=0});
+    }
+    return {consumed:rows.map(r=>({actorId:r.actorId,actorName:r.actorName,name:r.name,quantity:r.quantity}))};
+  }catch(err){
+    await rollback();
+    throw Error(`${recipe.name} was cancelled and materials were restored: ${err.message}`);
+  }
+}
+
+/**
  * Collects owner consent for foreign materials. Transport-agnostic: `send(message)` delivers to
  * other clients, `deliver(message)` is fed every incoming message. Any decline or timeout cancels.
  */

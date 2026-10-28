@@ -1,3 +1,11 @@
+## 0.73.0 — 2026-10-28
+
+Preview and Browse know GM-applied enchantments.
+
+- A Recipe with `kind: "activity"` and `gm_applied: true` (Profession Ledger 0.38.0 shows **Request enchanting…** for it) now shows a **GM-applied** chip, an **Applied by: GM** line and a **Bring: <text>** line (from `bring.text`, 1 to 80 characters) in the import preview and in Browse, next to the existing Activity label, Workstation or Tools line and Effect note. Searching "GM-applied" or the bring text finds it.
+- Import is unchanged: `gm_applied`, `bring` and `effect_note` are stored whole in the source definition like every other field, and a re-import or Sync keeps them. The pre-session Recipes check now also confirms that the ingredients of a GM-applied enchantment exist (a plain activity is still skipped).
+- No saved data changes. The recipe pack that uses these fields should be imported after the Ledger is updated to 0.38.0 or later.
+
 ## 0.72.2 — 2026-10-28
 
 Sync: recreate Items whose type changed.
