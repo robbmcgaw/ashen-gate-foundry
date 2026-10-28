@@ -777,7 +777,16 @@ function finish(plan) {
   plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects} : r.reason)]));
   c.supersedeFiles = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0).length;
   plan.records = c.create + c.overwrite + c.rebind;
-  plan.buttonLabel = `Replace ${plan.records} record${plan.records === 1 ? '' : 's'}${c.rebind ? ` (${c.rebind} in place)` : ''} and delete ${c.delete}`;
+  // 0.72.1: the run button says what it does. Metadata refreshes are not "replaced" records, and nothing is "deleted" unless it is.
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const parts = [];
+  if (plan.records > 0) parts.push(`${plan.records > 0 && !c.overwrite && !c.rebind ? 'Create' : 'Replace'} ${plural(plan.records, 'record')}${c.rebind ? ` (${c.rebind} in place)` : ''}`);
+  if (c.metadataRefreshes > 0) parts.push(`refresh metadata on ${plural(c.metadataRefreshes, 'record')}`);
+  if (c.delete > 0) parts.push(`delete ${c.delete}`);
+  const sentence = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'Apply changes';
+  plan.buttonLabel = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  plan.metadataOnly = plan.records === 0 && c.delete === 0 && c.metadataRefreshes > 0;
+  plan.destructive = c.overwrite + c.rebind + c.delete > 0;
   return plan;
 }
 

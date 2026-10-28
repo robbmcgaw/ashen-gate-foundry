@@ -4035,6 +4035,10 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       await this.#syncPreview();
     }));
     // The red button only wakes up when the phrase is typed; typing never re-renders, so focus stays in the box.
+    root.querySelector('[data-ag-sync-jump]')?.addEventListener('click',()=>{
+      const box=root.querySelector('#agm-sync-confirm'),input=root.querySelector('[data-ag-sync-phrase]');
+      box?.scrollIntoView({block:'center',behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth'});input?.focus({preventScroll:true});
+    });
     root.querySelector('[data-ag-sync-phrase]')?.addEventListener('input',event=>{
       this.sync.phrase=event.target.value;
       const run=root.querySelector('[data-ag-sync-run]');if(run)run.disabled=this.busy||!phraseOk(this.sync.phrase);
@@ -4215,7 +4219,9 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     if(!plan?.ok)return;
     if(!phraseOk(this.sync.phrase)) { toast(`Type "${SYNC_PHRASE}" to confirm.`,true); return; }
     const c=plan.counts;
-    const yes=await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${plan.replaceArt?', and art you set is REPLACED by the package\'s (Also replace art I set is ticked)':c.artKept?`, your art kept on ${c.artKept} record(s)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are${c.keptRemoved?` (${c.keptRemoved} of them are no longer in the files and are not deleted)`:''}`:''} and ${c.delete} deleted${plan.overwriteEdited?' (including records you edited that the files no longer carry)':''}${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
+    const yes=plan.metadataOnly
+      ?await confirmDialog(`Nothing in your world's content changes. ${c.metadataRefreshes} record(s) will have their stored package data (definition, version, provenance) updated so new package fields reach the world. Nothing is created or deleted.`,{title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel})
+      :await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${plan.replaceArt?', and art you set is REPLACED by the package\'s (Also replace art I set is ticked)':c.artKept?`, your art kept on ${c.artKept} record(s)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are${c.keptRemoved?` (${c.keptRemoved} of them are no longer in the files and are not deleted)`:''}`:''} and ${c.delete} deleted${plan.overwriteEdited?' (including records you edited that the files no longer carry)':''}${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
       {title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel});
     if(!yes)return;
     const set=this.sync.set, controller=new AbortController();

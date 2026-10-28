@@ -1,4 +1,4 @@
-/** 0.71.6: Foundry V14 collections are Maps (no flatMap). Mocked world only: proves the logic, not the live Forge UI. */
+/** 0.72.1: Foundry V14 collections are Maps (no flatMap). Mocked world only: proves the logic, not the live Forge UI. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -91,7 +91,7 @@ test('wiring: no Array methods on game collections remain in main.js; version', 
   assert.doesNotMatch(main, /\(game\.scenes\s*\?\?\s*\[\]\)\.flatMap|game\.scenes\?\?\[\]\)\.flatMap/);
   assert.doesNotMatch(main, /scene\.tokens\s*\?\?\s*\[\]\)\.filter/);
   assert.doesNotMatch(main, /d\.background\?\.src/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.71.6');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.72.1');
 });
 
 import {githubView, OTHER_FOLDERS_TITLE, NO_MANIFEST_NOTE} from '../scripts/github-view.js';

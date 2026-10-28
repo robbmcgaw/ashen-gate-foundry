@@ -134,7 +134,7 @@ test('the preview and the pull name the commit (short) and the file count', () =
   assert.match(main, /at commit \$\{String\(r\.commit\?\?''\)\.slice\(0,7\)\}/);
 });
 
-test('0.71.6 version', () => {
+test('0.72.1 version', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.71.6'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.71.6/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.72.1'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.72.1/ashen-gate-manager.zip'));
 });

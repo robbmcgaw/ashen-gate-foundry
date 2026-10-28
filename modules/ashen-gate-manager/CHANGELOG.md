@@ -1,3 +1,13 @@
+## 0.72.1 — 2026-10-28
+
+Sync from package: the run button says what it does.
+
+- **The button label now matches the plan.** A plan with only metadata refreshes reads "Refresh metadata on 33 records" (before: "Replace 0 records and delete 0"). Mixed plans read, for example, "Replace 4 records, refresh metadata on 33 records and delete 2"; zero parts are left out. The button is red with a trash icon only when records are overwritten or deleted; otherwise it is a normal primary button.
+- **Metadata-only plans are explained** at the top of Confirm and run: "Nothing in your world's content changes. 33 records will have their stored package data (definition, version, provenance) updated", and what that is for (new package fields such as `former_starting` reach the world). The confirmation dialog says the same.
+- **New "Metadata refreshes (N)" fold** lists the records that will be refreshed, instead of one line inside Overwrite.
+- **The phrase field and the run button sit together,** and a **Jump to confirm and run** button above the preview scrolls to them and focuses the field.
+- The backup that downloads first includes the records a metadata refresh touches; the hint now says so.
+
 ## 0.71.6 — 2026-10-28
 
 Sync preview: refused records are listed, and it says which commit you pulled.
