@@ -1,0 +1,1069 @@
+{
+ "schema_version": "ag-quest-source/0.1",
+ "domain": "quests_orders",
+ "version": "0.0.1",
+ "records": [
+  {
+   "id": "QUEST-T-FIX-01",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 1",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-02",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 2",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-03",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 3",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-04",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 4",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-05",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 5",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-06",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 6",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-07",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 7",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-08",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 8",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-09",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 9",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-10",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 10",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-11",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 11",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-12",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 12",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-13",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 13",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-14",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 14",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-15",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 15",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-16",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 16",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-17",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 17",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-18",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 18",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-19",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 19",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-20",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 20",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-21",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 21",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-22",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 22",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-23",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 23",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-24",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 24",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-25",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 25",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-26",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 26",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-27",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3",
+    "quest_type": "hunt"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 27",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-28",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-BETA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4",
+    "quest_type": "fetch"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 28",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-29",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "5",
+    "quest_type": "escort"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 29",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "QUEST-T-FIX-30",
+   "entity_type": "Objective",
+   "objective_kind": "quest",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "NPC-T-ALPHA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {},
+   "outcomes": {},
+   "name": "[TEST] Fixture quest 30",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  }
+ ]
+}

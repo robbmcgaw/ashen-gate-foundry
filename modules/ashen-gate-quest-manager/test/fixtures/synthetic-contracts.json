@@ -1,0 +1,357 @@
+{
+ "schema_version": "ag-quest-source/0.1",
+ "domain": "quests_orders",
+ "version": "0.0.1",
+ "records": [
+  {
+   "id": "CONTRACT-T-FIX-01",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 1",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-02",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 2",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-03",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 3",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-04",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 4",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-05",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 5",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-06",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 6",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-07",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 7",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-08",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "4"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 8",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-09",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "2"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 9",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  },
+  {
+   "id": "CONTRACT-T-FIX-10",
+   "entity_type": "Objective",
+   "objective_kind": "contract",
+   "status": "approved",
+   "version": "0.0.1",
+   "provenance": {
+    "sources": [
+     "Synthetic test data (not canon)"
+    ]
+   },
+   "visibility": "player",
+   "refs": [
+    {
+     "relation": "issued_by",
+     "target_id": "FAC-T-GAMMA",
+     "mode": "optional"
+    }
+   ],
+   "source": {},
+   "locations": [],
+   "parameters": {
+    "recommended_level": "3"
+   },
+   "outcomes": {},
+   "name": "[TEST] Fixture contract 10",
+   "public_summary": "[TEST] summary",
+   "objectives": [
+    {
+     "key": "a",
+     "goal": "[TEST] goal",
+     "visibility": "player"
+    }
+   ]
+  }
+ ]
+}
