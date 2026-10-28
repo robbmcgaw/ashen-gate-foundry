@@ -13,6 +13,7 @@ import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, ROUTES_RETIRED, notesLockHold
   nodeForGM, nodeMatch, publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions, effectivePin} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {planRouteConversion} from './route-convert.mjs';
+import {planBulk, applyArchive, applyRestore, applyDelete, idsWithPrefix} from './bulk.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
@@ -22,7 +23,9 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
  *        sharing?: {request({ref, userIds})}, show?: {send(ref)}, playerIds?(), pinsOf?(loc),
  *        tables?: {draw(uuid) → {results: [text]}, uuidByName?(name)} (0.20.0: GM rolls a linked RollTable to chat),
- *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion)}
+ *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion),
+ *        pins?: {report(locs) → [{uuid, name, managed, overridden}], remove(locs) → {removed, kept: [{uuid, name, count}]}} (0.26.0: Map Notes for bulk Delete),
+ *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview)}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
@@ -34,6 +37,8 @@ export function createApi(deps) {
   // GM: a LOC id or a pinKey (Map Notes carry only the pinKey). Player: a revealed location's LOC id,
   // or a pinKey from a Note/page the player can already see. Unidentified views carry no id, so
   // asking for one by LOC id returns null exactly as for a hidden or unknown one.
+  /** 0.26.0: the locations that are not archived. Every list a partner or the window reads comes from here; find() still reaches archived ones. */
+  const live = () => deps.readAll().filter(l => !l.archived);
   const find = ref => ref ? deps.readAll().find(l => l.id === ref || l.pinKey === ref) ?? null : null;
   const findView = ref => ref ? deps.readViews().find(v => (v.id && v.id === ref) || (v.key && v.key === ref)) ?? null : null;
   const revealedViews = () => deps.readViews().filter(v => v.id);
@@ -90,6 +95,14 @@ export function createApi(deps) {
     return clone(loc);
   }
 
+  const idList = ids => { if (!Array.isArray(ids) || ids.some(i => typeof i !== 'string')) throw new TypeError('ids must be a list of location ids.'); return ids; };
+  function bulkPreview(action, ids) {
+    const all = deps.readAll(), plan = planBulk(action, all, idList(ids), {notes: deps.notedIds?.() ?? new Set()});
+    const pins = (action === 'delete' || action === 'archive') && deps.pins ? deps.pins.report(plan.targets).map(({uuid, name, managed, overridden}) => ({uuid, name, managed, overridden})) : [];
+    return {action, targets: plan.targets.map(l => ({id: l.id, name: l.name})), unknown: plan.unknown, skipped: plan.skipped, blocked: plan.blocked, outsideChildren: plan.outsideChildren,
+      archivedParents: plan.archivedParents, partyNotes: plan.partyNotes, active: plan.active, pins, ok: plan.ok};
+  }
+
   const api = {
     version: deps.version,
     GATHERING,
@@ -108,17 +121,19 @@ export function createApi(deps) {
      * GM: all (or revealed only; `placeableOnly` (1.8.0): only those marked Placeable on a map). Player: revealed only,
      * sanitized; with includeUnidentified also the unidentified ones ({key, state, name: generic label, teaser?}, no id).
      */
-    listLocations({revealedOnly = false, includeUnidentified = false, placeableOnly = false} = {}) {
+    listLocations({revealedOnly = false, includeUnidentified = false, placeableOnly = false, archived = 'exclude'} = {}) {
       requireAccess();
       if (!gm()) return clone(includeUnidentified ? deps.readViews() : revealedViews());
-      return clone(deps.readAll().filter(l => (!revealedOnly || l.revealed) && (!placeableOnly || isPlaceable(l))));
+      // 0.26.0: GM only. `archived`: 'exclude' (default: archived ones are off the list), 'only' or 'include'.
+      const keep = archived === 'only' ? l => l.archived : archived === 'include' ? () => true : l => !l.archived;
+      return clone(deps.readAll().filter(l => keep(l) && (!revealedOnly || l.revealed) && (!placeableOnly || isPlaceable(l))));
     },
     /** GM: child records. Player: the revealed/unidentified children of a revealed location, as {id?, key, name}. */
     childrenOf(ref) {
       requireAccess();
       if (!gm()) return clone(findView(ref)?.children ?? []);
       const parent = find(ref);
-      return parent ? clone(deps.readAll().filter(l => l.parentLocationId === parent.id)) : [];
+      return parent ? clone(live().filter(l => l.parentLocationId === parent.id)) : [];
     },
     /** Gathering nodes at a location (see README). Players: no hidden nodes, no DC unless shown. */
     resourcesAt(id) {
@@ -128,14 +143,14 @@ export function createApi(deps) {
     /** Where a MAT-* material can be gathered: [{id, name, available}]. Same visibility rules. */
     locationsWithMaterial(materialId) {
       requireAccess();
-      const list = gm() ? deps.readAll() : revealedViews();
+      const list = gm() ? live() : revealedViews();
       return list.flatMap(l => resourcesOf(l, {gm: gm()}).filter(r => r.materialId === materialId)
         .map(r => ({id: l.id, name: l.name, available: r.available})));
     },
     /** Every node that yields a material, as common or rare bundle: [{locationId, locationName, matches, ...node}]. */
     nodesForMaterial(materialId) {
       requireAccess();
-      const list = gm() ? deps.readAll() : revealedViews();
+      const list = gm() ? live() : revealedViews();
       return list.flatMap(l => resourcesOf(l, {gm: gm()}).map(n => [n, nodeMatch(n, materialId)]).filter(([, m]) => m)
         .map(([n, matches]) => ({locationId: l.id, locationName: l.name, matches, ...n})));
     },
@@ -162,7 +177,7 @@ export function createApi(deps) {
     /** Locations that list a quest, for Quest Manager's reverse link: [{id, name}]. */
     locationsForQuest(questId) {
       if (!gm() && !deps.playerAccessEnabled()) return [];
-      const list = gm() ? deps.readAll().map(l => ({...l, quests: l.quests.map(q => q.questId)})) : revealedViews();
+      const list = gm() ? live().map(l => ({...l, quests: l.quests.map(q => q.questId)})) : revealedViews();
       return list.filter(l => (l.quests ?? []).includes(questId)).map(l => ({id: l.id, name: l.name}));
     },
 
@@ -214,7 +229,7 @@ export function createApi(deps) {
     activeLocations() {
       requireAccess();
       const rows = gm()
-        ? deps.readAll().filter(l => l.active === true).map(l => ({id: l.id, key: l.pinKey, name: l.name, state: l.state}))
+        ? live().filter(l => l.active === true).map(l => ({id: l.id, key: l.pinKey, name: l.name, state: l.state}))
         : deps.readViews().filter(v => v.active === true).map(v => ({key: v.key, name: v.name, state: v.state}));
       return rows.sort((a, b) => a.name.localeCompare(b.name));
     },
@@ -274,20 +289,69 @@ export function createApi(deps) {
      * marker state, published content, pin binding and exhausted nodes. Returns {created: [id], updated: [id], skipped: [{id, reason}]}.
      * 0.20.0: a Route record is skipped with the reason ROUTES_RETIRED; the rest of the list still imports.
      */
-    async importLocations(records, {mode = 'skip'} = {}) {
+    async importLocations(records, {mode = 'skip', unarchive = false} = {}) {
       requireGM();
       const all = deps.readAll();
-      const r = importRecords(records, all, {mode});
+      const r = importRecords(records, all, {mode, unarchive: unarchive === true});
       if (r.created.length || r.updated.length) {
         const replaced = new Map(r.updated.map(l => [l.id, l]));
         await deps.writeAll(resolvePassConditions([...all.map(l => replaced.get(l.id) ?? l), ...r.created]).list);
       }
       return {created: r.created.map(l => l.id), updated: r.updated.map(l => l.id), skipped: r.skipped};
     },
-    /** GM: every location (0.20.0: with its hazards and rollTables; no Route records). */
-    exportPackage() {
+    /** GM: every location, archived ones included (0.20.0: with its hazards and rollTables; no Route records). 0.26.0: `ids` limits it to those locations (the backup before a bulk Delete). */
+    exportPackage({ids = null} = {}) {
       requireGM();
-      return exportPackage(deps.readAll());
+      const all = deps.readAll();
+      return exportPackage(Array.isArray(ids) ? all.filter(l => ids.includes(l.id)) : all);
+    },
+    /**
+     * 0.26.0 GM: bulk Archive / Restore / Delete (see bulk.mjs). `previewBulk(action, ids)` writes nothing and returns the plan:
+     * {action, targets: [{id, name}], unknown, skipped: [{id, name, reason}], blocked: [{id, name, children}] (Delete: children left
+     * outside the selection), outsideChildren (Archive), archivedParents (Restore), partyNotes, active, pins: [{name, managed, overridden}], ok}.
+     */
+    previewBulk(action, ids) {
+      requireGM();
+      return bulkPreview(action, ids);
+    },
+    /** 0.26.0 GM: archives these locations: off the list, invisible to players, nothing lost. Reversible with restoreLocations. Returns {archived: [id], skipped}. */
+    async archiveLocations(ids) {
+      requireGM();
+      const plan = planBulk('archive', deps.readAll(), idList(ids));
+      if (plan.targets.length) await deps.writeAll(applyArchive(deps.readAll(), plan.targets.map(l => l.id)));
+      return {archived: plan.targets.map(l => l.id), skipped: [...plan.skipped, ...plan.unknown.map(id => ({id, name: '', reason: 'No such location.'}))]};
+    },
+    /** 0.26.0 GM: brings archived locations back with the state they had (none becomes active). Returns {restored: [id], skipped}. */
+    async restoreLocations(ids) {
+      requireGM();
+      const plan = planBulk('restore', deps.readAll(), idList(ids));
+      if (plan.targets.length) await deps.writeAll(applyRestore(deps.readAll(), plan.targets.map(l => l.id)));
+      return {restored: plan.targets.map(l => l.id), skipped: [...plan.skipped, ...plan.unknown.map(id => ({id, name: '', reason: 'No such location.'}))]};
+    },
+    /**
+     * 0.26.0 GM: permanently deletes these locations. Refuses (throws, nothing changed) if any has a child that is not in `ids`.
+     * Module-managed Map Notes are removed first; Notes the GM customised by hand stay and are reported in `pins.kept`.
+     * Returns {deleted: [id], backup: an ag-foundry-import/0.2 package of what was deleted, pins: {removed, kept}}. Party Notes stay stored.
+     */
+    async deleteLocations(ids) {
+      requireGM();
+      const all = deps.readAll(), plan = planBulk('delete', all, idList(ids));
+      if (plan.blocked.length) throw new Error(`${plan.blocked.map(b => `${b.name} has ${b.children.length === 1 ? 'a place' : `${b.children.length} places`} inside it that ${b.children.length === 1 ? 'is' : 'are'} not selected`).join('; ')}. Select those places too, or move them first.`);
+      if (!plan.targets.length) return {deleted: [], backup: exportPackage([]), pins: {removed: 0, kept: []}};
+      const gone = plan.targets.map(l => l.id), backup = exportPackage(plan.targets);
+      const pins = deps.pins ? await deps.pins.remove(plan.targets) : {removed: 0, kept: []};
+      await deps.writeAll(applyDelete(all, gone));
+      return {deleted: gone, backup, pins};
+    },
+    /** 0.26.0 GM: the ids that start with `prefix` (case-insensitive), in list order. `archived`: false (default) searches the live list, true the archived one. */
+    idsWithPrefix(prefix, {archived = false} = {}) {
+      requireGM();
+      return idsWithPrefix(deps.readAll().filter(l => (l.archived === true) === (archived === true)), prefix);
+    },
+    /** 0.26.0 GM: how many locations are archived. */
+    countArchived() {
+      requireGM();
+      return deps.readAll().filter(l => l.archived).length;
     },
     ROUTES_RETIRED,
     /**

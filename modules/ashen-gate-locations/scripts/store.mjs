@@ -32,7 +32,7 @@
  * for Developer Tools → Convert routes to locations (route-convert.mjs).
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, pinOverridden} from './model.mjs';
 import {nodePlayerView} from './ledger-nodes.mjs';
 import {folderIdOrNull} from './ag-folders.mjs';
 
@@ -230,7 +230,7 @@ async function writeNotesStore(notes) {
 }
 
 // ---------- 1.7.0 shared notes ----------
-const visibleToPlayers = loc => loc.state !== 'hidden' && !!loc.published;
+const visibleToPlayers = loc => loc.state !== 'hidden' && !loc.archived && !!loc.published;
 const sharedPage = (journal, pinKey) => [...(journal?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === pinKey) ?? null;
 /** The record on a shared page, or null when it holds none (never written, or blanked while hidden). */
 function sharedRecord(page) {
@@ -323,6 +323,37 @@ export function pinsOf(loc) {
     if (count) out.push({uuid: scene.uuid ?? `Scene.${scene.id}`, name: scene.name ?? '', count});
   }
   return out;
+}
+
+/**
+ * 0.26.0 GM: the Map Notes of these locations, by scene: [{uuid, name, managed, overridden, noteIds}]. A Note is `overridden` when the GM
+ * changed its image or size by hand in Foundry's Note config (pinOverridden); the others are `managed`, wholly the module's.
+ */
+export function pinReport(locations) {
+  assertGM();
+  const keys = new Set(locations.map(l => l.pinKey)), ids = new Set(locations.map(l => l.id));
+  const out = [];
+  for (const scene of game.scenes ?? []) {
+    const mine = [...(scene.notes ?? [])].filter(n => { const k = n.getFlag?.(MODULE_ID, 'pinKey'); return k ? keys.has(k) : ids.has(n.getFlag?.(MODULE_ID, 'locationId')); });
+    if (!mine.length) continue;
+    const over = mine.filter(pinOverridden);
+    out.push({uuid: scene.uuid ?? `Scene.${scene.id}`, name: scene.name ?? '', managed: mine.length - over.length, overridden: over.length,
+      noteIds: mine.filter(n => !pinOverridden(n)).map(n => n.id), keptIds: over.map(n => n.id)});
+  }
+  return out;
+}
+/** 0.26.0 GM: deletes the module-managed Map Notes of these locations. Hand-customised Notes stay; they are returned so the GM can be told. */
+export async function removeManagedPins(locations) {
+  assertGM();
+  const report = pinReport(locations);
+  let removed = 0;
+  for (const r of report) {
+    if (!r.noteIds.length) continue;
+    const scene = [...(game.scenes ?? [])].find(s => (s.uuid ?? `Scene.${s.id}`) === r.uuid);
+    await scene.deleteEmbeddedDocuments('Note', r.noteIds);
+    removed += r.noteIds.length;
+  }
+  return {removed, kept: report.filter(r => r.overridden).map(r => ({uuid: r.uuid, name: r.name, count: r.overridden}))};
 }
 
 /** Places a Map Note for a location on a scene. The note opens the location (see main.mjs). */

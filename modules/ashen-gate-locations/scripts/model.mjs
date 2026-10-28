@@ -307,7 +307,10 @@ export function normalizeLocation(raw = {}) {
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
   loc.revealed = loc.state === 'revealed';
   // 0.24.0, live play state like `state`: "the party is here now". Never part of the published content; a Hidden location is never active.
-  loc.active = r.active === true && loc.state !== 'hidden';
+  // 0.26.0, GM-only: an archived location is off the list and invisible to players; everything else is kept (see bulk.mjs).
+  loc.archived = r.archived === true;
+  loc.archivedAt = loc.archived && typeof r.archivedAt === 'string' ? r.archivedAt.slice(0, 40) : '';
+  loc.active = r.active === true && loc.state !== 'hidden' && !loc.archived;
   loc.published = r.published && typeof r.published === 'object' ? normalizeBody(r.published, id)
     : r.published === undefined && loc.state !== 'hidden' ? publishable(loc) : null;
   return loc;
@@ -475,7 +478,7 @@ export function effectiveConditions(raw, all = [], {player = false, normalized =
 export function playerView(raw, all = [], {label = '', normalized = null, nodeView = null} = {}) {
   const loc = normalizeLocation(raw);
   const pub = loc.published;
-  if (!loc.id || loc.state === 'hidden' || !pub) return null;
+  if (!loc.id || loc.state === 'hidden' || loc.archived || !pub) return null;
   const fallback = line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL;
   // Only readers of a "Selected players" location get this view, so the list names no one else.
   const share = loc.audience.mode === 'selected' ? {userIds: [...loc.audience.userIds], canShare: loc.audience.sharing} : null;
@@ -494,7 +497,7 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
-  const shown = new Map((normalized ?? all.map(normalizeLocation)).filter(l => l.id && l.state !== 'hidden' && l.published && covers(l, loc)).map(l => [l.id, l]));
+  const shown = new Map((normalized ?? all.map(normalizeLocation)).filter(l => l.id && l.state !== 'hidden' && !l.archived && l.published && covers(l, loc)).map(l => [l.id, l]));
   const ref = l => l.state === 'revealed' ? {id: l.id, key: l.pinKey, name: l.published.name} : {key: l.pinKey, name: l.published.unidentifiedLabel || fallback};
   const related = on('related').map(e => shown.get(e.locationId)).filter(l => l?.state === 'revealed').map(l => ({id: l.id, name: l.published.name}));
   const notes = on('notes').map(e => ({title: e.title, text: e.text, uuid: e.uuid, docType: e.docType}));
@@ -537,6 +540,8 @@ export function pinPresentation(raw, {label = '', unknownImg = '', all = null} =
   const size = src.pin.size || inh.size || PIN_DEFAULTS.size;
   const revealedImg = src.pin.img || inh.img || PIN_DEFAULTS.img;
   const unknown = src.pin.unidentifiedImg || inh.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
+  // 0.26.0: an archived location's pin is drawn and labelled like a hidden one (players cannot open it either way).
+  if (loc.archived) return {text: '', src: unknown, size};
   // 1.8.0: a "Selected players" pin carries no label of its own. Foundry then labels it with its page's name,
   // which only the players who may open that page are shown (the Note is invisible to everyone else).
   if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? revealedImg : unknown, size};
@@ -575,6 +580,15 @@ export function inheritedPin(parentId, all, selfId = '') {
     id = anc.parentLocationId;
   }
   return out;
+}
+
+/** 0.26.0: has the GM changed this Note's image or size by hand (so it is theirs, not wholly the module's)? Same test as notePatch. */
+export function pinOverridden(note) {
+  const last = note.flags?.[MODULE_ID]?.pin ?? note.getFlag?.(MODULE_ID, 'pin');
+  const src = note.texture?.src ?? '';
+  const ownSrc = last ? src === last.src : !src || src === PIN_DEFAULTS.img;
+  const ownSize = last ? note.iconSize === last.size : note.iconSize == null || note.iconSize === PIN_DEFAULTS.size;
+  return !(ownSrc && ownSize);
 }
 
 /**
@@ -744,7 +758,7 @@ const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sce
  * Map Notes are never touched by an import, so per-pin overrides survive.
  * Returns {created, updated, skipped: [{id, reason}]} with ready-to-save locations in `created`/`updated`.
  */
-export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
+export function importRecords(records, existing = [], {mode = 'skip', unarchive = false} = {}) {
   if (!['skip', 'update'].includes(mode)) throw new Error(`Unknown import mode "${mode}"; use "skip" or "update".`);
   if (!Array.isArray(records)) throw new Error('Expected an array of Location records.');
   const current = new Map(existing.map(l => [l.id, normalizeLocation(l)]));
@@ -774,6 +788,8 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
     const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
     // Who may see it is play state too, like the marker state.
     Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, active: old.active, published: old.published, audience: old.audience});
+    // 0.26.0: an archived location stays archived when it is imported again, unless the caller says `unarchive` (a package never decides).
+    Object.assign(incoming, old.archived && !unarchive ? {archived: true, archivedAt: old.archivedAt, active: false} : {archived: false, archivedAt: ''});
     for (const n of incoming.resources) if (n.finite !== false && exhausted.has(n.key)) n.exhausted = true;
     updated.push(incoming);
   }
