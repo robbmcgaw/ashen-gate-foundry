@@ -193,8 +193,22 @@ export function effectDefinition(e) {
 }
 /** Comparable leaf values; arrays (changes, statuses) are compared whole, normalized the same way as live data. */
 const fieldsOf = def => leaves(def);
+/**
+ * 0.71.4: V14 stores an effect's duration as {value, units, ...} and keeps `duration.seconds|rounds|turns` as deprecated shims that
+ * log a warning when read. Read the shim only where it is a plain stored value (older cores); otherwise derive it from value/units.
+ */
+const LEGACY_DURATION = /^duration\.(seconds|rounds|turns)$/;
+function legacyDuration(raw, key) {
+  const d = raw?.duration;
+  if (!isObj(d)) return undefined;
+  const desc = Object.getOwnPropertyDescriptor(d, key);
+  if (desc && 'value' in desc) return desc.value;
+  if (typeof d.units === 'string' && 'value' in d) return d.units === key ? d.value : undefined;
+  return desc ? undefined : d[key];
+}
 const liveValue = (raw, path) => {
-  const v = getPath(raw, path);
+  const legacy = LEGACY_DURATION.exec(path);
+  const v = legacy ? legacyDuration(raw, legacy[1]) : getPath(raw, path);
   if (path === 'changes') return (Array.isArray(v) ? v : []).map(c => ({key: String(c?.key ?? ''), type: typeof c?.type === 'string' ? c.type : '', value: String(c?.value ?? ''), priority: Number.isFinite(c?.priority) ? c.priority : null}));
   if (path === 'statuses') return [...(v ?? [])].sort();
   return v;

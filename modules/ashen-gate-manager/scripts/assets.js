@@ -474,6 +474,7 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
   const ringOf = new Map(); // uuid → 'enabled' | 'kept' | ''
   const tokenPlans = []; // {name, scenes: Map(sceneId → updates[])} for Actors whose ring this call turned on
   let tokensDone = 0;
+  const tokenReadFailed = [];
   const todo = (rows ?? []).filter(r => r?.checked && r.to && r.uuid && !(r.needsPick && !r.chosen));
   let cancelled = false;
   for (let start = 0; start < todo.length; start += chunk) {
@@ -501,7 +502,10 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
           ringOf.set(row.uuid, ring.status === 'enable' ? 'enabled' : ring.status === 'kept' ? 'kept' : '');
           if (sceneTokens && ring.status === 'enable') {
             const scenes = new Map();
-            for (const t of getTokens(doc) ?? []) {
+            // 0.71.4: reading the scenes is its own step. If it throws, the Actor image still links and the toast says tokens were not read.
+            let live = [];
+            try { live = getTokens(doc) ?? []; } catch (error) { tokenReadFailed.push({name: row.name, message: String(error?.message ?? error)}); }
+            for (const t of live) {
               const upd = tokenRingUpdateFor(ring.look, t);
               if (Object.keys(upd).length) (scenes.get(t.sceneId) ?? scenes.set(t.sceneId, []).get(t.sceneId)).push({_id: t.id, ...upd});
             }
@@ -525,8 +529,8 @@ export async function applyAssetLinks(rows, {user, moduleId, getDoc, updateMany,
     onProgress({done: Math.min(start + chunk, todo.length), total: todo.length});
   }
   const rings = applied.filter(a => a.ring === 'enabled').length, ringsKept = applied.filter(a => a.ring === 'kept').length;
-  const message = `${applied.length} image(s) linked${rings ? `, ${rings} token ring(s) turned on` : ''}${ringsKept ? `, ${ringsKept} already had a ring (left as it is)` : ''}${tokensDone ? `, ${tokensDone} token(s) already on scenes updated` : ''}${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
-  return {ok: !errors.length || applied.length > 0, message, applied, skipped, errors, cancelled};
+  const message = `${applied.length} image(s) linked${rings ? `, ${rings} token ring(s) turned on` : ''}${ringsKept ? `, ${ringsKept} already had a ring (left as it is)` : ''}${tokensDone ? `, ${tokensDone} token(s) already on scenes updated` : ''}${skipped.length ? `, ${skipped.length} skipped (${[...new Set(skipped.map(s => s.why))].join('; ')})` : ''}${tokenReadFailed.length ? `, tokens already on scenes were not updated for ${tokenReadFailed.length} Actor(s) because the scenes could not be read (${tokenReadFailed[0].message})` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}${cancelled ? '; cancelled: the rest were not changed' : ''}.`;
+  return {ok: (!errors.length && !tokenReadFailed.length) || applied.length > 0, message, applied, skipped, errors, tokenReadFailed, cancelled};
 }
 
 // ---------- Missing art ----------

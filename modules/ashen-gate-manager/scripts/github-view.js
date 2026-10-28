@@ -14,6 +14,7 @@ export const GITHUB_INTRO = 'Pull a content pack straight from a GitHub reposito
 export const TOKEN_HINT = 'Make a fine-grained personal access token on GitHub for this one repository with Contents set to read-only. The token is kept on this device only (this browser), is never saved in the world, is never shown to players and is sent to GitHub only. Another device or browser needs its own copy.';
 export const LEDGER_NOTE = 'Gathering node files are imported by the Profession Ledger’s own import. They are read, listed as handled by the Ledger and not sent to Sync.';
 
+export const OTHER_FOLDERS_TITLE = 'Other folders without a manifest';
 export const NO_MANIFEST_NOTE = 'No manifest: files import in name order. Tick only if you want this folder.';
 /** Packs ticked when Find packs lists them: manifest packs only. A folder with no manifest starts unticked. */
 export const defaultSelection = packs => (packs ?? []).filter(p => !p.noManifest).map(p => p.id);
@@ -68,12 +69,22 @@ export function githubView(state) {
   if (state.update) parts.push(`<p class="ag-notice ag-notice--${esc(state.update.tone)}" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span>${esc(state.update.text)}</span></p>`);
 
   if (state.packs?.length) {
-    const rows = state.packs.map((p, i) => {
+    // 0.71.4: manifests (the normal packs) are listed as before; every folder without a manifest sits in ONE closed fold below them,
+    // with the explanation once. Only the display changes: ids, selection and pull order are untouched.
+    const row = (p, i, {note = true} = {}) => {
       const id = `agm-gh-pack-${i}`, picked = (state.selected ?? []).includes(p.id);
       return `<li class="ag-row"><label class="ag-row__main agmanager-toggle" for="${id}"><input type="checkbox" id="${id}" data-ag-gh-pack="${esc(p.id)}" ${picked ? 'checked' : ''} ${busy ? 'disabled' : ''}>
-        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.source)} · ${plural(p.fileCount, 'file')}${p.ledgerCount ? ` · ${plural(p.ledgerCount, 'gathering node file')} left for the Ledger` : ''}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span>${p.noManifest ? `<span class="ag-row__meta">${esc(NO_MANIFEST_NOTE)}</span>` : ''}</span></label></li>`;
-    }).join('');
-    parts.push(`<ul class="ag-rows" aria-label="Packs found">${rows}</ul>`);
+        <span><span class="ag-row__title">${esc(p.label)}</span><span class="ag-row__meta">${esc(p.source)} · ${plural(p.fileCount, 'file')}${p.ledgerCount ? ` · ${plural(p.ledgerCount, 'gathering node file')} left for the Ledger` : ''}${p.missing ? ` · <strong>${plural(p.missing, 'listed file')} missing from the repository</strong>` : ''}</span>${p.noManifest && note ? `<span class="ag-row__meta">${esc(NO_MANIFEST_NOTE)}</span>` : ''}</span></label></li>`;
+    };
+    const indexed = state.packs.map((p, i) => ({p, i}));
+    const manifests = indexed.filter(x => !x.p.noManifest), folders = indexed.filter(x => x.p.noManifest);
+    if (manifests.length) parts.push(`<ul class="ag-rows" aria-label="Packs found">${manifests.map(x => row(x.p, x.i)).join('')}</ul>`);
+    if (folders.length) {
+      const ticked = folders.filter(x => (state.selected ?? []).includes(x.p.id)).length;
+      const html = fold({title: `${OTHER_FOLDERS_TITLE} (${folders.length})`, count: ticked ? `${ticked} ticked` : undefined, open: ticked > 0,
+        body: `<p class="agmanager-tiny">${esc(NO_MANIFEST_NOTE)}</p><ul class="ag-rows" aria-label="Folders without a manifest">${folders.map(x => row(x.p, x.i, {note: false})).join('')}</ul>`});
+      parts.push(html.replace('<details class="ag-fold"', '<details class="ag-fold" data-ag-gh-other'));
+    }
   }
   parts.push(`<p class="agmanager-tiny">${esc(LEDGER_NOTE)}</p>`);
 

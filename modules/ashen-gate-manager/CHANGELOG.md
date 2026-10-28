@@ -1,3 +1,12 @@
+## 0.71.4 — 2026-10-28
+
+Link files to records works again in Foundry V14; the pack list is calmer.
+
+- **Fix: "0 image(s) linked, 5 skipped (the write failed) ... flatMap is not a function".** In V14 `game.scenes` and `scene.tokens` are collections, not Arrays, so reading the tokens already on scenes failed, and because that read sat inside the Actor write, nothing was saved. Every such read now goes through one helper that accepts collections (Items > Assets: Link files to records with "Turn on token ring" and "Also update tokens already on scenes", the hidden-ring scan and fix, the in-use image scan, and the Pre-session scene-token lookup).
+- **Safer:** reading the scenes is now its own step. If it ever fails again, the Actor image and ring still link, and the message says the tokens on scenes were not updated and why (never "0 linked" because of a read error).
+- **No more V14 deprecation warnings** from `Scene#background` (the in-use image scan now reads each level's background and textures when the scene has levels, and Scene#background only on older cores) and from `ActiveEffect duration.seconds` (read from the new duration value and units when present; older cores unchanged).
+- **Pull from GitHub: calmer pack list.** Packs with a manifest are listed as before. Folders without a manifest now sit together in one closed fold, "Other folders without a manifest (n)", with the explanation once. The fold stays open (and shows "n ticked") while any folder inside is ticked, and remembers open/closed on this device. What is pulled and in which order is unchanged.
+
 ## 0.71.3 — 2026-10-28
 
 Sync from package now removes fields the package dropped.
