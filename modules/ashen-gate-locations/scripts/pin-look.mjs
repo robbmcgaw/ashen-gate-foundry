@@ -63,6 +63,22 @@ export const keepsProportions = note => {
   try { return note?.document?.getFlag?.(MODULE_ID, 'pin')?.keep === true; } catch { return false; }
 };
 
+/** 0.27.1: with Keep proportions on, the drawn name is hidden unless the location asked to show it (flags.<module>.pin.showName). */
+export const hidesName = note => {
+  try { const pin = note?.document?.getFlag?.(MODULE_ID, 'pin'); return pin?.keep === true && pin?.showName !== true; } catch { return false; }
+};
+
+/** 0.27.1: the banner width carried on the Note (flags.<module>.pin.width), or 0. Ignored when the GM hand-edited the Note's icon size
+ *  (it no longer equals the size the module wrote), so a hand-set size still wins as before. */
+export const noteBannerWidth = note => {
+  try {
+    const pin = note?.document?.getFlag?.(MODULE_ID, 'pin'), w = Number(pin?.width);
+    if (pin?.keep !== true || !(w > 0)) return 0;
+    const size = note.document.iconSize;
+    return Number.isFinite(pin.size) && Number.isFinite(size) && size !== pin.size ? 0 : w;
+  } catch { return 0; }
+};
+
 const isBound = note => {
   try { return !!(note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId')); } catch { return false; }
 };
@@ -88,7 +104,7 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
   // 0.27.0: draw the pin as a rectangle when its location asks for it (see pin-proportions.mjs); square otherwise.
   let layout = null;
   try {
-    setKeepProportions(note.controlIcon, keepsProportions(note), () => { try { note.renderFlags?.set?.({refreshState: true, refreshTooltip: true}); } catch { /* ignore */ } });
+    setKeepProportions(note.controlIcon, keepsProportions(note), () => { try { note.renderFlags?.set?.({refreshState: true, refreshTooltip: true}); } catch { /* ignore */ } }, noteBannerWidth(note));
     layout = layoutOf(note.controlIcon);
   } catch (err) { warn(err); }
   try {
@@ -104,6 +120,10 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
   } catch (err) { warn(err); }
   try {
     const tip = note.tooltip;
+    // 0.27.1: a pin that keeps its art's proportions carries its name in the art, so the drawn label is hidden in every name mode. Core sets
+    // tooltip.visible on every refreshState (hover / layer highlight) and then calls refreshNote, so this re-applies each time. The Note's
+    // text and label are untouched (they stay the leak guard and the Selected-players rule); only the drawing is hidden.
+    if (tip && hidesName(note)) { tip.visible = false; return true; }
     if (tip && labelIsOurs(note.document) && note.document?.label) {
       // Always: force the label on. Hover: leave tooltip.visible to core (hover or Notes-layer highlight). The label style below applies in both.
       if (always) tip.visible = true;
