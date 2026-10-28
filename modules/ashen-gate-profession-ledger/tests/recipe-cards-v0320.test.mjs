@@ -34,7 +34,7 @@ world.get=id=>world.find(x=>x.id===id);
 const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:true,items:[{id:'bprof',name:'[TEST] Alchemy — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-ALCHEMY','Profession',{definition:def('PROF-TEST-ALCHEMY','Profession',{name:'[TEST] Alchemy'})})}],flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-TEST-SALVE','REC-TEST-JEST']}},
   testUserPermission:(u,role)=>u.isGM||u.id==='u1'||role==='LIMITED'};
 belwar.items.get=id=>belwar.items.find(i=>i.id===id)??null;
-const moduleObj={active:true,version:'0.37.5',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.37.7',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar],get:id=>id==='belwar'?belwar:undefined},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};

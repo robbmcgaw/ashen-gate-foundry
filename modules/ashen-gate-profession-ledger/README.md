@@ -111,3 +111,5 @@ Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, pa
 `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-profession-ledger/module.json`
 
 and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page (tag `ashen-gate-profession-ledger-v<version>`) for manual install or rollback. Change history is in [CHANGELOG.md](CHANGELOG.md).
+
+- **Player gather flow** (0.37.7): after a player presses Roll as… in the gather pop-up the Ledger opens on Gathering, and it opens there again when the GM reveals the results so the reel plays on their screen (same public view; the GM's screen is unchanged).

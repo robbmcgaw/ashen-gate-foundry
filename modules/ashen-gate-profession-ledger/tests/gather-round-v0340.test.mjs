@@ -116,7 +116,7 @@ const H=['herbalism','[TEST] Herbalism'],M=['mining','[TEST] Mining'],F=['fishin
 const ana=makeActor('ana','[TEST] Ana','u1',[H,M]),bo=makeActor('bo','[TEST] Bo','u2',[H]),cy=makeActor('cy','[TEST] Cy','u3',[M]),dee=makeActor('dee','[TEST] Dee','u1',[]),
   eli=makeActor('eli','[TEST] Eli','u2',[A]),fay=makeActor('fay','[TEST] Fay','u3',[H]),gus=makeActor('gus','[TEST] Gus','u2',[F]);
 const all=[ana,bo,cy,dee,eli,fay,gus];
-const ledgerModule={active:true,version:'0.37.5',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.7',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
  actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:(name,msg)=>sent.push(msg),on:()=>{}},
  modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -518,4 +518,33 @@ test('players never get the advantage lists or reasons in the reveal they are se
   assert.doesNotMatch(JSON.stringify(_test.roundView(_test.openRound(),{players:true})),/Advantage|advantage/);
   _test.cancelRound(round.id);
  }finally{bo.items.splice(bo.items.indexOf(kit),1);setAdv({});}
+});
+
+test('player flow: Roll as <name> from the pop-up opens the Ledger on Gathering and shows the player’s roll; the reveal opens it with the reel; the GM is untouched',async()=>{
+ game.user=gm;sent.length=0;dialogs.length=0;_test.setExoticRoll(dice(50,50));
+ const round=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10});
+ const prompt=sentOf('gather-round').find(p=>p.toUserIds[0]==='u1');sent.length=0;
+ game.user=alice;
+ await _test.onSocket(prompt,'gm');
+ const popup=dialogs.find(d=>d.opts?.window?.title==='Gather — roll your check');assert.ok(popup,'the small pop-up still appears');
+ const btn=popup.opts.buttons.find(b=>b.action==='roll:ana');
+ ana.nextRoll=14;btn.callback();
+ for(let i=0;i<10;i++)await new Promise(r=>setTimeout(r));
+ const app=api.open();   // the same window the flow used
+ assert.equal(app.view,'gathering','the Ledger is on Gathering');
+ let h=(await app._prepareContext({})).html;
+ assert.match(h,/Gather at /);assert.match(h,/Rolled 14/,'her own roll, as the tab shows it');
+ assert.doesNotMatch(h,/data-agl-reveal/,'no reel before the reveal');
+ // The GM reveals: the reel appears on the player’s screen, from the public view only.
+ game.user=gm;const rolled=sent.find(m=>m.type==='gather-rolled');
+ assert.equal(await _test.receiveGatherRoll(rolled,'u1'),true);_test.recordRoll(round.id,{actorId:'bo',total:12});sent.length=0;
+ _test.revealRound(round.id);const reveal=sentOf('gather-round-reveal').find(m=>m.toUserIds.includes('u1'));
+ game.user=alice;app.view='individual';
+ await _test.onSocket(reveal,'gm');
+ assert.equal(app.view,'gathering','opened on Gathering at the reveal');
+ h=(await app._prepareContext({})).html;assert.match(h,/data-agl-reveal/);
+ assert.ok(!/materialId|pool|Exotic chance/i.test(JSON.stringify(reveal.view)),'nothing hidden travels with the reveal');
+ // GM client: the same socket message never opens a window for the GM.
+ game.user=gm;app.view='individual';await _test.onSocket(reveal,'gm');assert.equal(app.view,'individual');
+ _test.cancelRound(round.id);
 });

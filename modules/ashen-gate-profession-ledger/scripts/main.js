@@ -32,7 +32,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.5';
+const VERSION='0.37.7';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1469,7 +1469,7 @@ async function onSocket(message,senderId){
       case 'gather-rolled': if(game.user.isGM&&activeGM()?.id===game.user.id)await receiveGatherRoll(message,from);return;
       case 'gather-round-progress': if(!game.user.isGM&&userById(from)?.isGM){const r=incomingRounds.get(message.roundId);if(r){for(const p of r.rollers)if(Array.isArray(message.rolledIds)&&message.rolledIds.includes(p.actorId)&&p.rolled==null)p.rolled='';refreshLedger();}}return;
       case 'gather-round-reveal': if(!game.user.isGM&&userById(from)?.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)&&incomingRounds.has(message.roundId)){
-        playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');refreshLedger();}return;
+        playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');if(!showPlayerGathering())refreshLedger();}return;
       case 'gather-round-closed': if(!game.user.isGM&&userById(from)?.isGM&&(incomingRounds.has(message.roundId)||gatherDialogs.has(`roll:${message.roundId}`))){
         closeGatherDialogs(`roll:${message.roundId}`);const had=playerResults.has(message.roundId);incomingRounds.delete(message.roundId);
         if(message.reason&&!had){playerResults.delete(message.roundId);say(message.reason);}
@@ -2237,6 +2237,17 @@ async function rollForGather(actor,proj,{choice,mode}){
   if(!out)throw Error('dnd5e could not roll this check here. Roll on your sheet and tell the GM your total.');
   return {total:out.total,choice:`${option.kind}:${option.key}`,mode:out.mode};
 }
+/** 0.37.7: player client: open the Ledger on Gathering (or bring it to the front). Used after the player's own roll from the pop-up (their
+ * roll shows in the round, as when rolling from the tab) and when the GM reveals the results (the slot-machine reel plays on this screen, with
+ * the same public view the GM sent). Never for the GM, and never when Player Access is off. */
+function showPlayerGathering(){
+  if(game.user.isGM)return null;
+  try{checkPlayerLedger();}catch{return null;}
+  current??=new LedgerApp();
+  current.view='gathering';current.gatherTab=null;current.demo=false;
+  current.render({force:true});current.bringToFront?.();
+  return current;
+}
 /** Player popup: the GM opened a gather and one or more of your characters can roll. Closing it leaves the round open in the Gathering tab. */
 async function showGatherRound(message){
   const mine=(message.rollers??[]).filter(r=>{const a=game.actors?.get?.(r.actorId);return a&&owned(a);});
@@ -2246,7 +2257,7 @@ async function showGatherRound(message){
   refreshLedger();
   try{
     const buttons=mine.map((r,i)=>({action:`roll:${r.actorId}`,label:`Roll as ${r.actorName}`,icon:'fa-solid fa-dice-d20',default:i===0,
-      callback:()=>{void rollForRound(message.roundId,r.actorId,{}).then(out=>say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`)).catch(err=>say(`Profession Ledger: ${err.message}`,true));}}));
+      callback:()=>{void rollForRound(message.roundId,r.actorId,{}).then(out=>{say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`);showPlayerGathering();}).catch(err=>say(`Profession Ledger: ${err.message}`,true));}}));
     const dialog=new DialogV2({id:`agl-gather-${message.roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Gather — roll your check'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
       content:`<p>The GM opened a gather at ${esc(message.title)}${message.summary?` (${esc(message.summary)})`:''}.</p><p>${esc(mine.map(r=>{const a=game.actors.get(r.actorId),adv=a?advantageText(presetOfProjection(a,r)):null;return `${r.actorName} (${r.professionName}${adv?`; ${adv.text}`:''})`;}).join(', '))} can roll. Open Profession Ledger → Gathering to pick a different check.</p>`,
       buttons:[...buttons,{action:'later',label:'Later',icon:'fa-solid fa-clock'}]});
@@ -4352,6 +4363,6 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
-  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
+  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,showPlayerGathering,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
