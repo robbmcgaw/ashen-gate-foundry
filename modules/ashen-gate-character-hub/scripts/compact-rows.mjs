@@ -38,7 +38,7 @@ export function compactRowHtml(row, columns, {p, action, controls = '', star = '
   // markup such as a badge); otherwise the columns marked `late`. `detailExtra` is trusted HTML after the facts (Inventory's quantity buttons).
   const late = facts ? facts.map(([l, v]) => `<div><dt>${esc(l)}</dt><dd>${v && v.html !== undefined ? v.html : esc(v || '—')}</dd></div>`).join('')
     : columns.filter(c => c.late).map(c => `<div><dt>${esc(c.label)}</dt><dd>${c.render ? c.render(row) : esc(row.facts?.[c.key] || '—')}</dd></div>`).join('');
-  return `<li class="agch-card ${p}${alt ? ' is-alt' : ''}${open ? ' is-open' : ''}${extra}" data-item-id="${esc(row.id)}"${attrs}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>`
+  return `<li class="agch-card ${p}${alt ? ' is-alt' : ''}${open ? ' is-open' : ''}${extra}" data-item-id="${esc(row.id)}"${row.fullName ? ` data-fullname="${esc(row.fullName)}"` : ''}${attrs}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>`
     + `<span class="agch-card__lead">${lead}${star}</span>${iconHtml(row, iconUse)}`
     + `<span class="agch-card__main"><button type="button" class="${p}__chev" ${data} ${aria} aria-label="${esc(`${verb(open)} description of ${row.name}`)}" data-tooltip="${verb(open)} description"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>`
     + `<button type="button" class="agch-item__name ${p}__name" ${data} ${aria} tabindex="-1"${tip}>${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}</span>`

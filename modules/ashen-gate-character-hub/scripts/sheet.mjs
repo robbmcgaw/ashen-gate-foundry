@@ -348,7 +348,7 @@ export function applyFilter(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
   const rows = [...(root?.querySelectorAll?.('.agch-body .agch-card, .agch-body .agch-plist > li') ?? [])];
   for (const row of rows) {
-    const name = (row.querySelector?.('.agch-item__name')?.textContent ?? row.textContent ?? '').toLowerCase();
+    const name = `${row.querySelector?.('.agch-item__name')?.textContent ?? row.textContent ?? ''} ${row.getAttribute?.('data-fullname') ?? ''}`.toLowerCase();   // 0.62.1: a profession row is found by its full name too
     row.hidden = !!q && !name.includes(q);
   }
   for (const box of root?.querySelectorAll?.('.agch-body .agch-contents') ?? []) {

@@ -10,6 +10,7 @@ import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {cardList, COLUMNS as C, containerLead, containerAttrs, flagBadges} from './cards.mjs';
+import {professionRow} from './profession-name.mjs';
 import {featureOrigins, hasPartnerOrigin, originGroups, originGroupKey} from './feature-origin.mjs';
 import {activeHidden} from './hidden-groups.mjs';
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
@@ -261,8 +262,9 @@ function hiddenGroupsBar(groups, open, off) {
 }
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
-  const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label})));
-  const origins = featureOrigins(actor, all);   // 0.58.0: Origin grouping; the default is Origin only when a profession or Cinder feature is there
+  const raw = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label})));
+  const origins = featureOrigins(actor, raw);   // 0.58.0: Origin grouping; the default is Origin only when a profession or Cinder feature is there
+  const all = raw.map(r => professionRow(r, origins.get(r.id)));   // 0.62.1: a profession's rows read without " — Profession"; search still matches the full name
   const {group, sort} = listChoice('features', {group: hasPartnerOrigin(origins) ? 'origin' : 'type'}), f = sheet?.listFilters?.features ?? {};
   const compact = !showItemDescriptions(), list = itemListFn(compact, 'features');
   const typeCol = {...C.type, render: r => esc(r.typeLabel || r.facts.type || '—'), tip: r => r.typeLabel || r.facts.type, fact: r => r.typeLabel || r.facts.type};
