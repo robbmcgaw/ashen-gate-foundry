@@ -8,6 +8,15 @@ Sync from package: the run button says what it does.
 - **The phrase field and the run button sit together,** and a **Jump to confirm and run** button above the preview scrolls to them and focuses the field.
 - The backup that downloads first includes the records a metadata refresh touches; the hint now says so.
 
+## 0.72.0 — 2026-10-28
+
+Items are GM-only by default; hide or release them by folder.
+
+- **New setting (GM Setup > Items and players): "New Items are readable by players".** Default **No: GM only**. New Items Manager creates, and Items it updates, get default ownership None, and an update never raises them. **Yes** is the 0.55.0 rule (approved + player-visible records are readable). Journals and Actors are unchanged. Handout Items (HandoutItem records) stay readable either way so item links in a revealed handout still open. Nothing already in your world changes when you save the setting.
+- **Items > Checks > Player access to Items:** **Hide items from players…** lists the Manager Items players can read now, by folder (untick folders or single Items to leave them), and sets their default ownership to None after a labelled confirmation ("Hide N items from players?" / "Hide items"). **Release items to players…** does the opposite for approved, player-visible Items players cannot read, by folder or one by one. Only the default changes: a permission you gave one player, handout Items and the copies on character sheets are never touched. GM only, can be stopped, safe to run again.
+- Heads-up: features that read world Items for players (Profession Ledger recipe, material and result lookups, shop goods, item links) show a hidden Item as not released until you release it. Release what players need, for example the Recipes and Materials folders, with the new tool.
+- The Pre-session check no longer warns about GM-only Items; it still checks Journals and Actors.
+
 ## 0.71.6 — 2026-10-28
 
 Sync preview: refused records are listed, and it says which commit you pulled.

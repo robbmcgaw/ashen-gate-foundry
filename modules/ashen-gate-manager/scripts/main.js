@@ -18,7 +18,8 @@ import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces, CODEX_SURFACE} from "./player-access.js";
 import {followHubVisibility} from "./hub-visibility.js";
-import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG} from "./release.js";
+import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG, ITEMS_READABLE_SETTING, setItemsPolicy} from "./release.js";
+import {planVisibility, applyVisibility} from "./item-visibility.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
@@ -198,7 +199,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
     if(icon.source!=='authored') report({id:record.id,action:icon.source==='smart'?'icon-smart':'icon-fallback',status:'ok',icon:icon.img,reason:icon.reason,original:icon.original??null});
   }
   // 0.55.0: approved + player-visible Items, Journals and Actors start readable by players (Observer); everything else stays None.
-  const ownershipLevel=initialOwnership({status:record.status,visibility:record.visibility},kind,CONST.DOCUMENT_OWNERSHIP_LEVELS);
+  const ownershipLevel=initialOwnership({status:record.status,visibility:record.visibility,entityType:record.entity_type},kind,CONST.DOCUMENT_OWNERSHIP_LEVELS);
   data.ownership = {default: ownershipLevel};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
   // Items keep only allow-listed flags (0.37.0); Manager's own namespace is always written from the record.
@@ -298,6 +299,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>: Manager first reads the file names and shows how many fit a record and how many fit none, under <em>Files waiting to upload</em>. Files that fit no record start unticked and are not uploaded unless you tick them (or tick <em>Upload unmatched files too</em>); nothing is uploaded until you press the upload button, and files already there are only replaced if you say so. Afterwards <em>Link files to records</em> lists the files in the folder with <em>Files with no match</em>: tick the ones to delete and copy the list, because Foundry and The Forge give modules no way to delete files, so you delete them in the Assets Library (<em>Open the Assets Library</em>). Manager never deletes a file, and never lists one that is a record’s image. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (nine Cinders, stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
   '<p><strong>NPC Codex:</strong> <em>Reveal to…</em> (on every NPC in the list, on the open NPC and in the header menu of an NPC&rsquo;s Actor sheet) picks characters and fields in one small window. On <em>Reveals</em>, tick several fields, choose Hidden, Whole party or chosen characters, then <em>Apply</em>; <em>Reveal basics</em> and <em>Reveal everything player-safe</em> do it in one click, and <em>Undo last reveal</em> puts the last one back. The chips show who can see each field now; per-field controls below fine-tune one field. All of this applies at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
+  '<p><strong>Who can read imported Items (0.72.0):</strong> by default Items are GM-only: GM Setup &gt; Items and players. To hide or release Items already in your world use Items &gt; Checks &gt; Player access to Items. Handout Items always stay readable.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
@@ -429,6 +431,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.releasePreview = null;
     this.releaseMessage = "";
     this.releaseAbort = null;
+    this.itemVis = null;
+    this.itemVisMessage = "";
     this.releasePct = 0;
     this.clPreview = null;
     this.clTicked = new Set();
@@ -959,6 +963,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       hasIconRows: this.preview.some(row=>row.icon),
       icons: items&&view==='checks'?this.#iconScanContext():null,
       release: items&&view==='checks'?this.#releaseContext():null,
+      itemvis: items&&view==='checks'?this.#itemVisContext():null,
+      itemsReadable: game.settings.get(MODULE_ID,ITEMS_READABLE_SETTING)==='player',
       assetsActive: items&&view==='assets',
       assets: items&&view==='assets'?this.#assetsContext():null,
       audit: this.auditEntries.map(entry=>({...entry,tone:entry.level==='error'?'danger':entry.level==='warning'?'warn':''})),
@@ -1294,6 +1300,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.cleanAbort.abort();event.currentTarget.disabled=true;
       const el=root.querySelector('[data-ag-clean-status]');if(el)el.textContent='Cancelling after the current chunk…';
     });
+    root.querySelectorAll('[data-ag-itemvis-folder]').forEach(el=>el.addEventListener('change',()=>{
+      const g=this.itemVis?.groups?.[Number(el.dataset.agItemvisFolder)];if(!g)return;
+      for(const i of g.items){if(el.checked)this.itemVis.selected.add(i.uuid);else this.itemVis.selected.delete(i.uuid);}
+      root.querySelectorAll(`[data-ag-itemvis-in="${el.dataset.agItemvisFolder}"]`).forEach(b=>{b.checked=el.checked;});this.#itemVisPaint(root);
+    }));
+    root.querySelectorAll('[data-ag-itemvis-item]').forEach(el=>el.addEventListener('change',()=>{
+      if(!this.itemVis)return;
+      if(el.checked)this.itemVis.selected.add(el.dataset.agItemvisItem);else this.itemVis.selected.delete(el.dataset.agItemvisItem);
+      const gi=el.dataset.agItemvisIn,g=this.itemVis.groups[Number(gi)],box=root.querySelector(`[data-ag-itemvis-folder="${gi}"]`);
+      if(g&&box)box.checked=g.items.every(i=>this.itemVis.selected.has(i.uuid));this.#itemVisPaint(root);
+    }));
     root.querySelector('[data-ag-release-stop]')?.addEventListener('click',event=>{
       event.preventDefault();if(!this.releaseAbort)return;
       this.releaseAbort.abort();event.currentTarget.disabled=true;
@@ -1402,6 +1419,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-save": await this.#saveSetup(); break;
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
+      case "itemvis-hide-scan": case "itemvis-release-scan": case "itemvis-cancel": case "itemvis-commit": await this.#itemVisAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": case "assets-ring-scan": case "assets-ring-apply": case "assets-ring-cancel": await this.#assetsAction(name); break;
       case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
@@ -1921,6 +1939,60 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const p=this.releasePreview;
     return {scan:Boolean(p),total:p?.total??0,kinds:p?.kinds??[],alreadyReleased:p?.alreadyReleased??0,examples:p?.examples??[],
       more:p?Math.max(0,p.total-p.examples.length):0,running:Boolean(this.releaseAbort),pct:this.releasePct,message:this.releaseMessage};
+  }
+  /** 0.72.0: Hide / Release Items by folder (item-visibility.js). */
+  #itemVisContext() {
+    const v=this.itemVis, hide=v?.mode==='hide';
+    const n=v?v.selected.size:0;
+    return {scan:Boolean(v),hide,total:n,keptHandouts:v?.keptHandouts??0,message:this.itemVisMessage,
+      verbLabel:hide?'To hide':'To release',commitLabel:hide?`Hide ${n} items…`:`Release ${n} items…`,
+      groups:(v?.groups??[]).map((g,index)=>({index,label:g.label,open:v.groups.length===1,allChecked:g.items.every(i=>v.selected.has(i.uuid)),
+        items:g.items.map(i=>({uuid:i.uuid,name:i.name,checked:v.selected.has(i.uuid)}))}))};
+  }
+  #itemVisPaint(root) {
+    const v=this.itemVis;if(!v)return;
+    const n=v.selected.size, hide=v.mode==='hide';
+    const c=root.querySelector('[data-ag-itemvis-count]');if(c)c.textContent=String(n);
+    const b=root.querySelector('[data-ag-itemvis-commit]');
+    if(b){b.disabled=!n||this.busy;b.textContent=hide?`Hide ${n} items…`:`Release ${n} items…`;}
+  }
+  async #itemVisAction(name) {
+    const say=(text,error=false)=>{this.itemVisMessage=text;toast(text,error);};
+    if(!game.user?.isGM)return say('Only the GM can change who can read Items.',true);
+    const sourceOf=doc=>sourceFlag(doc), L=CONST.DOCUMENT_OWNERSHIP_LEVELS;
+    switch(name){
+      case 'itemvis-hide-scan': case 'itemvis-release-scan': {
+        const mode=name==='itemvis-hide-scan'?'hide':'release';
+        const plan=planVisibility(mode,allBoundDocuments(),sourceOf,L);
+        this.itemVis={...plan,selected:new Set(plan.groups.flatMap(g=>g.items.map(i=>i.uuid)))};
+        this.itemVisMessage=plan.total?`${plan.total} Item(s) in ${plan.groups.length} folder(s) ${mode==='hide'?'can be read by players now':'are approved and player-visible but hidden from players'}. Untick folders or Items to leave them as they are. Nothing has changed yet.`
+          :mode==='hide'?'No Manager Item is readable by players. Nothing to hide.':'No approved, player-visible Item is hidden from players. Nothing to release.';
+        if(!plan.total)this.itemVis=null;
+        break;
+      }
+      case 'itemvis-cancel': this.itemVis=null;this.itemVisMessage='Preview cleared. Nothing changed.';break;
+      case 'itemvis-commit': {
+        const v=this.itemVis;
+        if(!v?.selected.size)return say('Tick at least one Item first.',true);
+        const n=v.selected.size, hide=v.mode==='hide';
+        const yes=hide
+          ?await confirmDanger(`Hide ${n} items from players?\nOnly their default ownership changes, to None, so players stop seeing them in the Items directory. Anything you gave a single player, handout Items and the copies on character sheets stay as they are. Features that read these Items for players (recipes, materials, shop goods) will show them as not released until you release them again.`,{title:`Hide ${n} items from players?`,yes:'Hide items'})
+          :await confirmDialog(`Release ${n} items to players?\nOnly their default ownership changes, to Observer. Draft and GM-only records are never listed.`,{title:`Release ${n} items to players?`,yes:'Release items'});
+        if(!yes)return;
+        this.releaseAbort=new AbortController();this.releasePct=0;this.busy=true;
+        await this.render();
+        try{
+          const out=await applyVisibility(v,v.selected,{user:game.user,sourceOf,levels:L,signal:this.releaseAbort.signal,
+            write:updates=>CONFIG.Item.documentClass.updateDocuments(updates),
+            onProgress:({done,total})=>{this.itemVisMessage=`${hide?'Hid':'Released'} ${done} of ${total}…`;const el=this.element?.querySelector('[data-ag-itemvis-status]');if(el)el.textContent=this.itemVisMessage;}});
+          this.itemVis=null;say(out.message,out.skipped>0);
+        }catch(error){
+          console.error(`[${MODULE_ID}] Item visibility change failed`,error);this.itemVis=null;say(`Stopped: ${error.message??error}. Items already changed stay changed; scan again.`,true);
+        }finally{this.busy=false;this.releaseAbort=null;}
+        break;
+      }
+    }
+    await this.render();
   }
   async #releaseAction(name) {
     const say=(text,error=false)=>{this.releaseMessage=text;toast(text,error);};
@@ -3579,7 +3651,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   /** GM Setup → Save Changes: world appearance, NPC Codex access and core sources save together (D4). */
   async #saveSetup() {
     const form=this.element?.querySelector('[data-ag-setup-form]')??this.element;
-    const out=await saveGmSetup(readGmSetupForm(form),{game,moduleId:MODULE_ID,codexAccessKey:CODEX_ACCESS_SETTING,appearance:appearanceController,coreLinks:coreLinks()});
+    const out=await saveGmSetup(readGmSetupForm(form),{game,moduleId:MODULE_ID,codexAccessKey:CODEX_ACCESS_SETTING,itemsKey:ITEMS_READABLE_SETTING,appearance:appearanceController,coreLinks:coreLinks()});
     this.setupMessage=out.message;toast(out.message,!out.ok);
     if(out.ok){this.setupDraft=null;this.setupGuard.markClean();}
     if(out.saved.includes('core sources'))this.clPreview=null;
@@ -4672,6 +4744,9 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,HISTORY_SETTING,{name:"Organize history",scope:"world",config:false,type:Array,default:[]});
   // NPC Codex (0.33.0): reveal state lives on each NPC Actor (flags.ashen-gate-manager.codex); this only gates the player view.
   // 0.45.0: the menu follows the setting, so players see NPC Codex in Game Settings only once the GM shares it.
+  game.settings.register(MODULE_ID,ITEMS_READABLE_SETTING,{name:"New Items are readable by players",scope:"world",config:false,type:String,default:"gm",onChange:value=>setItemsPolicy(value)});
+  setItemsPolicy("gm");
+  try{setItemsPolicy(game.settings.get(MODULE_ID,ITEMS_READABLE_SETTING));}catch{/* the GM-only default stays */}
   game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false,onChange:value=>syncCodexMenu(value)});
   // 0.45.0: one-time folder renames already run in this world ({cinderPowers:true}).
   // 0.45.0: Import tab folds and message drawer, per device (presentation only).

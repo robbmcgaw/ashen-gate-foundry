@@ -1,4 +1,4 @@
-/** 0.24.0 Show to Players: mocked users, socket and API; logic only. These tests do not exercise Foundry's real socket or the Locations window. */
+/** 0.24.1 Show to Players: mocked users, socket and API; logic only. These tests do not exercise Foundry's real socket or the Locations window. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
