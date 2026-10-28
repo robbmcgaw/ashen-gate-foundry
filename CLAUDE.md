@@ -28,7 +28,7 @@ This repo is public (so Forge can read the manifest URLs). Never put setting spo
 - **Stable IDs.** Canonical ids (`LOC-*`, `REC-*`, `PERK-*`, `PROF-*`, `MAT-*`, …) are permanent; Foundry UUIDs are world-local bindings. Preserve ids and user edits on reimport.
 - **Permissions are enforced, not just hidden.** GM-only data/actions must be rejected in the API/data layer, not only by hiding buttons. Player views/exports never leak `gm` or unrevealed records.
 - **Don't break saved data.** Changes to persisted settings, Actor flags or world documents need a safe, re-runnable migration. Never rewrite campaign state on import.
-- **Launchers.** Actors-sidebar launchers are player-facing (gated by each module's Player Access setting); Items-sidebar launchers for Manager and Locations are GM-only.
+- **Launchers.** Actors-sidebar launchers are player-facing (gated by each module's Player Access setting); Manager's GM launcher stays in the Items sidebar; Locations' GM launcher is in the Scenes sidebar (Foundry shows that tab to GMs only). Both are GM-only.
 
 ## UI conventions (shared shell)
 Full rules and their sources: `docs/ui-ux-guidelines.md`. Latest audit and per-module cleanup briefs: `docs/ui-audit-2026-10.md`.

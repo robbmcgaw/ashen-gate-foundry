@@ -7,7 +7,7 @@ Ten Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Eac
 | Character Hub (alpha) | Alternative dnd5e character sheet on the real Actor, with the native sheet one click away | Character sheet menu → Ashen Gate Character Hub |
 | Renown (formerly Factions & Renown) | Factions, group and personal Renown, discovery, rewards, service requests | Actors sidebar → Renown |
 | Headquarters | Shared Guildhall layout, facilities, hirelings, personal quarters | Actors sidebar → Headquarters |
-| Locations | Campaign places with threat, gathering nodes, party notes, map pins, per-player visibility | Actors sidebar → Locations; GM: Items sidebar → Location Builder |
+| Locations | Campaign places with threat, gathering nodes, party notes, map pins, per-player visibility | Actors sidebar → Locations; GM: Scenes sidebar → Locations |
 | General Manager | GM-only importer, library, appearance and Player Access overview | GM: Items sidebar → General Manager |
 | Profession Ledger | Crafting, recipes, gathering, Actor-owned profession XP | Actors sidebar → Professions |
 | Quest Manager | Quests, orders and contracts with Party and Individual logs | Actors sidebar → Quests |
