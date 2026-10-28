@@ -7,6 +7,23 @@ Gather history, and clearing the last gather.
 - **Clear history…** (confirmation "Clear gather history?", Cancel is the default) with a tick box "Also clear the last gather result" (ticked, because the banner would point at a removed entry). On the Last gather banner, **Clear last gather…** (confirmation "Clear the last gather?") with "Also remove it from History" (unticked). Players' Last gather panel clears too. Neither touches loot given, XP, materials, crafted items or Actors. GM only, also in the API.
 - API: `gathering.history()`, `gathering.clearHistory({alsoLast})`, `gathering.clearLast({alsoHistory})`.
 
+## 0.37.7 — 2026-10-28
+
+A player who rolls a gather from the pop-up now lands in the Ledger.
+
+- **Roll as <name>** (the small "Gather — roll your check" pop-up) rolls as before, then opens the Ledger on **Gathering** (or brings it to the front) where the character shows as rolled, the same as rolling from the tab.
+- When the GM presses **Reveal results**, the Ledger opens on **Gathering** on each player's screen and the slot-machine reel plays there. The view is the same public one as before: no unreleased materials, Exotic odds, other IDs or GM notes. The GM's screen is unchanged. Nothing opens if Ledger Player Access is off.
+- No saved data changes.
+
+## 0.37.6 — 2026-10-28
+
+Complete activity needs the tool.
+
+- An Artistry composition that needs a tool (its own tool, the profession's tool, or a list such as any musical instrument) can't be completed by a character who carries none of them. **Complete activity** is a disabled button with the reason next to it ("Needs Calligrapher’s Supplies"), and the Ledger refuses it everywhere (Individual, Party, character sheet tab, API `completeActivity`), including for the GM. "Has the tool" is the same test as the "doesn’t have this" badge: an owned tool Item or tool proficiency.
+- Compositions with a workstation (rehearsal stage, studio, writing desk) are unchanged: the station is confirmed with the GM and the tool is only a check choice.
+- Craft is unchanged (a missing tool still only warns).
+- No saved data changes.
+
 ## 0.37.5 — 2026-10-28
 
 Refresh recipes shows a pack check, so a missing former-starter marker is visible.

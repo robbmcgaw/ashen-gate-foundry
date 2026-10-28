@@ -621,3 +621,32 @@ test('history: a stored setting from before (missing or of another shape) reads 
   values.gatherHistory={schema:'something-else',entries:'nope'};assert.deepEqual(readHistory(values.gatherHistory),[]);
  }finally{values.gatherHistory=was;}
 });
+
+test('player flow: Roll as <name> from the pop-up opens the Ledger on Gathering and shows the player’s roll; the reveal opens it with the reel; the GM is untouched',async()=>{
+ game.user=gm;sent.length=0;dialogs.length=0;_test.setExoticRoll(dice(50,50));
+ const round=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10});
+ const prompt=sentOf('gather-round').find(p=>p.toUserIds[0]==='u1');sent.length=0;
+ game.user=alice;
+ await _test.onSocket(prompt,'gm');
+ const popup=dialogs.find(d=>d.opts?.window?.title==='Gather — roll your check');assert.ok(popup,'the small pop-up still appears');
+ const btn=popup.opts.buttons.find(b=>b.action==='roll:ana');
+ ana.nextRoll=14;btn.callback();
+ for(let i=0;i<10;i++)await new Promise(r=>setTimeout(r));
+ const app=api.open();   // the same window the flow used
+ assert.equal(app.view,'gathering','the Ledger is on Gathering');
+ let h=(await app._prepareContext({})).html;
+ assert.match(h,/Gather at /);assert.match(h,/Rolled 14/,'her own roll, as the tab shows it');
+ assert.doesNotMatch(h,/data-agl-reveal/,'no reel before the reveal');
+ // The GM reveals: the reel appears on the player’s screen, from the public view only.
+ game.user=gm;const rolled=sent.find(m=>m.type==='gather-rolled');
+ assert.equal(await _test.receiveGatherRoll(rolled,'u1'),true);_test.recordRoll(round.id,{actorId:'bo',total:12});sent.length=0;
+ _test.revealRound(round.id);const reveal=sentOf('gather-round-reveal').find(m=>m.toUserIds.includes('u1'));
+ game.user=alice;app.view='individual';
+ await _test.onSocket(reveal,'gm');
+ assert.equal(app.view,'gathering','opened on Gathering at the reveal');
+ h=(await app._prepareContext({})).html;assert.match(h,/data-agl-reveal/);
+ assert.ok(!/materialId|pool|Exotic chance/i.test(JSON.stringify(reveal.view)),'nothing hidden travels with the reveal');
+ // GM client: the same socket message never opens a window for the GM.
+ game.user=gm;app.view='individual';await _test.onSocket(reveal,'gm');assert.equal(app.view,'individual');
+ _test.cancelRound(round.id);
+});
