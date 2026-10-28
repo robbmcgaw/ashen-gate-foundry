@@ -1,7 +1,7 @@
 {{#*inline "agfPicker"}}<label class="ag-field ag-field--inline agf-picker">Character<select name="actor-id">{{#each @root.actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{else}}<option value="">No assigned character</option>{{/each}}</select></label>{{/inline}}
 {{#*inline "agfStanding"}}<div class="agf-standing">
   <div class="ag-meter" role="progressbar" aria-label="{{label}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{view.percent}}" style="--ag-meter: {{view.percent}}%">
-    <span class="ag-meter__label">{{#if view.next}}{{view.remaining}} {{unit}} to {{view.next.name}}{{else}}Highest rank reached{{/if}}</span>
+    <span class="ag-meter__label">{{#if view.next}}{{view.remaining}} {{unit}} to {{view.next.name}}{{else}}{{#if limited}}Swear a vow to see further tiers{{else}}Highest rank reached{{/if}}{{/if}}</span>
     <span class="ag-meter__value">{{view.score}}{{#if view.next}} / {{view.next.threshold}}{{/if}}</span>
     <span class="ag-meter__track"><span class="ag-meter__fill"></span></span>
   </div>
@@ -23,9 +23,9 @@
   </div>
 </div>{{/inline}}
 {{#*inline "agfMilestones"}}<div class="agf-milestones">{{#each ms}}<article class="agf-milestone {{#if unlocked}}is-unlocked{{/if}} {{#if isActive}}is-active{{/if}}">
-  <header class="agf-milestone__head"><span class="agf-milestone__name">{{name}}</span><span class="ag-badge {{#if unlocked}}ag-badge--ok{{/if}}">{{#if unlocked}}Unlocked{{else}}{{threshold}} {{../unit}}{{/if}}</span></header>
+  <header class="agf-milestone__head"><span class="agf-milestone__name">{{name}}</span><span class="ag-badge {{#if unlocked}}ag-badge--ok{{/if}}">{{#if unlocksWhenRecruited}}{{unlocksText}}{{else}}{{#if unlocked}}Unlocked{{else}}{{threshold}} {{../unit}}{{/if}}{{/if}}</span></header>
   {{{agfParas benefit "agf-milestone__text"}}}
-  {{#each rewards}}{{> agfReward}}{{/each}}{{#if vowToggle}}<div class="agf-vowbar"><button type="button" class="ag-btn ag-btn--sm {{#if vowToggle.sworn}}is-on{{/if}}" data-action="toggleVow" data-deity="{{vowToggle.deityId}}" aria-pressed="{{#if vowToggle.sworn}}true{{else}}false{{/if}}"><i class="fa-solid {{#if vowToggle.sworn}}fa-check{{else}}fa-hands-praying{{/if}}" aria-hidden="true"></i> {{#if vowToggle.sworn}}Vow sworn{{else}}Swear Vow{{/if}}</button>{{#if vowToggle.canBreak}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="breakVow">Break Vow…</button>{{/if}}</div>{{/if}}{{#unless benefit}}{{#unless rewards.length}}{{#unless vowToggle}}<p class="agf-hint agf-milestone__empty">Nothing to claim at this rank.</p>{{/unless}}{{/unless}}{{/unless}}
+  {{#each rewards}}{{> agfReward}}{{/each}}{{#if vowToggle}}<div class="agf-vowbar"><button type="button" class="ag-btn ag-btn--sm {{#if vowToggle.sworn}}is-on{{/if}}" data-action="toggleVow" data-deity="{{vowToggle.deityId}}" aria-pressed="{{#if vowToggle.sworn}}true{{else}}false{{/if}}"><i class="fa-solid {{#if vowToggle.sworn}}fa-check{{else}}fa-hands-praying{{/if}}" aria-hidden="true"></i> {{#if vowToggle.sworn}}Vow sworn{{else}}Swear Vow{{/if}}</button>{{#if vowToggle.canBreak}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="breakVow">Break Vow…</button>{{/if}}</div>{{/if}}{{#unless benefit}}{{#unless rewards.length}}{{#unless vowToggle}}{{#unless unlocksWhenRecruited}}<p class="agf-hint agf-milestone__empty">Nothing to claim at this rank.</p>{{/unless}}{{/unless}}{{/unless}}{{/unless}}
 </article>{{/each}}</div>{{/inline}}
 {{#*inline "agfAward"}}<section class="ag-section agf-award" data-award-scope="{{scope}}"><div class="ag-section__head"><h3 class="ag-section__title">{{title}}</h3><span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></div>
   <div class="agf-award__row"><label class="ag-field agf-award__delta">Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label class="ag-field agf-award__reason">Reason<input name="renown-reason" maxlength="400" placeholder="{{placeholder}}"></label><button type="button" class="ag-btn" data-action="award" data-scope="{{scope}}">Record</button></div>
@@ -100,7 +100,8 @@
           </section>
           {{#if isGM}}{{> agfAward scope="group" title="Adjust group Renown" placeholder="Action and consequence"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Group activity</h3></div>{{> agfHistory detail.groupEvents}}</section>
-          {{else}}{{> agfKnown title=groupLabel text="Your party knows of this faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits you."}}{{/if}}
+          {{else}}{{> agfKnown title=groupLabel text="Your party knows of this faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits you."}}
+          {{#if detail.groupPreview.length}}{{> agfMilestones ms=detail.groupPreview unit="Renown"}}<p class="agf-hint agf-more" role="note">More ranks unlock when you are recruited.</p>{{/if}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Discovered information</h3></div>{{> agfEntries detail.entries}}</section>
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Related factions</h3></div>
             {{#if detail.relations.length}}<ul class="ag-rows">{{#each detail.relations}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><span class="ag-badge {{#if isDissonant}}ag-badge--danger{{/if}}{{#if isResonant}}ag-badge--ok{{/if}}">{{label}}</span></span></li>{{/each}}</ul>{{else}}<p class="agf-hint">No known related factions.</p>{{/if}}
@@ -116,7 +117,8 @@
               {{> agfStanding view=detail.individualView unit="Renown" label="Individual Renown"}}
               {{> agfMilestones ms=detail.individualMs unit="Renown"}}
             {{else}}<div class="ag-empty"><p class="ag-empty__title">No character yet</p><p class="ag-empty__text">{{#if isGM}}Assign a player a character in Foundry first.{{else}}Your GM needs to assign you a character in Foundry.{{/if}}</p></div>{{/if}}
-            {{else}}<p><span class="ag-badge">Known (not recruited)</span></p><p class="agf-hint">This character knows of the faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits them.</p>{{/if}}
+            {{else}}<p><span class="ag-badge">Known (not recruited)</span></p><p class="agf-hint">This character knows of the faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits them.</p>
+            {{#if detail.individualPreview.length}}{{> agfMilestones ms=detail.individualPreview unit="Renown"}}<p class="agf-hint agf-more" role="note">More ranks unlock when you are recruited.</p>{{/if}}{{/if}}
           </section>
           {{#if detail.personalMember}}
           {{#if isGM}}{{> agfAward scope="individual" title="Adjust personal Renown" placeholder="Personal deed or consequence"}}{{/if}}
@@ -371,8 +373,9 @@
         </article>
         {{#if known}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Piety</h3></div>
-            {{> agfStanding view=view unit="piety" label="Piety"}}
+            {{> agfStanding view=view unit="piety" label="Piety" limited=limited}}
             {{> agfMilestones ms=milestones unit="piety"}}
+            {{#if limited}}<p class="agf-hint agf-more" role="note">More tiers unlock when you swear a vow.</p>{{/if}}
           </section>
           {{#if @root.isGM}}{{> agfAward scope="individual" title=awardTitle placeholder="Deed, offering or transgression"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Piety history</h3></div>
@@ -399,6 +402,10 @@
     <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Player access</h3></div>
       <label class="ag-field ag-field--inline"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Renown</label>
       <p class="agf-hint">Lets players open Renown from Actors, macros or General Manager. Turning it off hides the window but keeps Renown, claims, discoveries and character progress.</p>
+    </section>
+    <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Later tiers</h3></div>
+      <label class="ag-field ag-field--inline"><input type="checkbox" name="hide-later-tiers" {{#if hideLaterTiers}}checked{{/if}}> Hide later tiers until recruited or sworn</label>
+      <p class="agf-hint">On (the default): a faction that is shown but not recruited gives the player only its first unlock, marked "Unlocks when recruited". A deity gives only its first tier until the character swears a Vow to that god. The other tiers are not sent to the player at all. Off: factions show no ranks until recruited and deities show the whole ladder, as before Renown 0.24.0. The GM always sees everything.</p>
     </section>
     <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Pantheon knock-on damping</h3></div>
       <label class="ag-field agf-narrow">Damping<input name="pantheon-damping" type="number" min="0" max="{{pantheonDampingMax}}" step="0.05" value="{{pantheonDamping}}"><span class="ag-field__hint">From 0 to {{pantheonDampingMax}}.</span></label>

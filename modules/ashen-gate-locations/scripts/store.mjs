@@ -26,13 +26,21 @@
  * (explicit, because Foundry merges ownership on update, so a removed player must be set back). Map Notes point at
  * the player page, so Foundry hides a pin from anyone who cannot open that page.
  *
+ * 0.28.0: companions. A "Selected players" location with "Everyone else sees it as unidentified" on (and not Hidden) gets, in this same
+ * Journal, a second page that only the players NOT selected can open (OBSERVER; NONE for the selected ones; OBSERVER as the default, so a player
+ * created later gets it too). It is named and written like an unidentified entry: the unidentified label and nothing else. Its flags hold an
+ * opaque `companionKey` (kept in the GM Data record, never on the real pin or page), so it can't be matched to the real location. On each scene
+ * the real Map Note gets a second, companion Note at the same spot bound to that page; it is invisible to the selected players because they can't
+ * open its page. See syncNotes / syncSceneCompanions.
+ *
  * 0.20.0: routes and journeys are retired. What 1.10.0–0.19.0 stored is left exactly as it was and never written again:
  * the GM Data Journal's `routes`, `routeIds` and `travel` flags, the "Locations (Routes)" Journal (player-safe route
  * and journey pages), a party marker Map Note and any route Drawing. readStoredRoutes() only reads the `routes` flag,
  * for Developer Tools → Convert routes to locations (route-convert.mjs).
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, pinOverridden} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, pinOverridden,
+  companionActive, companionView, companionNoteData, companionPatch} from './model.mjs';
 import {nodePlayerView} from './ledger-nodes.mjs';
 import {folderIdOrNull} from './ag-folders.mjs';
 
@@ -64,6 +72,13 @@ export function ownershipFor(loc, visible, grant) {
   const L = levels();
   const own = {default: visible && loc.audience?.mode !== 'selected' ? grant : L.NONE};
   for (const u of players()) own[u.id] = visible && inAudience(loc, u.id) ? grant : L.NONE;
+  return own;
+}
+/** 0.28.0: ownership for a location's companion page: `grant` for every player NOT in the audience (and for players created later), NONE for those who are. */
+export function companionOwnership(loc, grant) {
+  const L = levels();
+  const own = {default: grant};
+  for (const u of players()) own[u.id] = inAudience(loc, u.id) ? L.NONE : grant;
   return own;
 }
 const sameOwnership = (current, want) => Object.entries(want).every(([k, v]) => current?.[k] === v);
@@ -126,6 +141,16 @@ export function pageData(loc, all, opts = presentationOptions(), notes = null) {
     flags: {[MODULE_ID]: {pinKey: loc.pinKey, view: view ? JSON.stringify(view) : '', partyNotes: view ? notesFlag(notes) : ''}}
   };
 }
+/** 0.28.0: the page data for a location's companion, or null when it has none. Carries the unidentified label and the opaque key only. */
+export function companionPageData(loc, opts = presentationOptions()) {
+  const view = companionView(loc, opts);
+  if (!view) return null;
+  return {
+    name: view.name, type: 'text', text: {content: viewHtml(view), format: htmlFormat()},
+    ownership: companionOwnership(loc, levels().OBSERVER),
+    flags: {[MODULE_ID]: {companionKey: view.key, view: JSON.stringify(view)}}
+  };
+}
 const notesFlag = rec => rec ? JSON.stringify(notesMirror(rec)) : '';
 
 /** 1.2.x pages and notes carried `locationId`; map them to the location's pinKey. */
@@ -144,6 +169,19 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
   for (const p of journal.pages) { const key = bindingKey(p, keyById); if (key && !pages.has(key)) pages.set(key, p); }
   const create = [], update = [], used = new Set();
   const normalized = locations.map(normalizeLocation);
+  // 0.28.0: companion pages are bound by their opaque companionKey, never by a pin key.
+  const companions = new Map();
+  for (const p of journal.pages) { const key = p.getFlag(MODULE_ID, 'companionKey'); if (key && !companions.has(key)) companions.set(key, p); }
+  for (const loc of locations) {
+    const cdata = companionPageData(loc, opts);
+    if (!cdata) continue;
+    const page = companions.get(loc.companionKey);
+    if (!page) { create.push(cdata); continue; }
+    used.add(page.id);
+    const same = page.name === cdata.name && page.getFlag(MODULE_ID, 'view') === cdata.flags[MODULE_ID].view
+      && page.getFlag(MODULE_ID, 'companionKey') === loc.companionKey && sameOwnership(page.ownership, cdata.ownership);
+    if (!same) update.push({_id: page.id, ...cdata});
+  }
   for (const loc of locations) {
     const data = pageData(loc, locations, {...opts, normalized}, notes.get(loc.id));
     const page = pages.get(loc.pinKey);
@@ -166,20 +204,64 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
 /**
  * Brings every module-managed Map Note in line with its location's state: label, and image/size
  * unless the GM overrode them on that Note. Notes without our flag are never touched.
+ * 0.28.0: also creates, moves, updates and removes each real Note's companion Note (see syncSceneCompanions).
  */
 async function syncNotes(locations, opts = presentationOptions()) {
+  for (const scene of game.scenes ?? []) await syncSceneNotes(scene, locations, opts);
+}
+
+/**
+ * One scene of syncNotes. `locations` must be normalized records (writeAll's list). Exported for tests and the GM hooks in main.mjs.
+ * Runs one at a time per scene: the Note hooks that our own updates fire queue behind the run that caused them, so a companion is never made twice.
+ */
+const sceneQueue = new Map();
+export function syncSceneNotes(scene, locations, opts = presentationOptions()) {
+  const key = scene.id ?? scene.uuid;
+  const run = (sceneQueue.get(key) ?? Promise.resolve()).catch(() => {}).then(() => syncSceneNow(scene, locations, opts));
+  sceneQueue.set(key, run);
+  return run;
+}
+async function syncSceneNow(scene, locations, opts) {
   const byKey = new Map(locations.map(l => [l.pinKey, l]));
   const keyById = new Map(locations.map(l => [l.id, l.pinKey]));
-  for (const scene of game.scenes ?? []) {
-    const updates = [];
-    for (const note of scene.notes ?? []) {
-      const loc = byKey.get(bindingKey(note, keyById));
-      if (!loc) continue;
-      const patch = notePatch(note, loc.pinKey, pinPresentation(loc, {...opts, all: locations}));
-      if (patch) updates.push({_id: note.id, ...patch});
-    }
-    if (updates.length) await scene.updateEmbeddedDocuments('Note', updates);
+  const updates = [], creates = [], removes = [];
+  const real = [], companions = [];
+  for (const note of scene.notes ?? []) {
+    if (PIN_KEY.test(note.getFlag?.(MODULE_ID, 'companionKey') ?? '')) { companions.push(note); continue; }
+    const loc = byKey.get(bindingKey(note, keyById));
+    if (!loc) continue;
+    const patch = notePatch(note, loc.pinKey, pinPresentation(loc, {...opts, all: locations}));
+    if (patch) updates.push({_id: note.id, ...patch});
+    if (companionActive(loc)) real.push({note, loc, size: patch?.iconSize ?? note.iconSize});
   }
+  // Companions: one per real Note of a location with the option on (flag companionFor = that Note's document id). Anything else that carries our
+  // companion flag is stale (the option is off, the location is Hidden, archived or gone, or its real Note was moved to another scene or deleted).
+  const pages = new Map([...(byRole(ROLE_VIEW)?.pages ?? [])].filter(p => p.getFlag(MODULE_ID, 'companionKey')).map(p => [p.getFlag(MODULE_ID, 'companionKey'), p]));
+  const claimed = new Set();
+  for (const {note, loc, size} of real) {
+    const page = pages.get(loc.companionKey);
+    if (!page) continue;
+    const pres = pinPresentation({...loc, state: 'unidentified', audience: {mode: 'everyone', userIds: [], sharedBy: {}, sharing: true}, pinKeepProportions: false}, {...opts, all: locations});
+    const want = companionNoteData({id: note.id, x: note.x, y: note.y, iconSize: size}, loc, {entryId: page.parent.id, pageId: page.id, src: pres.src});
+    const have = companions.find(c => !claimed.has(c.id) && c.getFlag(MODULE_ID, 'companionFor') === note.id && c.getFlag(MODULE_ID, 'companionKey') === loc.companionKey);
+    if (!have) { creates.push(want); continue; }
+    claimed.add(have.id);
+    const patch = companionPatch(have, want);
+    if (patch) updates.push({_id: have.id, ...patch});
+  }
+  for (const c of companions) if (!claimed.has(c.id)) removes.push(c.id);
+  if (updates.length) await scene.updateEmbeddedDocuments('Note', updates);
+  if (creates.length) await scene.createEmbeddedDocuments('Note', creates);
+  if (removes.length) await scene.deleteEmbeddedDocuments('Note', removes);
+}
+
+/** 0.28.0 GM: re-runs one scene's Note sync from the stored records (the GM hooks call this when a real Note is created, moved or deleted). Idempotent. */
+export async function syncSceneCompanions(scene) {
+  assertGM();
+  if (!scene) return;
+  const locations = readAll();
+  if (!locations.some(l => l.companionKey) && ![...(scene.notes ?? [])].some(n => n.getFlag?.(MODULE_ID, 'companionKey'))) return;
+  await syncSceneNotes(scene, locations);
 }
 
 /** Player-safe views of every location this user may observe (revealed ones only). */
@@ -187,7 +269,7 @@ export function readViews() {
   const journal = byRole(ROLE_VIEW);
   if (!journal) return [];
   return [...journal.pages]
-    .filter(p => isGM() || p.testUserPermission(game.user, 'OBSERVER'))
+    .filter(p => isGM() ? !p.getFlag(MODULE_ID, 'companionKey') : p.testUserPermission(game.user, 'OBSERVER')) // the GM list is the records; a companion is only a player's unidentified entry
     .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -371,6 +453,8 @@ export async function placeNote(location, {scene, x, y}) {
     text: pres.text, texture: {src: pres.src}, iconSize: pres.size,
     flags: {[MODULE_ID]: {pinKey: loc.pinKey, pin: {src: pres.src, size: pres.size, ...(pres.keep ? {keep: true} : {}), ...(pres.keep && pres.showName ? {showName: true} : {}), ...(pres.keep && pres.width > 0 ? {width: pres.width} : {})}}}
   }]);
+  // 0.28.0: a "Selected players" location with the option on gets its companion Note at the same spot.
+  if (companionActive(loc)) await syncSceneNotes(scene, all);
   return note;
 }
 

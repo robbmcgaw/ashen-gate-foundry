@@ -96,6 +96,6 @@ export function deityCard(f){
  * only deities the viewer may see, plus `standingFor(deity)` -> {score, rank, next, remaining, percent} or null. */
 export function pantheonRows(list,standingFor){
   return list.map(x=>{const s=standingFor(x);if(!s)return null;const c=deityCard(x);
-    return{id:c.id,name:c.name,symbol:c.symbol,title:c.title,domain:c.domain,tier:c.tier,tierLabel:c.tierLabel,score:s.score,rank:s.rank,next:s.next??null,remaining:s.remaining??0,percent:s.percent??100};
+    return{id:c.id,name:c.name,symbol:c.symbol,title:c.title,domain:c.domain,tier:c.tier,tierLabel:c.tierLabel,score:s.score,rank:s.rank,next:s.next??null,remaining:s.remaining??0,percent:s.percent??100,limited:Boolean(s.limited)};
   }).filter(Boolean).sort((a,b)=>DEITY_TIERS.indexOf(a.tier)-DEITY_TIERS.indexOf(b.tier)||a.name.localeCompare(b.name));
 }

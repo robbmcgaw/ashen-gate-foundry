@@ -1,3 +1,24 @@
+## 0.29.0 — 2026-10-28
+
+Changed: the Description block is easier to find and says what it is for.
+
+- The editor's **Description** (Content sub-tab, first block by default) is taller (6 rows) and says "A few sentences on what this place looks and feels like." Help now explains it.
+- Nothing about how Description works changed: the eye beside it decides whether players see it once the location is Revealed and Published, it is the first block by default and you can still move it, and it is in Export / Import as before. No new data fields.
+- Tests use mocked Foundry; they check the data and HTML, not the live window.
+
+## 0.28.0 — 2026-10-28
+
+New: **Everyone else sees it as unidentified**, a per-location option for Selected-players locations (GM).
+
+- In **Who Can See It**, with **Selected players** chosen, tick **Everyone else sees it as unidentified**. Players you did not pick then see an unidentified marker at the same spot (the generic unidentified label and pin art) instead of nothing, and cannot open the real page. The players you picked are unchanged: real name, art, pin and page. Unticked (the default), the others still see nothing, exactly as before.
+- How it works: a second, generic page in *Locations (Player View)* that only the non-selected players can open (and any player created later), and a second Map Note beside the real one, at the same position and size, bound to that page. Selected players cannot open that page, so Foundry hides the second pin from them. The page and pin carry only the unidentified label and an unrelated random key: no name, description, teaser, id or pin key.
+- You see both pins on the scene. The second one's label starts with "Unidentified view:" on your screen only.
+- The second pin follows the real one when you move it, and is removed when you untick the option, switch back to Everyone, set the location Hidden, archive it (it returns on Restore) or delete it. Hidden always wins: a Hidden location shows nobody anything. Changing who is selected moves the second pin with it. A pin you resized by hand keeps its size; Map Notes without this module's flags are never touched.
+- Players: a player who is not selected sees only "Unknown location" (or your label) in their Locations list; the real entry never appears for them, in the window or in the API.
+- GM API: `setAudience(id, {othersUnidentified})` (boolean, GM only); `getAudience` returns `othersUnidentified`. Export / Import carry it (an update import keeps the world's value). Records from before 0.28.0 read as off and are not rewritten.
+- Limit: Foundry sends every Map Note to every player's client and hides the ones whose page they cannot open. As with Selected-players pins since 1.8.0, the real Note's position, art path and random pin key are therefore readable in its data; the real name, text and content never are.
+- Tests use mocked Foundry documents and permissions. They check the data, ownership and sync, not Foundry's live per-user hiding of Notes, which needs a check in a Forge world with two player accounts.
+
 ## 0.27.3 — 2026-10-28
 
 Fixed: clicking a location in the list no longer scrolls the list back to the top.

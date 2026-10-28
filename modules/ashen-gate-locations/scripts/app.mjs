@@ -813,7 +813,7 @@ export class LocationsApp extends Base {
         tip(d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`)}><i class="${STATE_ICONS[st]}" aria-hidden="true"></i> ${STATE_LABELS[st]}</button>`).join('')}</div>`;
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {
-      description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="4" data-bind="description" aria-label="Description">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div>`, '', ''),
+      description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="6" data-bind="description" aria-label="Description" placeholder="A few sentences on what this place looks and feels like.">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div><p class="agl-hint">A few sentences on what this place looks and feels like. Players read it first, once the location is Revealed, Published and the eye is open.</p>`, '', ''),
       conditions: sec('conditions', conditions, `${addText('conditions', 'Condition name')}`, passesConditions(d) ? 'No conditions yet. Those you add here apply to every place inside this Region.' : 'No conditions. Places inside a Region that passes its conditions down show them here.'),
       children: this.childrenHtml(d, all, block),
       resources: sec('resources', resources, this.nodePickHtml(nodes), 'Drop material Items here, or click Add node… for a Profession Ledger node template or a custom gathering node.'),
@@ -1009,7 +1009,9 @@ export class LocationsApp extends Base {
       <div class="ag-cluster agl-audience-mode" role="radiogroup" aria-label="Who can see this location">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>
       ${list}
       ${a.mode === 'selected' ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-action-change="audience-sharing" ${a.sharing ? 'checked' : ''}> Players who see it can share it with others</label>` : ''}
-      <p class="agl-hint">${a.mode === 'selected' ? 'Only ticked players get this card, its pins and its Party Notes, and only while it is Unidentified or Revealed. Everyone else sees nothing, exactly as if it were Hidden.' : 'Every player sees it once it is Unidentified or Revealed.'}</p>
+      ${a.mode === 'selected' ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-action-change="audience-others" ${a.othersUnidentified ? 'checked' : ''}> Everyone else sees it as unidentified</label>
+      <p class="agl-hint">Players you did not pick see an unidentified marker at the same spot instead of nothing; they cannot open the real page. A Hidden location still shows nobody anything.</p>` : ''}
+      <p class="agl-hint">${a.mode === 'selected' ? `Only ticked players get this card, its pins and its Party Notes, and only while it is Unidentified or Revealed. ${a.othersUnidentified ? 'Everyone else sees only an unidentified marker.' : 'Everyone else sees nothing, exactly as if it were Hidden.'}` : 'Every player sees it once it is Unidentified or Revealed.'}</p>
     </section>`;
   }
 
@@ -1818,10 +1820,11 @@ export class LocationsApp extends Base {
     const d = this.draft;
     if (!d) return;
     const a = d.audience, kind = el.dataset.actionChange;
-    const next = {mode: a.mode, userIds: [...a.userIds], sharing: a.sharing};
+    const next = {mode: a.mode, userIds: [...a.userIds], sharing: a.sharing, othersUnidentified: a.othersUnidentified === true};
     if (kind === 'audience-mode') next.mode = el.value;
     if (kind === 'audience-user') next.userIds = el.checked ? [...new Set([...next.userIds, el.value])] : next.userIds.filter(u => u !== el.value);
     if (kind === 'audience-sharing') next.sharing = el.checked;
+    if (kind === 'audience-others') next.othersUnidentified = el.checked;
     if (next.mode === 'everyone' && a.mode === 'selected' && d.id && d.state !== 'hidden') {
       const ok = await confirmDialog(`Let every player see ${d.name}, not just the selected ones?`, {title: 'Show to every player?', yes: 'Show to everyone'});
       if (!ok) return this.render();
@@ -1977,6 +1980,7 @@ export class LocationsApp extends Base {
       topic('Editing', [
         '<strong>New location</strong>, type a name, then <strong>Save Changes</strong>. The ID is made for you.',
         'The editor has three sub-tabs under one footer: <strong>Content</strong> (type, region, threat, image and the blocks), <strong>Visibility &amp; map</strong> (who can see it, where it sits, pin art, linked scenes) and <strong>Party Notes</strong>. Switching sub-tabs keeps your unsaved edits.',
+        '<strong>Description</strong> (Content sub-tab, the first block) is a few sentences on what the place looks and feels like. The <i class="fa-solid fa-eye"></i> beside it decides whether players see it once the location is Revealed and Published; closed, they never receive it. You can drag the block lower if you prefer.',
         'Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry. <strong>Add detail</strong> makes a custom block with a title, text and an optional linked document.',
         '<strong>Reorder:</strong> drag a grip, or use the arrows (Alt+Up / Alt+Down on a grip), to move a block or an entry. Players see published blocks in your order.',
         '<strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.',
@@ -1985,7 +1989,7 @@ export class LocationsApp extends Base {
         'Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it at once.',
         '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see in the location\'s current state; tick <em>Also show the other states</em> to compare (your choice is remembered on this computer). A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
         'The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.',
-        '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
+        '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden, unless you tick <em>Everyone else sees it as unidentified</em>: they then see an unidentified marker at the same spot (a second, generic pin that follows the real one; you see both on the scene) and cannot open the real page. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
         '<strong>Default pin for places inside this one</strong> (Visibility &amp; map, GM only): give a Region such as a country or a town a pin image for revealed places, one for hidden / unidentified places, and a pin size, and every place inside it (and inside those) uses them. Order: the place\'s own value, then the nearest place above it that sets one, then <em>GM Setup</em>\'s default unidentified image, then Foundry\'s icons. A place\'s own value is never changed. Placed pins update when you Save; a pin whose image or size you changed in Foundry\'s Note settings keeps your change. The empty boxes show what the place would use now.',
