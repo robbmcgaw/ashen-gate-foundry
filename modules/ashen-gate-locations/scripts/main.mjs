@@ -7,10 +7,10 @@ import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
-import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS} from './pin-look.mjs';
+import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.21.0';
+const VERSION = '0.22.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -64,6 +64,9 @@ Hooks.once('init', () => {
   });
   game.settings.register(MODULE_ID, 'pinShowName', {
     name: 'Locations — Show name under the pin', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+  });
+  game.settings.register(MODULE_ID, 'pinNameSize', {
+    name: 'Locations — Pin name size', scope: 'world', config: false, type: Number, default: NAME_SIZE.default, restricted: true, onChange: () => refreshPins()
   });
   registerPinLook();
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
