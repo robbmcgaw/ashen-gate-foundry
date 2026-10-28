@@ -77,7 +77,7 @@ export const objectiveStatusLabel=status=>REF_STATUS[status]??'Not found in Ques
 /** Discovery button labels (FR-07): the same words for factions, deities and entries. */
 export const revealLabel=(known,who)=>`${known?'Hide from':'Reveal to'} ${who}`;
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['create','save','award','createFolder','saveFolder','deleteFolder','discovery','addEntry','showEntry','addReward','editReward','removeReward','resolveRequest','resetUsage','resetChoice','saveFieldReveals','addObjective','removeObjective','exportAll','saveDeity','addRelation','removeRelation','createDeity']);
+export const CONTENT_ACTIONS=Object.freeze(['create','save','award','createFolder','saveFolder','deleteFolder','discovery','addEntry','showEntry','addReward','editReward','removeReward','resolveRequest','resetUsage','resetChoice','saveFieldReveals','addObjective','removeObjective','exportAll','saveDeity','addRelation','removeRelation','undoRenown','addFactionRelation','removeFactionRelation','createDeity']);
 // GM Setup saves every setting with one Save Changes (Player Access, damping, group name).
 export const SETUP_ACTIONS=Object.freeze(['saveSetup']);
 // Demo data loaders and one-off maintenance (FR-06): only in GM Setup's collapsed Developer Tools.

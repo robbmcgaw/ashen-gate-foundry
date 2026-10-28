@@ -1,3 +1,15 @@
+## 0.22.0 — 2026-10-28
+
+Factions can be related to each other, and personal Renown spreads along those relations the way piety spreads between deities.
+
+- **Related factions** (faction editor, Profile): add other factions with a slider from Dissonance (a rival) to Resonance (an ally), with the same preview text as the Pantheon. It is part of Profile, so it saves with **Save Changes** and **Cancel** drops it. Factions without relations behave as before, and their stored definitions are not rewritten.
+- **Personal only.** When the GM adds personal Renown for a character with a faction, a list shows what each related faction would change (all ticked; untick any). Group Renown never spreads. Only gains spread, knock-ons never chain, and only factions the character already knows are affected. A related faction's score never goes below 0, and ranks and rewards already claimed are kept.
+- **History and Undo…** (GM): each knock-on is its own history line, "Dissonance with <faction>: <reason>", linked to its cause. Personal history now has **Undo…**, which also undoes the knock-ons that entry caused.
+- **GM Setup**: **Faction knock-on damping** beside the Pantheon one (same default 0.5 and maximum 0.95).
+- **Players** see a faction's relations only to factions they already know, shown as Resonance or Dissonance. A history line caused by a faction they do not know does not name it.
+- **Import and export**: Faction definitions accept the optional `relations: [{faction_id, resonance}]` (see docs/renown-faction-relations-schema.md). Update-mode import still keeps any definition edited in this world.
+- API: `getFactionKnockOns(factionId, gain)` (GM, read only).
+
 ## 0.21.1 — 2026-10-28
 
 **Show undiscovered placeholder now works for deities.**

@@ -56,7 +56,7 @@ const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8')
 test('D4: GM Setup writes Player Access, damping and group name only on Save Changes',async()=>{
   // Nothing in the window listens for changes to the setup inputs, so ticking a box writes nothing.
   assert.doesNotMatch(code,/player-access-enabled\][^;]*addEventListener|matches\('\[name=player-access-enabled\]'\)/);
-  const values={'player-access-enabled':false,'group-name-enabled':true,'group-name':'[TEST] Wardens','pantheon-damping':'0.25'};
+  const values={'player-access-enabled':false,'group-name-enabled':true,'group-name':'[TEST] Wardens','pantheon-damping':'0.25','faction-damping':'0.5'};
   const form={querySelector:sel=>{const k=sel.match(/name="?([\w-]+)/)?.[1];return k in values?{value:String(values[k]),checked:values[k]===true}:null;}};
   dashboard.element={querySelector:sel=>sel==='[data-setup-form]'?form:null};
   writes.length=0;
@@ -265,7 +265,7 @@ test('template: kit header and tabs, labelled icons and buttons, no title= toolt
   assert.match(template,/<div class="ag-toolbar__end">[\s\S]*?\{\{\{importButton\}\}\}[\s\S]*?data-action="exportAll"[\s\S]*?data-action="create"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> New faction…<\/button>/);
   // FR-14: the add-relation slider names its deity and the previews are announced.
   assert.match(template,/name="relation-resonance"[^>]*aria-label="Resonance with \{\{relationOptions\.0\.name\}\}"/);
-  assert.equal((template.match(/data-resonance-preview aria-live="polite"/g)||[]).length,2);
+  assert.equal((template.match(/data-resonance-preview aria-live="polite"/g)||[]).length,4);
 });
 
 test('FR-15 window size, FR-09 synthetic demo data, FR-06 maintenance out of GM Setup',async()=>{

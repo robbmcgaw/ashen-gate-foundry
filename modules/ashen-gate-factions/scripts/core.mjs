@@ -1,6 +1,7 @@
 /** Portable Renown model (factions and deities). No Foundry runtime required. */
 import {checkObjectiveRefs} from './objective-refs.mjs';
 import {isDeity,deityProfile,unusedGroupTrack,validateDeityParts} from './deity.mjs';
+import {validateFactionRelations} from './faction-relations.mjs';
 import {assertReusableFactionSource,assertPrivateFieldReveals,assertNoUnclassifiedLegacyRefKeys} from './source-allowlist.mjs';
 export const MODULE_ID='ashen-gate-factions';
 export const SCHEMA_VERSION='0.3.0';
@@ -110,7 +111,7 @@ export function validateStanding(s){
 }
 export function validateFaction(raw){let f;try{f=upgradeFaction(raw)}catch(e){return [e.message]};const errors=[];
   if(isDeity(f)){if(!f.name?.trim())errors.push('Deity name required.');errors.push(...validateDeityParts(f));}
-  else if(!/^FACTION-[A-Z0-9-]+$/.test(f.id)||f.entity_type!=='Faction'||!f.name?.trim())errors.push('Faction identity invalid.');
+  else{if(!/^FACTION-[A-Z0-9-]+$/.test(f.id)||f.entity_type!=='Faction'||!f.name?.trim())errors.push('Faction identity invalid.');errors.push(...validateFactionRelations(f));}
   if(!Array.isArray(f.refs)||!Array.isArray(f.provenance?.sources))errors.push('Invalid shared metadata.');
   for(const track of [f.renown_track,f.individual_track]){
     if(!/^RENOWN-[A-Z0-9-]+$/.test(track.id))errors.push('Invalid Renown track ID.');
