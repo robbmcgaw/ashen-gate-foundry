@@ -142,10 +142,10 @@ test('Individual view: a GM-applied recipe shows Request enchanting…, Bring, t
   assert.match(row,/1 ×<\/span>.*\[TEST\] Dust.*\(3 on hand/s,'the materials, with what is on hand');
   assert.match(row,/Fee: 30 gp \(the GM collects it\)/);
   assert.doesNotMatch(row,/not deducted automatically/);
-  assert.match(row,/Check:<\/span> <span>Arcana<\/span>/,'a short recipe with no tool or station still names its check');
+  assert.match(row,/Check<\/span> <span>Arcana<\/span>/,'a short recipe with no tool or station still names its check');
   assert.match(row,/sheds dim light/,'the effect text');
   const wardRow=cardOf(h,'[TEST] Faint Ward');
-  assert.match(wardRow,/Station<\/span> <span>Enchanting Chamber/);assert.match(wardRow,/Check:<\/span> <span>Arcana<\/span>/);assert.match(wardRow,/data-action="request-enchanting" data-id="REC-TEST-WARD"/);
+  assert.match(wardRow,/Station<\/span> <span>Enchanting Chamber/);assert.match(wardRow,/Check<\/span> <span>Arcana<\/span>/);assert.match(wardRow,/data-action="request-enchanting" data-id="REC-TEST-WARD"/);
   assert.match(cardOf(h,'[TEST] Chalk'),/data-action="craft" data-id="REC-TEST-CHALK"/,'a standalone Enchanting recipe is still crafted');
 });
 test('the button is disabled with the reason when the materials are missing or there is nothing to bring',async()=>{

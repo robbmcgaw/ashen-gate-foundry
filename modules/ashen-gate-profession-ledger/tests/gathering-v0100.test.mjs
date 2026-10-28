@@ -633,7 +633,7 @@ test('0.22.0: a re-render keeps the scroll position of the same tab (Gathering, 
  }finally{app.element=saved;}
 });
 
-/* ---- 0.37.9: requests only at active places (Locations Active places) ------------------------------- */
+/* ---- 0.37.12: requests only at active places (Locations Active places) ------------------------------- */
 test('Active places: a player can only request at an active place (picker, empty state, data layer); pending requests keep a note and the GM can still approve; no API: unchanged',async()=>{
  _test.setGatherRequestCooldown(0);locs[0].resources.push({id:'n9',label:'Test thistle',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,rareQuantity:1,finite:true,exhausted:false,available:true,visible:true});
  const active=new Set();
