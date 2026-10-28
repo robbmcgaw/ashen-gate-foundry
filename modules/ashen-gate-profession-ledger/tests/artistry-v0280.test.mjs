@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.37.5',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.37.6',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -299,4 +299,46 @@ test('api.meetsProficiency: GM or anyone who can see the character; not tied to 
   game.user=gm;
   assert.deepEqual(api.professions().map(p=>p.category).filter((c,i,a)=>a.indexOf(c)===i),['crafting','gathering','creative']);
   assert.deepEqual(errors,[]);
+});
+
+/* ---- 0.37.6: Complete activity needs the tool (tool-based compositions only) ---------------------------------- */
+test('Complete activity is disabled and refused without the tool; owned tool or proficiency enables it; instrument group; station compositions and Craft are not blocked',async()=>{
+  const mk=(wid,id,name,extra)=>worldDoc(wid,`Recipe: ${name}`,src(id,'Recipe',{definition:def(id,'Recipe',{name,kind:'activity',profession_id:'PROF-TEST-ARTISTRY',tier:'apprentice',effort:'short',ingredients:[],access:{skillProficienciesAnyOf:['Performance']},...extra})}));
+  const added=[mk('wl','REC-TEST-LETTER','[TEST] Letter Home',{required_tools:['Calligrapher’s Supplies']}),mk('wa','REC-TEST-ANTHEM','[TEST] Anthem',{required_tools:['Any musical instrument']}),
+    mk('ws','REC-TEST-STAGE','[TEST] Stage Piece',{workstation:'Rehearsal stage',required_tools:['Calligrapher’s Supplies']})];
+  world.push(...added);
+  const scribe=makeActor('scribe','[TEST] Scribe','u1',[profItem('sart','[TEST] Artistry','PROF-TEST-ARTISTRY')],['REC-TEST-LETTER','REC-TEST-ANTHEM','REC-TEST-STAGE'],{skills:{prf:{value:1,total:6}},tools:{},abilities:{cha:{mod:3}}});
+  actors.push(scribe);values.partyRoster=['scribe','smith'];
+  const card=async id=>{app.actorId='scribe';const h=await html('individual');const at=h.indexOf(id);return h.slice(h.lastIndexOf('<article',at),h.indexOf('</article>',at));};
+  try{
+    game.user=alice;
+    // Missing: a real disabled button, the reason as visible text, linked by aria-describedby; the existing badge stays.
+    let row=await card('Letter Home');
+    assert.match(row,/<button type="button" class="ag-btn" disabled aria-describedby="(agl-need-[a-z0-9]+)"><i[^>]*><\/i> Complete activity<\/button><span class="agl-reason" id="\1">Needs Calligrapher’s Supplies<\/span>/);
+    assert.doesNotMatch(row,/data-action="complete-activity"/);assert.match(row,/doesn’t have this/);
+    const before=chats.length;
+    await assert.rejects(()=>_test.performAction('complete-activity',{id:'REC-TEST-LETTER',actorId:'scribe'}),/Needs Calligrapher’s Supplies \(\[TEST\] Scribe doesn’t have it\)\./);
+    await assert.rejects(()=>api.completeActivity(scribe,'REC-TEST-LETTER',{confirm:false}),/Needs Calligrapher’s Supplies/);
+    assert.equal(chats.length,before,'no card, no roll');
+    // The GM is blocked the same way (there is no GM override).
+    game.user=gm;await assert.rejects(()=>_test.performAction('complete-activity',{id:'REC-TEST-LETTER',actorId:'scribe'}),/Needs Calligrapher’s Supplies/);game.user=alice;
+    // Instrument group: any one instrument, said as a list.
+    row=await card('Anthem');assert.match(row,/disabled aria-describedby[\s\S]*?class="agl-reason" id="[^"]+">Needs one of: Any musical instrument|Needs Any musical instrument/);
+    // Owned tool Item enables it, and it works.
+    scribe.items.push(held('scal','Calligrapher’s Supplies',{},1,{type:'tool'}));
+    row=await card('Letter Home');assert.match(row,/data-action="complete-activity" data-id="REC-TEST-LETTER" data-actor="scribe"/);assert.doesNotMatch(row,/Needs Calligrapher/);
+    await _test.performAction('complete-activity',{id:'REC-TEST-LETTER',actorId:'scribe'});assert.match(chats.at(-1).content,/Letter Home/);
+    // Tool proficiency counts too (the same test as the “doesn’t have this” badge); a group is met by any instrument.
+    scribe.system.tools={lute:{value:1,total:5}};
+    row=await card('Anthem');assert.match(row,/data-action="complete-activity" data-id="REC-TEST-ANTHEM"/);
+    // Station composition: the tool is a check choice and never blocks.
+    scribe.items.pop();scribe.system.tools={};
+    row=await card('Stage Piece');assert.match(row,/data-action="complete-activity" data-id="REC-TEST-STAGE"/);
+    await _test.performAction('complete-activity',{id:'REC-TEST-STAGE',actorId:'scribe'});
+    // Ordinary Craft with a missing tool still only warns (unchanged).
+    game.user=bob;app.actorId='smith';smith.system.tools={};
+    assert.match(await html('individual'),/data-action="craft" data-id="REC-TEST-SALVE"/,'Craft stays enabled without the Alchemist tool');
+  }finally{
+    for(const d of added)world.splice(world.indexOf(d),1);actors.splice(actors.indexOf(scribe),1);values.partyRoster=['bard','smith'];smith.system.tools={alchemist:{value:1,total:4}};game.user=gm;
+  }
 });
