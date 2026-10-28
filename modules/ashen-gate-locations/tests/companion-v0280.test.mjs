@@ -33,11 +33,11 @@ async function world() {
   const scene = new Scene();
   g.scenes = [scene];
   const apis = new Map();
-  for (const u of users.values()) apis.set(u.id, createApi({version: '0.28.0', isGM: () => u.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
+  for (const u of users.values()) apis.set(u.id, createApi({version: '0.29.0', isGM: () => u.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll: () => as(u, readAll), writeAll: list => as(u, () => writeAll(list)), readViews: () => as(u, readViews), placeNote: (loc, o) => as(u, () => placeNote(loc, o)),
     open: () => {}, openLocation: () => {}, pinsOf, playerIds: () => players().map(x => x.id),
     pins: {report: l => as(users.get('gm'), () => pinReport(l)), remove: l => as(users.get('gm'), () => removeManagedPins(l))}}));
-  g.modules = {get: id => id === MOD ? {version: '0.28.0', active: true, api: apis.get(game.user.id)} : null};
+  g.modules = {get: id => id === MOD ? {version: '0.29.0', active: true, api: apis.get(game.user.id)} : null};
   const gm = apis.get('gm');
   const crypt = await gm.saveLocation({name: REAL, description: DESC, teaser: 'A [TEST] teaser', unidentifiedLabel: '', sections: {}, show: {description: true}});
   await gm.setLocationState(crypt.id, 'revealed');

@@ -760,7 +760,7 @@ export class LocationsApp extends Base {
         tip(d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`)}><i class="${STATE_ICONS[st]}" aria-hidden="true"></i> ${STATE_LABELS[st]}</button>`).join('')}</div>`;
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {
-      description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="4" data-bind="description" aria-label="Description">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div>`, '', ''),
+      description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="6" data-bind="description" aria-label="Description" placeholder="A few sentences on what this place looks and feels like.">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div><p class="agl-hint">A few sentences on what this place looks and feels like. Players read it first, once the location is Revealed, Published and the eye is open.</p>`, '', ''),
       conditions: sec('conditions', conditions, `${addText('conditions', 'Condition name')}`, passesConditions(d) ? 'No conditions yet. Those you add here apply to every place inside this Region.' : 'No conditions. Places inside a Region that passes its conditions down show them here.'),
       children: this.childrenHtml(d, all, block),
       resources: sec('resources', resources, this.nodePickHtml(nodes), 'Drop material Items here, or click Add node… for a Profession Ledger node template or a custom gathering node.'),
@@ -1863,6 +1863,7 @@ export class LocationsApp extends Base {
       topic('Editing', [
         '<strong>New location</strong>, type a name, then <strong>Save Changes</strong>. The ID is made for you.',
         'The editor has three sub-tabs under one footer: <strong>Content</strong> (type, region, threat, image and the blocks), <strong>Visibility &amp; map</strong> (who can see it, where it sits, pin art, linked scenes) and <strong>Party Notes</strong>. Switching sub-tabs keeps your unsaved edits.',
+        '<strong>Description</strong> (Content sub-tab, the first block) is a few sentences on what the place looks and feels like. The <i class="fa-solid fa-eye"></i> beside it decides whether players see it once the location is Revealed and Published; closed, they never receive it. You can drag the block lower if you prefer.',
         'Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry. <strong>Add detail</strong> makes a custom block with a title, text and an optional linked document.',
         '<strong>Reorder:</strong> drag a grip, or use the arrows (Alt+Up / Alt+Down on a grip), to move a block or an entry. Players see published blocks in your order.',
         '<strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.',
