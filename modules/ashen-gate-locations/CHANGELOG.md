@@ -1,3 +1,13 @@
+## 0.27.3 — 2026-10-28
+
+Fixed: clicking a location in the list no longer scrolls the list back to the top.
+
+- The list (flat, grouped and Tree) keeps its scroll position when the window redraws: selecting a location, opening or closing a folder or group, Tree / List, filters and search, Select mode, Archived, and saving. Before, only the right-hand details kept their place.
+- If the selected location is out of sight (opened from a pin or Show to Players, or a new location), the list scrolls just far enough to show it. Clicking a row you can already see moves nothing.
+- A newly selected location starts at the top of its details; redrawing the same location (a save, a toggle) and switching editor tabs keep each tab's scroll.
+- Keyboard focus stays on the same control after a redraw (the row you clicked, the Tree toggle, a tab, a field with its cursor).
+- Tests use mocked DOM objects; they check the logic, not the real Foundry window.
+
 ## 0.27.2 — 2026-10-28
 
 Changed: players no longer see the threat level on the Locations list; they see it on the location itself, labelled.

@@ -30,8 +30,8 @@ async function world(user) {
   globalThis.ui = {notifications: {info: m => notes.push(m), warn: m => notes.push(m), error: m => notes.push(m)}};
   const quests = {listQuests: () => [{id: 'QUEST-TEST-ONE', name: '[TEST] Find the Mill', status: 'Active'}], listVisible: () => [],
     getVisibleObjective: id => id === 'QUEST-TEST-ONE' ? {id, name: '[TEST] Find the Mill'} : null, getGMSource: () => null};
-  const mod = {version: '0.27.2', active: true};
-  mod.api = createApi({version: '0.27.2', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
+  const mod = {version: '0.27.3', active: true};
+  mod.api = createApi({version: '0.27.3', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => []});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : id === 'ashen-gate-quest-manager' ? {active: true, api: quests} : null};
   g.items = [{name: '[TEST] Reed', flags: {}, system: {}, getFlag: () => undefined}];

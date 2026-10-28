@@ -12,6 +12,7 @@ import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mj
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
+import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
@@ -316,16 +317,11 @@ export class LocationsApp extends Base {
     </div>`;
   }
   _replaceHTML(result, content) {
-    const scroll = content.querySelector('.agl-detail')?.scrollTop ?? 0, outer = content.querySelector('.agl-pane')?.scrollTop ?? 0;
-    const typing = globalThis.document?.activeElement?.id === 'agl-party-text' ? globalThis.document.activeElement : null;
-    const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null;
+    // 0.27.3: every scroll position and the focused control survive the redraw (keep-view.mjs); a new selection resets the detail pane.
+    const view = this.viewMemo ??= {};
+    const snap = captureView(content, view, {selectedId: this.selectedId, editorTab: this.editorTab});
     content.innerHTML = result;
-    const detail = content.querySelector('.agl-detail');
-    if (detail) detail.scrollTop = scroll;
-    const pane = content.querySelector('.agl-pane');
-    if (pane) pane.scrollTop = outer;
-    const box = caret && content.querySelector('#agl-party-text');
-    if (box) { box.focus(); box.setSelectionRange(...caret); }
+    restoreView(content, view, snap);   // also puts focus and the caret back (the Party Notes box has an id)
     try { this.bind(content); } catch (err) { content.innerHTML = this.errorHtml(err); this.bind(content); }
   }
 
