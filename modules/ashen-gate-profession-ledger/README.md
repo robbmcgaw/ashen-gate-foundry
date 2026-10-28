@@ -111,3 +111,4 @@ Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, pa
 `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-profession-ledger/module.json`
 
 and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page (tag `ashen-gate-profession-ledger-v<version>`) for manual install or rollback. Change history is in [CHANGELOG.md](CHANGELOG.md).
+- **Complete activity needs the tool** (0.37.6): a tool-based Artistry composition is disabled, with the reason shown, and refused by the Ledger (GM included) when the character has none of its tools (owned Item or tool proficiency, same test as the "doesn't have this" badge). Station compositions and Craft are unchanged.
