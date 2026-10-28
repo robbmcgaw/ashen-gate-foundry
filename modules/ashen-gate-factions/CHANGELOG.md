@@ -1,3 +1,13 @@
+## 0.21.1 — 2026-10-28
+
+**Show undiscovered placeholder now works for deities.**
+
+- Turning on **Show undiscovered placeholder** (Factions → a deity → Visibility) did nothing for deities; only factions used it. Now, in a player's Pantheon, each undiscovered deity with it on appears as an **Undiscovered deity** tile in its Major or Lesser group (counted in the group total). The tile is not clickable and reads "Undiscovered deity. Not yet known to your character."
+- Nothing about the deity leaks: the player view gets only `{kind:'deity-placeholder', tier, key}` (key is an opaque per-tier number, never the deity's id), built on the GM side. No name, symbol, title, domain, relations or ladder is sent.
+- Revealing the deity (to the party or to one of the player's characters) replaces the placeholder with the real tile. A deity with the setting off stays completely hidden. The GM Pantheon is unchanged.
+- Placeholders are not known deities: `getDeities`, `getPantheon`, the character embed and Vow checks never list them.
+- Tested with mocked data. The live Foundry UI is not tested here.
+
 ## 0.21.0 — 2026-10-27
 
 Swearing a Vow gives the character a Vow feature.
