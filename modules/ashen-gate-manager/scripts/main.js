@@ -1,6 +1,6 @@
 import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, bindFolds, fileButton, bindFileButtons, linkButton} from "./ag-html.mjs";
-import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText} from "./ag-dialogs.mjs";
+import {confirmDialog, confirmDanger, guardDirty, infoDialog, promptText, formDialog, choiceDialog} from "./ag-dialogs.mjs";
 import {collapseItemDescriptions} from "./chat-style.js";
 import {installPauseMirror} from "./pause-indicator.js";
 import {pauseGlowReport} from "./pause-glow-report.js";
@@ -45,6 +45,7 @@ import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist, updatesExisting} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, collectModuleSections, SNAPSHOT_SETTING} from './world-export.js';
+import {EDIT_TYPES, TYPE_LABELS, scanWorldEdits, buildEditsFile, saveWorldEdits, previewHtml as editsPreviewHtml, summaryText as editsSummaryText} from './world-edits.js';
 import {SYNC_NAME, SYNC_PHRASE, SYNC_RETIRED_SETTING, HANDOFF_LEDGER_SETTING, buildSyncSet, makeSnapshot, nameIndex, planSync, planRebind, phraseOk, phraseRequired, ledgerKey} from './sync.js';
 import {executeSync, buildSyncBackup, writeRebind, summarizeErrors} from './sync-apply.js';
 import {archiveFolderName, partnerArchiveApi} from './sync-archive.js';
@@ -456,6 +457,41 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   applyProfile() {
     const profiles={development:{includeDrafts:true},"session-safe":{includeDrafts:false}};
     this.includeDrafts=profiles[this.profile]?.includeDrafts??true;
+  }
+  /**
+   * Export edited records (0.77.0): options, then a preview (counts and the edited records with their changed fields), then one
+   * download. Read-only: nothing in the world, no flag and no setting is written (world-edits.js); the GM check is in the data layer.
+   */
+  async #exportEdits() {
+    try {
+      if(!game.user?.isGM)throw new Error('Only the GM can export edited records.');
+      const form=await formDialog('Export edited records',[
+        {name:'types',label:'Record types',type:'checklist',options:EDIT_TYPES.map(t=>({value:t,label:TYPE_LABELS[t],checked:true})),hint:'Untick a type to leave it out of a large world. Player characters are never included.'},
+        {name:'unchanged',label:'Include unchanged records',type:'checkbox',checked:false,hint:'Also list records you did not edit (for a complete copy of the imported content).'},
+        {name:'worldOnly',label:'Include records not in any package',type:'checkbox',checked:false,hint:'Also list documents you made by hand (name and short text only), so they can be added to the content pack.'}
+      ],{ok:'Preview…'});
+      if(!form)return;
+      const types=form.types??[];
+      if(!types.length)return toast('Tick at least one record type.',true);
+      const scan=scanWorldEdits(game,{types,includeUnchanged:Boolean(form.unchanged?.length),includeWorldOnly:Boolean(form.worldOnly?.length)});
+      for(;;){
+        const pick=await choiceDialog('Edited records',editsPreviewHtml(scan),[
+          {action:'copy',label:'Copy summary',icon:'fa-solid fa-copy'},
+          {action:'download',label:'Download file',icon:'fa-solid fa-download',default:true}]);
+        if(pick==='copy'){
+          const text=editsSummaryText(scan);
+          try{await (game.clipboard?.copyPlainText?.(text)??navigator.clipboard.writeText(text));toast('Summary copied.');}
+          catch{toast('Could not copy automatically.',true);}
+          continue;
+        }
+        if(pick==='download'){
+          const out=buildEditsFile(game,scan);
+          downloadJson(out.filename,out.file);
+          toast(`Saved ${out.filename}: ${scan.records.length} record(s)${scan.includeWorldOnly?`, ${scan.worldOnly.length} not in a package`:''}. Nothing in your world changed.`);
+        }
+        break;
+      }
+    } catch(error){toast(String(error.message??error),true);}
   }
   async #worldExport(name) {
     try {
@@ -1385,6 +1421,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       }
       case "clear-results": this.importReports=[]; await this.render(); break;
+      case "world-edits-export": await this.#exportEdits(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": case "world-backup": await this.#worldExport(name); break;
       case "presession-run": case "presession-clear": case "presession-copy": case "presession-download": await this.#preSession(name); break;
       // Back to normal also drops the fine-tune draft, so the panel shows the restored scene.
@@ -4901,6 +4938,8 @@ Hooks.once("ready",()=>{
     preSessionCheck:()=>runPreSessionCheck(game),
     // GM-only "Back up before play" (0.21.0): the everything export as AG_Backup_<date>.json; leaves the export snapshot alone.
     backup:()=>saveBackup(game,{save:downloadJson}),
+    // GM-only "Export edited records" (0.77.0): downloads AG_World_Edits_<date>.json (ag-world-edits/0.1); read-only. options: {types, includeUnchanged, includeWorldOnly}.
+    exportEdits:options=>saveWorldEdits(game,options,{save:downloadJson}),
     // GM-only scene moods (0.22.0) and layers (0.35.0); every function checks the GM itself and returns {ok,message}.
     // GM-only organize folders (0.25.0); every function checks the GM itself. Only the folder field is ever written.
     // GM-only core links (0.26.0): link AG world Items with core_ref to 2024 core items; every function checks the GM itself.
