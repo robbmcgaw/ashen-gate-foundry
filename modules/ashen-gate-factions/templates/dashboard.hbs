@@ -307,13 +307,18 @@
       {{#if pantheon.actorName}}<p class="agf-vow-status" role="status"><strong>{{#if pantheon.vow}}Vow: {{pantheon.vow.name}}{{else}}No Vow sworn{{/if}}</strong> <span class="agf-hint">{{pantheon.actorName}}</span></p>{{/if}}
       {{#unless pantheon.open}}
         {{#each pantheon.groups}}
-          <section class="ag-section agf-pantheon-group"><h2 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{tiles.length}}</span></h2><div class="ag-card-grid agf-deity-grid">
+          <section class="ag-section agf-pantheon-group"><h2 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{total}}</span></h2><div class="ag-card-grid agf-deity-grid">
             {{#each tiles}}<button type="button" class="agf-deity-tile {{#unless known}}is-unknown{{/unless}}" data-action="openDeity" data-id="{{id}}">
               <span class="agf-symbol">{{#if symbol}}<img class="agf-symbol-img" src="{{symbol}}" alt="">{{/if}}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span>
               <strong class="agf-deity-tile__name">{{name}}</strong>{{#if title}}<span class="agf-deity-tile__title">{{title}}</span>{{/if}}
               <span class="agf-deity-tile__rank">{{#if known}}{{rank}} · {{score}}{{else}}Not known to this character{{/if}}</span>
               {{#if @root.isGM}}<span class="ag-badge {{badgeClass}}">{{chip}}</span>{{/if}}
             </button>{{/each}}
+            {{#each placeholders}}<div class="agf-deity-tile is-unknown is-placeholder" role="group" aria-label="Undiscovered deity. Not yet known to your character.">
+              <span class="agf-symbol" aria-hidden="true"><i class="fa-solid fa-question agf-symbol-glyph" aria-hidden="true"></i></span>
+              <strong class="agf-deity-tile__name" aria-hidden="true">Undiscovered deity</strong>
+              <span class="agf-deity-tile__rank" aria-hidden="true">Not yet known to your character</span>
+            </div>{{/each}}
           </div></section>
         {{else}}
           <div class="ag-empty"><i class="fa-solid fa-sun" aria-hidden="true"></i><p class="ag-empty__title">No deities yet</p><p class="ag-empty__text">{{#if isGM}}Create or import deities in the {{{gotoDeities}}}.{{else}}Your GM hasn't revealed any deities yet.{{/if}}</p></div>
