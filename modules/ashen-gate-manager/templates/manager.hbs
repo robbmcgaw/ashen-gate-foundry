@@ -717,6 +717,7 @@
       <div class="aglib-actions">
         <button type="button" class="ag-btn" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export everything</button>
         <button type="button" class="ag-btn" data-ag-action="world-backup"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Back up before play</button>
+        <button type="button" class="ag-btn" data-ag-action="world-edits-export"><i class="fa-solid fa-file-pen" aria-hidden="true"></i> Export edited records…</button>
         <details class="aglib-menu">
           <summary class="ag-btn">More <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
           <div class="aglib-menu__pop">
@@ -726,6 +727,7 @@
         </details>
       </div>
       <p class="agmanager-tiny">Back up before play saves the same file as AG_Backup_&lt;date&gt;.json and does not change what counts as changed since last export.</p>
+      <p class="agmanager-tiny"><strong>Export edited records…</strong> saves one file of only the imported records you changed in this world (names, descriptions and the other content a package defines), in the shape of the package records, so the content pack can be updated from them. It leaves out play state, ownership, folders, art and player characters, and changes nothing in your world.</p>
       {{#if worldExportSummary}}<pre class="agmanager-tiny agmanager-worldexport-summary">{{worldExportSummary}}</pre>{{/if}}
       <p class="agmanager-tiny">To export only some records with their local edits, tick them under Records and use <strong>Actions → Export selected / local edits</strong>.</p>
     </section>
