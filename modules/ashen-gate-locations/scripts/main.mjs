@@ -7,9 +7,10 @@ import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
+import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.20.7';
+const VERSION = '0.21.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -56,6 +57,15 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'unknownPinImage', {
     name: 'Locations — Unidentified pin image', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: resync
   });
+  // 0.21.0: how this module's Map Notes are drawn on every client. Display only: no Note is rewritten.
+  game.settings.register(MODULE_ID, 'pinLook', {
+    name: 'Locations — Pin look', scope: 'world', config: false, type: String, default: DEFAULT_PIN_LOOK, restricted: true,
+    choices: PIN_LOOKS, onChange: () => refreshPins()
+  });
+  game.settings.register(MODULE_ID, 'pinShowName', {
+    name: 'Locations — Show name under the pin', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+  });
+  registerPinLook();
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
 });
 

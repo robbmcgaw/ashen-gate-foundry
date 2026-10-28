@@ -1,3 +1,13 @@
+## 0.21.0 — 2026-10-28
+
+New: **Pin look**. Map pins from Locations can be drawn as just their image, with the name under them.
+
+- **GM Setup → Map Pins → Pin look:** *Framed (Foundry default)* (as before, and the default) or *Image only*, which hides Foundry's square and shaded backing around the pin image. While you hover or select an Image-only pin the frame comes back, so you can see what you are about to drag. Pins stay clickable and draggable, and double-click still opens the location.
+- **Show the name under the pin:** keeps the pin's name visible instead of only on hover, with a heavier outline and a soft shadow so it reads on a busy map. A hidden pin never shows a name, an unidentified pin shows only its unidentified label, and a Selected-players pin shows its page name only to the players who can see it, exactly as before.
+- Both are world settings saved with **Save Changes**, and apply on every player's screen at once. They touch only pins placed from Locations (Notes carrying a location pin key); other Map Notes are not changed.
+- No change to saved data and no migration: nothing on the map is rewritten, a pin's own image, size and text anchor keep working, and switching back restores the framed look.
+- Tests use mocked Foundry; they do not render the canvas. Check in Forge: see the click-steps in the pull request.
+
 ## 0.20.7 — 2026-10-26
 
 Keyboard and narrow-window fixes (shared kit 2.4.0).
