@@ -1,6 +1,6 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes} from './store.mjs';
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createActiveWatcher} from './active.mjs';
@@ -12,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.25.1';
+const VERSION = '0.26.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -123,6 +123,8 @@ Hooks.once('ready', () => {
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
     sharing: {request: sharing.request}, show: {send: show.send},
     tables, storedRoutes: readStoredRoutes,
+    pins: {report: pinReport, remove: removeManagedPins},
+    notedIds: () => new Set([...readNotesStore().values()].filter(n => n.text?.trim()).map(n => n.locationId)),
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
     notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}

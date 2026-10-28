@@ -6,14 +6,17 @@ export const UNTITLED='Untitled quest';
 export const UNKNOWN_LOCATION='Unnamed location';
 export const KIND_LABELS=Object.freeze({quest:'Quest',work_order:'Order',contract:'Contract'});
 // 0.15.0 Sub-views inside the Quests tab, each with a count. `test` picks the rows the view shows.
+// 0.29.0: archived quests are in every view except Archived, which lists only them.
+const live=r=>!r.archived;
 export const SUBVIEWS=Object.freeze([
- {key:'all',label:'All',hint:'Every quest, order and contract',test:()=>true},
- {key:'drafts',label:'Drafts',hint:'Drafts are GM only until you give them a status',test:r=>r.chip==='Draft'},
- {key:'hidden',label:'Hidden',hint:'Hidden quests that are not drafts',test:r=>r.chip==='Hidden'},
- {key:'active',label:'Active',hint:'Available or Active',test:r=>r.chip==='Available'||r.chip==='Active'},
- {key:'closed',label:'Completed / Failed',hint:'Completed or Failed',test:r=>r.chip==='Completed'||r.chip==='Failed'},
- {key:'orders',label:'Orders',hint:'Work orders (crafting, production or creative)',test:r=>r.kind==='work_order'},
- {key:'contracts',label:'Contracts',hint:'Contracts',test:r=>r.kind==='contract'},
+ {key:'all',label:'All',hint:'Every quest, order and contract that is not archived',test:live},
+ {key:'drafts',label:'Drafts',hint:'Drafts are GM only until you give them a status',test:r=>live(r)&&r.chip==='Draft'},
+ {key:'hidden',label:'Hidden',hint:'Hidden quests that are not drafts',test:r=>live(r)&&r.chip==='Hidden'},
+ {key:'active',label:'Active',hint:'Available or Active',test:r=>live(r)&&(r.chip==='Available'||r.chip==='Active')},
+ {key:'closed',label:'Completed / Failed',hint:'Completed or Failed',test:r=>live(r)&&(r.chip==='Completed'||r.chip==='Failed')},
+ {key:'orders',label:'Orders',hint:'Work orders (crafting, production or creative)',test:r=>live(r)&&r.kind==='work_order'},
+ {key:'contracts',label:'Contracts',hint:'Contracts',test:r=>live(r)&&r.kind==='contract'},
+ {key:'archived',label:'Archived',hint:'Archived quests: off the list and hidden from players, nothing lost. Restore or delete them here',test:r=>r.archived},
 ]);
 export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['location','Location'],['changed','Recently changed'],['type','Type'],['level','Level']]);
 export const GROUPS=Object.freeze([['none','No grouping'],['status','Status'],['location','Location'],['type','Type'],['level','Level'],['region','Region'],['giver','Giver']]);
@@ -68,16 +71,21 @@ export function questRow({source,state,changed=null},ctx={}){
  const locName=id=>ctx.locationName?.(id)||UNKNOWN_LOCATION;
  return {id:source.id,name:source.name||UNTITLED,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
   detail:questDetail(source),level:questLevel(source),regions:[...new Set(locations.map(id=>ctx.locationRegion?.(id)).filter(x=>typeof x==='string'&&x.trim()))].sort((a,b)=>a.localeCompare(b)),
-  chip:statusChip(source,state),visible:isPlayerVisible(source,state),
+  chip:statusChip(source,state),visible:isPlayerVisible(source,state),archived:state.archived===true,
+  packs:(Array.isArray(source.provenance?.sources)?source.provenance.sources:[]).filter(x=>typeof x==='string'&&x.trim()),
   locations,locationNames:locations.map(locName),givers:questGivers(source).map(giverLabel),giverIds:questGivers(source),sourceText:questSource(source),tags:questTags(source),
   audience:state.scope==='individual'?{scope:'individual',actorId:state.actorId,name:(state.actorId&&ctx.actorName?.(state.actorId))||(state.actorId?'Unknown character':'No character chosen')}:{scope:'party'},
   rewards:rewardSummary(source,state,ctx.itemName),changed:Number.isFinite(changed)?changed:null,
   summary:String(source.public_summary||''),
   total:(source.objectives||[]).length,done:(source.objectives||[]).filter(o=>state.progress?.[o.key]==='complete').length};
 }
-export const DEFAULT_VIEW=Object.freeze({search:'',nav:'all',type:'all',status:'all',location:'all',level:'all',region:'all',giver:'all',visible:'all',sort:'name',group:'status'});
+export const DEFAULT_VIEW=Object.freeze({search:'',nav:'all',type:'all',status:'all',location:'all',level:'all',region:'all',giver:'all',visible:'all',pack:'all',idPrefix:'',sort:'name',group:'status'});
 /** How many of the filters behind Filters (n) are set (type, location, visible). */
-export const filterCount=v=>['type','location','level','region','giver','visible'].filter(k=>(v?.[k]??'all')!=='all').length;
+export const filterCount=v=>['type','location','level','region','giver','visible','pack'].filter(k=>(v?.[k]??'all')!=='all').length+(String(v?.idPrefix??'').trim()?1:0);
+/** 0.29.0: what the GM typed in "Id starts with", ready to compare (trimmed, upper case). */
+export const idPrefixOf=v=>String(v??'').trim().toUpperCase();
+/** The source packs (provenance.sources) the quests came from, for the Source filter. */
+export const packOptions=rows=>[...new Set(rows.flatMap(r=>r.packs||[]))].sort((a,b)=>a.localeCompare(b)).map(x=>[x,x]);
 export function locationOptions(rows){
  const names=new Map();for(const r of rows)r.locations.forEach((id,i)=>names.set(id,r.locationNames?.[i]||UNKNOWN_LOCATION));
  return [...names].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
@@ -110,7 +118,7 @@ export function filterRows(rows,v={}){
  const f={...DEFAULT_VIEW,...v},nav=subview(f.nav);
  return rows.filter(r=>nav.test(r)&&(f.type==='all'||r.kind===f.type)&&(f.status==='all'||r.chip===f.status)
   &&(f.location==='all'||r.locations.includes(f.location))&&(f.level==='all'||String(r.level)===String(f.level))&&(f.region==='all'||(r.regions||[]).includes(f.region))&&(f.giver==='all'||(r.giverIds||[]).includes(f.giver))
-  &&(f.visible==='all'||(f.visible==='yes')===r.visible)&&matchesSearch(r,f.search));
+  &&(f.visible==='all'||(f.visible==='yes')===r.visible)&&(f.pack==='all'||(r.packs||[]).includes(f.pack))&&(!idPrefixOf(f.idPrefix)||r.id.startsWith(idPrefixOf(f.idPrefix)))&&matchesSearch(r,f.search));
 }
 const byName=(a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id);
 const firstLoc=r=>r.locationNames?.length?[...r.locationNames].sort((a,b)=>a.localeCompare(b))[0]:null;
@@ -151,7 +159,7 @@ export function listQuestsTab(entries,view={},ctx={}){
  const all=entries.map(e=>questRow(e,ctx)),f={...DEFAULT_VIEW,...view};
  const shown=sortRows(filterRows(all,f),f.sort);
  return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:keepSelected(locationOptions(all),f.location,ctx.locationName?.(f.location)||'a location that no longer matches'),levels:keepSelected(levelOptions(all),f.level,`Level ${f.level}`),
-  regions:keepSelected(regionOptions(all),f.region),givers:keepSelected(giverOptions(all),f.giver,giverLabel(f.giver)),counts:navCounts(all),ids:shown.map(r=>r.id)};
+  regions:keepSelected(regionOptions(all),f.region),packs:keepSelected(packOptions(all),f.pack),givers:keepSelected(giverOptions(all),f.giver,giverLabel(f.giver)),counts:navCounts(all),ids:shown.map(r=>r.id)};
 }
 /** "just now", "5 min ago", "3 h ago", "2 days ago", then the date. */
 export function changedLabel(ms,now=Date.now()){
@@ -172,7 +180,7 @@ export function gmViewState(raw){
  return {nav:pick(r.nav,SUBVIEWS.map(v=>v.key),'all'),sort:pick(r.sort,SORTS.map(x=>x[0]),'name'),group:pick(r.group,GROUPS.map(x=>x[0]),'status'),sections};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','collapse-groups','expand-groups','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
+export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','collapse-groups','expand-groups','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-archive','bulk-restore','undo-archive','bulk-all','bulk-clear']);
 // GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
 export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup']);
 /** Text for the GM with permanent ids swapped for what they stand for: quests by name, anything else by a neutral phrase.

@@ -7,6 +7,7 @@ import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pi
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
+import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
@@ -218,6 +219,8 @@ export class LocationsApp extends Base {
     this.groupBy = 'region'; this.collapsed = new Set(); this.filters = emptyFilters(); this.sort = 'name'; this.sortDesc = false;
     // 1.8.0: Tree mode (folders), "Show representative-only too" for placing pins, and the last move (for Undo).
     this.treeMode = false; this.showRep = false; this.lastMove = null; this.undoTimer = null;
+    // 0.26.0: bulk select (checkboxes), the "Archived" view, the id-prefix filter and the last Archive (for Undo). Per window, not saved.
+    this.picking = false; this.picked = new Set(); this.showArchived = false; this.idPrefix = ''; this.lastBulk = null; this.bulkTimer = null; this.shownIds = []; this.fopts = null;
     // 0.19.0: the editor sub-tab and whether the filter row is open, remembered per user (kit uiState).
     this.editorTab = uiMem().get('editorTab', 'content', EDITOR_TABS.map(t => t.id));
     this.filtersOpen = uiMem().get('filtersOpen', false, [true, false]);
@@ -240,7 +243,7 @@ export class LocationsApp extends Base {
     return choice === 'save';
   }
   list() {
-    if (this.gm) return api().listLocations();
+    if (this.gm) return api().listLocations({archived: this.showArchived ? 'only' : 'exclude'});
     // 0.24.0: places the party is at now come first for players (stable: the rest keep their order).
     return api().listLocations({includeUnidentified: true}).map((l, i) => [l, i]).sort((a, b) => (b[0].active === true) - (a[0].active === true) || a[1] - b[1]).map(x => x[0]);
   }
@@ -290,7 +293,8 @@ export class LocationsApp extends Base {
   async buildHtml() {
     const list = this.list();
     const creating = this.gm && this.draft && !this.draft.id;
-    if (!creating) {
+    if (this.gm) this.picked = new Set([...this.picked].filter(id => list.some(l => l.id === id)));
+    if (!creating && !(this.gm && this.showArchived)) {
       if (this.selectedId && !list.some(l => this.rid(l) === this.selectedId)) this.select(null);
       if (!this.selectedId && list.length) this.select(this.rid(list[0]));
       if (this.gm && this.selectedId && !this.draft) this.select(this.selectedId);
@@ -335,13 +339,17 @@ export class LocationsApp extends Base {
       if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, {questName: qName, materialName: id => mats.get(id) ?? id}), this.query));
       const searched = rows;
       rows = applyFilters(rows, this.filters).sort(comparator(this.sort, this.sortDesc));
-      filters = this.filterBarHtml(filterOptions(searched, this.filters, qName));
+      // 0.26.0: "Id starts with" narrows the list by permanent id (the one place an id is typed); Select all shown then takes exactly those.
+      if (idPrefix(this.idPrefix)) rows = rows.filter(l => l.id.startsWith(idPrefix(this.idPrefix)));
+      this.shownIds = rows.map(l => l.id);
+      this.fopts = filterOptions(searched, this.filters, qName);
+      filters = this.filterBarHtml(this.fopts);
       this.qName = qName;
     } else {
       const q = this.query.toLowerCase();
       rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
     }
-    const filtering = hasFilters(this.filters) || !!this.query.trim();
+    const filtering = hasFilters(this.filters) || !!this.query.trim() || !!idPrefix(this.idPrefix);
     let items;
     if (this.gm && this.treeMode) items = this.treeHtml(list, rows, filtering);
     else if (!this.gm) items = this.playerTreeHtml(list, rows, !!this.query.trim());
@@ -366,28 +374,43 @@ export class LocationsApp extends Base {
     // 0.19.0 (LOC-CR-02): one toolbar row; the filters, sort, group and "representative-only" open in a second row from Filters (n).
     const n = Object.values(this.filters).filter(Boolean).length;
     const quick = this.gm ? `<button type="button" class="ag-chip" id="agl-filters-toggle" aria-pressed="${this.filtersOpen}" aria-expanded="${this.filtersOpen}" aria-controls="agl-filter-row"${tip('Filter, sort and group the list')}><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters${n ? ` (${n})` : ''}</button>
-        <button type="button" class="ag-chip" id="agl-tree" aria-pressed="${this.treeMode}"${tip('Show locations inside their Regions, as folders')}><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Tree</button>` : '';
+        <button type="button" class="ag-chip" id="agl-tree" aria-pressed="${this.treeMode}"${tip('Show locations inside their Regions, as folders')}><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Tree</button>
+        ${this.showArchived ? '' : `<button type="button" class="ag-chip" id="agl-select" aria-pressed="${this.picking}"${tip('Tick several locations to archive or delete them together')}><i class="fa-solid fa-square-check" aria-hidden="true"></i> Select</button>`}
+        <button type="button" class="ag-chip" id="agl-archived" aria-pressed="${this.showArchived}"${tip(this.showArchived ? 'Back to the Locations list' : 'Archived locations: hidden from the list and from players, nothing lost')}><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Archived (${this.archivedCount()})</button>` : '';
     return `<div class="ag-toolbar agl-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations"></label>
         ${quick}${this.gm ? `<span class="ag-toolbar__count" aria-live="polite">Showing ${rows.length} of ${total}</span>` : ''}${end}</div>
       ${this.gm && this.filtersOpen ? filters : ''}
-      <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${this.undoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
+      <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${this.gm && this.pickMode ? this.bulkBarHtml() : ''}${this.undoHtml()}${this.bulkUndoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
         ${this.gm && rows.length ? `<p class="agl-hint">Drag a placeable location onto the scene to place a Map Note${this.treeMode ? '; drag one onto a folder to move it inside' : ''}.</p>` : ''}</aside>
-      <section class="agl-detail ag-split__detail">${this.gm ? this.editorHtml() : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
+      <section class="agl-detail ag-split__detail">${this.gm ? (this.showArchived ? this.archivedPanelHtml() : this.editorHtml()) : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
   }
 
-  /** One list row. GM: draggable onto the canvas (placeable ones, or all with "Show representative-only too") or onto a folder. */
-  rowButton(l) {
-    const gm = this.gm, rep = gm && !isPlaceable(l), selected = this.rid(l) === this.selectedId;
-    const drag = gm ? ` draggable="true" data-drag-type="${!rep || this.showRep ? 'AshenGateLocation' : 'AshenGateLocationMove'}"` : '';
+  /** Row-end badges shared by the normal and the tick-box row. */
+  rowEnd(l) {
+    const gm = this.gm, rep = gm && !isPlaceable(l);
     const restricted = gm ? l.audience?.mode === 'selected' : !!l.share;
-    return `<button type="button" class="ag-row agl-row${selected ? ' is-selected' : ''}"${selected ? ' aria-current="true"' : ''} data-action="select" data-id="${esc(this.rid(l))}"${drag}>
-        ${gm && l.isRegion ? mark('fa-solid fa-folder', 'Region (folder)', 'agl-row__icon') : ''}
-        <span class="ag-row__main"><span class="ag-row__title agl-row__name">${esc(l.name)}</span></span>
-        <span class="ag-row__end">${rep && !l.isRegion ? mark('fa-solid fa-layer-group', 'Representative only: not placed on maps') : ''}
+    return `<span class="ag-row__end">${rep && !l.isRegion ? mark('fa-solid fa-layer-group', 'Representative only: not placed on maps') : ''}
         ${restricted ? mark('fa-solid fa-user-lock', gm ? 'Selected players only' : 'Shared with selected players') : ''}
         ${l.active ? `<span class="ag-badge ag-badge--ok agl-active"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${gm ? 'Active' : 'Here now'}</span>` : ''}
         ${l.threat ? threatBadge(l.threat) : ''}
-        ${gm ? `${hasUnpublishedChanges(l) ? `<span class="agl-dot"${tip('Saved changes not published yet')} aria-hidden="true"></span><span class="ag-sr-only">Saved changes not published yet</span>` : ''}${mark(STATE_ICONS[l.state], STATE_LABELS[l.state])}` : ''}</span>
+        ${gm ? `${hasUnpublishedChanges(l) ? `<span class="agl-dot"${tip('Saved changes not published yet')} aria-hidden="true"></span><span class="ag-sr-only">Saved changes not published yet</span>` : ''}${mark(STATE_ICONS[l.state], STATE_LABELS[l.state])}` : ''}</span>`;
+  }
+  /** 0.26.0: GM select mode (and the Archived view): a tick box and the name in one label, so the whole row toggles and the keyboard reaches it. */
+  pickRow(l) {
+    const on = this.picked.has(l.id);
+    return `<div class="ag-row agl-row agl-row--pick${on ? ' is-picked' : ''}"><label class="agl-pick"><input type="checkbox" data-pick="${esc(l.id)}"${on ? ' checked' : ''}>
+        ${this.gm && l.isRegion ? mark('fa-solid fa-folder', 'Region (folder)', 'agl-row__icon') : ''}<span class="ag-row__title agl-row__name">${esc(l.name)}</span></label>${this.rowEnd(l)}</div>`;
+  }
+  get pickMode() { return this.gm && (this.picking || this.showArchived); }
+  /** One list row. GM: draggable onto the canvas (placeable ones, or all with "Show representative-only too") or onto a folder. */
+  rowButton(l) {
+    if (this.pickMode) return this.pickRow(l);
+    const gm = this.gm, rep = gm && !isPlaceable(l), selected = this.rid(l) === this.selectedId;
+    const drag = gm ? ` draggable="true" data-drag-type="${!rep || this.showRep ? 'AshenGateLocation' : 'AshenGateLocationMove'}"` : '';
+    return `<button type="button" class="ag-row agl-row${selected ? ' is-selected' : ''}"${selected ? ' aria-current="true"' : ''} data-action="select" data-id="${esc(this.rid(l))}"${drag}>
+        ${gm && l.isRegion ? mark('fa-solid fa-folder', 'Region (folder)', 'agl-row__icon') : ''}
+        <span class="ag-row__main"><span class="ag-row__title agl-row__name">${esc(l.name)}</span></span>
+        ${this.rowEnd(l)}
       </button>`;
   }
   /** One tree node and, if open, its children. GM Regions are folders: counts, drop target, New place inside. */
@@ -448,6 +471,113 @@ export class LocationsApp extends Base {
       ${this.treeMode ? '' : plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
       <label class="ag-field ag-field--inline agl-switch"${tip('Representative-only locations (most Regions) are not offered for placing on a map unless this is on')}><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>
       ${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost sm', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div></div>`;
+  }
+
+  // ---------- 0.26.0 bulk select, Archive, Restore, Delete (GM) ----------
+  archivedCount() { try { return api().countArchived(); } catch { return 0; } }
+  /** The bar above the list while ticking: counts, Region and "Id starts with" narrowing, Select all shown, and the actions. */
+  bulkBarHtml() {
+    const n = this.picked.size, shown = this.shownIds.length, hidden = [...this.picked].filter(id => !this.shownIds.includes(id)).length;
+    const region = this.fopts?.region ?? [];
+    const act = (a, label, opts) => { const h = btn(a, label, {kind: 'sm', ...opts}); return n ? h : h.replace('<button ', '<button disabled '); };
+    return `<div class="agl-bulk" role="group" aria-label="Select locations">
+      <span class="agl-bulk__count" role="status" aria-live="polite">${n} selected${hidden ? ` (${hidden} not shown)` : ''} · ${shown} shown</span>
+      <div class="agl-bulk__narrow"><label class="ag-field ag-field--inline agl-ctl"><span>Region</span><select data-filter="region" aria-label="Filter by region"><option value="">All</option>${region.map(o =>
+        `<option value="${esc(o.value)}" ${this.filters.region === o.value ? 'selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>
+        <label class="ag-field ag-field--inline agl-ctl"><span>Id starts with</span><input type="search" id="agl-prefix" value="${esc(this.idPrefix)}" placeholder="Start of an id, e.g. LOC-" autocomplete="off" spellcheck="false" aria-label="Show only locations whose id starts with"></label></div>
+      <div class="ag-btn-group">${btn('bulk-all', `Select all ${shown} shown`, {kind: 'sm', icon: 'fa-solid fa-check-double'})}${btn('bulk-clear', 'Clear selection', {kind: 'ghost sm'})}
+        ${this.showArchived ? act('bulk-restore', 'Restore…', {icon: 'fa-solid fa-box-open'}) : act('bulk-archive', 'Archive…', {icon: 'fa-solid fa-box-archive'})}${act('bulk-delete', 'Delete…', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}</div></div>`;
+  }
+  /** After an Archive or Restore: what happened, with Undo (kept 30 seconds). */
+  bulkUndoHtml() {
+    const m = this.lastBulk;
+    if (!m || !this.gm) return '';
+    return `<div class="agl-undo" role="status"><span>${m.kind === 'archive' ? 'Archived' : 'Restored'} <strong>${m.ids.length}</strong> ${m.ids.length === 1 ? 'location' : 'locations'}.</span>${btn('undo-bulk', 'Undo', {kind: 'sm', icon: 'fa-solid fa-rotate-left'})}</div>`;
+  }
+  /** The detail pane while the Archived list is showing (archived locations are not edited in place). */
+  archivedPanelHtml() {
+    const n = this.archivedCount();
+    return `<div class="ag-empty"><i class="fa-solid fa-box-archive" aria-hidden="true"></i><p class="ag-empty__title">${n ? `${n} archived ${n === 1 ? 'location' : 'locations'}` : 'Nothing is archived'}</p>
+      <p class="ag-empty__text">Archived locations are off the Locations list and invisible to players. Their content, state and Party Notes are kept. Tick some and choose <strong>Restore…</strong> to bring them back, or <strong>Delete…</strong> to remove them for good.</p>
+      ${btn('show-live', 'Back to Locations', {kind: 'sm', icon: 'fa-solid fa-arrow-left'})}</div>`;
+  }
+  /** Redraws only the bulk bar (a tick box changed), so focus and scroll stay where they are. */
+  paintBar(root) {
+    const old = root?.querySelector?.('.agl-bulk');
+    if (!old) return;
+    old.outerHTML = this.bulkBarHtml();
+    const bar = root.querySelector('.agl-bulk');
+    for (const el of bar.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
+    for (const el of bar.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
+    this.bindPrefix(bar.querySelector('#agl-prefix'));
+  }
+  bindPrefix(input) { input?.addEventListener('input', e => { this.idPrefix = e.target.value; this.searchSoon('#agl-prefix'); }); }
+  /** A tick box changed. */
+  onPick(el, root) { el.checked ? this.picked.add(el.dataset.pick) : this.picked.delete(el.dataset.pick); el.closest('.agl-row')?.classList?.toggle('is-picked', el.checked); this.paintBar(root); }
+  /** Downloads the JSON file for these locations (the same package Export writes). */
+  downloadPackage(pkg, name) {
+    const blob = new Blob([JSON.stringify(pkg, null, 2)], {type: 'application/json'});
+    const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(blob), download: name});
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  /** Archive…, Restore… and Delete… on the ticked locations: preview first, one action, nothing written until the labelled button. */
+  async bulkAction(kind) {
+    if (!this.picked.size) return ui.notifications.warn('Tick one or more locations first.');
+    let plan = api().previewBulk(kind, [...this.picked]);
+    // Delete never leaves a place behind: offer to add the places inside, until none is left outside the selection.
+    while (kind === 'delete' && plan.blocked.length) {
+      const list = plan.blocked.map(b => `<li><strong>${esc(b.name)}</strong> has ${b.children.length} ${b.children.length === 1 ? 'place' : 'places'} inside it: ${esc(b.children.slice(0, 6).join(', '))}${b.children.length > 6 ? `, and ${b.children.length - 6} more` : ''}</li>`).join('');
+      const choice = await choiceDialog('Places inside are not selected', `<p>A location cannot be deleted while places inside it stay behind.</p><ul>${list}</ul>`,
+        [{action: 'add', label: 'Also select the places inside', icon: 'fa-solid fa-sitemap', default: true}], {cancel: 'Cancel'});
+      if (choice !== 'add') return;
+      for (const b of plan.blocked) for (const id of b.childIds) this.picked.add(id);
+      plan = api().previewBulk(kind, [...this.picked]);
+    }
+    if (!plan.targets.length) return infoDialog('Nothing to change', `<ul>${plan.skipped.map(s => `<li><strong>${esc(s.name)}</strong>: ${esc(s.reason)}</li>`).join('')}</ul>`);
+    const n = plan.targets.length, what = `${n} ${n === 1 ? 'location' : 'locations'}`, verb = BULK_VERBS[kind];
+    if (this.draft?.id && plan.targets.some(t => t.id === this.draft.id) && !(await this.confirmDiscard())) return;
+    const ids = plan.targets.map(t => t.id);
+    if (kind === 'delete') {
+      const ok = await choiceDialog(`Delete ${what}?`, previewHtml(plan), [{action: 'backup', label: 'Download backup, then continue…', icon: 'fa-solid fa-file-arrow-down', default: true}]);
+      if (ok !== 'backup') return;
+      this.downloadPackage(api().exportPackage({ids}), `ashen-gate-locations-backup-${ids.length}.json`);
+      const sure = await confirmDanger(`The backup file was downloaded. ${what} will be deleted for good, with their map pins${plan.pins.some(p => p.managed) ? '' : ' (there are none placed)'}. This cannot be undone except by importing the backup.`,
+        {title: `Delete ${what}?`, yes: `Delete ${what}`});
+      if (!sure) return;
+      const r = await api().deleteLocations(ids);
+      this.picked = new Set([...this.picked].filter(id => !r.deleted.includes(id)));
+      if (r.deleted.includes(this.selectedId)) this.select(null);
+      if (r.pins.kept.length) await infoDialog('Some map pins were left', `<p>These pins were changed by hand in Foundry, so they were not removed. Delete them on the scene if you no longer need them.</p><ul>${r.pins.kept.map(k => `<li>${esc(k.name || 'Scene')}: ${k.count} ${k.count === 1 ? 'pin' : 'pins'}</li>`).join('')}</ul>`);
+      ui.notifications.info(`Deleted ${r.deleted.length} ${r.deleted.length === 1 ? 'location' : 'locations'}${r.pins.removed ? ` and ${r.pins.removed} map ${r.pins.removed === 1 ? 'pin' : 'pins'}` : ''}. The backup file was downloaded.`);
+      return this.render();
+    }
+    const go = await choiceDialog(`${verb[0]} ${what}?`, previewHtml(plan), [{action: 'go', label: `${verb[0]} ${what}`, icon: kind === 'archive' ? 'fa-solid fa-box-archive' : 'fa-solid fa-box-open', default: true}]);
+    if (go !== 'go') return;
+    const r = await (kind === 'archive' ? api().archiveLocations(ids) : api().restoreLocations(ids));
+    const done = r.archived ?? r.restored;
+    this.picked = new Set([...this.picked].filter(id => !done.includes(id)));
+    if (kind === 'archive' && done.includes(this.selectedId)) this.select(null);
+    clearTimeout(this.bulkTimer);
+    this.lastBulk = {kind, ids: done};
+    this.bulkTimer = setTimeout(() => { this.lastBulk = null; if (this.rendered) this.render().catch(notifyError); }, 30000);
+    ui.notifications.info(`${verb[1]} ${done.length} ${done.length === 1 ? 'location' : 'locations'}.`);
+    return this.render();
+  }
+  /** Undo for the last Archive or Restore. */
+  async undoBulk() {
+    const m = this.lastBulk;
+    if (!m) return;
+    clearTimeout(this.bulkTimer); this.lastBulk = null;
+    await (m.kind === 'archive' ? api().restoreLocations(m.ids) : api().archiveLocations(m.ids));
+    ui.notifications.info(`${m.kind === 'archive' ? 'Restored' : 'Archived'} ${m.ids.length} ${m.ids.length === 1 ? 'location' : 'locations'} again.`);
+    return this.render();
+  }
+  /** Switches between the Locations list and the Archived list; asks before unsaved edits are lost. */
+  async setArchivedView(on) {
+    if (on === this.showArchived) return;
+    if (!(await this.confirmDiscard())) return;
+    this.showArchived = on; this.picked.clear(); this.select(null); this.lastBulk = null;
+    await this.render(); this.focusBack('#agl-archived');
   }
 
   // ---------- player viewer ----------
@@ -561,7 +691,7 @@ export class LocationsApp extends Base {
   editorHtml() {
     const d = this.draft;
     if (!d) return '<div class="ag-empty"><p class="ag-empty__title">No location selected</p><p class="ag-empty__text">Pick one from the list, or create one with New location.</p></div>';
-    const all = api().listLocations();
+    const all = api().listLocations({archived: 'include'});
     const quests = questChoices();
     const fld = (f, control) => `<div class="ag-field agl-field"><label for="agl-${f}">${FIELD_LABELS[f]}</label><div class="agl-field__row">${control}${eye(`show.${f}`, d.show[f], FIELD_LABELS[f])}</div></div>`;
     const label = key => BLOCKS.find(b => b.key === key)?.label ?? key;
@@ -752,7 +882,7 @@ export class LocationsApp extends Base {
   async convertRoutesDialog() {
     const plan = await api().convertRoutes();
     const li = items => `<ul>${items.join('')}</ul>`;
-    const names = new Map(api().listLocations().map(l => [l.id, l.name]));
+    const names = new Map(api().listLocations({archived: 'include'}).map(l => [l.id, l.name]));
     const parts = [];
     if (plan.convert.length) parts.push(`<p>These routes become new locations of type <em>Route</em>, Hidden, each inside its start location's parent (or inside the start location at the top level). The stored routes are not changed.</p>
       ${li(plan.convert.map(c => `<li><strong>${esc(c.name)}</strong> → inside ${esc(names.get(c.parentId) ?? 'the top level')}${c.notes.map(n => ` <small>${esc(n)}</small>`).join('')}</li>`))}`);
@@ -1098,6 +1228,10 @@ export class LocationsApp extends Base {
     root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.render(); });
     root.querySelector('#agl-sort')?.addEventListener('change', e => { this.sort = e.target.value; this.render(); });
     root.querySelector('#agl-sortdir')?.addEventListener('click', () => { this.sortDesc = !this.sortDesc; this.render(); });
+    root.querySelector('#agl-select')?.addEventListener('click', async () => { this.picking = !this.picking; if (!this.picking) this.picked.clear(); await this.render(); this.focusBack('#agl-select'); });
+    root.querySelector('#agl-archived')?.addEventListener('click', () => this.setArchivedView(!this.showArchived).catch(notifyError));
+    this.bindPrefix(root.querySelector('#agl-prefix'));
+    for (const el of root.querySelectorAll('[data-pick]')) el.addEventListener('change', () => this.onPick(el, root));
     root.querySelector('#agl-tree')?.addEventListener('click', async () => { this.treeMode = !this.treeMode; await this.render(); this.focusBack('#agl-tree'); });
     root.querySelector('#agl-showrep')?.addEventListener('change', e => { this.showRep = e.target.checked; this.render(); });
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
@@ -1389,6 +1523,13 @@ export class LocationsApp extends Base {
       case 'save-setup': return this.saveSetup(root);
       case 'setup-cancel': return this.render();
       case 'cancel': this.select(this.draft?.id || null); return this.render();
+      case 'bulk-all': for (const id of this.shownIds) this.picked.add(id); await this.render(); return this.focusBack('[data-action="bulk-all"]');
+      case 'bulk-clear': this.picked.clear(); await this.render(); return this.focusBack('[data-action="bulk-clear"]');
+      case 'bulk-archive': return this.bulkAction('archive');
+      case 'bulk-restore': return this.bulkAction('restore');
+      case 'bulk-delete': return this.bulkAction('delete');
+      case 'undo-bulk': return this.undoBulk();
+      case 'show-live': return this.setArchivedView(false);
       case 'delete': {
         if (!this.draft.id) { this.select(null); return this.render(); }
         const ok = await confirmDanger(`Links to ${this.draft.name} from other locations stop working, and its Map Notes stop opening it.`,
@@ -1535,7 +1676,7 @@ export class LocationsApp extends Base {
     const r = await api().moveLocation(id, to || '');
     if (r.from === r.to) return;
     if (this.draft?.id === id) { if (this.dirty) this.draft.parentLocationId = r.to; else this.select(id); }
-    const names = new Map(api().listLocations().map(l => [l.id, l.name]));
+    const names = new Map(api().listLocations({archived: 'include'}).map(l => [l.id, l.name]));
     if (r.to) LocationsApp.treeOpen.add(r.to);
     clearTimeout(this.undoTimer);
     this.lastMove = undo ? null : {...r, name: names.get(id) ?? 'The place', toName: names.get(r.to) ?? 'the new place'};
@@ -1706,6 +1847,11 @@ export class LocationsApp extends Base {
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
         '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
         '<em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
+      topic('Select, Archive and Delete', [
+        '<strong>Select</strong> (toolbar) puts a tick box on every row. Tick locations one by one, or narrow the list first and click <strong>Select all N shown</strong>: use <em>Region</em>, the other Filters, the search box, or <em>Id starts with</em> (for example <code>LOC-FRONTIER-</code>; the one place an id is typed). The bar above the list counts what is selected and what is shown.',
+        '<strong>Archive…</strong> is the safe way to clear the list. It shows exactly which locations it will archive, then moves them out of the Locations list and hides them from players, as if Hidden. Nothing is lost: content, state, audience, Party Notes and map pins are kept (the pins stay on the scene for you and vanish for players). <strong>Undo</strong> appears for 30 seconds, and <strong>Archived (n)</strong> lists them any time: tick some and choose <strong>Restore…</strong>. Places inside an archived Region are not archived with it unless you select them too.',
+        '<strong>Delete…</strong> removes locations for good. It lists what goes, downloads a JSON backup of exactly those locations (Import brings them back), then asks <em>Delete N locations</em>; Cancel is the default. A location with places inside it cannot be deleted unless those places are in the selection: the window offers to add them. Map pins this module placed are removed; pins you changed by hand in Foundry are kept and listed. Party Notes stay stored privately and return if the same location is imported again.',
+        'Importing again: an archived location <strong>stays archived</strong> when General Manager imports it again (an update import still refreshes its definition). A deleted one comes back if its record is in a pack Manager imports, so use Archive for places you want to keep out of the world.']),
       topic('Gathering', [
         'Each gathering node shows its name, skill, tier, DC and status on one row; <strong>Edit node</strong> opens its materials, availability, note and optional <em>Exotic materials</em> (GM only, never shown to players). DC is 10/12/15/18/20 by tier; a DC you set stays. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.',
         '<strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it.',

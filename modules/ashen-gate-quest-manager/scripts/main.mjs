@@ -2,8 +2,9 @@ import {migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES,WORK_ORDER_DOMAINS} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHint,questsAdvanced,filterLabel,editorSection,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
 import {filterActive,openStates,readStored,setAll,storeKey,domKey,toolbarState} from './group-folds.mjs';
-import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED} from './quests-tab.mjs';
-import {planBulk,runBulk,confirmText} from './bulk.mjs';
+import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount,hideIds,UNTITLED,idPrefixOf} from './quests-tab.mjs';
+import {planBulk,runBulk,confirmText,backupPackage} from './bulk.mjs';
+import {createBulkApi} from './bulk-api.mjs';
 import {runSupersede} from './supersede.mjs';
 import {getPrivate,allPrivate,findProjection,visibleViews,visibleById,saveRecord,updateState,removeRecord,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
@@ -12,7 +13,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState,overlayState,clampOpacity,clampPosition} from './tracking.mjs';
 import {captureView,restoreView} from './view-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
+import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,bindTablist,bindSplitNav,bindFolds,bindFileButtons,linkButton,refPicker,refList,readRefList,bindRefPickers,bindRefLists,generateId} from './ag-html.mjs';
 import {KIND_PREFIX,newQuestId,readLinks,applyLinks,rememberLinkNames,locationRecords,npcRecords,factionRecords,questRecords,linkOptions} from './quest-links.mjs';
 import {readDrop,worldItemById} from './ag-item-drop.mjs';
@@ -22,7 +23,7 @@ import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 import {createShowToPlayers,showQuestFlow,SHOW_SOCKET_TYPE} from './show-to-players.mjs';
 
-const VERSION='0.28.0';
+const VERSION='0.29.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -251,14 +252,16 @@ function rowContext(){
  const safe=fn=>id=>{try{return fn(id)??null;}catch{return null;}};
  return {actorName:safe(id=>game.actors.get(id)?.name),locationName:safe(id=>getLoc?.(id)?.name),locationRegion:safe(id=>getLoc?.(id)?.region),itemName:safe(id=>worldItemById(id)?.name)};
 }
+// 0.29.0: the GM-only bulk Archive / Restore / Delete API (bulk-api.mjs); the Quests tab calls the same store functions.
+const bulkApi=createBulkApi({assertGM:()=>assertGM(game.user),entries:()=>stateForGM(),updateState,removeRecord,assignmentCount:id=>listAssignments({objectiveId:id}).length});
 function gmList(view){return listQuestsTab(stateForGM(),view,rowContext());}
 // 0.17.0 Toolbar (Filters (n) opens a second row), then the bulk row once quests are ticked, then list and editor (QL-05).
 function questsPanel(app,rewardsHtml=''){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===app.gmId)||null;
- const {groups,locations,levels,regions,givers,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
+ const {groups,locations,levels,regions,givers,packs,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
  app.shownIds=ids;app.picked=new Set([...app.picked].filter(id=>rows.some(x=>x.source.id===id)));
  const cards=app.groupCards(groups,total);
- return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,folds:app.fold})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split" data-ag-scroll="split:gm"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
+ return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers,packs,folds:app.fold})}${bulkBar(app.picked.size,shown,{archivedView:app.qv.nav==='archived'})}${app.undoArchiveHtml()}<div class="ag-split agq-split" data-ag-scroll="split:gm"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${cards}</div>${questsAdvanced()}</aside>
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true,showOpensWindow:game.settings.get(MOD,'showOpensWindow')!==false});}
@@ -295,7 +298,7 @@ class QuestLogApplication extends Base {
  // Compact size here; Comfortable scales it when the window opens (windowSize).
  constructor(options={}){super({...options,position:{...windowSize(QuestLogApplication.DEFAULT_OPTIONS.position),...options.position}});this.ui=uiState(MOD);this.filtersOpen=this.ui.get('filtersOpen',false,[true,false]);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.statusFilter='all';
   // 0.15.0 The GM's last sub-view, sort, group and editor sections come back (User flag gmView); search starts empty.
-  this.gmPrefs=gmViewState(hasGM()?game.user?.getFlag?.(MOD,'gmView'):null);this.qv={...DEFAULT_VIEW,nav:this.gmPrefs.nav,sort:this.gmPrefs.sort,group:this.gmPrefs.group};this.picked=new Set();this.openCards=new Set();this.shownIds=[];}
+  this.gmPrefs=gmViewState(hasGM()?game.user?.getFlag?.(MOD,'gmView'):null);this.qv={...DEFAULT_VIEW,nav:this.gmPrefs.nav,sort:this.gmPrefs.sort,group:this.gmPrefs.group};this.picked=new Set();this.openCards=new Set();this.shownIds=[];this.lastArchive=null;this.archiveTimer=null;}
  // 0.17.0 The quest editor's unsaved state is a kit guardDirty: tab switch, picking another quest, New quest, Cancel and
  // closing the window all ask "Discard unsaved changes?" (Keep editing is the default).
  get guard(){return this._guard??=guardDirty({status:()=>this.element?.querySelector?.('[data-source-status]'),message:'Your quest changes have not been saved.'});}
@@ -385,6 +388,7 @@ class QuestLogApplication extends Base {
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). <em><em>Export</em> opens the list of downloads: <em>Export Journal</em> (on a player journal) and <em>Export Group Journal</em> download every session of that journal as one Markdown file. The GM and whoever started a session can rename it (pencil); the GM can also set its date and its <em>Session number</em> (the first session is 0). <em>More… &gt; Next session number…</em> sets the number the next <em>New session</em> uses. The toolbar has bold, italic, underline, strikethrough, highlight, headings, lists, quote and divider; <em>Auto format…</em> shows what it would tidy (spaces, blank lines, bullet and numbered lines, punctuation spacing) and <em>Undo auto format</em> puts the text back.${gm?' Under the party journal, <em>GM-only notes</em> is a section players cannot see. <em>Export GM Journal</em>, <em>Export This Session</em>, <em>Archive session</em> and, for an archived session, <em>Delete session…</em> sit under the session title.':''}</p>
   ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest is one line: the title and status, then progress, visibility, kind, level, location, giver and last change as the list gets wider (a long title ends in an ellipsis; hover it for the full name). The chevron at the end of a row opens every fact in place. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver. Each group header folds open and closed (Enter or Space on it too), with <em>Collapse all</em> and <em>Expand all</em> next to Sort; while a search or filter is on, groups with matches stay open. Your open and closed choices are remembered for you, per grouping.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>A new quest's ID is made from its title and never changes; you never type one. In <em>Links</em>, pick the quest giver, faction, locations and prerequisite quests by name. A link to something that has been deleted reads <em>Missing</em> with <em>Replace…</em>.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  <h3>Select, Archive and Delete (GM)</h3><ul><li>Tick quests on the Quests list (or <em>Select all N shown</em> after narrowing the list: Search, <em>Filters</em> → Type, Location, Source pack, <em>Id starts with</em> such as <code>QUEST-FRONTIER-</code>, and the rest). A bar above the list counts what is selected.</li><li><strong>Archive…</strong> shows which quests it will archive, then takes them off the list and away from players, as if Hidden. Status, progress, notes and rewards are kept. <em>Undo</em> shows for 30 seconds; the <strong>Archived</strong> view (with its count) lists them, where <strong>Restore…</strong> brings them back exactly as they were.</li><li><strong>Delete…</strong> lists what goes, downloads a JSON backup of exactly those quests (the same file <em>Export JSON</em> writes, with their play state under <code>states</code>), then asks <em>Delete N quests</em>; Cancel is the default. Quests with assignments are left alone until the assignments are removed. Character notes are kept in a GM archive. Locations and other modules that still name a deleted or archived quest just ignore the link.</li><li>A quest that Manager imports again keeps its archived state: an import never changes play state.</li></ul>
   <h3>Show to Players</h3><p>At the top of a quest's editor, <em>Show to Players</em> opens that quest in the Quest Log on every other connected player's screen that may see it (a character-only quest goes to that character's players) and tells you how many players it reached. If the quest is not visible to players yet, you are asked <em>Reveal it, then show it?</em> first; drafts and GM-only quests are never revealed this way. A player who is typing in the Quest Log gets a notification instead of the window switching. Turn off <em>Players' windows open automatically when the GM shows a quest</em> in GM Setup to send notifications only.</p>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
@@ -468,7 +472,8 @@ class QuestLogApplication extends Base {
  }
  // Views, filters, sort and group redraw the list only, so the editor and its unsaved edits stay.
  bindToolbar(root){
-  for(const [id,key] of [['type','type'],['location','location'],['level','level'],['region','region'],['giver','giver'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',e=>{this.qv[key]=e.target.value;if(key==='sort'||key==='group')this.saveGmView({[key]:e.target.value});this.paintFilterCount(root);this.paintList(root);});
+  for(const [id,key] of [['type','type'],['location','location'],['level','level'],['region','region'],['giver','giver'],['visible','visible'],['pack','pack'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',e=>{this.qv[key]=e.target.value;if(key==='sort'||key==='group')this.saveGmView({[key]:e.target.value});this.paintFilterCount(root);this.paintList(root);});
+  const prefix=root.querySelector('#ag-gm-prefix');prefix?.addEventListener('input',()=>{this.qv.idPrefix=prefix.value;this.paintFilterCount(root);this.paintList(root);});
   const gmSearch=root.querySelector('#ag-gm-search');gmSearch?.addEventListener('input',()=>{this.qv.search=gmSearch.value;this.paintList(root);});
  }
  bindNav(root){
@@ -478,8 +483,8 @@ class QuestLogApplication extends Base {
  // Clear filters puts the toolbar controls back too (redrawn and rebound), then the list.
  paintToolbar(root){
   const bar=root.querySelector('.agq-bars');if(!bar)return;
-  const {locations,levels,regions,givers,shown,total,groups}=gmList(this.qv);this.groupCards(groups,total);
-  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen,levels,regions,givers,folds:this.fold});
+  const {locations,levels,regions,givers,packs,shown,total,groups}=gmList(this.qv);this.groupCards(groups,total);
+  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen,levels,regions,givers,packs,folds:this.fold});
   for(const b of root.querySelector('.agq-bars')?.querySelectorAll('[data-action]')??[])b.addEventListener('click',()=>this.action(b,root));
   this.bindToolbar(root);this.paintNav(root);this.paintList(root);
  }
@@ -535,8 +540,10 @@ class QuestLogApplication extends Base {
   wrap.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
   this.bindPicks(root,wrap);this.bindMore(wrap);
  }
+ /** After a bulk Archive or Restore: what happened, with Undo (30 seconds). */
+ undoArchiveHtml(){const m=this.lastArchive;if(!m)return '';return `<div class="agq-bulk agq-undo" id="ag-gm-undo" role="status"><span>${m.kind==='archive'?'Archived':'Restored'} <strong>${m.ids.length}</strong> ${m.ids.length===1?'quest':'quests'}.</span>${safeButton('Undo','undo-archive',{sm:true,icon:'fa-rotate-left'})}</div>`;}
  paintBulk(root){
-  for(const [sel,html] of [['#ag-gm-bulk',bulkBar(this.picked.size,this.shownIds.length)],['#ag-gm-bulkhint',bulkHint(this.picked.size,this.shownIds.length)]]){
+  for(const [sel,html] of [['#ag-gm-bulk',bulkBar(this.picked.size,this.shownIds.length,{archivedView:this.qv.nav==='archived'})],['#ag-gm-bulkhint',bulkHint(this.picked.size,this.shownIds.length)]]){
    const bar=root.querySelector(sel);if(!bar)continue;bar.outerHTML=html;
    root.querySelector(sel)?.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
   }
@@ -584,16 +591,30 @@ class QuestLogApplication extends Base {
   // A bulk action redraws the window; it never runs over unsaved edits in the editor.
   if(this.unsavedSource)throw new Error('Save or cancel your changes to the open quest first.');
   const status=kind==='status'?root.querySelector('#ag-bulk-status')?.value||null:null;
-  const plan=planBulk(kind,entries,ids,{status});
+  const plan=planBulk(kind,entries,ids,{status,assignments:id=>listAssignments({objectiveId:id}).length});
   if(!plan.changes.length)return await infoDialog('Nothing to change',`<ul>${plan.skipped.map(s=>`<li><strong>${E(s.name)}</strong>: ${E(s.reason)}</li>`).join('')}</ul>`);
   const n=plan.changes.length,q=n===1?'quest':'quests';
-  const ask={status:{title:`Set ${n} ${q} to ${status}?`,yes:`Set ${n} to ${status}`},reveal:{title:`Reveal ${n} ${q}?`,yes:`Reveal ${n} ${q}`},delete:{title:`Delete ${n} ${q}?`,yes:`Delete ${n} ${q}`,danger:true}}[kind];
-  if(ask&&!await (ask.danger?confirmDanger:confirmDialog)(confirmText(kind,plan,{status}),ask))return;
+  // A bulk Archive or Delete of the quest open in the editor would drop its unsaved edits: the guard above already refused.
+  const ask={status:{title:`Set ${n} ${q} to ${status}?`,yes:`Set ${n} to ${status}`},reveal:{title:`Reveal ${n} ${q}?`,yes:`Reveal ${n} ${q}`},archive:{title:`Archive ${n} ${q}?`,yes:`Archive ${n} ${q}`},
+   restore:{title:`Restore ${n} ${q}?`,yes:`Restore ${n} ${q}`},delete:{title:`Delete ${n} ${q}?`,yes:`Delete ${n} ${q}`,danger:true}}[kind];
+  // Delete: the backup file is downloaded first (one click on the labelled button, before anything is removed), then the confirm names the file.
+  if(kind==='delete'){
+   const go=await choiceDialog(ask.title,`<p><strong>${n}</strong> ${q} will be deleted for good:</p><ul style="max-height:14em;overflow:auto">${plan.changes.slice(0,40).map(c=>`<li>${E(c.name)}</li>`).join('')}${n>40?`<li><em>and ${n-40} more</em></li>`:''}</ul>${plan.willHide.length?`<p>Players lose ${plan.willHide.length} of them from their Quest Log.</p>`:''}<p>Character notes are kept in a GM-only archive. Links to these quests from Locations and other modules are ignored afterwards, not errors.</p>${plan.skipped.length?`<p>Left as they are: ${plan.skipped.map(s=>`${E(s.name)} (${E(s.reason)})`).join('; ')}</p>`:''}`,
+    [{action:'backup',label:'Download backup, then continue…',icon:'fa-solid fa-file-arrow-down',default:true}]);
+   if(go!=='backup')return;
+   dialogDownload(`AG_Quest_Backup_${plan.changes.length}.json`,JSON.stringify(backupPackage(entries,plan.changes.map(c=>c.id)),null,2));
+   if(!await confirmDanger(confirmText(kind,plan,{status}),ask))return;
+  }else if(kind==='archive'||kind==='restore'){
+   const go=await choiceDialog(ask.title,`<p>${E(confirmText(kind,plan).split('\n')[0])}</p><ul style="max-height:14em;overflow:auto">${plan.changes.slice(0,40).map(c=>`<li>${E(c.name)}</li>`).join('')}${n>40?`<li><em>and ${n-40} more</em></li>`:''}</ul>${plan.willHide.length?`<p>Players no longer see: ${plan.willHide.map(E).join(', ')}.</p>`:''}${plan.willShow.length?`<p>Players will see again: ${plan.willShow.map(E).join(', ')}.</p>`:''}${plan.skipped.length?`<p>Left as they are: ${plan.skipped.map(s=>`${E(s.name)} (${E(s.reason)})`).join('; ')}</p>`:''}`,
+    [{action:'go',label:ask.yes,icon:kind==='archive'?'fa-solid fa-box-archive':'fa-solid fa-box-open',default:true}]);
+   if(go!=='go')return;
+  }else if(ask&&!await confirmDialog(confirmText(kind,plan,{status}),ask))return;
   const res=await runBulk(kind,plan,{updateState,saveRecord,removeRecord,existingIds:new Set(entries.map(e=>e.source.id)),sourceOf:id=>getPrivate(id)?.getFlag(MOD,'source')});
-  if(kind==='delete'||kind==='duplicate'){for(const d of res.done)this.picked.delete(d.id);}
+  if(kind==='delete'||kind==='duplicate'||kind==='archive'||kind==='restore'){for(const d of res.done)this.picked.delete(d.id);}
+  if(kind==='archive'||kind==='restore'){clearTimeout(this.archiveTimer);this.lastArchive=res.done.length?{kind,ids:res.done.map(d=>d.id)}:null;if(this.lastArchive)this.archiveTimer=setTimeout(()=>{this.lastArchive=null;if(this.element)this.render().catch(notifyError);},30000);}
   if(kind==='delete'&&res.done.some(d=>d.id===this.gmId)){this.gmId=null;this.unsavedSource=false;}
   const left=[...plan.skipped,...res.failed.map(f=>({...f,reason:`Not changed: ${f.reason}`}))];
-  const verb={status:`set to ${status}`,hide:'hidden from players',reveal:'revealed',duplicate:'copied as drafts',delete:'deleted'}[kind];
+  const verb={status:`set to ${status}`,hide:'hidden from players',reveal:'revealed',duplicate:'copied as drafts',delete:'deleted',archive:'archived',restore:'restored'}[kind];
   if(left.length)await infoDialog('Bulk action finished',`<p>${res.done.length} ${res.done.length===1?'quest':'quests'} ${E(verb)}.</p><ul>${left.map(s=>`<li><strong>${E(s.name)}</strong>: ${E(s.reason)}</li>`).join('')}</ul>`);
   else ui.notifications.info(`${res.done.length} ${res.done.length===1?'quest':'quests'} ${verb}.`);
   return await this.render();
@@ -632,6 +653,7 @@ class QuestLogApplication extends Base {
    if(action==='add-objective'){
      const wrap=root.querySelector('#ag-source-objective-list');const used=new Set([...wrap.querySelectorAll('.ag-src-obj-key')].map(x=>x.value));let n=1;while(used.has(`step_${n}`))n++;wrap.insertAdjacentHTML('beforeend',objectiveFormRow({key:`step_${n}`,goal:'New objective',visibility:'player'}));return this.markDirty(root);
    }
+   if(action==='undo-archive'){const m=this.lastArchive;if(!m)return;clearTimeout(this.archiveTimer);this.lastArchive=null;await (m.kind==='archive'?bulkApi.restoreQuests(m.ids,{source:'window'}):bulkApi.archiveQuests(m.ids,{source:'window'}));ui.notifications.info(`${m.ids.length} ${m.ids.length===1?'quest':'quests'} ${m.kind==='archive'?'restored':'archived'} again.`);return await this.render();}
    if(action.startsWith('bulk-'))return await this.bulk(action.slice(5),root);
    if(action==='cancel-edit'){if(!await this.guard.confirm())return;this.sourceJsonEdited=false;return await this.render();}
    if(action==='toggle-filters')return this.toggleFilters(root);
@@ -914,7 +936,11 @@ Hooks.once('ready',()=>{
   supersedeIds:(map,options)=>runSupersede(map,options,{assertGM:()=>assertGM(game.user),records:()=>allPrivate().map(x=>({id:x.source.id,source:x.source,state:x.state})),
    save:(id,source,state)=>saveRecord(source,{state,replace:true})}),
   // Every Quest, Order and Contract regardless of reveal status (Hidden ones included). `status` is the play state; `definitionStatus` is the source's own (draft, approved...).
-  listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status,kind:x.source.objective_kind,definitionStatus:x.source.status}));},
+  // Archived quests are left out unless asked for (0.29.0), so pickers in other modules never offer one.
+  listQuests:({includeArchived=false}={})=>{assertGM(game.user);return stateForGM().filter(x=>includeArchived===true||x.state.archived!==true).map(x=>({id:x.source.id,name:x.source.name,status:x.state.status,kind:x.source.objective_kind,definitionStatus:x.source.status,...(x.state.archived===true?{archived:true}:{})}));},
+  // 0.29.0, GM only (refused for players in bulk-api.mjs): bulk Archive / Restore / Delete. See the README.
+  previewBulk:(action,ids)=>bulkApi.previewBulk(action,ids),archiveQuests:(ids,options)=>bulkApi.archiveQuests(ids,options),restoreQuests:(ids,options)=>bulkApi.restoreQuests(ids,options),deleteQuests:ids=>bulkApi.deleteQuests(ids),
+  idsWithPrefix:(prefix,options)=>bulkApi.idsWithPrefix(prefix,options),countArchived:()=>bulkApi.countArchived(),
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},

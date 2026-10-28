@@ -44,7 +44,7 @@ export function questCard(r,{selected=false,picked=false,now=Date.now(),expanded
  const rewards=rewardText(r.rewards),changed=changedLabel(r.changed,now);
  const kind=`${E(r.kindLabel)}${r.detail?` · ${E(r.detail)}`:''}`;
  const more=`agq-more-${domKey('card',r.id)}`,verbText=expanded?'Hide':'Show';
- const detail=`<strong class="agq-card__fullname">${E(r.name)}</strong><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${kind}</span>${r.level!==null?`<span class="ag-badge">Level ${r.level}</span>`:''}<span class="ag-badge${r.visible?' ag-badge--ok':''}">${icon(eye)}${eyeText}</span>${facts.join('')}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}`;
+ const detail=`<strong class="agq-card__fullname">${E(r.name)}</strong><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${kind}</span>${r.level!==null?`<span class="ag-badge">Level ${r.level}</span>`:''}${r.archived?`<span class="ag-badge">${icon('fa-box-archive')}Archived</span>`:''}<span class="ag-badge${r.visible?' ag-badge--ok':''}">${icon(eye)}${eyeText}</span>${facts.join('')}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}`;
  const full=[r.name,place,giver].filter(Boolean).join(' · ');
  return `<div class="ag-row agq-card${selected?' is-selected':''}${picked?' is-picked':''}${expanded?' is-open':''}" data-qid="${E(r.id)}"><div class="agq-card__line"><label class="agq-card__pick"><input type="checkbox" data-pick="${E(r.id)}"${picked?' checked':''}><span class="ag-sr-only">Select ${E(r.name)}</span></label>
  <button type="button" class="agq-card__main" data-action="gm-select" data-id="${E(r.id)}"${selected?' aria-current="true"':''}${tip(full)}><span class="ag-row__title">${E(r.name)}</span></button>
@@ -81,7 +81,7 @@ export function questsSubnav(nav,counts={}){
 }
 /** Toolbar, one row: search, Filters (n), Group, Sort, count, New quest. Type, Location and Visible sit in the second row that
     Filters (n) opens (0.17.0, QL-05). */
-export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[],folds={}}={}){
+export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[],packs=[],folds={}}={}){
  const v={...DEFAULT_VIEW,...view},n=filterCount(v),fs=toolbarState({mode:v.group,...folds});
  return `<div class="agq-bars"><div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, location, giver or source, or tag" value="${E(v.search)}"></label>
  <div class="ag-toolbar__filters"><button type="button" class="ag-btn ag-btn--sm" data-action="toggle-filters" id="ag-gm-filters-toggle" aria-expanded="${filtersOpen}" aria-controls="ag-gm-filters">${icon('fa-filter')} <span data-filter-label>${filterLabel(n)}</span></button>
@@ -95,16 +95,20 @@ export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,
  <select id="ag-gm-level" aria-label="Level">${options([['all','Any level'],...levels],v.level)}</select>
  <select id="ag-gm-region" aria-label="Region">${options([['all','Any region'],...regions],v.region)}</select>
  <select id="ag-gm-giver" aria-label="Giver">${options([['all','Any giver'],...givers],v.giver)}</select>
- <select id="ag-gm-visible" aria-label="Visible to players">${options([['all','Visible or not'],['yes','Visible to players'],['no','GM only']],v.visible)}</select></div>
+ <select id="ag-gm-visible" aria-label="Visible to players">${options([['all','Visible or not'],['yes','Visible to players'],['no','GM only']],v.visible)}</select>
+ <select id="ag-gm-pack" aria-label="Source pack">${options([['all','Any source pack'],...packs],v.pack)}</select>
+ <label class="ag-field ag-field--inline agq-prefix"><span>Id starts with</span><input type="search" id="ag-gm-prefix" value="${E(v.idPrefix)}" placeholder="Start of an id, e.g. QUEST-" autocomplete="off" spellcheck="false" aria-label="Show only quests whose id starts with"></label></div>
  ${safeButton('Clear filters','clear-filters',{sm:true,kind:'ghost'})}</div></div>`;
 }
 export const filterLabel=n=>n?`Filters (${n})`:'Filters';
 /** Bulk actions: a full-width row under the toolbar once quests are ticked (hidden until then). */
-export function bulkBar(count,shown){
+export function bulkBar(count,shown,{archivedView=false}={}){
  if(!count)return '<div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions" hidden></div>';
+ if(archivedView)return `<div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions"><span class="agq-bulk__count" role="status">${count} selected</span>${safeButton(`Select all ${shown} shown`,'bulk-all',{sm:true,kind:'ghost'})}${safeButton('Clear','bulk-clear',{sm:true,kind:'ghost'})}
+ <span class="agq-bulk__actions">${safeButton('Restore…','bulk-restore',{sm:true,icon:'fa-box-open',title:'Bring the selected quests back with the status they had'})}${safeButton('Delete…','bulk-delete',{sm:true,kind:'danger',icon:'fa-trash',title:'Delete the selected quests for good (a backup file downloads first)'})}</span></div>`;
  return `<div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions"><span class="agq-bulk__count" role="status">${count} selected</span>${safeButton(`Select all ${shown} shown`,'bulk-all',{sm:true,kind:'ghost'})}${safeButton('Clear','bulk-clear',{sm:true,kind:'ghost'})}
  <span class="agq-bulk__actions"><label class="agq-bulk__status"><span class="ag-sr-only">New status</span><select id="ag-bulk-status">${options([['','Set status…'],...STATUSES.map(s=>[s,s])],'')}</select></label>${safeButton('Apply','bulk-status',{sm:true})}
- ${safeButton('Hide','bulk-hide',{sm:true,icon:'fa-eye-slash',title:'Hide the selected quests from players'})}${safeButton('Reveal','bulk-reveal',{sm:true,icon:'fa-eye',title:'Reveal the selected quests to their audience. Drafts stay GM only.'})}${safeButton('Duplicate','bulk-duplicate',{sm:true,icon:'fa-copy',title:'Make a GM-only draft copy of each selected quest'})}${safeButton('Delete','bulk-delete',{sm:true,kind:'danger',icon:'fa-trash'})}</span></div>`;
+ ${safeButton('Hide','bulk-hide',{sm:true,icon:'fa-eye-slash',title:'Hide the selected quests from players'})}${safeButton('Reveal','bulk-reveal',{sm:true,icon:'fa-eye',title:'Reveal the selected quests to their audience. Drafts stay GM only.'})}${safeButton('Duplicate','bulk-duplicate',{sm:true,icon:'fa-copy',title:'Make a GM-only draft copy of each selected quest'})}${safeButton('Archive…','bulk-archive',{sm:true,icon:'fa-box-archive',title:'Take the selected quests off the list and away from players. Nothing is lost; Restore brings them back'})}${safeButton('Delete…','bulk-delete',{sm:true,kind:'danger',icon:'fa-trash',title:'Delete the selected quests for good (a backup file downloads first)'})}</span></div>`;
 }
 /** The hint line that stays in the list column: how to start a bulk change, or how many are ticked. */
 export function bulkHint(count,shown){

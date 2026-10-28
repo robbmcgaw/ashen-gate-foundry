@@ -178,3 +178,13 @@
 .agl-embed .agl-embed__list > li:hover { background: var(--ag-surface-hover); }
 .agl-embed .agl-embed__open { width: auto; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-accent); text-align: left; cursor: pointer; text-decoration: underline; overflow-wrap: anywhere; }
 .agl-embed .agl-embed__muted { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+
+/* 0.26.0 bulk select: tick-box rows and the bar above the list */
+.agl-row--pick { display: flex; align-items: center; gap: var(--ag-space-2); }
+.agl-pick { display: flex; align-items: center; gap: var(--ag-space-2); flex: 1; min-width: 0; cursor: pointer; }
+.agl-pick input { flex: none; }
+.agl-row--pick.is-picked { background: var(--ag-surface-raised); box-shadow: inset 3px 0 0 var(--ag-accent); }
+.agl-bulk { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3); margin-bottom: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
+.agl-bulk__narrow { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
+.agl-bulk__count { font-weight: 600; }
+.agl-preview { margin: 0 0 var(--ag-space-2); padding-left: 1.2em; }
