@@ -80,7 +80,7 @@ import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, IMPORT_VIEWS, SETUP_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js';
 import {cindersApi, cinderCaps, cinderChoices, planCinderArt, assignCinder, setCinderChoice, setAllCinderChoices, cinderConflicts, cinderWillLink, applyCinderArt} from './cinder-art.js';
-import {ringRepairPlan, applyRingRepair, RING_SUBJECT_SCALE} from './token-ring.js';
+import {ringRepairPlan, applyRingRepair, RING_SUBJECT_SCALE, listOf, sceneTokenRefs, sceneImagePaths} from './token-ring.js';
 import {assetSources, defaultSource, listFolder, scanFolders, filterEntries as filterAssetEntries, crumbs, parentPath, createFolder, uploadFiles, UPLOAD_TONE, UPLOAD_LABEL, planAssetLinks, applyAssetLinks, resolvePick, linkableRecords, linkCounts, linkConflicts, rowReady, setRowChoice, setAllChoices, assignRecord, missingArtRows, ART_KINDS, ART_STATES, MANAGE_ON_FORGE_URL, stem} from './assets.js';
 import {classifyFiles, stageFiles, stageSummary, setFileUpload, setUnmatchedUpload, unmatchedTickState, uploadSelection, unmatchedInFolder, removalList, removalText, STATUS_LABEL} from './asset-stage.js';
 
@@ -1975,14 +1975,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Tokens already on scenes whose own ring is off, counted per Actor id (what "Also update tokens already on scenes" would change). */
   #ringTokenCounts() {
     const counts=new Map();
-    for(const scene of game.scenes??[])for(const t of scene.tokens??[])if(t.actorId&&!t._source?.ring?.enabled)counts.set(t.actorId,(counts.get(t.actorId)??0)+1);
+    for(const scene of listOf(game.scenes))for(const t of listOf(scene.tokens))if(t.actorId&&!t._source?.ring?.enabled)counts.set(t.actorId,(counts.get(t.actorId)??0)+1);
     return counts;
   }
   /** Actors whose ring Manager turned on at subject scale 1 (hidden under square art), with their scene tokens. GM only. */
   #ringRepairScan() {
     if(!game.user?.isGM)return [];
     const actors=(game.actors?.contents??[]).filter(d=>sourceFlag(d)?.sourceId).map(d=>({uuid:d.uuid,id:d.id,name:d.name,documentName:'Actor',type:d.type,sourceId:sourceFlag(d).sourceId,ring:d.prototypeToken?.ring}));
-    const tokens=(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId).map(t=>({actorId:t.actorId,sceneId:scene.id,id:t.id,ring:t._source?.ring})));
+    const tokens=sceneTokenRefs(game.scenes);
     return ringRepairPlan(actors,tokens);
   }
   #assetDocs() {
@@ -2131,12 +2131,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #worldImagePaths() {
     const set=new Set(), add=v=>{if(typeof v==='string'&&v)set.add(v);};
     try{
-      for(const d of game.actors??[]){add(d.img);add(d.prototypeToken?.texture?.src);}
-      for(const d of game.items??[])add(d.img);
-      for(const d of game.scenes??[]){add(d.background?.src);add(d.thumb);for(const t of d.tokens??[])add(t.texture?.src);for(const t of d.tiles??[])add(t.texture?.src);}
-      for(const d of game.journal??[]){add(d.img);for(const pg of d.pages??[])add(pg.src);}
-      for(const d of game.tables??[])add(d.img);
-      for(const d of game.macros??[])add(d.img);
+      for(const d of listOf(game.actors)){add(d.img);add(d.prototypeToken?.texture?.src);}
+      for(const d of listOf(game.items))add(d.img);
+      for(const d of listOf(game.scenes)){for(const p of sceneImagePaths(d))add(p);add(d.thumb);for(const t of listOf(d.tokens))add(t.texture?.src);for(const t of listOf(d.tiles))add(t.texture?.src);}
+      for(const d of listOf(game.journal)){add(d.img);for(const pg of listOf(d.pages))add(pg.src);}
+      for(const d of listOf(game.tables))add(d.img);
+      for(const d of listOf(game.macros))add(d.img);
     }catch{ /* a collection that cannot be read adds nothing */ }
     return set;
   }
@@ -2191,7 +2191,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.busy=true;
         try{
           const out=await applyRingRepair(plan,{user:game.user,sceneTokens:rr.scene,getDoc:uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null,
-            getTokens:actor=>(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId===actor.id).map(t=>({sceneId:scene.id,id:t.id,ring:t._source?.ring}))),
+            getTokens:actor=>sceneTokenRefs(game.scenes,actor.id),
             updateMany:updates=>globalThis.Actor.updateDocuments(updates),updateTokens:(sceneId,updates)=>game.scenes.get(sceneId).updateEmbeddedDocuments('Token',updates)});
           a.ringRepair={...rr,plan:this.#ringRepairScan(),message:out.message};say(out.message,!out.ok);
         }finally{this.busy=false;}
@@ -2214,7 +2214,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!yes)return;
         const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
         const updateMany=(documentName,updates)=>({Item:globalThis.Item,RollTable:globalThis.RollTable,Macro:globalThis.Macro,JournalEntry:globalThis.JournalEntry,Actor:globalThis.Actor})[documentName].updateDocuments(updates);
-        const getTokens=actor=>(game.scenes??[]).flatMap(scene=>(scene.tokens??[]).filter(t=>t.actorId===actor.id).map(t=>({sceneId:scene.id,id:t.id,ring:t._source?.ring})));
+        const getTokens=actor=>sceneTokenRefs(game.scenes,actor.id);
         const updateTokens=(sceneId,updates)=>game.scenes.get(sceneId).updateEmbeddedDocuments('Token',updates);
         this.busy=true;
         try{
@@ -3831,7 +3831,9 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       if(el.checked)set.add(el.dataset.agGhPack);else set.delete(el.dataset.agGhPack);
       this.gh.selected=[...set];
       const pull=root.querySelector('[data-ag-action="gh-pull"]');if(pull)pull.disabled=this.busy||!this.gh.selected.length;
+      this.#ghOtherPaint(root);
     }));
+    this.#ghOtherBind(root);
     // Not a data-ag-action: those are ignored while busy, and Cancel must work while files are being read.
     root.querySelector('[data-ag-gh-stop]')?.addEventListener('click',event=>{
       event.preventDefault();if(!this.gh.abort)return;
@@ -3840,6 +3842,24 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     });
   }
   /** Typing never re-renders (focus stays in the box); only the Save button and its "Unsaved changes" note appear. */
+  /** 0.71.4: the closed fold of folders without a manifest. Open/closed is remembered per client (uiState: localStorage, never throws); a ticked folder keeps it open. In place, no re-render. */
+  #ghOtherBind(root) {
+    const el=root.querySelector('details[data-ag-gh-other]');if(!el)return;
+    const ticked=()=>el.querySelectorAll('[data-ag-gh-pack]:checked').length;
+    if(!ticked()){const stored=this.ui.get('ghOtherFolders',false);if(typeof stored==='boolean'&&stored!==el.open)el.open=stored;}
+    el.addEventListener('toggle',()=>{
+      if(ticked()){if(!el.open)el.open=true;return;}
+      if(this.ui.get('ghOtherFolders',false)!==el.open)this.ui.set('ghOtherFolders',el.open);
+    });
+  }
+  #ghOtherPaint(root) {
+    const el=root.querySelector('details[data-ag-gh-other]');if(!el)return;
+    const n=el.querySelectorAll('[data-ag-gh-pack]:checked').length, summary=el.querySelector('summary');
+    let count=summary?.querySelector('.ag-fold__count');
+    if(n&&summary&&!count){count=document.createElement('span');count.className='ag-fold__count';summary.appendChild(count);}
+    if(count){count.textContent=n?`${n} ticked`:'';if(!n)count.remove();}
+    if(n)el.open=true;
+  }
   async #ghDirtyPaint(root) {
     const save=root.querySelector('[data-ag-action="gh-save"]');
     if(save) { save.disabled=this.busy;
@@ -4092,7 +4112,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   /** What a sync must know about the world; the planner never touches Foundry itself. */
   #syncPlanContext() {
     const folders=folderIndex([...(game.folders?.contents??[])]);
-    const sceneActorIds=new Set((game.scenes?.contents??[]).flatMap(scene=>(scene.tokens?.contents??[]).map(t=>t.actorId).filter(Boolean)));
+    const sceneActorIds=new Set(listOf(game.scenes).flatMap(scene=>listOf(scene.tokens).map(t=>t.actorId).filter(Boolean)));
     const hotbarMacroIds=new Set((game.users?.contents??[]).flatMap(user=>Object.values(user.hotbar??{})));
     const locApi=locationsApi(game), rteApi=routesApi(game), shpApi=shopsApi(game);
     const locationIds=locApi?new Set(locApi.listLocations().map(l=>l.id)):null;

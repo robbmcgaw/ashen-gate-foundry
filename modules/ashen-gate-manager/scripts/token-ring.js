@@ -49,6 +49,27 @@ export function ringKindFor(doc) {
 
 /** Subject scale written with the ring so the ring frames square, full-bleed portraits. Change it here. */
 export const RING_SUBJECT_SCALE = 0.6;
+
+/**
+ * 0.71.4: Foundry V14 collections (game.scenes, scene.tokens, scene.levels) are Maps, not Arrays: no flatMap/filter/map.
+ * Any of Array, DocumentCollection (has .contents), Map/Set or another iterable becomes a plain Array; null gives [].
+ */
+export function listOf(collection) {
+  if (!collection) return [];
+  if (Array.isArray(collection)) return collection;
+  if (Array.isArray(collection.contents)) return collection.contents;
+  if (typeof collection.values === 'function') return Array.from(collection.values());
+  return typeof collection[Symbol.iterator] === 'function' ? Array.from(collection) : [];
+}
+/** Every token of every scene whose Actor matches (actorId, or any when null): [{actorId, sceneId, id, ring}]. Works on collections. */
+export function sceneTokenRefs(scenes, actorId = null) {
+  const out = [];
+  for (const scene of listOf(scenes)) for (const t of listOf(scene?.tokens)) {
+    if (!t?.actorId || (actorId !== null && t.actorId !== actorId)) continue;
+    out.push({actorId: t.actorId, sceneId: scene.id, id: t.id, ring: t._source?.ring});
+  }
+  return out;
+}
 const isDefaultScale = v => v === undefined || v === null || Number(v) === 1;
 
 const blank = v => v === null || v === undefined || String(v).trim() === '';
@@ -131,7 +152,9 @@ export async function applyRingRepair(plan, {user, getDoc, getTokens = () => [],
     } catch (error) { errors.push({name: item.name, message: String(error?.message ?? error)}); continue; }
     if (!sceneTokens) continue;
     const byScene = new Map();
-    for (const t of getTokens(doc) ?? []) {
+    let live = [];
+    try { live = getTokens(doc) ?? []; } catch (error) { errors.push({name: item.name, message: `scene tokens could not be read: ${String(error?.message ?? error)}`}); continue; }
+    for (const t of live) {
       if (!item.tokens.some(p => p.id === t.id && p.sceneId === t.sceneId) || !hidden(look, t.ring)) continue;
       (byScene.get(t.sceneId) ?? byScene.set(t.sceneId, []).get(t.sceneId)).push({_id: t.id, 'ring.subject.scale': RING_SUBJECT_SCALE});
     }
@@ -141,4 +164,23 @@ export async function applyRingRepair(plan, {user, getDoc, getTokens = () => [],
   }
   const message = `${actors} Actor ring(s) resized so the ring shows${sceneTokens ? `, ${tokens} token(s) on scenes resized` : ''}${skipped ? `, ${skipped} skipped (changed since the preview)` : ''}${errors.length ? `, ${errors.length} write error(s): ${errors[0].message}` : ''}.`;
   return {ok: !errors.length || actors > 0, message, actors, tokens, skipped, errors};
+}
+
+/**
+ * Image paths a Scene uses as its background. V14 moved this to Levels (Level#background, Level#textures; Scene#background logs a
+ * deprecation): when the scene has levels, every level's background and textures are read and Scene#background is never touched;
+ * on older cores (no levels) it reads Scene#background.src exactly as before.
+ */
+export function sceneImagePaths(scene) {
+  const levels = listOf(scene?.levels);
+  if (!levels.length) return scene?.background?.src ? [scene.background.src] : [];
+  const out = [];
+  const add = v => { if (typeof v === 'string' && v) out.push(v); };
+  for (const level of levels) {
+    add(level?.background?.src);
+    const textures = level?.textures;
+    if (typeof textures === 'string') add(textures);
+    else if (textures && typeof textures === 'object') for (const t of Array.isArray(textures) ? textures : Object.values(textures)) add(typeof t === 'string' ? t : t?.src);
+  }
+  return out;
 }

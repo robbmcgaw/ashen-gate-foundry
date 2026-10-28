@@ -36,7 +36,7 @@ test('0.70.8 workstation survives the import path: the stored definition keeps i
 });
 test('0.70.8 version, CHANGELOG, README and Help', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.71.3'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.71.3/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.71.4'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.71.4/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.70\.8 /m); assert.match(read('../README.md'), /Workstation: <name>/);
   assert.match(read('../scripts/main.js'), /Workstation/);
 });
