@@ -106,7 +106,7 @@ test('missing properties never throw', () => {
 test('registerPinLook hooks refreshNote and never throws inside the hook', () => {
   const hooks = {calls: [], on(name, fn) { this.calls.push([name, fn]); }};
   registerPinLook(hooks, () => ({look: 'image', showName: true}));
-  assert.equal(hooks.calls.length, 1); assert.equal(hooks.calls[0][0], 'refreshNote');
+  assert.deepEqual(hooks.calls.map(c => c[0]), ['refreshNote', 'updateNote']); // 0.27.0 adds updateNote (keep-proportions flag changes)
   const n = note(); hooks.calls[0][1](n, {});
   assert.equal(n.controlIcon.bg.visible, false);
   const failing = {calls: [], on(name, fn) { this.calls.push(fn); }};

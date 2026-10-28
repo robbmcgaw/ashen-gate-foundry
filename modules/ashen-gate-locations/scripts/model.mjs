@@ -302,6 +302,9 @@ export function normalizeLocation(raw = {}) {
   loc.audience = normalizeAudience(r.audience);
   // 0.25.0, GM-only: the default pin art/size for places inside this one (see inheritedPin). Not published; players never get it.
   loc.childPin = normalizeChildPin(r.childPin);
+  // 0.27.0, GM-only presentation: draw this location's pin art at its own proportions (see pin-proportions.mjs). Default off; a record
+  // from before 0.27.0 has no field and reads false. On the location itself, not inherited, and not part of the published content.
+  loc.pinKeepProportions = r.pinKeepProportions === true;
   // 0.20.0, GM-only: the RTE id this location was converted from (Developer Tools), so a route is never converted twice.
   loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
@@ -541,12 +544,13 @@ export function pinPresentation(raw, {label = '', unknownImg = '', all = null} =
   const revealedImg = src.pin.img || inh.img || PIN_DEFAULTS.img;
   const unknown = src.pin.unidentifiedImg || inh.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
   // 0.26.0: an archived location's pin is drawn and labelled like a hidden one (players cannot open it either way).
-  if (loc.archived) return {text: '', src: unknown, size};
+  const keep = loc.pinKeepProportions ? {keep: true} : {};
+  if (loc.archived) return {text: '', src: unknown, size, ...keep};
   // 1.8.0: a "Selected players" pin carries no label of its own. Foundry then labels it with its page's name,
   // which only the players who may open that page are shown (the Note is invisible to everyone else).
-  if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? revealedImg : unknown, size};
-  if (loc.state === 'revealed') return {text: src.name, src: revealedImg, size};
-  return {text: loc.state === 'unidentified' ? src.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL : '', src: unknown, size};
+  if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? revealedImg : unknown, size, ...keep};
+  if (loc.state === 'revealed') return {text: src.name, src: revealedImg, size, ...keep};
+  return {text: loc.state === 'unidentified' ? src.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL : '', src: unknown, size, ...keep};
 }
 
 /** 0.25.0: where each pin value of a location comes from. Same order as pinPresentation (which this mirrors for the editor and API). */
@@ -604,11 +608,14 @@ export function notePatch(note, pinKey, pres) {
   const ownSrc = last ? src === last.src : !src || src === PIN_DEFAULTS.img;
   const ownSize = last ? note.iconSize === last.size : note.iconSize == null || note.iconSize === PIN_DEFAULTS.size;
   const pin = {src: ownSrc ? pres.src : last?.src ?? '', size: ownSize ? pres.size : last?.size ?? 0};
+  // 0.27.0: keep-proportions follows the location (it is not a Note setting the GM edits). Written only when on; a pin that had it and
+  // no longer does gets an explicit false, because flag updates merge. Notes that never had it are not rewritten.
+  if (pres.keep === true) pin.keep = true; else if (last?.keep === true) pin.keep = false;
   const patch = {};
   if (note.text !== pres.text) patch.text = pres.text;
   if (ownSrc && src !== pres.src) patch.texture = {src: pres.src};
   if (ownSize && note.iconSize !== pres.size) patch.iconSize = pres.size;
-  if (ours.pinKey !== pinKey || last?.src !== pin.src || last?.size !== pin.size || ours.locationId != null)
+  if (ours.pinKey !== pinKey || last?.src !== pin.src || last?.size !== pin.size || (last?.keep === true) !== (pin.keep === true) || ours.locationId != null)
     patch.flags = {[MODULE_ID]: {pinKey, pin, ...(ours.locationId != null ? {locationId: null} : {})}};
   return Object.keys(patch).length ? patch : null;
 }
@@ -748,7 +755,7 @@ export function parseImport(pkg, existing = []) {
 
 /** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0 and 0.25.0. An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
-  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin'];
+  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.

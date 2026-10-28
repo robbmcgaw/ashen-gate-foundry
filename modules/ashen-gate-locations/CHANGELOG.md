@@ -1,3 +1,14 @@
+## 0.27.0 — 2026-10-28
+
+New: **Keep pin art proportions**, a tick box per location, so wide art (a district banner, say) is no longer squashed into a square.
+
+- Open a location, **Visibility & map**, and tick **Keep pin art proportions** next to *Pin size*, then **Save Changes**. That location's pin is drawn wider or taller to match its image. *Pin size* sets the height; the width follows the picture, up to 4 times the height. A taller picture is limited the same way (width at least a quarter of the height). A more extreme image is shown whole inside that limit rather than stretched.
+- The frame, shaded backing and *Image only* look follow the new shape. Click, hover, drag and double-click work across the whole pin. The name under the pin keeps its place (below by default, using the pin height) and the *Name distance* setting still applies; with a Left or Right name it clears the wider edge.
+- Off by default, so no existing pin changes. Untick and Save to go back to the square. It applies to whichever image the pin shows (revealed, unidentified, hidden, archived), needs no Publish, and is not inherited: places inside a Region and the Region's *Default pin* settings are unchanged.
+- Saved with the location and included in Export / Import (an update import that leaves it out keeps your value). Players never get the setting, only the drawn pin; the player view and published content are unchanged.
+- Foundry's drag-select box still treats a pin as its square; clicking and dragging the pin itself use the full shape.
+- Tests use mocked Foundry and PIXI. They check the maths, the saved data and the hooks, not the real canvas drawing.
+
 ## 0.26.0 — 2026-10-28
 
 New: **select several locations, then Archive or Delete them together** (GM only). Built for trimming the world after Manager brought in places you moved to the reserve pack.

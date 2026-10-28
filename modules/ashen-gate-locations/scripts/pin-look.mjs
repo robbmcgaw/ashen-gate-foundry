@@ -13,6 +13,7 @@
  * Everything below is feature-detected and wrapped so a missing field in another build can never break a render.
  */
 import {MODULE_ID} from './model.mjs';
+import {setKeepProportions, layoutOf} from './pin-proportions.mjs';
 
 export const PIN_LOOKS = Object.freeze({framed: 'Framed (Foundry default)', image: 'Image only'});
 export const DEFAULT_PIN_LOOK = 'framed';
@@ -57,6 +58,11 @@ export const DEFAULT_NAME_MODE = 'hover'; // Foundry's own behaviour
 export const nameModeOf = v => (v === 'always' ? 'always' : DEFAULT_NAME_MODE);
 export const pinLookOf = v => (v === 'image' ? 'image' : DEFAULT_PIN_LOOK);
 
+/** 0.27.0: does this Note's location keep its art's proportions? Carried on the Note by notePatch (flags.<module>.pin.keep); false when absent. */
+export const keepsProportions = note => {
+  try { return note?.document?.getFlag?.(MODULE_ID, 'pin')?.keep === true; } catch { return false; }
+};
+
 const isBound = note => {
   try { return !!(note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId')); } catch { return false; }
 };
@@ -79,6 +85,12 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
   if (!isBound(note)) return false;
   const imageOnly = pinLookOf(look) === 'image';
   const always = (nameMode ?? (showName ? 'always' : 'hover')) === 'always';
+  // 0.27.0: draw the pin as a rectangle when its location asks for it (see pin-proportions.mjs); square otherwise.
+  let layout = null;
+  try {
+    setKeepProportions(note.controlIcon, keepsProportions(note), () => { try { note.renderFlags?.set?.({refreshState: true, refreshTooltip: true}); } catch { /* ignore */ } });
+    layout = layoutOf(note.controlIcon);
+  } catch (err) { warn(err); }
   try {
     const icon = note.controlIcon;
     if (icon) {
@@ -99,7 +111,7 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
       // refreshTooltip flag, so wrap 0 (or the name off) is restored by refreshPins().
       const lines = wrapLabel(note.document.label, wrap);
       if (wrapOf(wrap) && tip.text !== lines) tip.text = lines;
-      moveLabel(note, offsetOf(nameOffset));
+      moveLabel(note, offsetOf(nameOffset), layout);
       // Core's canvas text style is already align 'center' with wordWrap off; it only switches to right/left for side anchors.
       if (wrapOf(wrap) && tip.style && ![CONST_ANCHOR().LEFT, CONST_ANCHOR().RIGHT].includes(note.document.textAnchor)) tip.style.align = 'center';
       // A little more outline and a soft shadow so the name reads over a busy map. Foundry rebuilds the style whenever the text changes.
@@ -129,15 +141,17 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
  * core's own re-position is simply overwritten with the same answer). Negative moves the name closer to the pin, never past the
  * icon's edge. Offset 0 leaves core's position alone.
  */
-function moveLabel(note, offset) {
+function moveLabel(note, offset, layout = null) {
   const tip = note.tooltip, doc = note.document, A = CONST_ANCHOR();
-  if (!offset || !tip?.position?.set || !Number.isFinite(doc?.iconSize)) return;
-  const dist = Math.max(doc.iconSize / 2, doc.iconSize / 2 + 12 + offset);
+  if ((!offset && !layout) || !tip?.position?.set || !Number.isFinite(doc?.iconSize)) return;
+  // 0.27.0: a pin drawn wider (or taller) than its Size pads from the rectangle's real half-width / half-height; otherwise iconSize / 2 as before.
+  const halfW = layout?.halfW ?? doc.iconSize / 2, halfH = layout?.halfH ?? doc.iconSize / 2;
+  const away = half => Math.max(half, half + 12 + offset);
   switch (doc.textAnchor) {
-    case A.BOTTOM: tip.position.set(0, dist); break;
-    case A.TOP: tip.position.set(0, -dist); break;
-    case A.LEFT: tip.position.set(-dist, 0); break;
-    case A.RIGHT: tip.position.set(dist, 0); break;
+    case A.BOTTOM: tip.position.set(0, away(halfH)); break;
+    case A.TOP: tip.position.set(0, -away(halfH)); break;
+    case A.LEFT: tip.position.set(-away(halfW), 0); break;
+    case A.RIGHT: tip.position.set(away(halfW), 0); break;
     default: break; // CENTER (or unknown): the label sits on the icon; nothing to move
   }
 }
@@ -158,11 +172,23 @@ export const readPinLook = (get = key => game.settings.get(MODULE_ID, key)) => {
 /** Redraws every Note on the open scene so a changed setting shows at once. */
 export function refreshPins(placeables = globalThis.canvas?.notes?.placeables) {
   for (const note of placeables ?? []) {
-    try { if (isBound(note)) note.renderFlags?.set?.({refreshState: true, refreshTooltip: true}); } catch (err) { warn(err); }
+    try {
+      if (!isBound(note)) continue;
+      note.controlIcon?.refresh?.();   // 0.27.0: core redraws the square; a pin that keeps proportions is redrawn by the hook below
+      note.renderFlags?.set?.({refreshState: true, refreshTooltip: true});
+    } catch (err) { warn(err); }
   }
 }
 
 /** Registers the hook. `read` returns the current {look, showName}; called on every client. */
 export function registerPinLook(hooks = globalThis.Hooks, read = readPinLook) {
   hooks.on('refreshNote', note => { try { applyPinLook(note, read()); } catch (err) { warn(err); } });
+  // 0.27.0: the keep-proportions flag lives in the Note's module flags, which core does not treat as a reason to redraw.
+  hooks.on('updateNote', (doc, changed) => {
+    try {
+      if (!changed?.flags?.[MODULE_ID]) return;
+      const note = doc?.object;
+      if (note && isBound(note)) note.renderFlags?.set?.({refreshState: true, refreshTooltip: true});
+    } catch (err) { warn(err); }
+  });
 }
