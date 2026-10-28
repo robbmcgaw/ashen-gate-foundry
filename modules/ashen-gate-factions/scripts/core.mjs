@@ -2,6 +2,7 @@
 import {checkObjectiveRefs} from './objective-refs.mjs';
 import {isDeity,deityProfile,unusedGroupTrack,validateDeityParts} from './deity.mjs';
 import {validateFactionRelations} from './faction-relations.mjs';
+import {resolveMembership,normalizeMembership,blankMembership} from './membership.mjs';
 import {assertReusableFactionSource,assertPrivateFieldReveals,assertNoUnclassifiedLegacyRefKeys} from './source-allowlist.mjs';
 export const MODULE_ID='ashen-gate-factions';
 export const SCHEMA_VERSION='0.3.0';
@@ -76,7 +77,7 @@ export function upgradeFaction(input){
 /** Reusable definition projection: never serialize any mutable discovery or Renown state. */
 export function sourceDefinition(input){
   assertNoUnclassifiedLegacyRefKeys(input);
-  const f=upgradeFaction(input);delete f.state;delete f.field_reveals;
+  const f=upgradeFaction(input);delete f.state;delete f.field_reveals;delete f.membership;
   f.discovery={placeholder:Boolean(f.discovery.placeholder),sharing_enabled:f.discovery.sharing_enabled!==false};
   f.entries=f.entries.map(e=>{const a=structuredClone(e);delete a.discovered_party;delete a.discovered_actors;if(a.uuid==null)delete a.uuid;return a;});
   // Legacy UI-only Foundry document type is derivable from its typed UUID.
@@ -95,13 +96,15 @@ export function sourceDefinition(input){
 export function overlayCampaign(input,state){
   const f=upgradeFaction(input);f.discovery.party=Boolean(state?.discovery?.party??f.discovery.party);
   f.discovery.actors=[...(state?.discovery?.actors??f.discovery.actors??[])];
+  // 0.23.0: no stored membership means an older world: everyone already Known stays a recruit, exactly as before.
+  f.membership=resolveMembership(state,f.discovery);
   f.field_reveals=fieldDisclosure(state?.field_reveals);
   for(const e of f.entries){const k=state?.knowledge?.[e.id];e.discovered_party=Boolean(k?.party??e.discovered_party);e.discovered_actors=[...(k?.actors??e.discovered_actors??[])];}
   return f;
 }
 export function extractCampaignDiscovery(input){
   const f=upgradeFaction(input),knowledge={};for(const e of f.entries)knowledge[e.id]={party:Boolean(e.discovered_party),actors:[...(e.discovered_actors??[])]};
-  return {discovery:{party:Boolean(f.discovery.party),actors:[...f.discovery.actors]},knowledge,field_reveals:assertPrivateFieldReveals(fieldDisclosure(f.field_reveals))};
+  return {discovery:{party:Boolean(f.discovery.party),actors:[...f.discovery.actors]},membership:f.membership?normalizeMembership(f.membership):null,knowledge,field_reveals:assertPrivateFieldReveals(fieldDisclosure(f.field_reveals))};
 }
 export function validateStanding(s){
   if(!s||!Number.isSafeInteger(s.opening_score)||s.opening_score<0||!Number.isSafeInteger(s.score)||s.score<0||!Array.isArray(s.events))return ['Invalid Renown standing.'];
@@ -130,7 +133,7 @@ export const progressFor=(track,score)=>{const index=track.milestones.reduce((i,
 export const getProgress=(f,standing=null)=>progressFor(upgradeFaction(f).renown_track,standing?.score??f.state?.party?.score??0);
 export function adjustStanding(old,{delta,reason,eventId,when,dedupeKey=null}){const errors=validateStanding(old);if(errors.length)throw Error(errors.join(' '));if(!Number.isSafeInteger(delta)||delta===0||Math.abs(delta)>1000)throw Error('Delta must be nonzero between -1000 and 1000.');if(!reason?.trim()||reason.trim().length>400)throw Error('Reason required, 400 characters maximum.');if(!/^RENOWN-EVT-[A-Z0-9-]+$/.test(eventId??''))throw Error('Invalid event ID.');if(dedupeKey&&old.events.some(e=>e.dedupe_key===dedupeKey))return{standing:old,applied:false,before:old.score,after:old.score};const before=old.score,after=Math.max(0,before+delta);if(before===after)return{standing:old,applied:false,before,after};const standing=structuredClone(old);standing.score=after;standing.events.push({id:eventId,sequence:standing.events.length+1,delta:after-before,reason:reason.trim(),occurred_at:when,dedupe_key:dedupeKey,previous_score:before,score_after:after});if(validateStanding(standing).length)throw Error('Invalid history state.');return{standing,applied:true,before,after};}
 export function applyRenown(f,args){const faction=upgradeFaction(f);const outcome=adjustStanding(faction.state?.party??blankStanding(),args);faction.state??={};faction.state.party=outcome.standing;return{...outcome,faction,crossed:faction.renown_track.milestones.filter(m=>outcome.before<m.threshold&&outcome.after>=m.threshold)};}
-export function makeGroupRecord({factionId,standing=blankStanding()}){return{id:`${factionId}-GROUP`,entity_type:'CampaignState',scope:'campaign_state',version:SCHEMA_VERSION,faction_id:factionId,standing,claims:{},requests:{},uses:{},choices:{}};}
+export function makeGroupRecord({factionId,standing=blankStanding()}){return{id:`${factionId}-GROUP`,entity_type:'CampaignState',scope:'campaign_state',version:SCHEMA_VERSION,faction_id:factionId,standing,claims:{},requests:{},uses:{},choices:{},membership:blankMembership()};}
 export function makePersonalRecord({factionId,actorId}){return{id:`${factionId}-ACTOR-${keyFor(actorId)}`,entity_type:'CampaignState',scope:'campaign_state',version:SCHEMA_VERSION,faction_id:factionId,actor_id:actorId,standing:blankStanding(),claims:{},requests:{},uses:{},choices:{}};}
 export function rewardUnlocked(reward,faction,score){const f=upgradeFaction(faction),track=reward.audience==='group'?f.renown_track:f.individual_track;const m=track.milestones.find(x=>x.id===reward.milestone_id);return Boolean(m&&score>=m.threshold);}
 export function claimEligible({reward,faction,score,claims={},requests={},uses={}}){

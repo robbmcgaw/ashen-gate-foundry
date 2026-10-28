@@ -42,8 +42,12 @@
   <span class="ag-row__end">{{#if isItem}}<label class="ag-field ag-field--inline">Recipient<select name="recipient-{{requestKey}}"><option value="">Manual delivery</option>{{#each @root.actorChoices}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>{{/if}}{{#if pending}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="approve">Approve</button>{{/if}}{{#if approved}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="fulfill">Mark fulfilled</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="deny">Deny</button></span></li>{{/each}}</ul>{{else}}<div class="ag-empty"><p class="ag-empty__title">No requests yet.</p><p class="ag-empty__text">Claims and service requests from players show here.</p></div>{{/if}}
   {{#if services.length}}<h4 class="ag-eyebrow agf-subhead">Service limits</h4><ul class="ag-rows">{{#each services}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="resetUsage" data-audience="{{audience}}" data-reward="{{id}}">{{resetLabel}}</button></span></li>{{/each}}</ul>{{/if}}{{/inline}}
 {{#*inline "agfRankRows"}}{{#each levels}}<div class="agf-level-editor" data-milestone-row="{{../scope}}"><span class="agf-level-editor__key">{{order}}</span><label class="ag-field">Rank<input data-field="name" value="{{name}}"></label><label class="ag-field">Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label class="ag-field">Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose one</option></select></label><label class="ag-field agf-level-editor__text">Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}{{/inline}}
+{{#*inline "agfKnown"}}<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">{{title}}</h3><span class="ag-badge">Known (not recruited)</span></div><p class="agf-hint">{{text}}</p></section>{{/inline}}
+{{#*inline "agfMembership"}}{{#if @root.gmMembership}}<div class="agf-membership ag-cluster" role="group" aria-label="Known and recruited"><span class="ag-badge {{@root.gmMembership.knownBadge}}">{{@root.gmMembership.knownChip}}</span><span class="ag-badge {{@root.gmMembership.memberBadge}}">{{@root.gmMembership.memberChip}}</span><button type="button" class="ag-btn ag-btn--sm" data-action="membership" data-mode="{{@root.gmMembership.mode}}" {{#if @root.gmMembership.disabled}}disabled{{/if}}>{{@root.gmMembership.label}}</button></div>{{/if}}{{/inline}}
 {{#*inline "agfDiscovery"}}<section class="ag-section agf-now"><div class="ag-section__head"><h3 class="ag-section__title">Discovery</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
   <div class="agf-discovery"><span class="ag-badge {{badgeClass}}">{{chip}}</span><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="party">{{partyLabel}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="actor">{{actorLabel}}</button></div>
+  {{#if recruit}}<div class="agf-discovery"><span class="ag-badge {{recruit.badgeClass}}">{{recruit.chip}}</span><button type="button" class="ag-btn ag-btn--sm" data-action="membership" data-mode="party">{{recruit.partyLabel}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="membership" data-mode="actor" {{#if recruit.actorDisabled}}disabled{{/if}}>{{recruit.actorLabel}}</button></div>
+  <p class="agf-hint">Show lets a player see the faction's name, leader, description and information. Recruit also gives them Renown standing, ranks, rewards and history. Recruiting shows the faction too; hiding it also removes the recruit.</p>{{/if}}
 </section>{{/inline}}
 <section class="agf-shell ag-window" aria-label="Renown">
   <header class="ag-header">
@@ -78,21 +82,25 @@
         <header class="agf-dossier">
           <div class="agf-dossier__text"><span class="ag-eyebrow">Faction</span><h2 class="agf-dossier__name">{{detail.name}}</h2>{{#if detail.leader}}<p class="agf-dossier__leader">{{detail.leader}}</p>{{/if}}{{#if detail.public_role}}<p class="agf-dossier__role">{{detail.public_role}}</p>{{/if}}</div>
           <div class="agf-dossier__end">
+            {{#if isGM}}{{> agfMembership}}{{/if}}
+            {{#unless isGM}}{{#unless detail.recruitedHere}}<span class="ag-badge">Known (not recruited)</span>{{/unless}}{{/unless}}
             {{#if tabPlayer}}{{#unless isGM}}{{#if detail.canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party…</button>{{/if}}{{/unless}}{{/if}}
-            {{#if tabGroup}}<div class="agf-score-box"><span class="ag-eyebrow">{{groupLabel}}</span><strong class="agf-score-box__value">{{detail.score}}</strong><span class="agf-score-box__rank">{{detail.rank}}</span></div>{{/if}}
-            {{#if tabPlayer}}<div class="agf-score-box"><span class="ag-eyebrow">Personal Renown</span><strong class="agf-score-box__value">{{detail.individualScore}}</strong><span class="agf-score-box__rank">{{detail.individualRank}}</span></div>{{/if}}
+            {{#if tabGroup}}{{#if detail.groupMember}}<div class="agf-score-box"><span class="ag-eyebrow">{{groupLabel}}</span><strong class="agf-score-box__value">{{detail.score}}</strong><span class="agf-score-box__rank">{{detail.rank}}</span></div>{{/if}}{{/if}}
+            {{#if tabPlayer}}{{#if detail.personalMember}}<div class="agf-score-box"><span class="ag-eyebrow">Personal Renown</span><strong class="agf-score-box__value">{{detail.individualScore}}</strong><span class="agf-score-box__rank">{{detail.individualRank}}</span></div>{{/if}}{{/if}}
           </div>
         </header>
       {{/if}}
 
       {{#if tabGroup}}
         {{#if detail}}
+          {{#if detail.groupMember}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">{{groupLabel}}</h3></div>
             {{> agfStanding view=detail.groupView unit="Renown" label=groupLabel}}
             {{> agfMilestones ms=detail.groupMs unit="Renown"}}
           </section>
           {{#if isGM}}{{> agfAward scope="group" title="Adjust group Renown" placeholder="Action and consequence"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Group activity</h3></div>{{> agfHistory detail.groupEvents}}</section>
+          {{else}}{{> agfKnown title=groupLabel text="Your party knows of this faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits you."}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Discovered information</h3></div>{{> agfEntries detail.entries}}</section>
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Related factions</h3></div>
             {{#if detail.relations.length}}<ul class="ag-rows">{{#each detail.relations}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><span class="ag-badge {{#if isDissonant}}ag-badge--danger{{/if}}{{#if isResonant}}ag-badge--ok{{/if}}">{{label}}</span></span></li>{{/each}}</ul>{{else}}<p class="agf-hint">No known related factions.</p>{{/if}}
@@ -103,13 +111,18 @@
       {{#if tabPlayer}}
         {{#if detail}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Individual Renown</h3>{{> agfPicker}}</div>
+            {{#if detail.personalMember}}
             {{#if actorChoices.length}}
               {{> agfStanding view=detail.individualView unit="Renown" label="Individual Renown"}}
               {{> agfMilestones ms=detail.individualMs unit="Renown"}}
             {{else}}<div class="ag-empty"><p class="ag-empty__title">No character yet</p><p class="ag-empty__text">{{#if isGM}}Assign a player a character in Foundry first.{{else}}Your GM needs to assign you a character in Foundry.{{/if}}</p></div>{{/if}}
+            {{else}}<p><span class="ag-badge">Known (not recruited)</span></p><p class="agf-hint">This character knows of the faction but is not recruited. Ranks, progress, rewards and history appear once the GM recruits them.</p>{{/if}}
           </section>
+          {{#if detail.personalMember}}
           {{#if isGM}}{{> agfAward scope="individual" title="Adjust personal Renown" placeholder="Personal deed or consequence"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Personal activity</h3></div>{{> agfHistory detail.personalEvents}}</section>
+          {{/if}}
+          {{#unless detail.personalMember}}<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Discovered information</h3></div>{{> agfEntries detail.entries}}</section>{{/unless}}
         {{else}}<div class="ag-empty"><i class="fa-solid fa-user" aria-hidden="true"></i><p class="ag-empty__title">No factions yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Factions tab.{{else}}Personal standing shows here once your GM reveals a faction.{{/if}}</p></div>{{/if}}
       {{/if}}
     </main>
@@ -139,7 +152,7 @@
         {{#each orgs.groups}}<section class="agf-roster__group" data-agf-group {{#if hidden}}hidden{{/if}}><h3 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{rows.length}}</span></h3>
           <div class="ag-rows agf-orgs">{{#each rows}}<button type="button" class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-action="select" data-id="{{id}}" data-agf-search="{{search}}" {{#if hidden}}hidden{{/if}}>
             <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{meta}}</span></span>
-            <span class="ag-row__end"><span class="ag-badge {{badgeClass}}">{{chip}}</span>{{#unless isDeity}}<span class="agf-rowscore"><strong>{{score}}</strong>{{#if rank}} {{rank}}{{/if}}</span>{{/unless}}</span>
+            <span class="ag-row__end"><span class="ag-badge {{badgeClass}}">{{chip}}</span>{{#if recruitChip}}<span class="ag-badge {{recruitBadge}}">{{recruitChip}}</span>{{/if}}{{#unless isDeity}}<span class="agf-rowscore"><strong>{{score}}</strong>{{#if rank}} {{rank}}{{/if}}</span>{{/unless}}</span>
           </button>{{/each}}</div></section>
         {{/each}}
         <div class="ag-empty" data-agf-nomatch {{#unless orgs.noMatch}}hidden{{/unless}}><i class="fa-solid fa-filter" aria-hidden="true"></i><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Nothing matches the search or filters.</p><button type="button" class="ag-btn ag-btn--sm" data-action="clearOrgFilters">Clear filters</button></div>

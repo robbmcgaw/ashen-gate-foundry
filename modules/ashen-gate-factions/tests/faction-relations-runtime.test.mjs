@@ -42,7 +42,8 @@ const view=uid=>journal.find(d=>d.getFlag(ns,'playerView')?.user_id===uid).getFl
 const dashboard=mod.api.open(),actions=dashboard.constructor.DEFAULT_OPTIONS.actions;
 await dashboard._prepareContext();
 const choose=async(factionId,actorId)=>{dashboard.focus({factionId,actorId});await dashboard._prepareContext();};
-const reveal=async(factionId,actorId)=>{await choose(factionId,actorId);await actions.discovery.call(dashboard,null,{dataset:{mode:'actor'}});};
+// 0.23.0: knock-ons only move factions a character is RECRUITED into, so the helper recruits (which also shows the faction).
+const reveal=async(factionId,actorId)=>{await choose(factionId,actorId);await actions.membership.call(dashboard,null,{dataset:{mode:'actor'}});};
 const award=(scope,delta,reason)=>({dataset:{scope},closest:()=>({querySelector:sel=>sel.includes('renown-delta')?{value:String(delta)}:{value:reason}})});
 const pers=(key,actor)=>journal.find(d=>d.getFlag(ns,'individual')?.faction_id===`FACTION-QA-${key}`&&d.getFlag(ns,'individual')?.actor_id===actor)?.getFlag(ns,'individual');
 const score=(key,actor)=>pers(key,actor)?.standing?.score??0;
@@ -121,6 +122,9 @@ test(ctx.detail.personalEvents.find(e=>e.id===srcId)?.undone===true&&ctx.detail.
 // Player redaction. A2 knows only Brightwork and never met Concord: a Concord award reaches Brightwork without naming Concord.
 await give('BRIGHTWORK','A2','individual',8);
 await give('CONCORD','A2','individual',10,'[TEST] Secret deed');
+// The Recruit prompt made A2 a Concord member for that award; take Concord away again so A2 has never "met" it (standing stays stored, hidden).
+await choose('FACTION-QA-CONCORD','A2');await actions.discovery.call(dashboard,null,{dataset:{mode:'actor'}});
+test(score('CONCORD','A2')===10&&!journal.find(d=>d.getFlag(ns,'groupClaims')?.faction_id==='FACTION-QA-CONCORD').getFlag(ns,'groupClaims').membership.actors.includes('A2'),'hiding removed the membership but kept the stored standing');
 test(score('BRIGHTWORK','A2')===3&&!pers('WARDENS','A2'),'knock-on reaches the one faction A2 knows; unknown Wardens gets nothing');
 const v2=view('p2').payload,json2=JSON.stringify(v2);
 test(v2.factions.map(f=>f.id).join()==='FACTION-QA-BRIGHTWORK','p2 sees only the faction A2 knows');

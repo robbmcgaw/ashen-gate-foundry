@@ -1,3 +1,16 @@
+## 0.23.0 — 2026-10-28
+
+A faction can now be shown to a player without recruiting them. Two separate states: **Known** (the player sees the faction) and **Recruited** (the player has standing with it).
+
+- **Known (not recruited).** Showing a faction to the party or a character gives the player its name, leader and description (as your field reveals allow) and the information entries they have learned, with the text "Known (not recruited)". No ranks, progress bars, rewards, claims or history are sent to their client at all, not just hidden in the window. Sharing with the party shares knowledge only.
+- **Recruit** (GM). **Visibility**, and the **Group** and **Character** tabs, have **Recruit** / **Remove … from members…** next to the show/hide buttons (now worded **Show to …** / **Hide from …**). Recruiting also shows the faction. Hiding a faction also removes the recruit, after a confirmation that says exactly what happens. Removing a recruit hides their standing but deletes nothing; recruiting them again brings it back. The faction list shows a **Recruited: party / characters** or **Not recruited** chip beside the visibility chip.
+- **Awarding Renown to someone not recruited** asks first: "Not recruited: recruiting now", with **Recruit <name> now** ticked. Untick it to cancel the award.
+- **Knock-ons** (0.22.0) only reach factions the character is recruited into. Claims and requests need membership.
+- **Existing worlds are unchanged.** The first time a GM opens a world on 0.23.0, every faction that is already shown stays recruited exactly as before (membership starts as a copy of what is shown). This runs once, is safe to run again and rewrites no standing. From then on a new reveal is Known only.
+- **Import:** a file's `starting_state` "discovered" flags still mean shown and recruited, as before. The file format is unchanged; membership is campaign state and is never exported.
+- API: `setMembership(factionId, {party: true | actorId, on})` (GM only). `getFactions()` for a player reflects the split. Deities are not changed.
+- Details: docs/renown-known-vs-recruit.md.
+
 ## 0.22.0 — 2026-10-28
 
 Factions can be related to each other, and personal Renown spreads along those relations the way piety spreads between deities.
