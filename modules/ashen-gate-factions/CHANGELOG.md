@@ -1,3 +1,15 @@
+## 0.24.0 — 2026-10-28
+
+**First unlock visible, later tiers hidden until recruited or sworn.**
+
+- **Factions.** A faction that is shown but not recruited now gives the player its first unlock (the first milestone of the group track and of the individual track), marked **Unlocks when recruited**, with its name and the usual locked reward teasers. It cannot be claimed. A line says "More ranks unlock when you are recruited." Later milestones are not sent to the player at all. Once recruited, the full ladder shows as before. A player with a recruited and a not-recruited character sees the full ladder for the first and the preview for the second.
+- **Deities.** Until a character has sworn a Vow to a god, the player sees that god's first tier (the Seeker card with the Vow toggle) and "More tiers unlock when you swear a vow." The other tiers, and the next-rank name and threshold, are not sent. When the character swears a Vow to that god the whole ladder appears; if the GM breaks the Vow it is hidden again and piety is untouched. Judged per character. Only first-tier rewards can be claimed until the Vow is sworn.
+- **Existing worlds.** Recruited factions and sworn gods are unchanged. A god a character knows but has not sworn to loses its later tiers in that player's view (intended). The GM view is unchanged.
+- **GM Setup: Hide later tiers until recruited or sworn** (on by default). Off restores 0.23.0: factions that are only Known show no ranks, and gods show the whole ladder.
+- API and Character Hub: `getFactions()`, `getDeities()` and `getPantheon()` follow the same rules for players; `getPantheon` rows carry `limited`. The Hub embed says "More tiers unlock when you swear a vow." for an unsworn god instead of "Top rank".
+- Player views refresh when a Vow is sworn, ended or broken (a GM must be online, as for every player view).
+- Details: docs/renown-known-vs-recruit.md.
+
 ## 0.23.0 — 2026-10-28
 
 A faction can now be shown to a player without recruiting them. Two separate states: **Known** (the player sees the faction) and **Recruited** (the player has standing with it).

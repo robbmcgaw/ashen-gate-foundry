@@ -1,4 +1,4 @@
-# Renown: Known vs Recruited (module 0.23.0)
+# Renown: Known vs Recruited (module 0.23.0, first unlock added in 0.24.0)
 
 Two separate per-faction states, both **campaign state** (never part of a reusable definition, never exported, never in `ag-foundry-import` packages):
 
@@ -48,4 +48,20 @@ Per faction in the player view payload (built GM-side, never filtered only in th
 - Faction knock-ons (0.22.0 relations) only apply to factions the character is recruited into. Reward claims and requests need membership.
 - API (GM only): `api.setMembership(factionId, {party:true, on})` or `{actorId, on}`; both Booleans required, exactly one of `party` / `actorId`. Returns the scope status `{known, member, ...}`. Players' `api.getFactions()` is the projected view above.
 
-Deities are not affected: they keep `discovery` only and their current per-character behaviour.
+Deities have no membership: they keep `discovery` only, and their later tiers depend on the Vow (below).
+
+## First unlock only (0.24.0)
+
+World setting `hideLaterTiers` (GM Setup, default **on**). All of this is built GM-side into the player payload; later tiers are not sent and hidden by the template.
+
+| Case | Player payload (setting on) | Setting off (0.23.0) |
+|---|---|---|
+| Faction, Known only | `groupTrack` and `individualTrack` = `{preview:true, milestones:[first]}`. The first milestone is the lowest threshold, projected at a score below every threshold: locked, reward teasers only, no benefit text, no document link, `canClaim:false`, `unlocksWhenRecruited:true`, `unlocksText:"Unlocks when recruited"`. Still `group:null`, `personal:{}`. | both tracks `null` |
+| Faction, recruited | as 0.23.0. The shared `individualTrack` is the full list only when every character the player owns is recruited; otherwise it is the one-milestone preview and recruited characters read their own `personal[actorId].milestones` (full). | as 0.23.0 |
+| Deity, character has no Vow to this god | `personal[actorId].milestones` = first tier only, `limited:true`, `rank` = first tier name, `next:null`, `remaining:0`, `percent:0`. Shared `ladder` = first row while any of the player's known characters is unsworn. | full |
+| Deity, Vow sworn to this god | full ladder, `limited:false` | full |
+
+- Per character: a Vow to another god does not unlock this one. The flag is `flags.ashen-gate-factions.vow` on the Actor; changing it re-projects the player views.
+- Claims: a later-tier reward of a god is refused for a character without a Vow to it (setting on). Faction claims already need membership.
+- GM views and the GM API are unchanged. `getPantheon` rows carry `limited`; the Hub embed shows "More tiers unlock when you swear a vow." instead of "Top rank".
+- Hints shown to players: "Unlocks when recruited", "More ranks unlock when you are recruited.", "More tiers unlock when you swear a vow." No counts or later names.

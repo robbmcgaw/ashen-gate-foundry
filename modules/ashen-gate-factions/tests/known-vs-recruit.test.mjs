@@ -75,7 +75,7 @@ seedState('OLDCHAR',{discovery:{party:false,actors:['A1']},groupScore:2,personal
 seedState('OLDNONE',{discovery:{party:false,actors:[]},groupScore:5});
 seedState('OLDMEMBER',{discovery:{party:false,actors:['A1']},membership:{party:false,actors:['A1']},personal:{A1:1}});
 for(const k of ['CONCORD','NEW','KNOWN','SHARE','FRESH'])seedDef(k);
-await import('../scripts/module.mjs');hooks.get('init')();
+await import('../scripts/module.mjs');hooks.get('init')();settings.hideLaterTiers=false;// 0.23.0 behaviour (Known = nothing); first-unlock-preview.test.mjs covers the 0.24.0 default
 // Snapshot what a player saw BEFORE the update (the old module's rule: Known = recruit).
 hooks.get('ready')();
 await new Promise(r=>setTimeout(r,60));
