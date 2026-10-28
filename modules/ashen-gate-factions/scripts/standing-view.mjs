@@ -17,7 +17,8 @@ export function standingView(milestones = [], score = 0) {
 
 /** The milestone list with isActive on the current (highest reached) milestone. */
 export function markCurrent(milestones = [], score = 0) {
-  const {currentId} = standingView(milestones, score);
+  // A locked card (0.25.0) is never the current rank, even when a god's piety is past it but no Vow is sworn.
+  const {currentId} = standingView((milestones ?? []).filter(m => !m.lockedCard), score);
   return (milestones ?? []).map(m => ({...m, isActive: currentId !== null && m.id === currentId}));
 }
 

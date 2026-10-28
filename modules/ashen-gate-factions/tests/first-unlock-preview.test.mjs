@@ -1,4 +1,4 @@
-/** First unlock only (0.24.0): a Known-only faction and an unsworn deity send the player the first tier and nothing later. In-memory Foundry V14-shaped harness. NOT a browser test. Synthetic [TEST] data only. */
+/** First unlock only (0.24.0, now the 'Hide locked ranks' mode of 0.25.0): a Known-only faction and an unsworn deity send the player the first tier and nothing later. In-memory Foundry V14-shaped harness. NOT a browser test. Synthetic [TEST] data only. */
 import assert from 'node:assert/strict';
 import {makeFaction,sourceDefinition,makeGroupRecord,makePersonalRecord,adjustStanding,overlayCampaign,extractCampaignDiscovery,groupStateDefaults} from '../scripts/core.mjs';
 import {makeDeity} from '../scripts/deity.mjs';
@@ -59,7 +59,7 @@ makeDoc({name:'[TEST] Sun Deity',ownership:{default:0},flags:{[ns]:{faction:sour
 {const rec=makeGroupRecord({factionId:'DEITY-QA-SUN'});rec.discovery={party:true,actors:[],placeholder:false,sharing_enabled:true};makeDoc({name:'state sun',ownership:{default:0},flags:{[ns]:{groupClaims:rec}}});
  for(const id of ['A1','A1b','A2']){const p=makePersonalRecord({factionId:'DEITY-QA-SUN',actorId:id});p.standing=adjustStanding(p.standing,{delta:4,reason:'[TEST] offering',eventId:`RENOWN-EVT-S${id.toUpperCase()}`,when:'2026-01-01T00:00:00.000Z'}).standing;makeDoc({name:`personal sun ${id}`,ownership:{default:0},flags:{[ns]:{individual:p}}});}}
 await import('../scripts/module.mjs');hooks.get('init')();
-test(settings.hideLaterTiers===true,'the setting defaults to ON');
+test(settings.lockedRanks==='flavor','the 0.25.0 setting defaults to flavor-only');settings.lockedRanks='hide';settings.lockedRanksMigrated=true;// this file covers the 0.24.0 behaviour, now the 'hide' mode
 hooks.get('ready')();await new Promise(r=>setTimeout(r,80));
 const settle=()=>new Promise(r=>setTimeout(r,60));
 const view=uid=>journal.find(d=>d.getFlag(ns,'playerView')?.user_id===uid).getFlag(ns,'playerView');
@@ -180,13 +180,13 @@ const claims=(id,actorId)=>journal.find(d=>d.getFlag(ns,'individual')?.faction_i
  test(!notify.some(n=>n.includes('Swear a Vow')),'Claim: the sworn character is not stopped by the Vow rule');
 }
 // ---- I. Setting OFF restores 0.23.0 ----
-{game.settings.set(ns,'hideLaterTiers',false);hooks.get('updateSetting')({key:`${ns}.hideLaterTiers`});await settle();
- const p=fx('p1','KNOWN');test(p.groupTrack===null&&p.individualTrack===null&&p.group===null,'OFF: a Known-only faction has no tracks at all, as in 0.23.0');
+{game.settings.set(ns,'lockedRanks','all');hooks.get('updateSetting')({key:`${ns}.lockedRanks`});await settle();
+ const p=fx('p1','KNOWN');test(p.group===null&&p.groupTrack.preview===true&&p.groupTrack.milestones.length===5,'Show everything: a Known-only faction shows every rank as a locked teaser (no standing)');
  const s=dx('p1');test(s.personal.A1b.milestones.length===5&&s.personal.A1b.limited===false&&s.ladder.length===5&&s.personal.A1b.rank!=='[TEST] Tier One','OFF: an unsworn deity shows the whole ladder, as in 0.23.0');
- test(fx('p1','MIXED').individualTrack.preview!==true&&fx('p1','MIXED').individualTrack.milestones.length===5,'OFF: recruited factions send the full shared track, as in 0.23.0');
+ test(fx('p1','MIXED').individualTrack.preview!==true&&fx('p1','MIXED').individualTrack.milestones.length===5,'Show everything: recruited factions send the full shared track, as in 0.23.0');
  request('DEITY-QA-SUN','A1b','RW-SUN-2','individual',true);await settle();
  test(!notify.some(n=>n.includes('Swear a Vow')),'OFF: the Vow rule on claims is not applied');
- game.settings.set(ns,'hideLaterTiers',true);hooks.get('updateSetting')({key:`${ns}.hideLaterTiers`});await settle();
+ game.settings.set(ns,'lockedRanks','hide');hooks.get('updateSetting')({key:`${ns}.lockedRanks`});await settle();
  test(fx('p1','KNOWN').groupTrack.preview===true&&dx('p1').personal.A1b.limited===true,'ON again: previews return');
 }
 console.log(`first-unlock-preview: ${checks} checks passed`);

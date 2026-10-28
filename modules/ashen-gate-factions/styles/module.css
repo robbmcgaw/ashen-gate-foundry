@@ -187,6 +187,10 @@
 .agf-prose > p { margin:0; white-space:pre-line; overflow-wrap:anywhere; line-height:1.45; }
 .agf-prose > p + p { margin-top:var(--ag-space-2); }
 .agf-milestone__empty { margin:0; }
+/* Locked rank (0.25.0): number, threshold and one line of flavor only. Lock icon and the word Locked, never colour alone. */
+.agf-milestone.is-locked-card { border-style:dashed; background:var(--ag-surface); }
+.agf-milestone.is-locked-card .agf-milestone__name { font-weight:600; }
+.agf-milestone__flavor { margin:0; font-style:italic; font-size:var(--ag-text-sm); line-height:1.45; overflow-wrap:anywhere; }
 .agf-vows { margin:0 0 var(--ag-space-3); }
 .agf-vows > div { min-width:0; }
 .agf-vows__list { margin:var(--ag-space-1) 0 0; padding-left:1.2em; }

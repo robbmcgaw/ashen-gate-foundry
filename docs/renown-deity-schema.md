@@ -49,7 +49,7 @@ The seven text fields (`title` … `practices`) hold up to 4000 characters each.
 ## RenownTrack (`individual_track`)
 
 Same as a faction track: `{id: "RENOWN-…", entity_type: "RenownTrack", status, version, provenance, visibility, refs, default_scope: "individual", milestones: [5 rows]}`. `status`, `visibility`, `default_scope` and all five `milestones` are required in the file; `version` is replaced with `"0.3.0"`, a missing `provenance` becomes `{sources: ["Legacy Renown track"]}`, and missing `refs` become `[{relation: "for_faction", target_id: <deity id>, mode: "required"}]` (a ref without `mode` gets `required`). Write `default_scope: "individual"`: the importer does not check it, but a deity has no group standing.
-Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one}`. `key` defaults to `milestone_<n>` and `selection_mode` to `all`; `benefit` is required (use `""`). `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A deity created in the Renown window starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
+Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one, flavor?}`. `flavor` (Renown 0.25.0) is optional: one or two atmospheric sentences, at most 400 characters, that a player reads on a tier they have not unlocked yet (the name, `benefit` and rewards of a locked tier are never sent to players). Without it Renown shows "A further tier, opened by a sworn Vow." (factions: "A further rank, earned through renown."). It goes on factions' group and individual tracks and on a deity's ladder alike; older files without it still import. `key` defaults to `milestone_<n>` and `selection_mode` to `all`; `benefit` is required (use `""`). `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A deity created in the Renown window starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
 
 ## `starting_state` for deities
 
@@ -83,8 +83,8 @@ Same as for factions: `{faction_id: "DEITY-…", party_discovered?, actors?: [{n
         "default_scope": "individual",
         "milestones": [
           {"id": "RENOWN-EXAMPLE-LANTERN-M1", "key": "milestone_1", "name": "[EXAMPLE] Wick", "threshold": 0, "benefit": "", "selection_mode": "all"},
-          {"id": "RENOWN-EXAMPLE-LANTERN-M2", "key": "milestone_2", "name": "[EXAMPLE] Spark", "threshold": 3, "benefit": "[EXAMPLE] A shrine keeper will speak with you.", "selection_mode": "all"},
-          {"id": "RENOWN-EXAMPLE-LANTERN-M3", "key": "milestone_3", "name": "[EXAMPLE] Flame", "threshold": 6, "benefit": "", "selection_mode": "choose_one"},
+          {"id": "RENOWN-EXAMPLE-LANTERN-M2", "key": "milestone_2", "name": "[EXAMPLE] Spark", "threshold": 3, "benefit": "[EXAMPLE] A shrine keeper will speak with you.", "selection_mode": "all", "flavor": "[EXAMPLE] A candle is lit for you in a shrine you have not yet seen."},
+          {"id": "RENOWN-EXAMPLE-LANTERN-M3", "key": "milestone_3", "name": "[EXAMPLE] Flame", "threshold": 6, "benefit": "", "selection_mode": "choose_one", "flavor": "[EXAMPLE] Pilgrims speak of a warmth that follows the faithful."},
           {"id": "RENOWN-EXAMPLE-LANTERN-M4", "key": "milestone_4", "name": "[EXAMPLE] Beacon", "threshold": 10, "benefit": "", "selection_mode": "all"},
           {"id": "RENOWN-EXAMPLE-LANTERN-M5", "key": "milestone_5", "name": "[EXAMPLE] Dawn", "threshold": 15, "benefit": "", "selection_mode": "all"}
         ]
