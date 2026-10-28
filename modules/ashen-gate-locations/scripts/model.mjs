@@ -302,6 +302,8 @@ export function normalizeLocation(raw = {}) {
   loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
   loc.revealed = loc.state === 'revealed';
+  // 0.24.0, live play state like `state`: "the party is here now". Never part of the published content; a Hidden location is never active.
+  loc.active = r.active === true && loc.state !== 'hidden';
   loc.published = r.published && typeof r.published === 'object' ? normalizeBody(r.published, id)
     : r.published === undefined && loc.state !== 'hidden' ? publishable(loc) : null;
   return loc;
@@ -475,11 +477,13 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   const share = loc.audience.mode === 'selected' ? {userIds: [...loc.audience.userIds], canShare: loc.audience.sharing} : null;
   if (loc.state === 'unidentified') {
     const view = {key: loc.pinKey, state: 'unidentified', name: pub.unidentifiedLabel || fallback};
+    if (loc.active) view.active = true;
     if (pub.teaser) view.teaser = pub.teaser;
     if (share) view.share = share;
     return view;
   }
   const view = {id: loc.id, key: loc.pinKey, state: 'revealed', name: pub.name};
+  if (loc.active) view.active = true;
   for (const f of FIELDS) if (pub.show[f] && pub[f]) view[f] = pub[f];
   const on = key => pub.sections[key] ? pub[key].filter(e => e.visible) : [];
   const resources = on('resources').map(e => nodeForPlayer(e, nodeView));
@@ -725,10 +729,11 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
     const incoming = normalizeLocation(body);
     if (wouldCycle(incoming.id, incoming.parentLocationId, parents)) { skipped.push({id, reason: `parentLocationId ${incoming.parentLocationId} would put it inside itself.`}); continue; }
     parents.set(incoming.id, incoming.parentLocationId);
+    incoming.active = false; // a file never makes a place active; the GM does, in play
     if (!old) { created.push(incoming); continue; }
     const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
     // Who may see it is play state too, like the marker state.
-    Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience});
+    Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, active: old.active, published: old.published, audience: old.audience});
     for (const n of incoming.resources) if (n.finite !== false && exhausted.has(n.key)) n.exhausted = true;
     updated.push(incoming);
   }
