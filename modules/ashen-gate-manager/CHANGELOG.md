@@ -1,3 +1,11 @@
+## 0.71.6 — 2026-10-28
+
+Sync preview: refused records are listed, and it says which commit you pulled.
+
+- **New "Refused" list in the Sync preview.** Every record Sync refused is listed by name under the reason it was refused (for example "An unmanaged document with this name exists; rename or resolve it first", or "2 world documents share this id"), instead of sitting inside the Untouched list.
+- **The pull and the preview name the commit.** After Pull from GitHub the message reads "Read N files from owner/repo@branch at commit abc1234", and the Sync preview shows "Pulled from GitHub: owner/repo@branch at commit abc1234, N files sent to this sync", so you can see which version you are syncing.
+- No change to what Sync compares or writes.
+
 ## 0.71.5 — 2026-10-28
 
 Sync no longer keeps offering the same records.
