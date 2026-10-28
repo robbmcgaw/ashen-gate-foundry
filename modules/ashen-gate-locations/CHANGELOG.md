@@ -1,3 +1,16 @@
+## 0.26.0 — 2026-10-28
+
+New: **select several locations, then Archive or Delete them together** (GM only). Built for trimming the world after Manager brought in places you moved to the reserve pack.
+
+- **Select** (toolbar) shows a tick box on every row. **Select all N shown** takes whatever the list shows now, so narrow it first with the **Region** filter, the other Filters, the search box, or the new **Id starts with** box (for example `LOC-FRONTIER-`; the only place an id is typed). The bar above the list counts *selected* and *shown*.
+- **Archive…** shows exactly which locations it will archive, then takes them off the list and out of players' sight (as if Hidden). Nothing is lost: content, state, audience, Party Notes and map pins are kept; the pins stay on the scene for you and are closed to players. **Undo** appears for 30 seconds. **Archived (n)** (toolbar) lists them; tick some and **Restore…** them with the state they had (none becomes active).
+- **Delete…** is permanent: a preview, a one-click **JSON backup** of exactly those locations (the same file Export writes; Import brings them back), then **Delete N locations** (red, Cancel is the default). A location with places inside it can only be deleted together with them; the window offers to add them. Map Notes this module placed are removed; Notes whose image or size you changed by hand are kept and listed. Party Notes stay stored and return if the same id is imported again.
+- **Imports:** an archived location stays archived when it is imported again (an `update` import still refreshes its definition; a package can never archive or restore anything). Manager's refresh can restore with `importLocations(records, {mode, unarchive: true})`; nothing in Manager calls that today. A *deleted* location is created again by any pack Manager imports that still contains it, so use Archive for places you want to keep out.
+- General Manager's sync can call `archiveLocations(ids, {source: 'ashen-gate-manager', reason})` → `{archived, alreadyArchived, skipped: [{id, reason}]}` and `restoreLocations(ids, {source})`. A call from a source other than the window skips a location whose places inside are not in the same list, with reason `has-children`; Party Notes, state and pins are kept.
+- Unsaved edits: archiving or deleting the location open in the editor asks first (Keep editing is the default).
+- API (GM only, refused for players in the API itself): `previewBulk`, `archiveLocations`, `restoreLocations`, `deleteLocations`, `idsWithPrefix`, `countArchived`, `listLocations({archived})`, `exportPackage({ids})`, `importLocations(…, {unarchive})`. Archived locations are left out of the default `listLocations`, `activeLocations`, `childrenOf`, `locationsForQuest`, `locationsWithMaterial` and `nodesForMaterial`. The one-at-a-time **Delete location** button in the editor is unchanged.
+- Tests use mocked Foundry; they do not render the real window. Nothing saved is rewritten: existing records simply have no `archived` flag.
+
 ## 0.25.1 — 2026-10-28
 
 Changed: the GM **Locations** button now sits in the **Scenes** sidebar instead of the Items sidebar.

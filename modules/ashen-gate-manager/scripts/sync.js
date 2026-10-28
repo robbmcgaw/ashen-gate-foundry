@@ -28,6 +28,7 @@ import {isShopRecord, planShop} from './shop-handoff.js';
 import {SPECIALISTS, planSpecialist, updatesExisting, filterSpecialist} from './specialist-handoff.js';
 import {bundleRecordIds} from './zip-import.js';
 import {offerFor, supersedeMap, adjustRebindOps, collectSpecialistSupersedes} from './supersedes.js';
+import {PARTNERS, isPartnerKind, referenceMap, archiveBlock, ARCHIVE_EXPLAIN} from './sync-archive.js';
 
 export const SYNC_NAME = 'Sync from package';
 export const SYNC_PHRASE = 'Replace content from package';
@@ -137,6 +138,7 @@ export function makeSnapshot(doc, ctx = {}) {
     get raw() { return raw ??= doc.toObject?.() ?? {}; },
     coreLink: doc.getFlag?.(MODULE_ID, 'coreLink') ?? null,
     archived: Boolean(doc.getFlag?.(MODULE_ID, 'lifecycle')?.archived),
+    lifecycle: doc.getFlag?.(MODULE_ID, 'lifecycle') ?? null,
     keep: Boolean(doc.getFlag?.(MODULE_ID, 'keepFolder')),
     inProtectedFolder: Boolean(ctx.isProtectedFolder?.(doc.folder?.id ?? null)),
     playerOwned: kind === 'Actor' && Boolean(doc.hasPlayerOwner),
@@ -579,7 +581,7 @@ export function planSync(set, world, ctx = {}) {
   artMode.replace = Boolean(ctx.replaceArt);
   recreateMode.on = Boolean(ctx.recreateTypeChange);
   actorMode.update = Boolean(ctx.updateActors);
-  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt), updateActors: Boolean(ctx.updateActors)};
+  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt), updateActors: Boolean(ctx.updateActors), archiveMissing: false, archive: {on: false}};
   const lines = [...set.lines.values()];
   plan.scope = {
     files: set.files.map(f => ({filename: f.filename, origin: f.origin, kind: f.kind, records: f.records, packageId: f.packageId, version: f.version})),
@@ -651,7 +653,12 @@ export function planSync(set, world, ctx = {}) {
     }
     const snap = snaps[0];
     if (snap.documentName !== record.foundry.document_type) { rows.push(untouched(id, name, kind, `The world document is a ${snap.documentName}, not a ${record.foundry.document_type}.`, {...base, refused: true})); continue; }
-    if (snap.archived) { rows.push(untouched(id, name, kind, 'Archived in Manager; restore it before it can be synced.', {...base, refused: true})); continue; }
+    if (snap.archived) {
+      // 0.75.0: a document an earlier Sync archived comes back by itself now that a ticked pack carries its record again; one archived by hand does not.
+      if (snap.lifecycle?.archivedBy !== 'sync') { rows.push(untouched(id, name, kind, 'Archived in Manager; restore it before it can be synced.', {...base, refused: true})); continue; }
+      rows.push({group: 'restore', key: rowKey('restore', kind, id), id, name: snap.name ?? name, kind, snap, changes: [], lost: 0, record, manifest, filename,
+        reason: 'Archived by an earlier Sync and now in the chosen packs again: restored to its folder and readable as before. Its content is then compared as usual.'});
+    }
     const rowsBefore = rows.length;
     let artKept = null;
     try {
@@ -727,7 +734,11 @@ export function planSync(set, world, ctx = {}) {
     if (!id || !held.has(id) || rebindOld.has(id)) continue;
     rows.push(untouched(id, snap.name, snap.documentName, `Not removed: ${set.supersedes.get(id)} supersedes it. Replace it from the Replaces list, or delete it yourself.`, {kept: true, snap}));
   }
-  const candidates = docs.filter(s => {
+  // 0.75.0: with "Also archive records that are no longer in the package" a missing record is archived (reversible), never deleted.
+  const archiveOn = Boolean(ctx.archiveMissing) && set.managerFiles.length > 0;
+  if (ctx.archiveMissing && !archiveOn) notes.push('"Also archive records that are no longer in the package" is ignored: this sync has no Manager package, so Sync cannot tell which records are missing.');
+  plan.archiveMissing = archiveOn;
+  const candidates = archiveOn ? [] : docs.filter(s => {
     const f = s.flag;
     if (!f?.sourceId || set.allIds.has(f.sourceId) || held.has(f.sourceId)) return false;
     const line = f.packageId && f.packageId !== 'unknown' ? f.packageId : null;
@@ -744,7 +755,7 @@ export function planSync(set, world, ctx = {}) {
   let outOfScope = 0, noLine = 0;
   for (const s of docs) {
     const f = s.flag;
-    if (!f?.sourceId || set.allIds.has(f.sourceId) || doomed.has(f.sourceId) || held.has(f.sourceId)) continue;
+    if (!f?.sourceId || set.allIds.has(f.sourceId) || doomed.has(f.sourceId) || held.has(f.sourceId) || archiveOn) continue;
     outOfScope++;
     if (!f.packageId || f.packageId === 'unknown') noLine++;
   }
@@ -768,6 +779,8 @@ export function planSync(set, world, ctx = {}) {
       rows.push(untouched(f.sourceId, snap.name, kind, `Not removed: could not be checked (${String(error?.message ?? error)}).`, {kept: true, snap, failed: true}));
     }
   }
+  if (archiveOn) planArchive(plan, set, docs, ctx, {held, rows, notes, failures});
+  planPartnerRestores(plan, set, ctx, rows);
   plan.outOfScope = {records: outOfScope, withoutLine: noLine};
   if (noLine && !unscoped) notes.push(`${noLine} Manager-imported record(s) have no package line (imported by an older version). They are kept; tick "Also delete records not in these files" to let Sync remove those that no file mentions.`);
   if (unscoped && noLine) notes.push(`"Also delete records not in these files" is on: Manager-imported records without a package line that no chosen file mentions are deleted (${candidates.filter(c => !c.flag.packageId || c.flag.packageId === 'unknown').length} of them are in the Delete list or marked Not removed).`);
@@ -780,6 +793,76 @@ export function planSync(set, world, ctx = {}) {
   plan.failures = failures;
   if (failures.length) notes.unshift(`${failures.length} record(s) could not be compared and were left exactly as they are (${failures.slice(0, 3).map(x => `${x.id}: ${x.message}`).join('; ')}${failures.length > 3 ? '; …' : ''}). Nothing was written for them.`);
   return finish(plan);
+}
+
+/**
+ * 0.75.0: "Also archive records that are no longer in the package". Managed documents (Manager source flag with a sourceId) whose id is in
+ * none of the chosen files become Archive rows. Never: unflagged documents (never read), Character Actors, Actors a player owns, documents
+ * marked Keep, in a protected folder, on a hotbar or with tokens on a scene, and anything a record in the chosen packs still needs
+ * (hard references, followed through the world documents they need): those are listed as Kept. Records Locations and Quest Log own are
+ * asked through their archive API when it exists, and listed as "Not archived" when it does not.
+ */
+function planArchive(plan, set, docs, ctx, {held, rows, notes, failures}) {
+  const info = plan.archive = {on: true, explain: ARCHIVE_EXPLAIN, byKind: {}, byLine: {}, keptReferenced: 0, kept: 0, already: 0, notArchived: 0, partner: {}, referencedIds: new Set()};
+  const referenced = referenceMap(set, docs);
+  info.referencedIds = new Set(referenced.keys());
+  const bump = (map, key) => { map[key] = (map[key] ?? 0) + 1; };
+  const byId = new Map();
+  for (const s of docs) { const id = s.flag?.sourceId; if (id) (byId.get(id) ?? byId.set(id, []).get(id)).push(s); }
+  const names = list => `${list.slice(0, 3).join(', ')}${list.length > 3 ? ', …' : ''}`;
+  for (const snap of docs) {
+    const f = snap.flag, id = f?.sourceId, kind = snap.documentName;
+    if (!id || set.allIds.has(id) || held.has(id)) continue;
+    if (snap.archived) { info.already++; continue; }
+    try {
+      const refs = referenced.get(id);
+      if (refs?.length) { info.keptReferenced++; rows.push(untouched(id, snap.name, kind, `Kept: still referenced by ${names(refs)} in the chosen packs.`, {kept: true, keptReferenced: true, snap})); continue; }
+      if ((byId.get(id)?.length ?? 0) > 1) { info.kept++; rows.push(untouched(id, snap.name, kind, `Not archived: ${byId.get(id).length} world documents share this id; resolve that in Foundry first.`, {kept: true, snap})); continue; }
+      const block = archiveBlock(snap);
+      if (block) { info.kept++; rows.push(untouched(id, snap.name, kind, `Not archived: ${block}.`, {kept: true, snap})); continue; }
+      const line = f.packageId && f.packageId !== 'unknown' ? f.packageId : 'no package line';
+      bump(info.byKind, kind); bump(info.byLine, line);
+      rows.push({group: 'archive', key: rowKey('archive', kind, id), id, name: snap.name, kind, snap, changes: [], lost: 0, line,
+        reason: `Imported by Manager from ${line} and not in the chosen packs. Archived, not deleted: hidden from players, restorable, its id stays live.`});
+    } catch (error) {
+      failures.push({id, name: snap.name, step: 'archive check', message: String(error?.message ?? error), stack: error?.stack ?? null});
+      rows.push(untouched(id, snap.name, kind, `Not archived: could not be checked (${String(error?.message ?? error)}).`, {kept: true, snap, failed: true}));
+    }
+  }
+  // Locations and Quest Log: the ledger lists what Manager handed over. Only those ids are ever asked about.
+  const handled = new Set(), ledger = ctx.ledger ?? {};
+  for (const [key, entries] of Object.entries(ledger)) for (const [id, entry] of Object.entries(entries ?? {})) {
+    const kind = entry?.kind;
+    if (!isPartnerKind(kind) || handled.has(`${kind}|${id}`)) continue;
+    if (set.allIds.has(id) || held.has(id)) continue;
+    if (ctx.moduleHas?.(kind, id) === false) continue; // already gone from that module
+    handled.add(`${kind}|${id}`);
+    const spec = PARTNERS[kind], name = entry.name ?? id, part = info.partner[kind] ??= {label: spec.label, archive: 0, already: 0, kept: 0, notArchived: 0, api: Boolean(ctx.partnerArchive?.(kind))};
+    if (entry.archived) { part.already++; info.already++; continue; }
+    const refs = referenced.get(id);
+    if (refs?.length) { part.kept++; info.keptReferenced++; rows.push(untouched(id, name, kind, `Kept: still referenced by ${names(refs)} in the chosen packs.`, {kept: true, keptReferenced: true, external: true, module: spec.label})); continue; }
+    if (!part.api) { part.notArchived++; info.notArchived++; rows.push(untouched(id, name, kind, `Not archived: needs a ${spec.label} update (${spec.label} has no ${spec.archive}/${spec.restore} yet). It stays as it is.`, {notArchived: true, external: true, module: spec.label})); continue; }
+    part.archive++; bump(info.byKind, kind); bump(info.byLine, key.startsWith('specialist:') ? key.slice(11) : key);
+    rows.push({group: 'archive', key: rowKey('archive', kind, id), id, name, kind, external: true, partner: true, module: spec.label, ledgerKey: key, ledgerInfo: entry, changes: [], lost: 0, line: key.startsWith('specialist:') ? key.slice(11) : key,
+      reason: `Handed to ${spec.label} by an earlier import and not in the chosen packs. ${spec.label} archives it (hidden, restorable); it deletes nothing.`});
+  }
+  // The generic "Not removed: remove it in X" line is replaced by the archive rows above for the ids handled here.
+  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].notRemoved && handled.has(`${rows[i].kind}|${rows[i].id}`)) rows.splice(i, 1);
+  info.total = rows.filter(r => r.group === 'archive').length;
+}
+
+/** 0.75.0: a Location or Quest that an earlier Sync had the owning module archive, and that the chosen packs carry again, is restored there first. */
+function planPartnerRestores(plan, set, ctx, rows) {
+  const seen = new Set();
+  for (const [key, entries] of Object.entries(ctx.ledger ?? {})) for (const [id, entry] of Object.entries(entries ?? {})) {
+    const kind = entry?.kind;
+    if (!entry?.archived || !isPartnerKind(kind) || !set.allIds.has(id) || seen.has(`${kind}|${id}`)) continue;
+    seen.add(`${kind}|${id}`);
+    const spec = PARTNERS[kind], name = entry.name ?? id;
+    if (!ctx.partnerArchive?.(kind)) { rows.push(untouched(id, name, kind, `Archived in ${spec.label} by an earlier Sync; update ${spec.label} so Sync can restore it.`, {notArchived: true, external: true, module: spec.label})); continue; }
+    rows.push({group: 'restore', key: rowKey('restore', kind, id), id, name, kind, external: true, partner: true, module: spec.label, ledgerKey: key, ledgerInfo: entry, changes: [], lost: 0,
+      reason: `Archived in ${spec.label} by an earlier Sync and now in the chosen packs again: ${spec.label} restores it before the record is handed over.`});
+  }
 }
 
 function planModuleRows(set, ctx, rows, errors) {
@@ -847,7 +930,7 @@ function planModuleRows(set, ctx, rows, errors) {
 }
 
 function finish(plan) {
-  const c = {create: 0, overwrite: 0, rebind: 0, rename: 0, actorUpdates: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
+  const c = {create: 0, overwrite: 0, rebind: 0, rename: 0, actorUpdates: 0, delete: 0, archive: 0, restore: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0, keptReferenced: 0, notArchived: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
     if (r.group === 'overwrite' && r.actorUpdate) c.actorUpdates++; // also counted as an overwrite: it is one, listed in its own group
@@ -857,6 +940,8 @@ function finish(plan) {
     if (r.notRemoved) c.notRemoved++;
     if (r.keptEdited) c.keptEdited++;
     if (r.keptRemoved) c.keptRemoved++;
+    if (r.keptReferenced) c.keptReferenced++;
+    if (r.notArchived) c.notArchived++;
   }
   c.untouched += plan.outOfScope?.records ?? 0;
   c.metadataRefreshes ??= 0;
@@ -876,9 +961,11 @@ function finish(plan) {
   if (c.recreate > 0) parts.push(`recreate ${plural(c.recreate, 'Item')}`);
   if (c.metadataRefreshes > 0) parts.push(`refresh metadata on ${plural(c.metadataRefreshes, 'record')}`);
   if (c.delete > 0) parts.push(`delete ${c.delete}`);
+  if (c.archive > 0) parts.push(`archive ${plural(c.archive, 'record')}`);
+  if (c.restore > 0) parts.push(`restore ${plural(c.restore, 'record')} from the archive`);
   const sentence = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'Apply changes';
   plan.buttonLabel = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-  plan.metadataOnly = plan.records === 0 && c.delete === 0 && c.metadataRefreshes > 0;
+  plan.metadataOnly = plan.records === 0 && c.delete === 0 && c.archive === 0 && c.restore === 0 && c.metadataRefreshes > 0;
   plan.destructive = c.overwrite + c.rebind + c.delete + (c.recreate ?? 0) > 0;
   plan.renameOnly = !phraseRequired(plan);
   return plan;
@@ -892,7 +979,7 @@ export function phraseRequired(plan) {
   const rows = plan?.rows ?? [];
   if (!rows.some(r => r.group === 'rename')) return true;
   if ((plan.specialistSupersedes ?? []).some(x => x.pending !== 0)) return true;
-  return rows.some(r => ['create', 'overwrite', 'rebind', 'recreate', 'delete'].includes(r.group));
+  return rows.some(r => ['create', 'overwrite', 'rebind', 'recreate', 'delete', 'archive', 'restore'].includes(r.group));
 }
 
 /** True when the typed text is the confirmation phrase (case and surrounding space do not matter). */

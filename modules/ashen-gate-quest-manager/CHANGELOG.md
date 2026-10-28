@@ -1,3 +1,15 @@
+## 0.29.0 — 2026-10-28
+
+New: **select several quests, then Archive or Delete them together** (GM only), for trimming quests that arrived from a pack you have since moved to the reserve.
+
+- The **Quests** list already had tick boxes and **Select all N shown**. The Filters row now also has **Source pack** and **Id starts with** (for example `QUEST-FRONTIER-`; the only place an id is typed), plus the existing Type, Status (the Active, Hidden, … views), Location and Region. Select all shown takes exactly what the list shows.
+- **Archive…** shows which quests it will archive and who loses them, then takes them off the list and away from players, as if Hidden. Status, progress, notes and rewards are kept. **Undo** shows for 30 seconds. The new **Archived** view (with a count, beside Contracts) lists them; **Restore…** brings them back exactly as they were, and they reappear for players only if they were revealed and not Hidden.
+- **Delete…** is permanent: a preview, a one-click JSON backup of exactly those quests (the Export JSON format, with their play state under `states`; Import JSON reads it), then **Delete N quests** (red; Cancel is the default). A quest that still has assignments is left alone and listed. Character notes go to the GM archive as before. Locations and other modules that still name a deleted or archived quest ignore the link.
+- Archiving or deleting the quest open in the editor with unsaved changes is refused until you save or cancel. An import never changes play state, so an archived quest stays archived when Manager imports it again; only Restore brings it back.
+- API (GM only, refused for players in the data layer): `previewBulk`, `archiveQuests(ids, {source, reason})` → `{archived, alreadyArchived, skipped: [{id, reason}], …}`, `restoreQuests(ids, {source})` → `{restored, skipped}`, `deleteQuests(ids)` → `{done, failed, skipped, backup}`, `idsWithPrefix`, `countArchived`. `listQuests()` leaves archived quests out unless `{includeArchived: true}`. General Manager's sync uses archiveQuests / restoreQuests.
+- Also: a test that read the private sandbox files now skips unless all three files are present.
+- Tests use mocked Foundry; they do not render the real window.
+
 ## 0.28.0 — 2026-10-28
 
 Show to Players: a GM button that opens a quest on everyone else's screen.

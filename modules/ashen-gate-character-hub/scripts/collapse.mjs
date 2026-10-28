@@ -46,9 +46,9 @@ export function toggleButton(key, label, {icon = false} = {}) {
 /** Attributes for the element a toggle opens and closes. */
 export const bodyAttrs = key => ` data-sec-body="${esc(key)}"${isCollapsed(key) ? ' hidden' : ''}`;
 
-/** A heading with a collapse toggle and its body. `titleHtml` is trusted HTML (callers escape names). */
-export function sectionHtml(key, titleHtml, bodyHtml, {extra = ''} = {}) {
-  return `<section class="agch-sec${extra ? ` ${extra}` : ''}" data-sec="${esc(key)}"><h3 class="agch-heading agch-sec__head">${toggleButton(key, titleHtml)}</h3>
+/** A heading with a collapse toggle and its body. `titleHtml` is trusted HTML (callers escape names). `headEnd` is trusted HTML put at the right end of the heading (a button). */
+export function sectionHtml(key, titleHtml, bodyHtml, {extra = '', headEnd = ''} = {}) {
+  return `<section class="agch-sec${extra ? ` ${extra}` : ''}" data-sec="${esc(key)}"><h3 class="agch-heading agch-sec__head">${toggleButton(key, titleHtml)}${headEnd}</h3>
     <div class="agch-sec__body"${bodyAttrs(key)}>${bodyHtml}</div></section>`;
 }
 

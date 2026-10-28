@@ -119,11 +119,13 @@ export function localEdits(document) {
 }
 
 export function planLifecycle({managed,kind,sourceId=null,entityType=null,archived=false,dependentIds=[],embeddedCount=0,action}) {
-  if(['Actor','RollTable','Macro'].includes(kind)) return {action:'blocked',reason:`${kind} lifecycle operations belong to Foundry; Manager only creates and browses these documents.`};
+  // 0.75.0: Sync can archive these types; the one thing Library offers for them is putting an archived one back.
+  const restoreOnly=['Actor','RollTable','Macro'].includes(kind) && action==='restore' && archived && managed;
+  if(['Actor','RollTable','Macro'].includes(kind) && !restoreOnly) return {action:'blocked',reason:`${kind} lifecycle operations belong to Foundry; Manager only creates and browses these documents.`};
   const handoff=domainHandoff({id:sourceId,entity_type:entityType});
   if(handoff) return {allowed:false,reason:handoff};
   if (!managed) return {allowed:false,reason:'Unmanaged document: adopt/tag separately first.'};
-  if (!['Item','JournalEntry'].includes(kind)) return {allowed:false,reason:'Only world Items and Journals support lifecycle changes.'};
+  if (!restoreOnly && !['Item','JournalEntry'].includes(kind)) return {allowed:false,reason:'Only world Items and Journals support lifecycle changes.'};
   if (action==='archive' && archived) return {allowed:false,reason:'Already archived.'};
   if (action==='restore' && !archived) return {allowed:false,reason:'Not archived.'};
   if (action==='delete' && dependentIds.length) return {allowed:false,reason:`Blocked: referenced by ${dependentIds.join(', ')}.`};

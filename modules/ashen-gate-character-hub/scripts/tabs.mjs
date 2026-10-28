@@ -10,7 +10,8 @@ import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {cardList, COLUMNS as C, containerLead, containerAttrs, flagBadges} from './cards.mjs';
-import {featureOrigins, hasPartnerOrigin, originGroups} from './feature-origin.mjs';
+import {featureOrigins, hasPartnerOrigin, originGroups, originGroupKey} from './feature-origin.mjs';
+import {activeHidden} from './hidden-groups.mjs';
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
@@ -252,6 +253,12 @@ function magicTab(ctx) {
 }
 
 // ---------- Features ----------
+/** 0.62.0: the "Hidden groups (n)" control above the list: opens the list of hidden groups, each with Show, plus Show all. */
+function hiddenGroupsBar(groups, open, off) {
+  const items = open ? `<ul class="agch-hiddengroups__list">${groups.map(g => `<li><span>${esc(g.label)}</span>${btn('group-show', 'Show', {kind: 'sm', icon: 'fa-solid fa-eye', data: {key: g.key}, title: `Show ${g.label} in this list again`, aria: `Show ${g.label}`, disabled: off})}</li>`).join('')}
+    ${groups.length > 1 ? `<li>${btn('group-show-all', 'Show all', {kind: 'sm', title: 'Show every hidden group again', disabled: off})}</li>` : ''}</ul>` : '';
+  return `<div class="agch-hiddengroups"><button type="button" class="ag-btn ag-btn--sm" data-action="hidden-groups-toggle" data-ag-always aria-expanded="${open}" data-tooltip="Groups hidden from this list. Nothing is deleted."><i class="fa-solid fa-eye-slash" aria-hidden="true"></i><span>Hidden groups (${groups.length})</span></button>${items}</div>`;
+}
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
   const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label})));
@@ -261,14 +268,20 @@ function featuresTab(ctx) {
   const typeCol = {...C.type, render: r => esc(r.typeLabel || r.facts.type || '—'), tip: r => r.typeLabel || r.facts.type, fact: r => r.typeLabel || r.facts.type};
   const columns = itemCols([...(group === 'type' ? [] : [typeCol]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery], compact);
   const card = r => ({iconUse: !off, controls: useBtn(r, off, compact), star: starBtn(actor, r, off)});
-  const shown = filterRows(all, f);
-  const groups = group === 'origin' ? originGroups(sortRows(shown, sort), origins) : group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
+  // 0.62.0: hidden Origin groups (hidden-groups.mjs) leave the list in every Group view; the Items themselves are untouched.
+  const originAll = originGroups(all, origins), hiddenSet = activeHidden(actor, originAll), hiddenGroups = originAll.filter(g => hiddenSet.has(g.key));
+  const rowHidden = r => hiddenSet.has(originGroupKey(origins.get(r.id)));
+  const visible = hiddenSet.size ? all.filter(r => !rowHidden(r)) : all, shown = filterRows(visible, f);
+  const hideBtn = g => g.section === 'profession' && !off ? btn('group-hide', 'Hide', {kind: 'sm', icon: 'fa-solid fa-eye-slash', data: {key: g.key}, title: `Hide ${g.label} from this list (nothing is deleted)`, aria: `Hide ${g.label}`, extra: 'agch-sec__hide'}) : '';
+  const groups = group === 'origin' ? originGroups(sortRows(shown, sort), origins).map(g => ({...g, headEnd: hideBtn(g)})) : group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
-  const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
+  const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}), {headEnd: g.headEnd ?? ''})).join('');
+  const hiddenBar = hiddenGroups.length ? hiddenGroupsBar(hiddenGroups, sheet?.hiddenGroupsOpen === true, off) : '';
+  const emptyState = all.length ? (visible.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('All groups are hidden.', 'Use Hidden groups above to show them again. Nothing was deleted.')) : empty('No features yet.', 'Class, species and other features show here.');
   // Action-type buttons for the dnd5e activation types these features have.
   const actBtns = actionChips('features', all, f);
   return dropZone(ctx, 'features', `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`, `<div class="agch-filtermenu__opts">${itemDescriptionsToggle()}</div>`, {choice: {group, sort}})}${addEnd(ctx, 'features')}</div>`)}
-    ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded, list)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
+    ${hiddenBar}${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded, list)}${sections || emptyState}
     <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. Add feature… picks a feature from the compendiums or creates one; you can also drop one here. The star is dnd5e's own favourite (also on the standard sheet).</p>`);
 }
 

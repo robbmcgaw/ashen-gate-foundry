@@ -18,7 +18,9 @@ import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
 import {toggleSection, isCollapsed} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
-import {originDefault} from './feature-origin.mjs';
+import {originDefault, featureOrigins, originGroups} from './feature-origin.mjs';
+import {setGroupHidden, showAllGroups, activeHidden} from './hidden-groups.mjs';
+import {featuresData} from './items.mjs';
 import {changeArt} from './art.mjs';
 import * as journey from './journey.mjs';
 import {journeyActor, JOURNEY_VIEWS} from './journey-views.mjs';
@@ -70,6 +72,13 @@ export const report = result => { if (result && result.ok === false && result.er
 /** A conditions action finished: say what happened (a refusal is shown by report), redraw. */
 const condDone = (s, r) => { if (r?.ok) { if (r.notice) globalThis.ui?.notifications?.info?.(r.notice); s.render(); } return r; };
 
+/** 0.62.0: Hide / Show on a Features group. The data layer (hidden-groups.mjs) checks who may; the groups come from the character as it is now. */
+async function featureGroupVisibility(s, key, hide) {
+  const actor = s.document, rows = featuresData(actor).groups.flatMap(g => g.items), groups = originGroups(rows, featureOrigins(actor, rows));
+  const r = await setGroupHidden(actor, key, hide, groups);
+  if (r.ok) { if (!activeHidden(actor, groups).size) s.hiddenGroupsOpen = false; s.render(); }
+  return r;
+}
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
   'hub-tab': async (s, t) => { if (t.dataset.tab !== s.tab && !(await leaveBiography(s))) return null; s.tab = t.dataset.tab; s.menu = null; return s.render(); },
@@ -82,6 +91,10 @@ export const ACTIONS = {
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
   'ctype-more': (s, t) => { const g = t.closest?.('[data-ctgroup]'); if (g) { g.dataset.limit = String((Number(g.dataset.limit) || 50) + 50); const root = g.closest?.('[data-ctypes]') ?? g.parentElement; filterCompanionTypes(root, root?.querySelector?.('[data-ctype-filter]')?.value ?? ''); } return {ok: true}; },
+  'hidden-groups-toggle': s => { s.hiddenGroupsOpen = s.hiddenGroupsOpen !== true; return s.render(); },
+  'group-hide': (s, t) => featureGroupVisibility(s, t.dataset.key, true),
+  'group-show': (s, t) => featureGroupVisibility(s, t.dataset.key, false),
+  'group-show-all': async s => { const r = await showAllGroups(s.document); if (r.ok) { s.hiddenGroupsOpen = false; s.render(); } return r; },
   'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
   'ag-jump': async (s, t) => { if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),

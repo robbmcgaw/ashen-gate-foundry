@@ -25,8 +25,8 @@ const ctx={actorName:id=>({aria:'[TEST] Aria'})[id]??null,locationName:id=>({'LO
 const rows=data.map(e=>questRow(e,ctx));
 
 test('sub-views: All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts with counts',()=>{
- assert.deepEqual(SUBVIEWS.map(v=>v.label),['All','Drafts','Hidden','Active','Completed / Failed','Orders','Contracts']);
- assert.deepEqual(navCounts(rows),{all:8,drafts:1,hidden:1,active:4,closed:2,orders:1,contracts:1});
+ assert.deepEqual(SUBVIEWS.map(v=>v.label),['All','Drafts','Hidden','Active','Completed / Failed','Orders','Contracts','Archived']);
+ assert.deepEqual(navCounts(rows),{all:8,drafts:1,hidden:1,active:4,closed:2,orders:1,contracts:1,archived:0});
  assert.deepEqual(filterRows(rows,{nav:'drafts'}).map(r=>r.id),['QUEST-T-DRAFT']);
  assert.deepEqual(filterRows(rows,{nav:'closed'}).map(r=>r.id),['QUEST-T-DONE','QUEST-T-FAIL']);
  assert.deepEqual(filterRows(rows,{nav:'contracts'}).map(r=>r.id),['CONTRACT-T-ESCORT']);
@@ -176,7 +176,7 @@ test('bulk status says who will newly see what; delete and duplicate cover every
  assert.throws(()=>planBulk('status',data,['QUEST-T-HID'],{status:'Bogus'}),/Choose a status/);
  assert.throws(()=>planBulk('explode',data,[]),/Unknown bulk action/);
  assert.equal(planBulk('delete',data,['QUEST-T-HID','ORDER-T-FORGE','NOPE']).changes.length,2);
- assert.match(confirmText('delete',planBulk('delete',data,['QUEST-T-HID'])),/Delete 1 quest\..*cannot be undone/);
+ assert.match(confirmText('delete',planBulk('delete',data,['QUEST-T-HID'])),/Delete 1 quest for good\..*cannot be undone/);
 });
 test('duplicate: new permanent id (-COPY, -COPY-2), "(copy)" title, draft status; never the campaign state',()=>{
  const s=src('QUEST-T-ACT','[TEST] Active',{status:'approved',outcomes:{item_rewards:[{item_id:'ITEM-TEST-ROPE'}]}});
@@ -198,7 +198,7 @@ const once=new Map(),hooks=new Map();
 globalThis.Hooks={once:(e,fn)=>once.set(e,fn),on:(e,fn)=>hooks.set(e,[...(hooks.get(e)??[]),fn]),off:()=>{}};
 let lastApp;const dialogs=[];let answer='confirm';
 globalThis.foundry={applications:{api:{ApplicationV2:class{constructor(){lastApp=this;}async render(){this.rendered=true;this.renders=(this.renders??0)+1;return this._renderHTML();}async close(){this.rendered=false;}},
- DialogV2:{wait:async o=>{dialogs.push(o);return o.buttons.find(b=>b.action===answer).callback();},prompt:async o=>{dialogs.push(o);}}}}};
+ DialogV2:{wait:async o=>{dialogs.push(o);const a=typeof answer==='function'?answer(o,dialogs.length):answer;return o.buttons.find(b=>b.action===a).callback();},prompt:async o=>{dialogs.push(o);}}}}};
 const gm={id:'gm',isGM:true,flags:{}},alice={id:'alice',isGM:false,flags:{}};
 for(const u of [gm,alice]){u.getFlag=(m,k)=>m===MOD?structuredClone(u.flags[k]):undefined;u.setFlag=async(m,k,v)=>{u.flags[k]=structuredClone(v);};}
 const docs=[];let n=0,clock=1_700_000_000_000;
@@ -212,7 +212,8 @@ globalThis.JournalEntry={create:async(data)=>{const d=new Doc(data);docs.push(d)
 const actors=[{id:'aria',name:'[TEST] Aria',type:'character',flags:{},testUserPermission:u=>u.isGM||u.id==='alice'}];actors.get=id=>actors.find(a=>a.id===id)??null;
 const settings={playerAccessEnabled:true,compendiumPackIds:'',openForPlayers:false};
 const mod={active:true,api:null,version:'0.15.0'};const notes=[];
-globalThis.document={querySelectorAll:()=>[],querySelector:()=>null};
+const downloads=[];
+globalThis.document={querySelectorAll:()=>[],querySelector:()=>null,body:{append(){}},createElement:()=>new Proxy({click(){downloads.push(this.download);},remove(){}},{get:(t,k)=>k in t?t[k]:(()=>{})})};
 globalThis.ui={actors:{element:null},notifications:{info:m=>notes.push(['info',m]),warn:m=>notes.push(['warn',m]),error:m=>notes.push(['error',m])}};
 globalThis.game={user:gm,users:[gm,alice],journal:docs,actors,folders:[],items:{contents:[]},packs:{get:()=>null},
  settings:{register:()=>{},get:(m,k)=>settings[k],set:async(m,k,v)=>{settings[k]=v;}},modules:{get:id=>id===MOD?mod:null}};
@@ -350,10 +351,16 @@ test('bulk delete asks in red with a labelled button; Cancel deletes nothing; th
  reset();const app=lastApp;app.gmId='QUEST-TEST-B-COPY';app.unsavedSource=false;
  app.picked=new Set(['QUEST-TEST-B-COPY','QUEST-TEST-NEW']);answer='cancel';
  await app.action({dataset:{action:'bulk-delete'}},content);
- const ask=dialogs[0];assert.equal(ask.window.title,'Delete 2 quests?');assert.deepEqual(ask.buttons.map(b=>b.label),['Cancel','Delete 2 quests']);
- assert.ok(ask.classes.includes('ag-dialog--danger'));assert.match(ask.content,/cannot be undone/);
+ // 0.29.0: a preview with the backup download comes first (Cancel there downloads and deletes nothing), then the red confirm.
+ const pre=dialogs[0];assert.equal(pre.window.title,'Delete 2 quests?');assert.deepEqual(pre.buttons.map(b=>b.label),['Cancel','Download backup, then continue…']);
+ assert.match(pre.content,/will be deleted for good/);assert.equal(downloads.length,0);
  assert.ok(gmRecord('QUEST-TEST-B-COPY')&&gmRecord('QUEST-TEST-NEW'),'Cancel deletes nothing');
- answer='confirm';await app.action({dataset:{action:'bulk-delete'}},content);
+ dialogs.length=0;answer=(o)=>o.buttons.some(b=>b.action==='backup')?'backup':'cancel';await app.action({dataset:{action:'bulk-delete'}},content);
+ assert.equal(downloads.length,1,'the backup was downloaded before the confirm');
+ const ask=dialogs[1];assert.equal(ask.window.title,'Delete 2 quests?');assert.deepEqual(ask.buttons.map(b=>[b.label,b.default]),[['Cancel',true],['Delete 2 quests',false]]);
+ assert.ok(ask.classes.includes('ag-dialog--danger'));assert.match(ask.content,/cannot be undone/);
+ assert.ok(gmRecord('QUEST-TEST-B-COPY')&&gmRecord('QUEST-TEST-NEW'),'Cancel at the confirm deletes nothing');
+ dialogs.length=0;answer=(o)=>o.buttons.some(b=>b.action==='backup')?'backup':'confirm';await app.action({dataset:{action:'bulk-delete'}},content);
  assert.equal(gmRecord('QUEST-TEST-B-COPY'),undefined);assert.equal(gmRecord('QUEST-TEST-NEW'),undefined);
  assert.equal(app.gmId,null);assert.equal(app.picked.size,0);assert.match(notes.at(-1)[1],/2 quests deleted/);
  // Unsaved edits on the open quest block a bulk action on it.

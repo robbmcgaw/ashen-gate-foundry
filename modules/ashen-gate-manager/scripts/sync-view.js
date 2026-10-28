@@ -3,6 +3,7 @@
  * The wiring (file picker, buttons, progress) is in main.js; every control here carries a data attribute it binds.
  */
 import {SYNC_NAME, SYNC_PHRASE, phraseOk, phraseRequired} from './sync.js';
+import {ARCHIVE_LABEL, ARCHIVE_EXPLAIN} from './sync-archive.js';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -33,6 +34,28 @@ function artRow(a) {
   const rows = a.fields.map(f => `<tr><th scope="row">${esc(f.label)}</th><td>${esc(f.live)}</td><td>${esc(f.package)}</td></tr>`).join('');
   return `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(a.name)}</strong> ${esc(a.kind)} · ${esc(a.summary)}</summary>
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Yours (kept)</th><th scope="col">Package</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
+}
+
+/**
+ * The Archive group (0.75.0): per-type counts, a count per package line (the source file the records came from), and every record by name,
+ * grouped by type. Nothing is cut off: every archived record is listed.
+ */
+const KIND_WORD = {Item: 'Items', JournalEntry: 'Journals', Actor: 'Actors', RollTable: 'Roll Tables', Macro: 'Macros', Location: 'Locations', Quest: 'Quests'};
+function archiveFold(plan, rows) {
+  const info = plan.archive ?? {};
+  const byKind = new Map();
+  for (const r of rows) (byKind.get(r.kind) ?? byKind.set(r.kind, []).get(r.kind)).push(r);
+  const kindChips = [...byKind].map(([kind, list]) => `<span class="ag-badge">${list.length} ${esc(KIND_WORD[kind] ?? kind)}</span>`).join(' ');
+  const lineRows = Object.entries(info.byLine ?? {}).sort((a, b) => b[1] - a[1]).map(([line, n]) => `<tr><td><code>${esc(line)}</code></td><td class="is-num">${n}</td></tr>`).join('');
+  const blocks = [...byKind].sort((a, b) => b[1].length - a[1].length).map(([kind, list]) => `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(KIND_WORD[kind] ?? kind)}</strong> <span class="ag-badge">${list.length}</span></summary>
+    <ul class="ag-rows">${list.map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.module ? `${r.module} — ` : '')}${esc(r.line ?? '')}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`).join('')}</ul></details></li>`).join('');
+  const body = rows.length
+    ? `<p class="agmanager-tiny">${esc(ARCHIVE_EXPLAIN)} A JSON backup of every one downloads first, and the typed confirmation is required.</p>
+      <p class="ag-cluster">${kindChips}</p>
+      <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Package (source file)</th><th scope="col" class="is-num">Archived</th></tr></thead><tbody>${lineRows}</tbody></table></div>
+      <ul class="ag-rows">${blocks}</ul>`
+    : `<p class="agmanager-tiny">${esc(ARCHIVE_EXPLAIN)}</p><p class="agmanager-tiny">Nothing to archive${info.already ? `: ${info.already} record(s) are already archived` : ''}.</p>`;
+  return group('Archive', rows.length, body, {open: rows.length > 0 && rows.length <= 40});
 }
 
 /** The "Replaces" list: one row per record that supersedes a document in this world, with a Yes / No / Skip choice. Nothing is written before Apply. */
@@ -73,7 +96,7 @@ export function syncView(state) {
   if (files.length) parts.push(`<details class="ag-fold" open><summary class="ag-fold__summary"><span class="ag-fold__title">Files in this sync</span><span class="ag-fold__count">${files.length}</span></summary><div class="ag-fold__body">
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Package line</th></tr></thead><tbody>${fileRows}</tbody></table></div>
     ${state.skipped.length ? `<p class="agmanager-tiny">Not part of the sync: ${state.skipped.map(s => `<code>${esc(s.filename)}</code> (${esc(s.reason)})`).join('; ')}</p>` : ''}</div></details>`);
-  const adv = [state.deleteUnscoped ? 'deleting records not in the files' : null, state.overwriteEdited ? 'overwriting edited records' : null, state.replaceArt ? 'replacing art' : null, state.recreateTypeChange ? 'recreating Items whose type changed' : null, state.updateActors ? 'updating Actors from the package' : null].filter(Boolean);
+  const adv = [state.deleteUnscoped ? 'deleting records not in the files' : null, state.overwriteEdited ? 'overwriting edited records' : null, state.replaceArt ? 'replacing art' : null, state.recreateTypeChange ? 'recreating Items whose type changed' : null, state.updateActors ? 'updating Actors from the package' : null, state.archiveMissing ? 'archiving records not in the files' : null].filter(Boolean);
   parts.push(`<details class="ag-fold agm-sync-advanced" data-ag-fold="sync-advanced" ${adv.length ? 'open' : ''}><summary class="ag-fold__summary"><span class="ag-fold__title">Advanced</span><span class="ag-fold__hint">${esc(adv.length ? `On: ${adv.join(', ')}` : 'Default: keep what you edited, keep your art, delete only what the files drop')}</span></summary><div class="ag-fold__body">`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-unscoped ${state.deleteUnscoped ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also delete records not in these files</strong></label>
     <p class="ag-field__hint">Off by default. Records imported by an older Manager have no package line, so Sync cannot tell whether they belong to these files and keeps them. Ticking this lets Sync delete those that no chosen file mentions. Only documents with Manager's flag are ever considered.</p>`);
@@ -85,6 +108,8 @@ export function syncView(state) {
     <p class="ag-field__hint">Off by default, and separate from the option above. Art you set yourself (a portrait, a token image or a token ring, for example from Link files to records) is always kept, even when you overwrite edited records. On: art you changed is replaced by the package's art. The backup keeps what you had.</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-actors ${state.updateActors ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>Also update Actors from the package</strong></label>
     <p class="ag-field__hint">Off by default: Actors are handled as before. On: each NPC Actor the files carry takes the package's new stat block, comparing the last import, your world and the package. Abilities, skills, traits, AC, max HP, name, and the items, features and spells that came from the package follow the package where it changed. Your art, token settings, ownership, folder, notes in the biography, items you added, current HP (until the NPC is back at its imported HP), item uses and quantities are kept. Player characters are never touched. The preview lists these Actors under Actor updates; the backup keeps what you had.</p>`);
+  parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-archive ${state.archiveMissing ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>${esc(ARCHIVE_LABEL)}</strong></label>
+    <p class="ag-field__hint">Off by default. The safe alternative to Also delete: a record Manager imported that none of the ticked packs carries (for example one that moved to the reserve pack) is archived instead of deleted. ${esc(ARCHIVE_EXPLAIN)} Never touched: documents Manager did not import, player characters, Actors a player owns, anything marked Keep, and anything a record in the ticked packs still needs (listed as Kept: still referenced). Locations and Quest Log records are archived by those modules when they support it. With this on, nothing is deleted by this sync.</p>`);
   parts.push('</div></details>');
   parts.push('<h3 class="agm-step"><span class="agm-step__n">2</span> Preview</h3>');
   parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
@@ -101,6 +126,9 @@ export function syncView(state) {
         <span class="ag-badge ag-badge--ok"><strong>${c.overwrite}</strong> overwrite</span>
         ${c.rebind ? `<span class="ag-badge ag-badge--ok"><strong>${c.rebind}</strong> replaced in place</span>` : ''}
         <span class="ag-badge ag-badge--danger"><strong>${c.delete}</strong> delete</span>
+        ${plan.archiveMissing || c.archive ? `<span class="ag-badge ag-badge--warn"><strong>${c.archive}</strong> archive (restorable)</span>` : ''}
+        ${c.restore ? `<span class="ag-badge ag-badge--ok"><strong>${c.restore}</strong> restore from the archive</span>` : ''}
+        ${c.keptReferenced ? `<span class="ag-badge"><strong>${c.keptReferenced}</strong> kept: still referenced</span>` : ''}
         <span class="ag-badge"><strong>${c.untouched}</strong> untouched</span>
         ${c.keptEdited ? `<span class="ag-badge ag-badge--warn"><strong>${c.keptEdited}</strong> kept: edited in your world${c.keptRemoved ? ` (${c.keptRemoved} no longer in the package)` : ''}</span>` : ''}
         ${plan.overwriteEdited ? `<span class="ag-badge ag-badge--warn"><strong>${plan.lost}</strong> GM-edited field${plan.lost === 1 ? '' : 's'} will be lost</span>` : ''}
@@ -111,10 +139,11 @@ export function syncView(state) {
         ${c.recreate ? `<span class="ag-badge ag-badge--warn"><strong>${c.recreate}</strong> recreate</span>` : ''}
         ${plan.replaceArt ? `<span class="ag-badge ag-badge--warn">art you set will be replaced</span>` : ''}
         ${c.refused ? `<span class="ag-badge ag-badge--warn"><strong>${c.refused}</strong> refused</span>` : ''}</div>`);
-      if (!plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0)) parts.push(`<p><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-sync-jump><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Jump to confirm and run</button></p>`);
+      if (!plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.archive > 0 || plan.counts.restore > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0)) parts.push(`<p><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-sync-jump><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Jump to confirm and run</button></p>`);
       parts.push(`<p class="agmanager-tiny">Character sheets and everything on them are untouched (${plural(plan.characterCount, 'player character')} in this world). Item copies on character sheets stay exactly as they are even where the world Item is updated or deleted.</p>`);
       const rows = g => plan.rows.filter(r => r.group === g);
       const creates = rows('create'), actorUpd = rows('overwrite').filter(r => !r.metadataOnly && r.actorUpdate), over = rows('overwrite').filter(r => !r.metadataOnly && !r.actorUpdate), renames = rows('rename'), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
+      const arch = rows('archive'), rest = rows('restore'), keptRef = keep.filter(r => r.keptReferenced), notArch = keep.filter(r => r.notArchived);
       const list = (items, fn, cap = SHOWN_ROWS) => `<ul class="ag-rows">${items.slice(0, cap).map(fn).join('')}</ul>${more(Math.min(cap, items.length), items.length)}`;
       if ((plan.offers ?? []).length) parts.push(replacesFold(plan));
       const art = plan.artKept ?? [];
@@ -128,7 +157,11 @@ export function syncView(state) {
       const recs = rows('recreate');
       if (recs.length) parts.push(group('Recreate', recs.length, `<p class="agmanager-tiny">dnd5e cannot change an Item's type in place, so each of these world Items is deleted and created again from the package, keeping its folder, flags from other modules and art you set. Copies on character sheets are untouched.</p><ul class="ag-rows">${recs.slice(0, SHOWN_ROWS).map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.recreate.from)} → ${esc(r.recreate.to)}</span></span></li>`).join('')}</ul>${more(Math.min(SHOWN_ROWS, recs.length), recs.length)}`, {open: recs.length <= 12}));
       if (meta.length) parts.push(group(`Metadata refreshes`, meta.length, `<p class="agmanager-tiny">The content of these records already matches. Applying updates the package data stored with each (definition, version, provenance) so new fields reach your world. Names, descriptions, art and everything else on the document stay as they are.</p>${list(meta, line)}`, {open: plan.metadataOnly && meta.length <= 12}));
-      parts.push(group('Delete', del.length, del.length ? list(del, line, del.length) : '<p class="agmanager-tiny">Nothing is deleted.</p>', {open: del.length > 0 && del.length <= 40}));
+      parts.push(group('Delete', del.length, `<p class="agmanager-tiny">Delete removes the document and retires its permanent id for good (the id can never be imported again). To keep records restorable, use ${esc(ARCHIVE_LABEL)} instead.</p>${del.length ? list(del, line, del.length) : '<p class="agmanager-tiny">Nothing is deleted.</p>'}`, {open: del.length > 0 && del.length <= 40}));
+      if (plan.archiveMissing || arch.length) parts.push(archiveFold(plan, arch));
+      if (rest.length) parts.push(group('Restore from the archive', rest.length, `<p class="agmanager-tiny">An earlier Sync archived these and the ticked packs carry them again, so they come back to their folder and become readable as before. Their content is then compared with the package as usual.</p>${list(rest, line, rest.length)}`, {open: rest.length <= 40}));
+      if (keptRef.length) parts.push(group('Kept: still referenced', keptRef.length, `<p class="agmanager-tiny">These are not in the ticked packs, but a record in them still needs them, so Sync leaves them active instead of archiving them.</p>${list(keptRef, line, keptRef.length)}`, {open: keptRef.length <= 40}));
+      if (notArch.length) parts.push(group('Not archived: needs a module update', notArch.length, `<p class="agmanager-tiny">Locations and Quest Log keep their own records, so Manager can only ask them to archive. The installed version has no archive support yet, so these stay exactly as they are. Update the module and preview again.</p>${list(notArch, line, notArch.length)}`, {open: notArch.length <= 40}));
       parts.push(group('Kept: edited in your world', kept.length, kept.length ? `<p class="agmanager-tiny">You changed these since they were imported, so Sync leaves them alone. Open one to see what would differ.</p>${list(kept, overwriteRow)}` : '<p class="agmanager-tiny">No record you edited is affected.</p>', {open: kept.length > 0 && kept.length <= 12}));
       parts.push(group('Kept: edited in your world, no longer in the package', keptGone.length, keptGone.length ? `<p class="agmanager-tiny">These are no longer in the files, but you changed them since they were imported, so Sync does not delete them.</p>${list(keptGone, line, keptGone.length)}` : '<p class="agmanager-tiny">No edited record is missing from the files.</p>', {open: keptGone.length > 0 && keptGone.length <= 12}));
       // 0.71.6: every refused record, grouped by the reason it was refused, so none hides in the Untouched list.
@@ -140,10 +173,10 @@ export function syncView(state) {
           <ul class="ag-rows">${list.slice(0, SHOWN_ROWS).map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.kind)}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`).join('')}</ul>${more(Math.min(SHOWN_ROWS, list.length), list.length)}</details></li>`).join('');
         parts.push(group('Refused', refusedAll.length, `<p class="agmanager-tiny">Sync did not touch these records, for the reason shown. Fix the cause in your world (for example delete or rename the document that is in the way) and preview again.</p><ul class="ag-rows">${blocks}</ul>`, {open: true}));
       }
-      const refused = keep.filter(r => !r.keptEdited && !r.refused && (r.kept || r.notRemoved)), quiet = keep.length - refusedAll.length - refused.length - kept.length - keptGone.length;
+      const refused = keep.filter(r => !r.keptEdited && !r.refused && !r.keptReferenced && !r.notArchived && (r.kept || r.notRemoved)), quiet = keep.length - refusedAll.length - refused.length - kept.length - keptGone.length - keptRef.length - notArch.length;
       parts.push(group('Untouched', c.untouched, `${refused.length ? list(refused, line) : ''}<p class="agmanager-tiny">${quiet} record(s) already match the package${plan.outOfScope?.records ? `; ${plan.outOfScope.records} Manager-imported record(s) belong to other package lines or have no line; documents without Manager's flag are never listed or changed` : ''}.</p>`, {open: refused.length > 0 && refused.length <= 12}));
     }
-    const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0);
+    const ready = !plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.archive > 0 || plan.counts.restore > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0);
     if (!plan.errors.length && !ready) parts.push('<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> The world already matches these files. Nothing to do.</p>');
     if (ready) {
       parts.push('<h3 class="agm-step"><span class="agm-step__n">3</span> Confirm and run</h3>');

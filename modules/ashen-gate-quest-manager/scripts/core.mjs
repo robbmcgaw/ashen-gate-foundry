@@ -193,7 +193,8 @@ export function rewardsDone(source,state){
 export function publicView(source,s,{itemById}={}){
   // Lenient on item_rewards: a quest saved before 0.13.0 with a malformed entry still publishes (rewardRows skips it).
   validSource(source,{itemRewards:false});validState(source,s);
-  if(source.visibility==='gm'||s.status==='Hidden'||source.visibility==='reveal_gated'&&!s.revealed)return null;
+  // 0.29.0: an archived quest has no player view (it is as hidden as a GM-only one); its status and notes are kept for Restore.
+  if(s.archived===true||source.visibility==='gm'||s.status==='Hidden'||source.visibility==='reveal_gated'&&!s.revealed)return null;
   return {contract:'ag-objectives/0.1-alpha',id:source.id,entity_type:'Objective',objective_kind:source.objective_kind,
     name:source.name,summary:String(source.public_summary??''),status:s.status,scope:s.scope,actorId:s.scope==='individual'?s.actorId:null,
     objectives:source.objectives.filter(o=>o.visibility!=='gm'&&((o.reveal_on_create!==false&&o.visibility!=='reveal_gated')||s.objectiveReveal.includes(o.key)))
@@ -228,5 +229,6 @@ export function planQuestImport(payload,existingIds=new Set(),{mode='skip'}={}){
       reason:action==='new'?'':action==='update'?'Replaces the quest definition; keeps its status and notes.':'Already in this world; kept as is.'};
   })};
 }
+export const isArchived=s=>s?.archived===true;
 export function exportPackage(rows){return {schema_version:SCHEMA,domain:'quests_orders',version:'0.4.0',records:rows.map(x=>validSource(x,{itemRewards:false}))};}
 export function associatedLocationIds(s){return [...new Set([...(s.locations||[]).map(x=>typeof x==='string'?x:x?.target_id),...(s.refs||[]).filter(x=>/location/i.test(x.relation||'')).map(x=>x.target_id)].filter(x=>/^LOC-[A-Z0-9-]+$/.test(x||'')))];}

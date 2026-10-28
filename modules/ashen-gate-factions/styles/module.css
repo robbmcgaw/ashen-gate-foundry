@@ -195,3 +195,5 @@
 .agf-vowbar .is-on { font-weight:700; border-style:double; border-width:3px; }
 .agf-vow-status { margin:0 0 var(--ag-space-2); }
 .agf-embed__vow { margin:0 0 var(--ag-space-1); font-weight:600; }
+.agf-deity-tile.is-placeholder { display:flex; cursor:default; color:var(--ag-muted); }
+.agf-shell .agf-deity-tile.is-placeholder:hover { border-color:var(--ag-border); }

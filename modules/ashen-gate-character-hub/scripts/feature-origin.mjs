@@ -84,6 +84,9 @@ export function featureOrigins(actor, rows) {
 /** True when any row has a profession or Cinder origin: the default grouping turns to Origin. */
 export const hasPartnerOrigin = origins => [...origins.values()].some(o => ORIGIN_PARTNER_SECTIONS.includes(o.section));
 
+/** The group key of an origin ({section, key}): the section, plus the profession / Cinder / deity key for the sections that split. Stable across renders. */
+export const originGroupKey = o => ORIGIN_PARTNER_SECTIONS.includes(o?.section) ? `${o.section}-${o.key}` : String(o?.section ?? 'other');
+
 /**
  * The Origin sections for sorted rows: [{key, label, items}], in section order; profession and Cinder sections split per
  * profession / Cinder with the heading "Professions: Herbalism". Empty groups are left out.
@@ -93,7 +96,7 @@ export function originGroups(rows, origins) {
   for (const r of rows) {
     const o = origins.get(r.id) ?? {section: 'other', key: 'other', label: '', order: 0};
     const split = ORIGIN_PARTNER_SECTIONS.includes(o.section), base = ORIGIN_SECTIONS.find(([k]) => k === o.section)?.[1] ?? 'Everything else';
-    const key = split ? `${o.section}-${o.key}` : o.section;
+    const key = originGroupKey(o);
     if (!groups.has(key)) groups.set(key, {key, label: split ? `${base}: ${o.label}` : base, section: o.section, order: o.order, name: o.label, items: []});
     groups.get(key).items.push(r);
   }
