@@ -419,13 +419,13 @@ test('switch on: refusals stay (character sheets, an unmanaged Actor with the sa
 
 test('wiring: the switch is off by default, GM-gated where it is read, dropped on change, and versioned', () => {
   const main = read('../scripts/main.js'), view = read('../scripts/sync-view.js'), hbs = read('../scripts/sync-apply.js');
-  assert.match(main, /updateActors:false, phrase:''/);
+  assert.match(main, /updateActors:false, archiveMissing:false, phrase:''/);
   assert.match(main, /this\.sync\.updateActors=Boolean\(event\.target\.checked\)&&Boolean\(game\.user\?\.isGM\)/);
   assert.match(main, /updateActors:Boolean\(this\.sync\.updateActors&&game\.user\?\.isGM\)/);
   assert.match(main, /phraseRequired\(plan\)&&!phraseOk\(this\.sync\.phrase\)/);
   assert.match(view, /Also update Actors from the package/); assert.match(hbs, /phraseRequired\(plan\) && !phraseOk\(confirmation\)/);
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.74.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.74.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.75.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.75.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.74\.0 /m); assert.match(read('../README.md'), /Also update Actors from the package/);
   assert.match(main, /Also update Actors from the package/, 'Help mentions it');
 });
