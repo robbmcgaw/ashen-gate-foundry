@@ -1,3 +1,11 @@
+## 0.71.5 — 2026-10-28
+
+Sync no longer keeps offering the same records.
+
+- **Fix: records that came back as "will refresh" on every Sync, even right after Apply.** Foundry stores the text of table results and item effects with the apostrophe written another way (a package's `&#x27;` is kept as `'`), so Sync saw a difference it could never remove: the six Travel Encounters tables and five Cinder mount/pet gear items (Windcloth Caparison, Green Grazer, Duskwool Cape, Hearth-Bound, Quick to Wake). Text that differs only in how an apostrophe or quote is written now counts as the same text. After this update the next Sync preview lists them as Already matches.
+- **Fix: "1 GM edit replaced" on those items was wrong.** Any change to an effect was counted as a GM edit. It is now counted only when the live effect differs from both the package and what the last import wrote.
+- Nothing is written to your world by this change; only the comparison is different. A real change in the package still shows, and a real edit you made to an effect is still counted.
+
 ## 0.71.4 — 2026-10-28
 
 Link files to records works again in Foundry V14; the pack list is calmer.

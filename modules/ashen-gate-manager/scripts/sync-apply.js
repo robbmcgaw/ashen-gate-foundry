@@ -66,7 +66,7 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
   } else if (kind === 'Item' && ops.effects) {
     const {create = [], update = [], delete: del = []} = ops.effects;
     if (create.length) await doc.createEmbeddedDocuments('ActiveEffect', structuredClone(create), bulk());
-    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, ...u}) => u), bulk());
+    if (update.length) await doc.updateEmbeddedDocuments('ActiveEffect', update.map(({changed, edited, ...u}) => u), bulk());
     if (del.length) await doc.deleteEmbeddedDocuments('ActiveEffect', del, bulk());
   } else if (kind === 'JournalEntry' && ops.pages) {
     const {create = [], update = [], delete: del = []} = ops.pages;
