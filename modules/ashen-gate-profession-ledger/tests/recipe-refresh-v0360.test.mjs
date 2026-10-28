@@ -49,7 +49,7 @@ const makeActor=(id,name,{type='character',owner=true,backup=false}={})=>{
   return a;};
 const dee=makeActor('dee','[TEST] Dee'),npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false}),loner=makeActor('loner','[TEST] Hireling',{owner:false}),bak=makeActor('bak','[TEST] Dee - level 3',{backup:true});
 const all=[dee,npc,loner,bak];
-const ledgerModule={active:true,version:'0.37.3',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.37.4',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},journal:[],
   modules:{get:id=>id===ID?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -185,7 +185,7 @@ test('Individual tab: everyone sees “N recipes no longer exist”; only the GM
  game.user=alice;await app._click('rr-open','dee');assert.equal(app.recipeRefresh,null,'a player cannot open it');game.user=gm;
 });
 
-/* ---- 0.37.3: replaced starters ----------------------------------------------------------------------- */
+/* ---- 0.37.4: replaced starters ----------------------------------------------------------------------- */
 test('pure, Blacksmithing worked example: 4 old + 4 new starters; the 4 demoted ones are pre-ticked unless crafted with; learned ones never',()=>{
  const smith={ids:new Set(['PROF-B']),keys:new Set()};
  const old=['Iron Caltrops','Iron Pitons','Riveted Field Brace','Silvered Blade'],fresh=['Trail Spikes','Edge Whetstone','Riveted Shield Fittings','Reinforced Buckle'];
@@ -197,7 +197,7 @@ test('pure, Blacksmithing worked example: 4 old + 4 new starters; the 4 demoted 
  assert.deepEqual(old.map(n=>[by[n].group,by[n].remove]),old.map(()=>['replaced',true]),'the four old starters: Replaced, pre-ticked');
  assert.deepEqual(fresh.map(n=>[by[n].group,by[n].remove]),fresh.map(()=>['starting',false]),'the four new ones stay');
  assert.deepEqual([by['Hand-learned Hinge'].group,by['Hand-learned Hinge'].remove],['learned',false],'a learned recipe is never pre-ticked');
- assert.match(by['Iron Caltrops'].why,/^Replaced starting recipe: it is no longer a starter\. Learned starters you crafted with stay unless you tick them\.$/);
+ assert.match(by['Iron Caltrops'].why,/^Replaced starting recipe: it is no longer a starter\. Untick it if you want the character to keep it\.$/);
  assert.ok(plan.rows.every(r=>!/REC-/.test(r.name+r.why)));assert.equal(plan.needsTypedConfirmation,false);assert.equal(plan.problems,true);assert.equal(plan.counts.replaced,4);
  // One who crafted Iron Caltrops: that one stays, with its reason; ticking it needs the typed name.
  const crafter=planRecipeRefresh({known,grantedRecipes:old.map((_,i)=>`REC-O${i}`),recipes,held:smith,crafted:[{recipeId:'REC-O0'}],actor:{id:'a',name:'A'}});
@@ -272,4 +272,62 @@ test('Assign: Replace or remove starting recipes… opens Refresh recipes with t
  assert.equal(app.recipeRefresh.from,'assign');assert.equal(app.recipeRefresh.actorId,'dee');
  await app._click('rr-cancel');assert.equal(app.recipeRefresh,null);
  game.user=alice;assert.doesNotMatch(await html('assign'),/Replace or remove starting recipes/);game.user=gm;
+});
+
+/* ---- 0.37.4: pack marker former_starting ------------------------------------------------------------- */
+test('pure: former_starting pre-ticks replaced starters that were never recorded as granted; no marker, no pre-tick; older data behaves as before',()=>{
+ const smith={ids:new Set(['PROF-B']),keys:new Set()};
+ const old=[0,1,2,3].map(i=>({id:`REC-O${i}`,name:`Old ${i}`,professionId:'PROF-B',starting:false,formerStarting:true}));
+ const fresh=[0,1,2,3].map(i=>({id:`REC-N${i}`,name:`New ${i}`,professionId:'PROF-B',starting:true,status:'approved',sourceVisibility:'player'}));
+ const learned={id:'REC-L',name:'Learned',professionId:'PROF-B',starting:false};
+ const recipes=[...old,...fresh,learned],known=recipes.map(r=>r.id);
+ const plan=planRecipeRefresh({known,grantedRecipes:[],recipes,held:smith,actor:{id:'a',name:'A'}});
+ const by=Object.fromEntries(plan.rows.map(r=>[r.name,r]));
+ assert.deepEqual(old.map(r=>[by[r.name].group,by[r.name].remove]),old.map(()=>['replaced',true]));
+ assert.deepEqual([by.Learned.group,by.Learned.remove],['learned',false]);
+ assert.deepEqual([plan.counts.replaced,plan.counts.remove,plan.problems],[4,4,true]);
+ assert.equal(by['Old 0'].why,'Replaced starting recipe: it is no longer a starter. Untick it if you want the character to keep it.');
+ // Crafted with one: it stays unticked, with the typed-name rule.
+ const c=planRecipeRefresh({known,recipes,held:smith,crafted:[{recipeId:'REC-O2'}],actor:{id:'a',name:'A'}});
+ const o2=c.rows.find(r=>r.name==='Old 2');assert.deepEqual([o2.group,o2.remove,o2.needsConfirm],['replaced',false,true]);assert.equal(c.counts.remove,3);
+ // Older data without the field: learned, as before.
+ const plain=recipes.map(({formerStarting,...r})=>r);
+ assert.ok(planRecipeRefresh({known,recipes:plain,held:smith,actor:{id:'a',name:'A'}}).rows.filter(r=>r.name.startsWith('Old')).every(r=>r.group==='learned'&&!r.remove));
+ // A recipe that is starting never counts as former.
+ assert.equal(planRecipeRefresh({known:['REC-X'],recipes:[{id:'REC-X',name:'X',professionId:'PROF-B',starting:true,formerStarting:true,status:'approved',sourceVisibility:'player'}],held:smith,actor:{id:'a',name:'A'}}).rows[0].group,'starting');
+});
+
+test('party view and grant with the pack marker (Robb’s numbers: 4 new + extras, none recorded as granted)',async()=>{
+ reset();
+ const mk=(wid,id,name,starting,former)=>{const d=rec(wid,id,name,'PROF-TG-SMITH2',starting);if(former)d.flags['ashen-gate-manager'].source.definition.former_starting=true;return d;};
+ const smith=prof('wsm2','PROF-TG-SMITH2','[TEST] Smithing Two',{skillProficienciesAnyOf:['Athletics']});
+ const olds=[0,1,2,3].map(i=>mk(`fo${i}`,`REC-TEST-FO${i}`,`[TEST] Former ${i}`,false,true));
+ const news=[0,1,2,3].map(i=>mk(`fn${i}`,`REC-TEST-FN${i}`,`[TEST] Current ${i}`,true,false));
+ const plainLearned=mk('fl','REC-TEST-FL','[TEST] Trainer Recipe',false,false);
+ const added=[smith,...olds,...news,plainLearned];world.push(...added);
+ const mkChar=(id,n,crafted)=>{const a=makeActor(id,n);a.items=[held(`${id}-s`,'PROF-TG-SMITH2','[TEST] Smithing Two',true),...(crafted?[{id:`${id}-c`,name:'[TEST] Made',type:'loot',system:{quantity:1},flags:{[ID]:{craftedFrom:'REC-TEST-FO1'}}}]:[])];
+  a.flags={[ID]:{knownRecipes:[...news,...olds,plainLearned].map(d=>d.flags['ashen-gate-manager'].source.sourceId),grantedRecipes:[]}};return a;};
+ const ann=mkChar('ann','[TEST] Ann',false),bo=mkChar('bo','[TEST] Bo',true);
+ all.push(ann,bo);values.partyRoster=['ann','bo'];
+ try{
+  const p=await api.refreshRecipes({party:true});
+  assert.deepEqual(p.characters.map(c=>c.actor.name),['[TEST] Ann','[TEST] Bo']);
+  const a=p.characters[0],b=p.characters[1];
+  assert.equal(a.rows.filter(r=>r.group==='replaced'&&r.remove).length,4);assert.equal(b.rows.filter(r=>r.group==='replaced'&&r.remove).length,3,'Bo crafted with Former 1: unticked');
+  assert.ok(a.rows.find(r=>r.name==='[TEST] Trainer Recipe').remove===false);
+  assert.equal((await api.refreshRecipes({actorId:'ann'})).counts.replaced,4);
+  // The grant never re-adds a former starter.
+  const g=await api.grantStartingRecipes({actorIds:['ann']});assert.ok(JSON.stringify(g).indexOf('Former')<0);
+  await app._click('rr-open','party');app.view='party';
+  const h=(await app._prepareContext({})).html;assert.doesNotMatch(h,/No problems found/);
+  assert.equal((h.match(/data-rr-remove="REC-TEST-FO\d" data-rr-actor="ann" checked/g)||[]).length,4);
+  assert.equal((h.match(/data-rr-remove="REC-TEST-FO1" data-rr-actor="bo" checked/g)||[]).length,0);
+  app.recipeRefresh=null;app.actorId='ann';app.view='individual';
+  assert.match((await app._prepareContext({})).html,/4 replaced starting recipes/);
+  await api.refreshRecipes({party:true,preview:false,selections:[{actorId:'ann'}]});
+  assert.equal(flagsOf(ann).knownRecipes.length,5,'4 current + the trainer recipe');
+  assert.equal((await api.refreshRecipes({actorId:'ann'})).counts.replaced,0);
+ }finally{
+  for(const d of added)world.splice(world.indexOf(d),1);all.splice(all.indexOf(ann),1);all.splice(all.indexOf(bo),1);values.partyRoster=['dee'];app.recipeRefresh=null;app.actorId='dee';
+ }
 });

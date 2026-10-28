@@ -1,3 +1,13 @@
+## 0.37.4 — 2026-10-28
+
+Refresh recipes finds replaced starters even when they were never recorded as granted.
+
+- New optional pack marker on recipes, `former_starting: true` (a recipe that was a starter and is not any more; never together with `starting`). Sync the packs so it reaches the world, then **Party → Refresh recipes for the whole party…**.
+- A known recipe with the marker joins **Replaced starting recipes**, pre-ticked to remove, whether or not it is in the character's granted list. If the character crafted with it, it stays unticked with the reason and needs the typed name. The reason now reads "Replaced starting recipe: it is no longer a starter. Untick it if you want the character to keep it." (it may have been learned later).
+- Recipes without the marker are never pre-ticked unless recorded as granted (as before). The marker is also counted in the party list, the Individual "N replaced starting recipes" note and `refreshRecipes` counts.replaced.
+- Starting recipes Preview / Grant never re-add a former starter (it is not `starting`).
+- No saved data changes.
+
 ## 0.37.3 — 2026-10-28
 
 Refresh recipes handles starting recipes the pack has replaced.
