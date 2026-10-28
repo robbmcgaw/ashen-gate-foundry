@@ -28,12 +28,13 @@ const num = v => (Number.isFinite(v) && v > 0 ? v : 0);
  *   hit:    {x, y, w, h}  the click/hover/drag rectangle (same as the frame)
  *   halfW/halfH           half the frame's extent, for the label offset
  */
-export function proportionalLayout({size, texW, texH, uiScale = 1} = {}) {
-  const h = num(size), tw = num(texW), th = num(texH);
-  if (!h || !tw || !th) return null;
+export function proportionalLayout({size, width = 0, texW, texH, uiScale = 1} = {}) {
+  const bw = num(width), tw = num(texW), th = num(texH);
+  if (!(bw || num(size)) || !tw || !th) return null;
   const aspect = tw / th;
   const clamped = Math.min(ASPECT_CAP, Math.max(1 / ASPECT_CAP, aspect));
-  const w = h * clamped;
+  // 0.27.1: with a banner width the frame is that wide and its height follows the (capped) aspect; otherwise size is the height.
+  const w = bw || num(size) * clamped, h = bw ? bw / clamped : num(size);
   // Fit the image inside the frame at its own aspect: equal to the frame unless the cap applied.
   const sw = aspect >= clamped ? w : h * aspect, sh = aspect >= clamped ? w / aspect : h;
   const s = num(uiScale) || 1;
@@ -105,7 +106,7 @@ export function relayoutControlIcon(icon, opts = {}) {
   const dims = textureSize(tex);
   if (!dims) { waitForTexture(icon, tex); return null; }
   const layout = proportionalLayout({
-    size: opts.size ?? icon.size, texW: dims.w, texH: dims.h,
+    size: opts.size ?? icon.size, width: opts.width ?? st.width, texW: dims.w, texH: dims.h,
     uiScale: opts.uiScale ?? globalThis.canvas?.dimensions?.uiScale ?? 1
   });
   if (!layout || !drawLayout(icon, layout)) return null;
@@ -133,13 +134,13 @@ function waitForTexture(icon, tex) {
  * redrawn right after every core refresh. Turning it off asks core for a normal refresh, which puts the square back (core resets
  * pivot, bg, icon size and hit area itself; only the sprite offset is ours to clear). Returns true when the state changed. `onChange` runs after a late texture load redraws the icon.
  */
-export function setKeepProportions(icon, keep, onChange) {
+export function setKeepProportions(icon, keep, onChange, width = 0) {
   if (!icon || typeof icon._refresh !== 'function') return false;
   keep = keep === true;
   let st = icon[STATE];
   if (!st) {
     if (!keep) return false;                       // never touch an icon that was never switched on
-    st = icon[STATE] = {keep: false, layout: null, waiting: null, original: icon._refresh};
+    st = icon[STATE] = {keep: false, width: 0, layout: null, waiting: null, original: icon._refresh};
     icon._refresh = function ag_refresh(...args) {
       const out = st.original.apply(this, args);
       try { if (st.keep) relayoutControlIcon(this); } catch { /* keep core's square */ }
@@ -147,7 +148,13 @@ export function setKeepProportions(icon, keep, onChange) {
     };
   }
   st.onChange = onChange;
-  if (st.keep === keep) return false;
+  width = num(width);
+  if (st.keep === keep) {
+    if (!keep || st.width === width) return false;
+    st.width = width; relayoutControlIcon(icon);   // 0.27.1: only the banner width changed
+    return true;
+  }
+  st.width = width;
   st.keep = keep;
   if (keep) relayoutControlIcon(icon);
   else {
@@ -156,4 +163,10 @@ export function setKeepProportions(icon, keep, onChange) {
     try { icon.refresh?.(); } catch { /* ignore */ }
   }
   return true;
+}
+
+/** 0.27.1: the 'Draws about 320 x 80' helper. `size` is Pin size, `width` the banner width (0 = off); null when the image is not loaded. */
+export function drawnSize({size, width = 0, texW, texH} = {}) {
+  const l = proportionalLayout({size, width, texW, texH});
+  return l ? {w: Math.round(l.frame.w), h: Math.round(l.frame.h)} : null;
 }

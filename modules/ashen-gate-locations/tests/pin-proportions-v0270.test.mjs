@@ -36,8 +36,8 @@ function controlIcon({size = 48, texture = tex(100, 100)} = {}) {
   ci._refresh();
   return ci;
 }
-function note({keep = false, bound = true, anchor = 1, iconSize = 48, texture, label = 'District'} = {}) {
-  const flags = bound ? {[MODULE_ID]: {pinKey: 'PIN-abc', pin: {src: 'x.webp', size: iconSize, ...(keep ? {keep: true} : {})}}} : {};
+function note({keep = false, showName = false, bound = true, anchor = 1, iconSize = 48, texture, label = 'District'} = {}) {
+  const flags = bound ? {[MODULE_ID]: {pinKey: 'PIN-abc', pin: {src: 'x.webp', size: iconSize, ...(keep ? {keep: true} : {}), ...(showName ? {showName: true} : {})}}} : {};
   const sets = [];
   return {
     hover: false, controlled: false, isPreview: false, layer: {highlightObjects: false}, sets,
@@ -228,20 +228,20 @@ test('Image only still hides bg and frame on a wide pin; hover brings the frame 
   assert.equal(n.controlIcon.border.visible, true);
 });
 
-test('the label sits below the rectangle (height = pin size); side anchors clear the wider edge; offsets still apply', () => {
+test('(0.27.1: with Show the name on) the label sits below the rectangle (height = pin size); side anchors clear the wider edge; offsets still apply', () => {
   const A = {BOTTOM: 1, TOP: 2, LEFT: 3, RIGHT: 4, CENTER: 0};
   globalThis.CONST = {TEXT_ANCHOR_POINTS: A};
   try {
     const t = tex(400, 100);
-    const b = note({keep: true, texture: t, anchor: A.BOTTOM}); applyPinLook(b, {nameOffset: 0});
+    const b = note({keep: true, showName: true, texture: t, anchor: A.BOTTOM}); applyPinLook(b, {nameOffset: 0});
     assert.deepEqual([b.tooltip.position.x, b.tooltip.position.y], [0, 24 + 12], 'same spot core uses: size/2 + 12');
-    const b2 = note({keep: true, texture: t, anchor: A.BOTTOM}); applyPinLook(b2, {nameOffset: -8});
+    const b2 = note({keep: true, showName: true, texture: t, anchor: A.BOTTOM}); applyPinLook(b2, {nameOffset: -8});
     assert.equal(b2.tooltip.position.y, 24 + 4);
-    const r = note({keep: true, texture: t, anchor: A.RIGHT}); applyPinLook(r, {});
+    const r = note({keep: true, showName: true, texture: t, anchor: A.RIGHT}); applyPinLook(r, {});
     assert.deepEqual([r.tooltip.position.x, r.tooltip.position.y], [96 + 12, 0], 'beside the wide edge, not beside a 48px square');
-    const l = note({keep: true, texture: t, anchor: A.LEFT}); applyPinLook(l, {nameOffset: 5});
+    const l = note({keep: true, showName: true, texture: t, anchor: A.LEFT}); applyPinLook(l, {nameOffset: 5});
     assert.equal(l.tooltip.position.x, -(96 + 17));
-    const top = note({keep: true, texture: t, anchor: A.TOP}); applyPinLook(top, {});
+    const top = note({keep: true, showName: true, texture: t, anchor: A.TOP}); applyPinLook(top, {});
     assert.equal(top.tooltip.position.y, -36);
     // off: exactly as before 0.27.0 (core's position is left alone at offset 0)
     const off = note({keep: false, texture: t, anchor: A.RIGHT}); applyPinLook(off, {});

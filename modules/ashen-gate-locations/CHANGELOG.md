@@ -1,3 +1,14 @@
+## 0.27.1 — 2026-10-28
+
+Changed: a location with **Keep pin art proportions** on no longer draws its name under the pin, so wide art that already reads as a banner is not labelled twice.
+
+- Applies in both *Name under the pin* modes (*Only when hovering* and *Always shown*), for GM and players. The pin art, click, drag and hover are unchanged.
+- **Existing locations that already have Keep pin art proportions ticked (0.27.0) lose their label under the pin after this update.** That is intended.
+- To bring the name back for one location, tick the new **Show the name under the pin** (*Visibility & map*, beside *Keep pin art proportions*; it only appears while that is on; hint: "The wide art usually carries the name, so it is hidden by default."), then **Save Changes**. It is off by default, saved with the location, included in Export / Import (an update import that leaves it out keeps your value), and needs no Publish.
+- Only the drawn label is hidden. The Note's text and label data are not changed, so what players may read, and the Selected-players rule, stay as they were. Pins with Keep proportions off are unchanged.
+- New: **Banner width** (*Visibility & map*, below Pin size; only while Keep pin art proportions is on). A number box and a slider, kept in step, 48 to 1024 px in steps of 8; empty means off, so *Pin size* is the height as in 0.27.0. With a width set the pin is that many canvas pixels wide and the height follows the image (the 4:1 / 1:4 limit still applies; the width is still the frame width). *Pin size* is greyed with "Using Banner width" while a width is set, and "Draws about 320 x 80" shows the result once the image has loaded. Saved with the location, in Export / Import (an update import that leaves it out keeps your value), no Publish needed; placed pins update on Save. If you change a placed pin's size in Foundry's own Note settings, that pin ignores the width and uses your size as its height. The name (when shown) is placed from the drawn rectangle.
+- Tests use mocked Foundry; they check the flags, the hooks and the saved data, not the real canvas drawing.
+
 ## 0.27.0 — 2026-10-28
 
 New: **Keep pin art proportions**, a tick box per location, so wide art (a district banner, say) is no longer squashed into a square.

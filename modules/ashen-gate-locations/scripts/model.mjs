@@ -292,6 +292,12 @@ export const publishable = loc => clone(Object.fromEntries(BODY_KEYS.map(k => [k
  * `state` is what players currently see; `published` is the content they see (Save never touches either).
  * Records without `state` (1.2.x and older imports) read `revealed`; a revealed one publishes its current content.
  */
+export const BANNER_WIDTH = Object.freeze({min: 48, max: 1024, step: 8});
+/** 0 (off) or a whole number clamped to 48..1024. Empty, non-numeric and negative values are off. */
+export function bannerWidthOf(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n > 0 ? Math.min(BANNER_WIDTH.max, Math.max(BANNER_WIDTH.min, n)) : 0;
+}
 export function normalizeLocation(raw = {}) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const id = LOCATION_ID.test(r.id ?? '') ? r.id : '';
@@ -305,6 +311,10 @@ export function normalizeLocation(raw = {}) {
   // 0.27.0, GM-only presentation: draw this location's pin art at its own proportions (see pin-proportions.mjs). Default off; a record
   // from before 0.27.0 has no field and reads false. On the location itself, not inherited, and not part of the published content.
   loc.pinKeepProportions = r.pinKeepProportions === true;
+  // 0.27.1, GM-only: with Keep pin art proportions on, the name under the pin is hidden (the wide art carries the name). This brings it back. Default off.
+  loc.pinShowNameWithProportions = r.pinShowNameWithProportions === true;
+  // 0.27.1, GM-only: with Keep proportions on, draw the pin this many canvas px wide (height follows the art). 0 = off (Pin size is the height).
+  loc.pinBannerWidth = bannerWidthOf(r.pinBannerWidth);
   // 0.20.0, GM-only: the RTE id this location was converted from (Developer Tools), so a route is never converted twice.
   loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
@@ -544,7 +554,7 @@ export function pinPresentation(raw, {label = '', unknownImg = '', all = null} =
   const revealedImg = src.pin.img || inh.img || PIN_DEFAULTS.img;
   const unknown = src.pin.unidentifiedImg || inh.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
   // 0.26.0: an archived location's pin is drawn and labelled like a hidden one (players cannot open it either way).
-  const keep = loc.pinKeepProportions ? {keep: true} : {};
+  const keep = loc.pinKeepProportions ? {keep: true, ...(loc.pinShowNameWithProportions ? {showName: true} : {}), ...(loc.pinBannerWidth ? {width: loc.pinBannerWidth} : {})} : {};
   if (loc.archived) return {text: '', src: unknown, size, ...keep};
   // 1.8.0: a "Selected players" pin carries no label of its own. Foundry then labels it with its page's name,
   // which only the players who may open that page are shown (the Note is invisible to everyone else).
@@ -611,11 +621,15 @@ export function notePatch(note, pinKey, pres) {
   // 0.27.0: keep-proportions follows the location (it is not a Note setting the GM edits). Written only when on; a pin that had it and
   // no longer does gets an explicit false, because flag updates merge. Notes that never had it are not rewritten.
   if (pres.keep === true) pin.keep = true; else if (last?.keep === true) pin.keep = false;
+  // 0.27.1: the same for "show the name under the pin" (only meaningful while keep is on).
+  if (pres.keep === true && pres.showName === true) pin.showName = true; else if (last?.showName === true) pin.showName = false;
+  // 0.27.1: banner width (0 clears it, as flag updates merge).
+  if (pres.keep === true && pres.width > 0) pin.width = pres.width; else if (last?.width > 0) pin.width = 0;
   const patch = {};
   if (note.text !== pres.text) patch.text = pres.text;
   if (ownSrc && src !== pres.src) patch.texture = {src: pres.src};
   if (ownSize && note.iconSize !== pres.size) patch.iconSize = pres.size;
-  if (ours.pinKey !== pinKey || last?.src !== pin.src || last?.size !== pin.size || (last?.keep === true) !== (pin.keep === true) || ours.locationId != null)
+  if (ours.pinKey !== pinKey || last?.src !== pin.src || last?.size !== pin.size || (last?.keep === true) !== (pin.keep === true) || (last?.showName === true) !== (pin.showName === true) || (last?.width || 0) !== (pin.width || 0) || ours.locationId != null)
     patch.flags = {[MODULE_ID]: {pinKey, pin, ...(ours.locationId != null ? {locationId: null} : {})}};
   return Object.keys(patch).length ? patch : null;
 }
@@ -755,7 +769,7 @@ export function parseImport(pkg, existing = []) {
 
 /** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0 and 0.25.0. An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
-  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions'];
+  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.

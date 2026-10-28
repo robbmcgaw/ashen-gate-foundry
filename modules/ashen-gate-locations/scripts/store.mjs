@@ -369,7 +369,7 @@ export async function placeNote(location, {scene, x, y}) {
   const [note] = await scene.createEmbeddedDocuments('Note', [{
     entryId: journal.id, pageId: page?.id ?? null, x: Math.round(x), y: Math.round(y),
     text: pres.text, texture: {src: pres.src}, iconSize: pres.size,
-    flags: {[MODULE_ID]: {pinKey: loc.pinKey, pin: {src: pres.src, size: pres.size, ...(pres.keep ? {keep: true} : {})}}}
+    flags: {[MODULE_ID]: {pinKey: loc.pinKey, pin: {src: pres.src, size: pres.size, ...(pres.keep ? {keep: true} : {}), ...(pres.keep && pres.showName ? {showName: true} : {}), ...(pres.keep && pres.width > 0 ? {width: pres.width} : {})}}}
   }]);
   return note;
 }

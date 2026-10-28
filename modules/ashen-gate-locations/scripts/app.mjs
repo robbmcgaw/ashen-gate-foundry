@@ -3,6 +3,8 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, inheritedPin, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
+import {BANNER_WIDTH} from './model.mjs';
+import {drawnSize} from './pin-proportions.mjs';
 import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
@@ -908,10 +910,17 @@ export class LocationsApp extends Base {
       <header class="ag-card__head"><h3>Unidentified Marker &amp; Pin</h3></header>
       <div class="ag-form-grid">
         <div class="ag-field agl-field"><label for="agl-unid">Unidentified label</label><input id="agl-unid" type="text" data-bind="unidentifiedLabel" value="${esc(d.unidentifiedLabel)}" placeholder="${esc(world)} (world default)"></div>
-        <div class="ag-field agl-field"><label for="agl-pin-size">Pin size</label><input id="agl-pin-size" type="number" min="16" max="256" step="1" data-bind="pin.size" value="${d.pin.size || ''}" placeholder="${fallbackSize}"></div>
+        <div class="ag-field agl-field"><label for="agl-pin-size">Pin size</label><input id="agl-pin-size" type="number" min="16" max="256" step="1" data-bind="pin.size" value="${d.pin.size || ''}" placeholder="${fallbackSize}" ${d.pinKeepProportions && d.pinBannerWidth ? 'disabled' : ''}>
+          <small class="agl-hint" id="agl-pin-size-note" ${d.pinKeepProportions && d.pinBannerWidth ? '' : 'hidden'}>Using Banner width</small></div>
       </div>
       <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="pinKeepProportions" ${d.pinKeepProportions ? 'checked' : ''}> Keep pin art proportions</label>
       <p class="agl-hint">Draws the pin wider or taller to match the image. Pin size sets the height.</p>
+      ${d.pinKeepProportions ? `<div class="ag-field agl-field"><label for="agl-banner-width">Banner width (px)</label><div class="agl-field__row">
+        <input id="agl-banner-width" type="number" min="${BANNER_WIDTH.min}" max="${BANNER_WIDTH.max}" step="${BANNER_WIDTH.step}" data-bind="pinBannerWidth" value="${d.pinBannerWidth || ''}" placeholder="Off">
+        <input id="agl-banner-range" type="range" min="${BANNER_WIDTH.min}" max="${BANNER_WIDTH.max}" step="${BANNER_WIDTH.step}" data-bind="pinBannerWidth" value="${d.pinBannerWidth || BANNER_WIDTH.min}" aria-label="Banner width slider"></div></div>
+      <p class="agl-hint">Leave empty to use Pin size as the height. With a width, the pin is that wide and the height follows the image. <span id="agl-banner-drawn" data-size="${d.pin.size || fallbackSize}" data-img="${esc(d.pin.img || fallbackImg)}"></span></p>
+      <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="pinShowNameWithProportions" ${d.pinShowNameWithProportions ? 'checked' : ''}> Show the name under the pin</label>
+      <p class="agl-hint">The wide art usually carries the name, so it is hidden by default.</p>` : ''}
       <div class="ag-field agl-field"><label for="agl-teaser">Teaser (players see this while unidentified)</label><textarea id="agl-teaser" rows="2" data-bind="teaser" placeholder="Optional, e.g. Smoke rises beyond the ridge.">${esc(d.teaser)}</textarea></div>
       <div class="ag-form-grid">
         ${path('img', 'Pin image (revealed)', fallbackImg)}
@@ -1240,8 +1249,11 @@ export class LocationsApp extends Base {
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
     if (!this.gm) return;
+    this.showDrawnSize(root);
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       this.setPath(el.dataset.bind, el.value);
+      if (el.dataset.bind === 'pinBannerWidth') this.syncBanner(root, el);
+      else if (el.dataset.bind === 'pin.size') this.showDrawnSize(root);
       if (['threat', 'img', 'parentLocationId'].includes(el.dataset.bind) || /\.(?:tier|finite|dcVisible)$/.test(el.dataset.bind)) this.render();
     });
     for (const el of root.querySelectorAll('[data-toggle]')) el.addEventListener('change', () => { this.setPath(el.dataset.toggle, el.checked); this.render(); });
@@ -1334,6 +1346,28 @@ export class LocationsApp extends Base {
     if (!o) this.draft.conditionOverrides.push(o = {key: newKey(), visible: true, from, conditionKey, disabled: false, label: '', text: ''});
     return o;
   }
+  /** 0.27.1: keeps the Banner width number and slider in step, greys Pin size while a width is set, and refreshes the 'Draws about' text. No re-render, so focus stays. */
+  syncBanner(root, from) {
+    const w = Number(this.draft.pinBannerWidth) || 0;
+    const num = root.querySelector('#agl-banner-width'), range = root.querySelector('#agl-banner-range');
+    if (num && num !== from) num.value = w || '';
+    if (range && range !== from) range.value = w || BANNER_WIDTH.min;
+    const size = root.querySelector('#agl-pin-size'); if (size) size.disabled = w > 0;
+    const note = root.querySelector('#agl-pin-size-note'); if (note) note.hidden = !(w > 0);
+    this.showDrawnSize(root);
+  }
+  /** The 'Draws about 320 x 80' text, from the image's natural size once it has loaded (nothing is shown until then). */
+  showDrawnSize(root) {
+    const out = root.querySelector('#agl-banner-drawn'); if (!out) return;
+    const img = out.dataset.img, size = Number(root.querySelector('#agl-pin-size')?.value) || Number(out.dataset.size) || PIN_DEFAULTS.size;
+    const paint = dims => { const s = dims && drawnSize({size, width: Number(this.draft.pinBannerWidth) || 0, texW: dims.w, texH: dims.h}); out.textContent = s ? `Draws about ${s.w} x ${s.h}.` : ''; };
+    const cached = (this._imgDims ??= new Map()).get(img);
+    if (cached) return paint(cached);
+    if (!img || typeof Image === 'undefined') return;
+    const el = new Image();
+    el.onload = () => { const dims = {w: el.naturalWidth, h: el.naturalHeight}; this._imgDims.set(img, dims); if (out.isConnected) paint(dims); };
+    el.src = img;
+  }
   /** Writes into the draft. Paths: "name", "show.type", "sections.quests", "resources.<key>.available". */
   setPath(path, value) {
     const [a, b, c] = path.split('.');
@@ -1347,7 +1381,7 @@ export class LocationsApp extends Base {
       if (e) e[c] = value;
     }
     else if (b) this.draft[a][b] = path === 'pin.size' || path === 'childPin.size' ? Number(value) || 0 : value;
-    else this.draft[a] = value;
+    else this.draft[a] = a === 'pinBannerWidth' ? Number(value) || 0 : value;
     this.touch();
   }
   /** Exotic candidates live on the node; edits go through the model's normalizer (additive field). */
@@ -1841,7 +1875,7 @@ export class LocationsApp extends Base {
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
         '<strong>Default pin for places inside this one</strong> (Visibility &amp; map, GM only): give a Region such as a country or a town a pin image for revealed places, one for hidden / unidentified places, and a pin size, and every place inside it (and inside those) uses them. Order: the place\'s own value, then the nearest place above it that sets one, then <em>GM Setup</em>\'s default unidentified image, then Foundry\'s icons. A place\'s own value is never changed. Placed pins update when you Save; a pin whose image or size you changed in Foundry\'s Note settings keeps your change. The empty boxes show what the place would use now.',
-        '<strong>Keep pin art proportions</strong> (Visibility &amp; map, next to Pin size, per location): off by default, so a pin is Foundry\'s square. Tick it and Save Changes and that location\'s pin is drawn wider or taller to match its image, e.g. a wide banner for a district label. <em>Pin size</em> sets the height; the width follows the picture, up to 4 times the height (a taller picture is limited the same way; anything more extreme is shown whole, smaller, inside that limit). The frame, shading, click, drag and the name under the pin follow the new shape. It applies to whichever image the pin shows, needs no Publish, and is not inherited by places inside a Region.',
+        '<strong>Keep pin art proportions</strong> (Visibility &amp; map, next to Pin size, per location): off by default, so a pin is Foundry\'s square. Tick it and Save Changes and that location\'s pin is drawn wider or taller to match its image, e.g. a wide banner for a district label. <em>Pin size</em> sets the height; the width follows the picture, up to 4 times the height (a taller picture is limited the same way; anything more extreme is shown whole, smaller, inside that limit). The frame, shading, click and drag follow the new shape. <strong>Banner width</strong> (appears while this is on; empty = off) draws the pin that many pixels wide (48 to 1024) and the height follows the image, with the same 4:1 limit; <em>Pin size</em> is greyed while a width is set, and \'Draws about W x H\' shows the result. A pin whose size you changed in Foundry\'s own Note settings ignores the Banner width and uses that size as its height, as before. The name under the pin is hidden (the art usually carries the name); tick <em>Show the name under the pin</em> beside it to bring it back. It applies to whichever image the pin shows, needs no Publish, and is not inherited by places inside a Region.',
         '<strong>Active</strong> (editor head, GM only) marks where the party is now; several places can be active. It applies at once (no Publish), shows a <em>Here now</em> badge to players who can see the place and tells them "The party is now at …". A hidden place asks <em>Reveal and make active?</em> first. Filters → Status → Active lists them. Other modules read the active places through the Locations API.',
         '<strong>Show to Players</strong> (editor head, GM only) opens the location in every other connected player\'s Locations window, like Foundry\'s Show to Players for journals. Players see only what they could already see: an unidentified place opens its unidentified card, and a Selected-players place goes only to those players. A hidden place asks <em>Reveal and show</em> first. Players\' windows switch to it rather than stacking, and a player who is typing or has unsaved Party Notes is not interrupted. GM Setup → Show to Players can turn the automatic opening off (they then get a notification).',
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
