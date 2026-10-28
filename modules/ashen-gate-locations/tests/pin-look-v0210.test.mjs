@@ -23,16 +23,16 @@ test('the setting values round-trip and default to Foundry\'s framed look', () =
   assert.deepEqual(Object.keys(PIN_LOOKS), ['framed', 'image']);
   assert.equal(PIN_LOOKS.framed, 'Framed (Foundry default)');
   assert.equal(pinLookOf('nonsense'), 'framed');
-  assert.deepEqual(readPinLook(() => undefined), {look: 'framed', showName: false, nameSize: 14});
+  assert.deepEqual(readPinLook(() => undefined), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0});
   const store = {pinLook: 'image', pinShowName: true, pinNameSize: 20};
-  assert.deepEqual(readPinLook(k => store[k]), {look: 'image', showName: true, nameSize: 20});
-  assert.deepEqual(readPinLook(() => { throw new Error('no settings'); }), {look: 'framed', showName: false, nameSize: 14});
+  assert.deepEqual(readPinLook(k => store[k]), {look: 'image', nameMode: 'always', showName: true, nameSize: 20, wrap: 0});
+  assert.deepEqual(readPinLook(() => { throw new Error('no settings'); }), {look: 'framed', nameMode: 'hover', showName: false, nameSize: 14, wrap: 0});
 });
 
 test('main.mjs registers both settings as world scope, GM-restricted, default Framed and name off', () => {
   const main = fs.readFileSync(new URL('../scripts/main.mjs', import.meta.url), 'utf8');
   assert.match(main, /register\(MODULE_ID, 'pinLook',[^]*?scope: 'world'[^]*?default: DEFAULT_PIN_LOOK, restricted: true/);
-  assert.match(main, /register\(MODULE_ID, 'pinShowName',[^]*?scope: 'world'[^]*?default: false, restricted: true/);
+  assert.match(main, /register\(MODULE_ID, 'pinNameMode',[^]*?scope: 'world'[^]*?default: '', restricted: true[^]*?register\(MODULE_ID, 'pinShowName',[^]*?default: false/);
   assert.match(main, /registerPinLook\(\)/);
 });
 
@@ -77,8 +77,8 @@ test('Show name makes the label always visible, with a readable outline, and lea
   assert.equal(n.tooltip.visible, true);
   assert.ok(n.tooltip.style.strokeThickness >= 2); assert.equal(n.tooltip.style.dropShadow, true);
   assert.equal(n.document.text, 'Ashenford'); assert.equal(n.document.label, 'Ashenford');
-  const off = note(); applyPinLook(off, {look: 'image', showName: false});
-  assert.equal(off.tooltip.visible, false, 'hover-only unless Show name is on');
+  const off = note(); applyPinLook(off, {look: 'image', nameMode: 'hover'});
+  assert.equal(off.tooltip.visible, false, 'hover mode leaves visibility to core');
 });
 
 test('label rules: a hidden pin (no text, generic page, no view) is never forced to show; unidentified and Selected are', () => {
@@ -124,7 +124,7 @@ test('changing the setting asks only bound Notes on the scene to refresh', () =>
 test('GM Setup offers the Map Pins card and saves both settings', () => {
   const src = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
   assert.match(src, /<h3>Map Pins<\/h3>/); assert.match(src, /id="agl-set-pinlook"/); assert.match(src, /id="agl-set-pinname"/);
-  assert.match(src, /set\(MODULE_ID, 'pinLook'/); assert.match(src, /set\(MODULE_ID, 'pinShowName'/);
+  assert.match(src, /set\(MODULE_ID, 'pinLook'/); assert.match(src, /set\(MODULE_ID, 'pinNameMode'/);
 });
 
 test('Name size defaults to 14 and is clamped to 8..48', () => {
@@ -150,10 +150,10 @@ test('a Font Size set by hand on the Note (not Foundry\'s 32) wins over the sett
   assert.equal(n.document.fontSize, 20);
 });
 
-test('Name size only applies when Show name is on, and writes nothing to the Note', () => {
+test('Name size applies to the label in both modes, and writes nothing to the Note', () => {
   const n = note(); const before = JSON.stringify(n.document);
-  applyPinLook(n, {showName: false, nameSize: 10}); assert.equal(n.tooltip.style.fontSize, 32);
-  applyPinLook(n, {showName: true, nameSize: 10});
+  applyPinLook(n, {nameMode: 'hover', nameSize: 10}); assert.equal(n.tooltip.style.fontSize, 10);
+  applyPinLook(n, {nameMode: 'always', nameSize: 10});
   assert.equal(JSON.stringify(n.document), before);
 });
 
@@ -162,4 +162,87 @@ test('main.mjs registers pinNameSize as a world Number; GM Setup saves it', () =
   assert.match(main, /register\(MODULE_ID, 'pinNameSize',[^]*?scope: 'world'[^]*?type: Number, default: NAME_SIZE.default, restricted: true/);
   const app = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
   assert.match(app, /id="agl-set-pinsize" type="number"/); assert.match(app, /set\(MODULE_ID, 'pinNameSize'/);
+});
+
+import {wrapLabel, wrapOf, WRAP} from '../scripts/pin-look.mjs';
+test('wrapLabel breaks at word boundaries for several limits', () => {
+  assert.equal(wrapLabel('The Ashen Gate Watchtower', 10), 'The Ashen\nGate\nWatchtower');
+  assert.equal(wrapLabel('The Ashen Gate Watchtower', 20), 'The Ashen Gate\nWatchtower');
+  assert.equal(wrapLabel('The Ashen Gate Watchtower', 60), 'The Ashen Gate Watchtower');
+  for (const n of [6, 8, 12, 25]) for (const l of wrapLabel('Old Mill of the Seven Weeping Willows', n).split('\n')) assert.ok(Array.from(l).length <= n, `${n}: ${l}`);
+});
+test('wrapLabel cuts a word longer than the limit, keeps line breaks, trims spaces', () => {
+  assert.equal(wrapLabel('Supercalifragilistic', 8), 'Supercal\nifragili\nstic');
+  assert.equal(wrapLabel('Hi supercalifragilistic', 8), 'Hi\nsupercal\nifragili\nstic');
+  assert.equal(wrapLabel('North Gate\nand Keep   ', 30), 'North Gate\nand Keep');
+});
+test('wrapLabel counts code points, not UTF-16 units', () => {
+  assert.equal(wrapLabel('😀😀😀😀😀😀😀😀', 6), '😀😀😀😀😀😀\n😀😀');
+  assert.equal(wrapLabel('Château Ünïcode', 8), 'Château\nÜnïcode');
+});
+test('wrap 0 is off and the clamp is 0 or 6..60', () => {
+  assert.equal(wrapLabel('A fairly long location name', 0), 'A fairly long location name');
+  assert.equal(wrapOf(0), 0); assert.equal(wrapOf(-3), 0); assert.equal(wrapOf('x'), 0);
+  assert.equal(wrapOf(2), 6); assert.equal(wrapOf(999), 60); assert.equal(wrapOf('18.4'), 18);
+  assert.deepEqual({...WRAP}, {off: 0, min: 6, max: 60});
+  assert.deepEqual(readPinLook(k => ({pinNameWrap: 12})[k]).wrap, 12);
+  assert.equal(readPinLook(() => undefined).wrap, 0);
+});
+test('the hook wraps only the displayed tooltip text, never the document, and restores with wrap 0', () => {
+  const n = note({text: 'The Ashen Gate Watchtower'}); n.tooltip.text = n.document.label; const before = JSON.stringify(n.document);
+  applyPinLook(n, {showName: true, wrap: 10});
+  assert.equal(n.tooltip.text, 'The Ashen\nGate\nWatchtower'); assert.equal(n.tooltip.style.align, 'center');
+  assert.equal(JSON.stringify(n.document), before); assert.equal(n.document.label, 'The Ashen Gate Watchtower');
+  const off = note({text: 'The Ashen Gate Watchtower'}); off.tooltip.text = off.document.label;
+  applyPinLook(off, {showName: true, wrap: 0}); assert.equal(off.tooltip.text, 'The Ashen Gate Watchtower');
+  const nameOff = note({text: 'The Ashen Gate Watchtower'}); nameOff.tooltip.text = nameOff.document.label;
+  applyPinLook(nameOff, {nameMode: 'hover', wrap: 0}); assert.equal(nameOff.tooltip.text, 'The Ashen Gate Watchtower');
+});
+test('unidentified labels wrap the same way; hidden and unbound pins are never wrapped or revealed', () => {
+  const u = note({text: 'Unknown settlement nearby'}); u.tooltip.text = u.document.label;
+  applyPinLook(u, {showName: true, wrap: 12}); assert.equal(u.tooltip.text, 'Unknown\nsettlement\nnearby');
+  const hidden = note({text: '', hasPage: true, pageView: ''}); hidden.tooltip.text = 'x';
+  applyPinLook(hidden, {showName: true, wrap: 6}); assert.equal(hidden.tooltip.text, 'x'); assert.equal(hidden.tooltip.visible, false);
+  const other = note({bound: false, text: 'The Ashen Gate Watchtower'}); other.tooltip.text = other.document.label;
+  applyPinLook(other, {showName: true, wrap: 6}); assert.equal(other.tooltip.text, 'The Ashen Gate Watchtower');
+});
+test('main.mjs registers pinNameWrap (world Number, default 0); GM Setup saves it', () => {
+  const main = fs.readFileSync(new URL('../scripts/main.mjs', import.meta.url), 'utf8');
+  assert.match(main, /register\(MODULE_ID, 'pinNameWrap',[^]*?scope: 'world'[^]*?type: Number, default: 0, restricted: true/);
+  const app = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
+  assert.match(app, /id="agl-set-pinwrap" type="number"/); assert.match(app, /set\(MODULE_ID, 'pinNameWrap'/);
+});
+
+import {legacyNameMode, nameModeOf, NAME_MODES, DEFAULT_NAME_MODE} from '../scripts/pin-look.mjs';
+test('name mode: fresh world is hover; the old boolean migrates by reading, never by rewriting', () => {
+  assert.equal(DEFAULT_NAME_MODE, 'hover'); assert.deepEqual(Object.keys(NAME_MODES), ['hover', 'always']);
+  const get = store => k => store[k];
+  assert.equal(legacyNameMode(get({})), 'hover');
+  assert.equal(legacyNameMode(get({pinNameMode: '', pinShowName: true})), 'always');
+  assert.equal(legacyNameMode(get({pinNameMode: '', pinShowName: false})), 'hover');
+  assert.equal(legacyNameMode(get({pinNameMode: 'hover', pinShowName: true})), 'hover', 'a chosen mode wins over the old value');
+  assert.equal(legacyNameMode(get({pinNameMode: 'always', pinShowName: false})), 'always');
+  assert.equal(nameModeOf('junk'), 'hover');
+  const legacy = {pinNameMode: '', pinShowName: true}; const copy = {...legacy};
+  readPinLook(get(legacy)); assert.deepEqual(legacy, copy);
+  assert.equal(readPinLook(get(legacy)).nameMode, 'always'); assert.equal(readPinLook(get(legacy)).showName, true);
+});
+test('mode switch both ways: always forces the label on, hover hands visibility back to core', () => {
+  const n = note({text: 'The Ashen Gate Watchtower'});
+  applyPinLook(n, {nameMode: 'always'}); assert.equal(n.tooltip.visible, true);
+  n.tooltip.visible = false; // what core's _refreshState sets again after the redraw (not hovered)
+  applyPinLook(n, {nameMode: 'hover'}); assert.equal(n.tooltip.visible, false, 'not forced in hover mode');
+  n.tooltip.visible = true; // core shows it on hover
+  applyPinLook(n, {nameMode: 'hover'}); assert.equal(n.tooltip.visible, true);
+});
+test('label style (size, outline, wrap) applies in hover mode too, to our labels only', () => {
+  const n = note({text: 'The Ashen Gate Watchtower'}); n.tooltip.text = n.document.label;
+  applyPinLook(n, {nameMode: 'hover', nameSize: 12, wrap: 10});
+  assert.equal(n.tooltip.style.fontSize, 12); assert.equal(n.tooltip.style.strokeThickness, 2); assert.equal(n.tooltip.text, 'The Ashen\nGate\nWatchtower');
+  const hidden = note({text: '', hasPage: true, pageView: ''}); hidden.tooltip.text = 'x';
+  applyPinLook(hidden, {nameMode: 'hover', nameSize: 12, wrap: 6}); assert.equal(hidden.tooltip.style.fontSize, 32); assert.equal(hidden.tooltip.text, 'x');
+});
+test('GM Setup offers a Name under the pin choice and saves pinNameMode', () => {
+  const app = fs.readFileSync(new URL('../scripts/app.mjs', import.meta.url), 'utf8');
+  assert.match(app, /<select id="agl-set-pinname">/); assert.match(app, /set\(MODULE_ID, 'pinNameMode'/);
 });

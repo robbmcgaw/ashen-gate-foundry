@@ -1,3 +1,12 @@
+## 0.22.2 — 2026-10-28
+
+New: **Wrap the name after (characters)** for the name under a map pin.
+
+- **GM Setup → Map Pins → Wrap the name after (characters):** a whole number, 6 to 60, or 0 for no wrapping (the default, so nothing changes until you set it). Longer names break between words, centred under the pin; a single word longer than the limit is cut. Saved with **Save Changes** and applied on every screen at once; set it back to 0 and the name is one line again.
+- **Name under the pin** is now a choice, **Always shown** or **Only when hovering** (Foundry's own behaviour, the default for a fresh world), instead of a checkbox. A world that had the old box ticked reads as Always shown, and unticked as Only when hovering; the old saved value is kept, not rewritten. **Name size, outline and Wrap apply in both modes** whenever a pin's name is shown, so with *Only when hovering* the hover label is now also drawn at the Name size (default 14) rather than Foundry's 32; set the pin's own Font Size to override.
+- Only the label drawn on the map is wrapped. The location's name and the Note's own text are never changed or written. The unidentified label wraps the same way, and a hidden pin still shows no name.
+- Tests use mocked Foundry; they do not render the canvas.
+
 ## 0.22.1 — 2026-10-28
 
 Player Preview shows only the card for the location's current state.

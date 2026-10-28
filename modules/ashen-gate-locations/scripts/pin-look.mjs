@@ -19,6 +19,40 @@ export const DEFAULT_PIN_LOOK = 'framed';
 export const NAME_SIZE = Object.freeze({min: 8, max: 48, default: 14});
 export const CORE_FONT_SIZE = 32; // Foundry's default Note font size: any other value was set by hand and wins.
 export const nameSizeOf = v => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(NAME_SIZE.max, Math.max(NAME_SIZE.min, n)) : NAME_SIZE.default; };
+export const WRAP = Object.freeze({off: 0, min: 6, max: 60});
+/** 0 = no wrapping; otherwise whole characters per line, 6 to 60. A value from 1 to 5 counts as 6. */
+export const wrapOf = v => { const n = Math.round(Number(v)); return !Number.isFinite(n) || n <= 0 ? 0 : Math.min(WRAP.max, Math.max(WRAP.min, n)); };
+
+/**
+ * Breaks a label into lines of at most `limit` characters (code points, not UTF-16 units), at word boundaries; a single word
+ * longer than the limit is cut. Existing line breaks are kept and trailing spaces trimmed. limit 0 returns the text as it is.
+ * Manual breaks, because PIXI's wordWrapWidth is in pixels and Robb asked for a number of characters.
+ */
+export function wrapLabel(text, limit) {
+  const str = String(text ?? '');
+  const n = wrapOf(limit);
+  if (!n) return str;
+  const out = [];
+  for (const raw of str.split('\n')) {
+    let line = '';
+    const push = () => { out.push(line.trimEnd()); line = ''; };
+    for (const word of raw.split(/\s+/).filter(Boolean)) {
+      let w = Array.from(word);
+      while (w.length > n) {                       // a word longer than a line is cut
+        if (line) push();
+        out.push(w.slice(0, n).join('')); w = w.slice(n);
+      }
+      const len = Array.from(line).length;
+      if (line && len + 1 + w.length > n) push();
+      line = line ? `${line} ${w.join('')}` : w.join('');
+    }
+    push();
+  }
+  return out.join('\n');
+}
+export const NAME_MODES = Object.freeze({hover: 'Only when hovering', always: 'Always shown'});
+export const DEFAULT_NAME_MODE = 'hover'; // Foundry's own behaviour
+export const nameModeOf = v => (v === 'always' ? 'always' : DEFAULT_NAME_MODE);
 export const pinLookOf = v => (v === 'image' ? 'image' : DEFAULT_PIN_LOOK);
 
 const isBound = note => {
@@ -39,9 +73,10 @@ export function labelIsOurs(doc) {
 }
 
 /** Draws one bound Note in the chosen look. Does nothing for other Notes. Never throws. */
-export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false, nameSize = NAME_SIZE.default} = {}) {
+export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName = false, nameSize = NAME_SIZE.default, wrap = 0} = {}) {
   if (!isBound(note)) return false;
   const imageOnly = pinLookOf(look) === 'image';
+  const always = (nameMode ?? (showName ? 'always' : 'hover')) === 'always';
   try {
     const icon = note.controlIcon;
     if (icon) {
@@ -55,8 +90,15 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false, n
   } catch (err) { warn(err); }
   try {
     const tip = note.tooltip;
-    if (tip && showName && labelIsOurs(note.document) && note.document?.label) {
-      tip.visible = true;
+    if (tip && labelIsOurs(note.document) && note.document?.label) {
+      // Always: force the label on. Hover: leave tooltip.visible to core (hover or Notes-layer highlight). The label style below applies in both.
+      if (always) tip.visible = true;
+      // Wrap the displayed text only: the Note's own text is never touched. Core rebuilds tooltip.text from document.label on its
+      // refreshTooltip flag, so wrap 0 (or the name off) is restored by refreshPins().
+      const lines = wrapLabel(note.document.label, wrap);
+      if (wrapOf(wrap) && tip.text !== lines) tip.text = lines;
+      // Core's canvas text style is already align 'center' with wordWrap off; it only switches to right/left for side anchors.
+      if (wrapOf(wrap) && tip.style && ![CONST_ANCHOR().LEFT, CONST_ANCHOR().RIGHT].includes(note.document.textAnchor)) tip.style.align = 'center';
       // A little more outline and a soft shadow so the name reads over a busy map. Foundry rebuilds the style whenever the text changes.
       const style = tip.style;
       if (style) {
@@ -77,11 +119,18 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, showName = false, n
   return true;
 }
 
+const CONST_ANCHOR = () => globalThis.CONST?.TEXT_ANCHOR_POINTS ?? {};
 let warned = false;
 function warn(err) { if (!warned) { warned = true; console.warn(`${MODULE_ID} | pin look could not be applied`, err); } }
 
+/** 0.22.2: `pinNameMode` ('' = never chosen) replaces the boolean `pinShowName`, which stays registered and is never rewritten:
+ *  a saved true reads as 'always', anything else as 'hover'. */
+export const legacyNameMode = get => {
+  const chosen = get('pinNameMode');
+  return chosen === 'always' || chosen === 'hover' ? chosen : (get('pinShowName') === true ? 'always' : DEFAULT_NAME_MODE);
+};
 export const readPinLook = (get = key => game.settings.get(MODULE_ID, key)) => {
-  try { return {look: pinLookOf(get('pinLook')), showName: get('pinShowName') === true, nameSize: nameSizeOf(get('pinNameSize') ?? NAME_SIZE.default)}; } catch { return {look: DEFAULT_PIN_LOOK, showName: false, nameSize: NAME_SIZE.default}; }
+  try { const nameMode = legacyNameMode(get); return {look: pinLookOf(get('pinLook')), nameMode, showName: nameMode === 'always', nameSize: nameSizeOf(get('pinNameSize') ?? NAME_SIZE.default), wrap: wrapOf(get('pinNameWrap'))}; } catch { return {look: DEFAULT_PIN_LOOK, nameMode: DEFAULT_NAME_MODE, showName: false, nameSize: NAME_SIZE.default, wrap: 0}; }
 };
 
 /** Redraws every Note on the open scene so a changed setting shows at once. */
