@@ -34,3 +34,10 @@ test('optional stash cleanup needs explicit second confirmation',async()=>{
  allow=true;confirmCalls=0;const outcome=await reset({deleteStash:true});
  assert.equal(confirmCalls,2);assert.equal(outcome.stashDeleted,true);assert.ok(!actors.includes(stash));assert.ok(actors.some(x=>x.name==='Actual Character'));
 });
+test('0.34.0: reset finds the stash by its flag, so a stash named Party is deleted and a character named Party is not',async()=>{
+ for(const a of [...actors])await a.delete();
+ const pc=await Actor.create({name:'Party',type:'character'});
+ const stash=await Actor.create({name:'Party',type:'npc',flags:{[NS]:{partyStash:true}}});
+ allow=true;const outcome=await reset({deleteStash:true});
+ assert.equal(outcome.stashDeleted,true);assert.ok(!actors.includes(stash));assert.ok(actors.includes(pc));
+});

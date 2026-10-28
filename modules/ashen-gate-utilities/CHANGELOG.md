@@ -1,3 +1,12 @@
+## 0.34.0 — 2026-10-28
+
+The Party Stash character is named "Party".
+
+- **New stashes are named "Party"** (was "Ashen Gate | Party Stash"). The feature is still called the Party Stash everywhere in the UI, README and Help.
+- **Existing worlds: one automatic rename.** The first time a GM loads the world on this version, a stash character still named exactly "Ashen Gate | Party Stash" is renamed "Party" and the GM sees one notice: The Party Stash character is now named "Party". A stash you already renamed is left alone. Only the name changes: items, coins, permissions, folder and the stash marker are untouched, and older History entries keep the names they were written with. It runs once (a world setting marks it done) and only on the active GM's client.
+- The stash is found by its own marker, never by name, so a player character that happens to be called "Party" is not mistaken for it (and the reverse). The test fixture reset now finds the stash the same way.
+- Check in Forge: update Utilities and reload as GM. Actors sidebar > Ashen Gate > Party: the character is now "Party" and one notice appears. Open Actors > Utilities > Party Inventory: the stash opens with its items and coins as before.
+
 ## 0.33.2 — 2026-10-26
 
 Keyboard and narrow-window fixes (shared kit 2.4.0).

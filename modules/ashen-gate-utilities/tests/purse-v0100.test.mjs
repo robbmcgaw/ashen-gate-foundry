@@ -66,7 +66,7 @@ function mkItems(){const m=new Map();return {get:id=>m.get(id),get size(){return
 function mkActor(id,name,owner,flags={},currency={cp:0,sp:0,ep:0,gp:0,pp:0}){const a={id,name,type:owner?'character':'npc',documentName:'Actor',statuses:new Set(),effects:[],flags,
  system:{currency:{...currency},hp:{value:7}},ownership:{},items:mkItems(),getFlag:(ns,k)=>flags[ns]?.[k],testUserPermission:(u,level)=>u.isGM||u.id===owner||level==='LIMITED',
  update:async d=>{updates.push({id,d});if(a.failNext){a.failNext=false;throw Error('locked');}for(const [k,v] of Object.entries(d)){const path=k.split('.'),last=path.pop();path.reduce((o,p)=>o[p],a)[last]=v;}}};return a;}
-const stash=mkActor('stash','Ashen Gate | Party Stash',null,{[ID]:{partyStash:true}});
+const stash=mkActor('stash','Party',null,{[ID]:{partyStash:true}});
 const wren=mkActor('pcA','[TEST] Wren','alice',{},{cp:1,sp:2,ep:3,gp:10,pp:4}),ash=mkActor('pcB','[TEST] Ash','bob',{},{cp:0,sp:0,ep:0,gp:3,pp:0});
 const users=[gm,alice,bob];users.get=id=>users.find(u=>u.id===id);
 const actors=[stash,wren,ash];actors.get=id=>actors.find(a=>a.id===id);
