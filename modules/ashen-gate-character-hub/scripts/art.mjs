@@ -4,6 +4,10 @@
  * sheet uses): FilePicker.implementation (the Forge's Assets Library picker on The Forge) starting at the current path,
  * with the default artwork as the root to fall back to, then a normal document update. A token set to random images
  * opens its Prototype Token settings instead, as the dnd5e sheet does. Owner or GM only.
+ *
+ * 0.61.0: when the Tokenizer module is active and exposes tokenizeActor, the same double-click (and the Change button, the
+ * keyboard route) opens Tokenizer's window for the character instead of the picker. Tokenizer saves the portrait and the
+ * token itself (actor.update), which re-renders the Hub. Anything missing or failing falls back to the picker.
  */
 import {canEdit} from './actions.mjs';
 import {renderBeside} from './popout.mjs';
@@ -20,8 +24,24 @@ export const currentArt = (actor, mode) => getProp(actor?._source ?? actor, ART_
 /** Foundry's file picker class (V13+: foundry.applications.apps.FilePicker; The Forge replaces .implementation). */
 export const filePickerClass = () => globalThis.foundry?.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker?.implementation ?? globalThis.FilePicker ?? null;
 
+/** MrPrimate's Tokenizer: module id `vtta-tokenizer` (its Foundry package id; `tokenizer` is checked too). */
+export const TOKENIZER_IDS = ['vtta-tokenizer', 'tokenizer'];
+
+/** Tokenizer's `tokenizeActor(actor)` when its module is active and the function exists; otherwise null. Never throws. */
+export function tokenizerOpener() {
+  try {
+    for (const id of TOKENIZER_IDS) {
+      const mod = globalThis.game?.modules?.get?.(id);
+      if (mod?.active !== true) continue;
+      const api = mod.api ?? globalThis.Tokenizer;
+      if (typeof api?.tokenizeActor === 'function') return actor => api.tokenizeActor(actor);
+    }
+  } catch { /* fall through to the picker */ }
+  return null;
+}
+
 /**
- * Opens the picker for the shown art. Resolves to {ok, result: 'picker' | 'token-config'} once it is open; choosing a
+ * Opens the picker for the shown art (or Tokenizer, see above). Resolves to {ok, result: 'picker' | 'tokenizer' | 'token-config'} once it is open; choosing a
  * file updates the Actor, and cancelling changes nothing.
  */
 export async function changeArt(actor, mode, {position = null, hub = null, notify = msg => globalThis.ui?.notifications?.warn?.(msg)} = {}) {
@@ -33,6 +53,14 @@ export async function changeArt(actor, mode, {position = null, hub = null, notif
     if (!Config) return refuse('This token uses random images: change them in the Prototype Token settings.');
     await renderBeside(hub, new Config({prototype: actor.prototypeToken}));
     return {ok: true, result: 'token-config'};
+  }
+  const openTokenizer = tokenizerOpener();
+  if (openTokenizer) {
+    try { await openTokenizer(actor); return {ok: true, result: 'tokenizer'}; }
+    catch (err) {
+      notify(`Tokenizer could not be opened (${err?.message ?? err}). Choose the art with the file picker instead.`);
+      console.warn('Ashen Gate | Character Hub: Tokenizer failed to open', err);
+    }
   }
   const FP = filePickerClass();
   if (!FP) return refuse('The file picker is not available.');

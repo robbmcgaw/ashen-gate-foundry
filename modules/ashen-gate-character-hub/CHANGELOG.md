@@ -1,3 +1,11 @@
+## 0.61.0 — 2026-10-28
+
+Double-click the portrait opens Tokenizer when it is enabled.
+
+- Double-clicking the big picture (and the **Change portrait…** / **Change token art…** button, which is the keyboard route) opens Tokenizer's window for the character when the Tokenizer module is enabled. Tokenizer saves the portrait and the token art to the character itself and the Hub redraws.
+- Without Tokenizer (not installed, disabled, or a version without the call the Hub looks for), or if it fails to open (a short message says so), the file picker opens as before. Same permission as before: owner or GM. Single click and the tooltip wording are unchanged. A token set to random images still opens Prototype Token settings.
+- Tests are mocked Foundry; they do not open the real Tokenizer window.
+
 ## 0.60.2 — 2026-10-27
 
 Renown's Vow Item is protected, and grouped under Pantheon.
