@@ -7,7 +7,7 @@ import {pauseGlowReport} from "./pause-glow-report.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
-import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
+import {sourceMetadata as projectionSourceMetadata, replacingSourceFlag} from './source-projection.mjs';
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical, baselineFields} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
@@ -221,7 +221,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
 async function updateRecord(record, pkg, doc, patch, availableIds) {
   const update = {...patch};
   const source=sourceMetadata(record, pkg, availableIds);
-  update[`flags.${MODULE_ID}.source`] = source;
+  update[`flags.${MODULE_ID}.source`] = replacingSourceFlag(doc.getFlag?.(MODULE_ID,'source'), source);
   // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
   if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
   await doc.update(update, bulk());

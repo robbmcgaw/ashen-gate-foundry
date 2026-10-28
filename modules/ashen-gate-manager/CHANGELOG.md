@@ -1,3 +1,11 @@
+## 0.71.3 — 2026-10-28
+
+Sync from package now removes fields the package dropped.
+
+- **Fix:** when a package removed a field from a record (for example an Artistry recipe's old `workstation`, `tool` or `access` after the one-requirement pass), Sync and Import wrote the new definition on top of the stored one, so the removed field stayed in the world copy. The Profession Ledger then still showed both a tool and a station. The stored record text (the definition, and its provenance) is now **replaced** by the package's version, so removed fields go.
+- Those records show as **Will update** ("Content already matches; refreshes definition") in the next Sync preview, and **Already matches** after it. Only the stored record text changes: name, description, art, folder, ownership, items on characters and every other module's data are not touched, and ids never change.
+- Applies to Sync (including Replace in place), Import updates and the opt-in Actor update. Safe to run again.
+
 ## 0.71.2 — 2026-10-26
 
 Narrow-window fixes (shared kit 2.4.0).

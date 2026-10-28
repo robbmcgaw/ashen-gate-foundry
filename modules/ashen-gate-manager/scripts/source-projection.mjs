@@ -9,6 +9,26 @@ export function canonicalDefinition(record) {
   for(const [key,value] of Object.entries(record)) if(!OMIT.has(key)) result[key]=clone(value);
   return result;
 }
+const isPlain = v => Boolean(v) && typeof v === 'object' && !Array.isArray(v) && [Object.prototype, null].includes(Object.getPrototypeOf(v));
+function withRemovals(stored, incoming) {
+  const out = {...incoming};
+  for (const [key, value] of Object.entries(incoming)) if (isPlain(value) && isPlain(stored?.[key])) out[key] = withRemovals(stored[key], value);
+  // Keys with a dot cannot be named in a Foundry deletion (it would read them as a path); they are left as they are.
+  if (isPlain(stored)) for (const key of Object.keys(stored)) if (!(key in incoming) && !key.includes('.') && !key.startsWith('-=')) out[`-=${key}`] = null;
+  return out;
+}
+/**
+ * 0.71.3: the source flag to hand to document.update(). Foundry MERGES an object written to a flag, so a field the package
+ * no longer carries (a field the package dropped) would stay in the stored definition for ever. Each key that is in the stored
+ * `definition` / `provenance` but not in the new flag is added as Foundry's `-=key: null` deletion, so those two are replaced
+ * by the package's version. Everything else in the flag (managedFields, memo, ...) merges exactly as before. Pure; `stored` may be missing.
+ */
+export function replacingSourceFlag(stored, flag) {
+  if (!isPlain(flag)) return flag;
+  const out = {...flag};
+  for (const part of ['definition', 'provenance']) if (isPlain(stored?.[part]) && isPlain(flag[part])) out[part] = withRemovals(stored[part], flag[part]);
+  return out;
+}
 export function validateLogicalProjection(record) {
   const errors=[];
   if(record?.foundry?.document_type==='Actor' && (record.entity_type==='Actor' || (record?.id?.startsWith('ACTOR-') && record.entity_type!=='NPC')))
