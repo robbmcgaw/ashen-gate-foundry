@@ -1,3 +1,12 @@
+## 0.27.2 — 2026-10-28
+
+Changed: players no longer see the threat level on the Locations list; they see it on the location itself, labelled.
+
+- The list rows (flat, grouped, Tree and search results) show no threat badge for players. The GM's list is unchanged.
+- In a location's details the threat now reads **Threat Level:** followed by the badge. The Journal page players open from a pin says "Threat Level: Hot" in the same way. The GM's *Player preview* shows the same as players.
+- Nothing about who can see a threat changed: if the threat is hidden from players it stays hidden.
+- Tests use mocked Foundry; they check the HTML, not the live window.
+
 ## 0.27.1 — 2026-10-28
 
 Changed: a location with **Keep pin art proportions** on no longer draws its name under the pin, so wide art that already reads as a banner is not labelled twice.
