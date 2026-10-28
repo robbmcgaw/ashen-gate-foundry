@@ -81,7 +81,7 @@ Only with dnd5e's own data. The Hub's stats box reads, and never applies or work
 - **Active Effects on the Item:** each change is shown with its key in plain words and its mode, e.g.
   - `system.attributes.ac.bonus`, ADD `1` → "AC +1"
   - `system.attributes.movement.speeds.walk`, ADD `10` → "Walk speed +10" (dnd5e 6.0 keys speeds under `movement.speeds`; the old `system.attributes.movement.walk` is only a compatibility redirect, so new files use `speeds.walk`)
-  - `system.abilities.dex.bonuses.save` → "Dexterity saves"
+  - `system.abilities.dex.save.roll.bonus` → "Dexterity saves" (dnd5e 6.0 key; the old `system.abilities.dex.bonuses.save` reads the same. Write the 6.0 key in new files; the full old → new table is `docs/dnd5e-effect-keys.md`)
   Plain additions to the same thing are summed. Unknown keys show as they are. Disabled effects are skipped.
 
 Rules for effects on companion items:

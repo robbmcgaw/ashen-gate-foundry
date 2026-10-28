@@ -1,3 +1,13 @@
+## 0.62.2 — 2026-10-28
+
+Companion gear and perks read the same whether their effects use the old dnd5e keys or the dnd5e 6.0 ones.
+
+- dnd5e 6.0 moved roll bonuses (for example `system.abilities.dex.bonuses.save` is now `system.abilities.dex.save.roll.bonus`, `system.skills.ste.bonuses.check` is now `system.skills.ste.roll.bonus`) and still accepts the old keys through a compatibility redirect. The Hub's companion bonus lines used to label only the old keys, so an item rewritten to the 6.0 keys would have shown a raw path. Both forms now show the same words and values ("Dexterity saves +1"), and bonuses written in different forms on the same stat add into one line.
+- Also now labelled in either form: all saving throws / ability checks / skill checks, attack and damage bonuses by type, Initiative, Concentration saves, Death saves, tool checks, and the older `movement.speed`. Anything else still shows its words as before. Skill passive bonuses never changed and read as before.
+- Display only: the Hub changes no Active Effect on a companion item (its Sap mark already uses a 6.0 key). A helper picks the 6.0 form on dnd5e 6.0 or later and the old form below that, for any future code that writes effects.
+- The old-to-new key table, with the dnd5e source it comes from, is in `docs/dnd5e-effect-keys.md`.
+- Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.62.1 — 2026-10-28
 
 Features → Group → Origin: profession names read without " — Profession".
