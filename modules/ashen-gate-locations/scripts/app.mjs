@@ -1,6 +1,6 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
-  DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
+  DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, inheritedPin, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
 import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
@@ -665,7 +665,7 @@ export class LocationsApp extends Base {
         ${order.filter(k => k !== 'scenes').map(k => blocks[k] ?? '').join('')}
         <div class="agl-add agl-add-detail">${btn('add-detail', 'Add detail', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
           <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>`,
-      visibility: `${this.audienceHtml(d)}${this.placeHtml(d, all, pins)}${this.markerHtml(d)}${this.scenesHtml(d)}`,
+      visibility: `${this.audienceHtml(d)}${this.placeHtml(d, all, pins)}${this.markerHtml(d, all)}${this.scenesHtml(d)}`,
       party: d.id ? this.partyNotesHtml(d.id, {gmHint: d.state === 'hidden' ? ' Players cannot see or edit them while this location is hidden.' : ''})
         : '<p class="agl-hint">Party Notes appear here once the location is saved. Players write them; Save Changes never changes them.</p>'
     };
@@ -767,20 +767,30 @@ export class LocationsApp extends Base {
   }
 
   /** Unidentified label/teaser and pin art. Pins use native Note image/size; edits to a placed Note win. */
-  markerHtml(d) {
+  markerHtml(d, all = []) {
     const world = setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL);
-    const path = (f, label, placeholder) => `<div class="ag-field agl-field"><label for="agl-pin-${f}">${label}</label><div class="agl-field__row">
-      <input id="agl-pin-${f}" type="text" data-bind="pin.${f}" value="${esc(d.pin[f])}" placeholder="${esc(placeholder)}">${btn('browse-pin', '', {icon: 'fa-solid fa-folder-open', title: `Browse for the ${label.toLowerCase()}`, data: {field: f}})}</div></div>`;
+    // 0.25.0: what this place gets from the Regions above it when it sets nothing itself (then the world setting, then Foundry's icons).
+    const inh = inheritedPin(d.parentLocationId, all, d.id);
+    const fallbackImg = inh.img || PIN_DEFAULTS.img, fallbackUnk = inh.unidentifiedImg || setting('unknownPinImage', '') || PIN_DEFAULTS.unidentifiedImg, fallbackSize = inh.size || PIN_DEFAULTS.size;
+    const path = (f, label, placeholder, scope = 'pin') => `<div class="ag-field agl-field"><label for="agl-${scope}-${f}">${label}</label><div class="agl-field__row">
+      <input id="agl-${scope}-${f}" type="text" data-bind="${scope}.${f}" value="${esc(d[scope][f])}" placeholder="${esc(placeholder)}">${btn('browse-pin', '', {icon: 'fa-solid fa-folder-open', title: `Browse for the ${label.toLowerCase()}`, data: {field: f, scope}})}</div></div>`;
     return `<section class="ag-card agl-section">
       <header class="ag-card__head"><h3>Unidentified Marker &amp; Pin</h3></header>
       <div class="ag-form-grid">
         <div class="ag-field agl-field"><label for="agl-unid">Unidentified label</label><input id="agl-unid" type="text" data-bind="unidentifiedLabel" value="${esc(d.unidentifiedLabel)}" placeholder="${esc(world)} (world default)"></div>
-        <div class="ag-field agl-field"><label for="agl-pin-size">Pin size</label><input id="agl-pin-size" type="number" min="16" max="256" step="1" data-bind="pin.size" value="${d.pin.size || ''}" placeholder="${PIN_DEFAULTS.size}"></div>
+        <div class="ag-field agl-field"><label for="agl-pin-size">Pin size</label><input id="agl-pin-size" type="number" min="16" max="256" step="1" data-bind="pin.size" value="${d.pin.size || ''}" placeholder="${fallbackSize}"></div>
       </div>
       <div class="ag-field agl-field"><label for="agl-teaser">Teaser (players see this while unidentified)</label><textarea id="agl-teaser" rows="2" data-bind="teaser" placeholder="Optional, e.g. Smoke rises beyond the ridge.">${esc(d.teaser)}</textarea></div>
       <div class="ag-form-grid">
-        ${path('img', 'Pin image (revealed)', PIN_DEFAULTS.img)}
-        ${path('unidentifiedImg', 'Pin image (hidden / unidentified)', setting('unknownPinImage', '') || PIN_DEFAULTS.unidentifiedImg)}
+        ${path('img', 'Pin image (revealed)', fallbackImg)}
+        ${path('unidentifiedImg', 'Pin image (hidden / unidentified)', fallbackUnk)}
+      </div>
+      <h4 class="agl-subhead">Default pin for places inside this one</h4>
+      <p class="agl-hint">Any place inside this one (and inside those) uses these when it has no pin image or size of its own. A place's own value always wins, and the nearest place above it that sets one is used. GM only; players never receive these.</p>
+      <div class="ag-form-grid">
+        ${path('img', 'Default pin image (revealed)', fallbackImg, 'childPin')}
+        ${path('unidentifiedImg', 'Default pin image (hidden / unidentified)', fallbackUnk, 'childPin')}
+        <div class="ag-field agl-field"><label for="agl-childPin-size">Default pin size</label><input id="agl-childPin-size" type="number" min="16" max="256" step="1" data-bind="childPin.size" value="${d.childPin.size || ''}" placeholder="${fallbackSize}"></div>
       </div>
       <p class="agl-hint">Players can read a pin's label and image path, never its name or ID. Don't name image files after secrets. Changing a placed pin's image or size in Foundry's Note settings keeps that pin as you set it.</p>
     </section>`;
@@ -1200,7 +1210,7 @@ export class LocationsApp extends Base {
       if (e && c === 'finite' && value === false) e.exhausted = false;
       if (e) e[c] = value;
     }
-    else if (b) this.draft[a][b] = path === 'pin.size' ? Number(value) || 0 : value;
+    else if (b) this.draft[a][b] = path === 'pin.size' || path === 'childPin.size' ? Number(value) || 0 : value;
     else this.draft[a] = value;
     this.touch();
   }
@@ -1368,8 +1378,8 @@ export class LocationsApp extends Base {
       }
       case 'browse-pin': {
         const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
-        const f = el.dataset.field;
-        return new FP({type: 'image', current: this.draft.pin[f], callback: p => { this.setPath(`pin.${f}`, p); this.render(); }}).render(true);
+        const f = el.dataset.field, scope = el.dataset.scope === 'childPin' ? 'childPin' : 'pin';
+        return new FP({type: 'image', current: this.draft[scope][f], callback: p => { this.setPath(`${scope}.${f}`, p); this.render(); }}).render(true);
       }
       case 'browse-setup': {
         const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
@@ -1687,6 +1697,7 @@ export class LocationsApp extends Base {
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
+        '<strong>Default pin for places inside this one</strong> (Visibility &amp; map, GM only): give a Region such as a country or a town a pin image for revealed places, one for hidden / unidentified places, and a pin size, and every place inside it (and inside those) uses them. Order: the place\'s own value, then the nearest place above it that sets one, then <em>GM Setup</em>\'s default unidentified image, then Foundry\'s icons. A place\'s own value is never changed. Placed pins update when you Save; a pin whose image or size you changed in Foundry\'s Note settings keeps your change. The empty boxes show what the place would use now.',
         '<strong>Active</strong> (editor head, GM only) marks where the party is now; several places can be active. It applies at once (no Publish), shows a <em>Here now</em> badge to players who can see the place and tells them "The party is now at …". A hidden place asks <em>Reveal and make active?</em> first. Filters → Status → Active lists them. Other modules read the active places through the Locations API.',
         '<strong>Show to Players</strong> (editor head, GM only) opens the location in every other connected player\'s Locations window, like Foundry\'s Show to Players for journals. Players see only what they could already see: an unidentified place opens its unidentified card, and a Selected-players place goes only to those players. A hidden place asks <em>Reveal and show</em> first. Players\' windows switch to it rather than stacking, and a player who is typing or has unsaved Party Notes is not interrupted. GM Setup → Show to Players can turn the automatic opening off (they then get a notification).',
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',

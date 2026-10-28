@@ -281,6 +281,8 @@ function normalizeBody(r, id) {
   body.pin = {img: safePath(r.pin?.img), unidentifiedImg: safePath(r.pin?.unidentifiedImg), size: int(r.pin?.size, 0, 16, 256)};
   return body;
 }
+/** 0.25.0: {img, unidentifiedImg, size}; '' / 0 = not set here. */
+export const normalizeChildPin = raw => ({img: safePath(raw?.img), unidentifiedImg: safePath(raw?.unidentifiedImg), size: int(raw?.size, 0, 16, 256)});
 const BODY_KEYS = Object.keys(normalizeBody({}, ''));
 /** The part of a location that Publish copies for players. */
 export const publishable = loc => clone(Object.fromEntries(BODY_KEYS.map(k => [k, loc[k]])));
@@ -298,6 +300,8 @@ export function normalizeLocation(raw = {}) {
   // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
   loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
   loc.audience = normalizeAudience(r.audience);
+  // 0.25.0, GM-only: the default pin art/size for places inside this one (see inheritedPin). Not published; players never get it.
+  loc.childPin = normalizeChildPin(r.childPin);
   // 0.20.0, GM-only: the RTE id this location was converted from (Developer Tools), so a route is never converted twice.
   loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
@@ -525,16 +529,52 @@ export function previewView(draft, all = [], state, opts) {
  * Map Note presentation for a location's state. Hidden and unidentified pins use the unidentified
  * image, so a pin's art never gives the place away. Revealed/unidentified use the published content.
  */
-export function pinPresentation(raw, {label = '', unknownImg = ''} = {}) {
+export function pinPresentation(raw, {label = '', unknownImg = '', all = null} = {}) {
   const loc = normalizeLocation(raw);
   const src = loc.state !== 'hidden' && loc.published ? loc.published : loc;
-  const size = src.pin.size || PIN_DEFAULTS.size;
+  // 0.25.0: a value the location does not set comes from the nearest ancestor's "default pin for places inside" (inheritedPin).
+  const inh = inheritedPin(src.parentLocationId, all, loc.id);
+  const size = src.pin.size || inh.size || PIN_DEFAULTS.size;
+  const revealedImg = src.pin.img || inh.img || PIN_DEFAULTS.img;
+  const unknown = src.pin.unidentifiedImg || inh.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
   // 1.8.0: a "Selected players" pin carries no label of its own. Foundry then labels it with its page's name,
   // which only the players who may open that page are shown (the Note is invisible to everyone else).
-  if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? src.pin.img || PIN_DEFAULTS.img : src.pin.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg, size};
-  if (loc.state === 'revealed') return {text: src.name, src: src.pin.img || PIN_DEFAULTS.img, size};
-  const unknown = src.pin.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
+  if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? revealedImg : unknown, size};
+  if (loc.state === 'revealed') return {text: src.name, src: revealedImg, size};
   return {text: loc.state === 'unidentified' ? src.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL : '', src: unknown, size};
+}
+
+/** 0.25.0: where each pin value of a location comes from. Same order as pinPresentation (which this mirrors for the editor and API). */
+export function effectivePin(raw, all = [], unknownImg = '') {
+  const loc = normalizeLocation(raw);
+  const src = loc.state !== 'hidden' && loc.published ? loc.published : loc;
+  const inh = inheritedPin(src.parentLocationId, all, loc.id);
+  const pick = (own, k, world, builtIn) => own ? [own, 'own'] : inh[k] ? [inh[k], inh.from[k]] : world ? [world, 'world'] : [builtIn, 'built-in'];
+  const [img, fImg] = pick(src.pin.img, 'img', '', PIN_DEFAULTS.img);
+  const [unidentifiedImg, fUnk] = pick(src.pin.unidentifiedImg, 'unidentifiedImg', safePath(unknownImg), PIN_DEFAULTS.unidentifiedImg);
+  const [size, fSize] = pick(src.pin.size, 'size', 0, PIN_DEFAULTS.size);
+  return {img, unidentifiedImg, size, from: {img: fImg, unidentifiedImg: fUnk, size: fSize}};
+}
+
+/**
+ * 0.25.0: the pin defaults a place inherits. Walks up from `parentId` and takes, for each of img / unidentifiedImg / size,
+ * the first ancestor that sets it. A missing parent ends the walk and a loop is cut (each id is visited once), so bad data
+ * can never hang it. Returns {img, unidentifiedImg, size, from: {img, unidentifiedImg, size}} ('' / 0 / '' when none sets one).
+ * `all` is the world's locations (any shape; read-only). GM-side only: the result is never sent to players as a record.
+ */
+export function inheritedPin(parentId, all, selfId = '') {
+  const out = {img: '', unidentifiedImg: '', size: 0, from: {img: '', unidentifiedImg: '', size: ''}};
+  if (!parentId || !Array.isArray(all)) return out;
+  const seen = new Set([selfId]);
+  for (let id = parentId; id && !seen.has(id); ) {
+    seen.add(id);
+    const anc = all.find(l => l?.id === id);
+    if (!anc) break;
+    const c = normalizeChildPin(anc.childPin);
+    for (const k of ['img', 'unidentifiedImg', 'size']) if (!out[k] && c[k]) { out[k] = c[k]; out.from[k] = id; }
+    id = anc.parentLocationId;
+  }
+  return out;
 }
 
 /**
@@ -692,9 +732,9 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0, 1.8.0 and 0.20.0. An update that leaves one out keeps the world's value instead of clearing it. */
+/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0 and 0.25.0. An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
-  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute'];
+  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.
