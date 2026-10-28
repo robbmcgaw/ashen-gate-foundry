@@ -26,13 +26,14 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGa
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
+import {readHistory,storedHistory,upsertEntry,removeEntry,setRowXp,humanWhen,HISTORY_MAX} from './gather-history.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
   duplicateTemplate,removeTemplate,templateReferences,previewLocationCopy,planCopyUndo,applyCopyUndo,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.7';
+const VERSION='0.37.8';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -145,7 +146,7 @@ const itemStatus=item=>item?.flags?.['ashen-gate-manager']?.source?.status??'app
 const GM_VIEWS=new Set(['gm','assign','nodes']);
 /** 0.26.0 sub-tabs (kit 2.2). The chosen one is remembered per user on this device (uiState), never in world data. */
 const GM_SETUP_TABS=[{id:'party',label:'Party'},{id:'tools',label:'Tools and checks'},{id:'gather',label:'Gathering & crafting'},{id:'access',label:'Player Access'}];
-const GATHER_TAB_IDS=['requests','start'];
+const GATHER_TAB_IDS=['requests','start','history'];
 /** Assign sub-tabs (0.30.0 Starting recipes, 0.31.0 Signature perks). */
 const ASSIGN_TABS=[{id:'professions',label:'Professions'},{id:'recipes',label:'Starting recipes'},{id:'signature',label:'Signature perks'}];
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
@@ -1482,6 +1483,7 @@ async function onSocket(message,senderId){
       case 'gather-round-progress': if(!game.user.isGM&&userById(from)?.isGM){const r=incomingRounds.get(message.roundId);if(r){for(const p of r.rollers)if(Array.isArray(message.rolledIds)&&message.rolledIds.includes(p.actorId)&&p.rolled==null)p.rolled='';refreshLedger();}}return;
       case 'gather-round-reveal': if(!game.user.isGM&&userById(from)?.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)&&incomingRounds.has(message.roundId)){
         playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');if(!showPlayerGathering())refreshLedger();}return;
+      case 'gather-last-cleared': if(!game.user.isGM&&userById(from)?.isGM){lastPlayerResult=null;refreshLedger();}return;
       case 'gather-round-closed': if(!game.user.isGM&&userById(from)?.isGM&&(incomingRounds.has(message.roundId)||gatherDialogs.has(`roll:${message.roundId}`))){
         closeGatherDialogs(`roll:${message.roundId}`);const had=playerResults.has(message.roundId);incomingRounds.delete(message.roundId);
         if(message.reason&&!had){playerResults.delete(message.roundId);say(message.reason);}
@@ -1585,9 +1587,9 @@ function xpFlag(kind,actor,{professionId=null,professionName='',suggested=null,s
   return {kind,actorId:actor.id,actorName:actor.name,professionId:profId,professionName:String(professionName||''),suggested:amount,
     ...(amount&&typeof suggestedBasis==='string'&&suggestedBasis?{suggestedBasis:suggestedBasis.slice(0,300)}:{}),awarded:null};
 }
-async function postXpCard(data,xp,extra={}){
+async function postXpCard(data,xp,extra={},flagExtra={}){
   if(typeof globalThis.ChatMessage?.create!=='function')return null;
-  const message=await ChatMessage.create({...data,flags:{...(data.flags??{}),[ID]:{xp}}});
+  const message=await ChatMessage.create({...data,flags:{...(data.flags??{}),[ID]:{xp,...flagExtra}}});
   try{Hooks.callAll?.(XP_HOOK,{...structuredClone(xp),messageId:message?.id??null,...extra});}catch(err){console.warn(`[${ID}] ${XP_HOOK} listener failed`,err);}
   return message;
 }
@@ -1991,10 +1993,31 @@ async function startRound(options={}){
   refreshLedger();
   return round;
 }
+/* ---- 0.37.8: gather history (GM client). One world setting, capped at 10, newest first; the Last gather banner points at the newest entry. ---- */
+let historyCache=null;
+const getHistory=()=>historyCache??=readHistory(game.settings.get(ID,'gatherHistory'));
+function requireHistoryGM(){if(!canRunGathering(game.user))throw Error('Only the GM can use the gather history');}
+function commitHistory(next){
+  historyCache=next;
+  void Promise.resolve().then(()=>game.settings.set(ID,'gatherHistory',storedHistory(next))).catch(err=>console.warn(`[${ID}] gather history not saved`,err));
+}
+/** The record of one gather as the history keeps it: who rolled, the outcome and what was given. */
+function historyEntryOf(round){
+  const res=round.result;if(!res)return null;
+  return {id:round.id,at:res.revealedAt??Date.now(),title:nodeTitle(round.node),tiers:round.tiers,dc:round.dc,professions:round.professions.map(professionTitle),
+    rows:res.rows.map(r=>({actorId:r.actorId,name:r.actorName,total:r.total,result:r.result,pending:r.undetermined.length>0,
+      drops:r.drops.map(d=>({name:d.name??materialShow(round,d.materialId).name,quantity:d.quantity,kind:d.kind,given:d.given===true}))}))};
+}
+/** Write or refresh a round's entry. Never throws: a gather must not fail because the history could not be kept. */
+function syncHistory(round){
+  try{if(!game.user.isGM)return;const e=historyEntryOf(round);if(e)commitHistory(upsertEntry(getHistory(),e));}
+  catch(err){console.warn(`[${ID}] gather history`,err);}
+}
 function cancelRound(roundId){
   if(!canRunGathering(game.user))throw Error('Only the GM can cancel gathering');
   const round=gatherRounds.get(roundId);if(!round)return false;
   gatherRounds.delete(roundId);
+  try{if(getHistory().some(e=>e.id===roundId))commitHistory(removeEntry(getHistory(),roundId));}catch(err){console.warn(`[${ID}] gather history`,err);}
   sendSocket({type:'gather-round-closed',roundId,reason:'The GM cancelled this gather.'});
   refreshLedger();return true;
 }
@@ -2124,6 +2147,7 @@ function revealRound(roundId){
   round.result.gmNotes=[...new Set(notes)];
   const view=roundView(round,{players:true});
   sendSocket({type:'gather-round-reveal',toUserIds:nonGmUserIds(),roundId:round.id,view});
+  syncHistory(round);
   refreshLedger();
   return {roundId:round.id,needsManual:round.result.needsManual,rows:structuredClone(round.result.rows),skipped:plan.skipped.map(x=>({...x,reason:skipReason(x.materialId,x.reason)}))};
 }
@@ -2159,6 +2183,7 @@ async function giveByHand(roundId,actorId,materialId,quantity=1){
   row.handed.push(materialId);
   try{await globalThis.ChatMessage?.create?.({content:`<div class="agl-chat-card"><p><strong>${esc(actor.name)}</strong> was given ${qty} × ${esc(item.name)} by the GM.</p></div>`});}catch(err){console.warn(`[${ID}] hand-out chat card failed`,err);}
   round.result.needsManual=needsManual(round.result.rows);
+  syncHistory(round);
   refreshLedger();
   return {actorId,materialId,name:item.name,total:out.total};
 }
@@ -2193,11 +2218,38 @@ async function giveRound(roundId){
   if(notes.length){try{await globalThis.ChatMessage?.create?.({whisper:gm,content:`<div class="agl-chat-card">${notes.map(n=>`<p><strong>GM:</strong> ${esc(n)}</p>`).join('')}</div>`});}catch{}}
   const exoticNotes=round.result.rows.filter(r=>r.exotic.roll!=null).map(r=>`${r.actorName}: Exotic d100 ${r.exotic.roll} vs ${r.exotic.target} (${r.exotic.kind})`);
   lastGather={title:nodeTitle(node),tiers:round.tiers,dc:round.dc,exhausted,usedDraft:round.allowDraft,notes:[...exoticNotes,...(round.result.gmNotes??[])],
-    rows:round.result.rows.map(r=>({name:r.actorName,total:r.total,result:r.result,got:r.drops.map(d=>`${d.quantity} × ${d.name}`)}))};
+    historyId:round.id,rows:round.result.rows.map(r=>({name:r.actorName,total:r.total,result:r.result,got:r.drops.map(d=>`${d.quantity} × ${d.name}`)}))};
+  syncHistory(round);
   gatherRounds.delete(roundId);
   sendSocket({type:'gather-round-closed',roundId});
   refreshLedger();
   return {rows:structuredClone(round.result.rows),exhausted};
+}
+/** GM: empty the history. `alsoLast` (default true) also clears the Last gather banner, since it would point at a removed entry. Touches nothing else. */
+function clearGatherHistory({alsoLast=true}={}){
+  requireHistoryGM();
+  const had=getHistory().length;
+  commitHistory([]);
+  if(alsoLast)clearLastGather({alsoHistory:false});
+  refreshLedger();
+  return {removed:had,lastCleared:Boolean(alsoLast)};
+}
+/** GM: dismiss the Last gather banner (and players' copy). The history entry stays unless `alsoHistory`. Loot, XP, materials, crafted items and Actors are untouched. */
+function clearLastGather({alsoHistory=false}={}){
+  requireHistoryGM();
+  const id=lastGather?.historyId??null,had=Boolean(lastGather);
+  lastGather=null;
+  if(alsoHistory&&id&&getHistory().some(e=>e.id===id))commitHistory(removeEntry(getHistory(),id));
+  sendSocket({type:'gather-last-cleared'});
+  refreshLedger();
+  return {cleared:had,historyRemoved:Boolean(alsoHistory&&id)};
+}
+/** A labelled confirmation with one tick box: Cancel is the default and on the left, the red action on the right. Resolves {[name]:boolean} or null. */
+async function dangerChoice({title,text,checkbox,yes}){
+  const answer=await DialogV2.wait({classes:['ag-app','ag-dialog','ag-dialog--danger'],window:{title},modal:true,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+    content:`<p>${esc(text)}</p><label class="checkbox"><input type="checkbox" name="${esc(checkbox.name)}" ${checkbox.checked?'checked':''}> ${esc(checkbox.label)}</label>`,
+    buttons:[{action:'cancel',label:'Cancel',default:true,callback:()=>null},{action:'confirm',label:yes,callback:(event,button)=>({[checkbox.name]:Boolean(button?.form?.elements?.[checkbox.name]?.checked)})}]});
+  return answer&&typeof answer==='object'?answer:null;
 }
 const verdictOf=result=>result==='rare'?'Success by 5+':result==='common'?'Success':'Failed';
 /** One chat card per rolling character, with the GM's XP award slot. */
@@ -2216,7 +2268,7 @@ async function postRoundCard(round,row,{note=''}={}){
     <header>${(main??exotic)?.img?`<img src="${esc((main??exotic).img)}" alt="" width="36" height="36">`:''}<div><strong>${esc(head)}</strong><span>Gathering · ${esc(roundTitle(round))} · ${esc(tiersText(round.tiers))}</span></div></header>
     ${lines.join('')}<div class="agl-xp-slot" data-agl-xp></div></div>`},
     xpFlag('gather',actor,{professionId:roller.professionId,professionName:roller.professionName,suggested:row.result!=='fail'&&top?gatherXP(tierName(top)):null}),
-    {outcome:row.result,nodeKey:round.node.key,locationId:round.node.locationId});}
+    {outcome:row.result,nodeKey:round.node.key,locationId:round.node.locationId},{historyId:round.id});}
   catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
 }
 
@@ -2592,6 +2644,10 @@ function templateGatherNode(id,tier=null){
 }
 
 /* ---- XP from chat cards (GM-only button, never automatic) ---- */
+/** The XP a gather card awarded, kept on the history row (null when taken back). Quiet if the entry is gone. */
+function recordHistoryXp(x,points,historyId){
+  try{if(x?.kind==='gather'&&historyId&&getHistory().some(e=>e.id===historyId))commitHistory(setRowXp(getHistory(),historyId,x.actorId,points));}catch(err){console.warn(`[${ID}] gather history`,err);}
+}
 async function awardXpFromCard(message,points){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
   const x=message?.flags?.[ID]?.xp;
@@ -2600,6 +2656,7 @@ async function awardXpFromCard(message,points){
   if(!x.professionId)throw Error(`${x.actorName} has no matching profession feature to award XP to`);
   const out=await performAction('award-xp',{id:x.professionId,actorId:x.actorId,points,messageId:message.id??null});
   try{await message.update?.({[`flags.${ID}.xp.awarded`]:{points:Number(points),at:Date.now(),by:game.user.id,byName:game.user.name}});}catch(err){console.warn(`[${ID}] XP awarded; card not marked`,err);}
+  recordHistoryXp(x,Number(points),message?.flags?.[ID]?.historyId);
   return out;
 }
 /** GM-only. Takes back the XP given from this card and re-enables Award XP. Idempotent: a card with no award is a no-op error. */
@@ -2619,6 +2676,7 @@ async function undoAwardFromCard(message){
     try{
       const have=progressOf(actor,x.professionId)?.xp??0,take=Math.min(Number(award.points),have);
       const r=await adjustXP(actor,x.professionId,{delta:-take,reason:`Undo award from chat card (${award.points} XP)`,messageId:message.id??null,kind:'undo'});
+      recordHistoryXp(x,null,message?.flags?.[ID]?.historyId);
       const note=take<Number(award.points)?` Only ${take} could be taken back: the profession has less XP than was awarded.`:'';
       const dep=dependentsText(r,x.professionName,actor,x.professionId);
       await whisperXpNote(actor,`<strong>${esc(actor.name)}: ${take} ${esc(x.professionName)} XP award taken back</strong><span>Now level ${r.level} · ${r.xp} XP${dep?` · ${esc(dep)}`:''}</span>`);
@@ -3187,6 +3245,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering → History:</strong> the last 10 completed gathers, newest first (spot, tier, DC, when, and each character’s total, outcome, loot given and XP). Clear history… and Clear last gather… (on the Last gather banner) ask first and never touch loot already given, XP or characters. Players do not have this tab.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> (spots are listed by tier, lowest first, then profession, then name, everywhere you pick one) reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes…</em> shows what it would create (by activity) and asks first, then makes templates from the gathering nodes your Locations already have, without changing Locations. <em>Undo last copy…</em> takes the last copy back (templates you edited since, or that a Location uses, are kept unless you tick them; a snapshot is saved first). Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Refresh recipes…:</strong> on a character’s Known recipes (Individual) or for the whole party (Party). It lists every known recipe in a group with why, and the starting recipes they are missing. Recipes that no longer exist are ticked to remove because they cannot work. So are <em>Replaced starting recipes</em>: ones that were starters and are not any more (recorded as granted, or marked as a former starter by the pack; sync the packs first), when the character has not crafted with them (if they have, they stay unless you tick them). Learned recipes are never ticked for you. The party view lists every character with any of these, or a missing starting recipe, and only says no problems when none remain. Assign → Starting recipes → Replace or remove starting recipes… opens it. A learned recipe with crafted items or XP needs the character’s name typed. A snapshot is saved first; crafted items, materials, XP and gear are never touched.</p>':''}
@@ -3453,7 +3512,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const g=this.gather;
     if(!where.ok&&g.source==='location')g.source=templates.length?'template':'adhoc';
     const round=openRound();
-    const lastCard=lastGather?notice(`Last gather, ${esc(lastGather.title)} (${esc(tiersText(lastGather.tiers))}, DC ${lastGather.dc}): ${lastGather.rows.map(r=>`${esc(r.name)} ${r.total} — ${r.got.length?esc(r.got.join(' and ')):r.result==='fail'?'nothing':'by hand'}`).join('; ')}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.notes?.length?` · ${esc(lastGather.notes.join(' · '))}`:''}${lastGather.exhausted==='recorded'?' · spot marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the spot exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable spot: blocked until you reload':''}. Award XP from the chat cards.`):'';
+    const lastCard=lastGather?notice(`Last gather, ${esc(lastGather.title)} (${esc(tiersText(lastGather.tiers))}, DC ${lastGather.dc}): ${lastGather.rows.map(r=>`${esc(r.name)} ${r.total} — ${r.got.length?esc(r.got.join(' and ')):r.result==='fail'?'nothing':'by hand'}`).join('; ')}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.notes?.length?` · ${esc(lastGather.notes.join(' · '))}`:''}${lastGather.exhausted==='recorded'?' · spot marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the spot exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable spot: blocked until you reload':''}. Award XP from the chat cards. <button type="button" class="ag-btn ag-btn--sm" data-action="gather-clear-last"><i class="fa-solid fa-eraser" aria-hidden="true"></i> Clear last gather…</button>`):'';
     let start='';
     if(round)start=this._roundPanel(round);
     else{
@@ -3497,12 +3556,29 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       </section>`;
     }
     const tab=this._gatherTabNow(),tabs=this._gatherTabs();
-    const panels={requests:this._gatherQueue(),start:`${lastCard}${start}`,nodes:''};
+    const panels={requests:this._gatherQueue(),start:`${lastCard}${start}`,history:this._gatherHistory(),nodes:''};
     return `${subTabs({group:'agl-gather',label:'Gathering',tabs,selected:tab})}
       ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
   }
+  /** GM: the last 10 completed gathers, newest first; the latest is open. Players have no history (it carries every character's result). */
+  _gatherHistory(){
+    const list=getHistory();
+    const clear=list.length?`<div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-clear-history"><i class="fa-solid fa-trash" aria-hidden="true"></i> Clear history…</button></div>`:'';
+    if(!list.length)return emptyState('No gathers yet.',`Each gather you reveal is listed here (the last ${HISTORY_MAX}), with what every character rolled, what they got and whether it was given.`);
+    const label={fail:'Nothing',common:'Common',rare:'Rare'};
+    const entries=list.map((e,i)=>{
+      const rows=e.rows.map(r=>{
+        const kinds=new Set(r.drops.map(d=>d.kind)),outcome=kinds.has('exotic')?'Exotic':label[r.result];
+        const got=r.drops.length?r.drops.map(d=>`${d.quantity} × ${esc(d.name)}`).join(', '):'—';
+        const state=r.result==='fail'&&!r.drops.length?'':r.pending?'To give by hand':r.drops.every(d=>d.given)?'Given':'Not given yet';
+        return `<tr><th scope="row">${esc(r.name)}</th><td>${r.total}</td><td>${esc(outcome)}</td><td>${got}</td><td>${state?badge(state,state==='Given'?'ok':'warn'):''}</td><td>${r.xp==null?'—':`${r.xp} XP`}</td></tr>`;}).join('');
+      const meta=[e.tiers.length?tiersText(e.tiers):'',e.dc!=null?`DC ${e.dc}`:'',e.professions.join(', ')].filter(Boolean).join(' · ');
+      return `<details class="agl-history-entry" ${i===0?'open':''}><summary><strong>${esc(e.title)}</strong> <span class="agl-sub">${esc(humanWhen(e.at))} · ${esc(meta)}</span> ${e.given?'':badge('Not all given','warn')}</summary>
+        <table class="ag-table"><thead><tr><th scope="col">Character</th><th scope="col">Total</th><th scope="col">Outcome</th><th scope="col">Got</th><th scope="col">Loot</th><th scope="col">XP</th></tr></thead><tbody>${rows}</tbody></table></details>`;}).join('');
+    return `<p class="agl-sub">The last ${HISTORY_MAX} gathers, newest first. Only you see this; players keep their own Last gather panel.</p>${entries}${clear}`;
+  }
   /** The GM's Gathering sub-tabs: Requests (when players ask), Gather, and Gathering nodes (the node templates in the same place). */
-  _gatherTabs(){return [{id:'requests',label:'Requests',count:gatherRequests.size},{id:'start',label:'Gather'},{id:'nodes',label:'Gathering nodes'}];}
+  _gatherTabs(){return [{id:'requests',label:'Requests',count:gatherRequests.size},{id:'start',label:'Gather'},{id:'history',label:'History'},{id:'nodes',label:'Gathering nodes'}];}
   /** The same sub-tab row around the node templates, with Gathering nodes selected; the other three go back to Gathering. */
   _nodesInGathering(content){
     const tabs=this._gatherTabs();
@@ -3759,6 +3835,18 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const inPlace=Boolean(did&&(did.folders.length||did.tiers.length)),k=inPlace?did:(this._lastTreeKeys??{folders:[],tiers:[]});
         for(const f of k.folders)this._treeState()[`p:${f}`]=on;for(const t of k.tiers)this._treeState()[`t:${t}`]=on;this._saveTreeSoon();
         if(!inPlace)this.render();return;}
+      if(action==='gather-clear-history'){
+        requireHistoryGM();
+        const answer=await dangerChoice({title:'Clear gather history?',text:`This removes all ${getHistory().length} entries from the History tab. Loot already given, XP, materials and characters are not touched.`,
+          checkbox:{name:'last',label:'Also clear the last gather result',checked:true},yes:'Clear history'});
+        if(!answer)return;
+        const out=clearGatherHistory({alsoLast:answer.last});say(`Gather history cleared (${out.removed} ${out.removed===1?'entry':'entries'}).`);return;}
+      if(action==='gather-clear-last'){
+        requireHistoryGM();
+        const answer=await dangerChoice({title:'Clear the last gather?',text:'This removes the Last gather result from the Gather tab and from the players’ screens. Loot already given, XP, materials and characters are not touched.',
+          checkbox:{name:'history',label:'Also remove it from History',checked:false},yes:'Clear last gather'});
+        if(!answer)return;
+        clearLastGather({alsoHistory:answer.history});say('Last gather cleared.');return;}
       if(action==='gather-tab'){
         if(!game.user.isGM)throw Error('GM only');
         if(id==='nodes'){this.view='nodes';this.render();return;}
@@ -4208,6 +4296,7 @@ Hooks.once('init',()=>{
   game.settings.register(ID,FOLDER_SETTING,{name:'Profession Ledger folder nesting',scope:'world',config:false,type:String,default:''});
   game.settings.register(ID,'libraryData',{name:'Profession Ledger catalog',scope:'world',config:false,type:Object,
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
+  game.settings.register(ID,'gatherHistory',{name:'Profession Ledger gather history',scope:'world',config:false,type:Object,default:{schema:'ag-gather-history/0.1',entries:[]},onChange:()=>{historyCache=null;if(current?.rendered)current.render();}});
   game.settings.register(ID,CORE_AWARD_SETTING,{name:'Award linked core items when crafting',scope:'world',config:false,type:Boolean,default:true});
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,BASELINE_SETTING,{name:'Profession crosswalk baseline file',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
@@ -4259,6 +4348,12 @@ Hooks.once('ready',()=>{
         if(templateId&&!target)throw Error('That gathering node no longer exists');
         const round=await startRound({...stripLead(rest),node:target});
         return roundSummary(round);},
+      /** GM only (0.37.8): the last 10 completed gathers, newest first: [{id, at, title, tiers, dc, professions, given, rows:[{actorId, name, total, result, pending, xp, drops:[{name, quantity, kind, given}]}]}]. */
+      history:()=>{checkPlayerLedger();requireHistoryGM();return structuredClone(getHistory());},
+      /** GM only: clear the history ({alsoLast = true} also clears the Last gather banner). */
+      clearHistory:(options={})=>{checkPlayerLedger();return clearGatherHistory({alsoLast:options?.alsoLast!==false});},
+      /** GM only: dismiss the Last gather banner; {alsoHistory = false} also removes its history entry. */
+      clearLast:(options={})=>{checkPlayerLedger();return clearLastGather({alsoHistory:options?.alsoHistory===true});},
       /** GM only: the open round, or null. */
       round:()=>{checkPlayerLedger();if(!canRunGathering(game.user))throw Error('Only the GM can see an open gather');const r=openRound();return r?roundSummary(r):null;},
       /** Owner or GM: roll a character's check for the open round ({actorId, choice?, mode?}); a GM may instead pass `total` to record one. */
@@ -4376,6 +4471,6 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
-  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,showPlayerGathering,myGatherRequests,
+  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
