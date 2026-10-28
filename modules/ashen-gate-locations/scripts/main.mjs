@@ -10,7 +10,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.22.1';
+const VERSION = '0.22.2';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -62,11 +62,18 @@ Hooks.once('init', () => {
     name: 'Locations — Pin look', scope: 'world', config: false, type: String, default: DEFAULT_PIN_LOOK, restricted: true,
     choices: PIN_LOOKS, onChange: () => refreshPins()
   });
+  // 0.22.2: replaced by pinNameMode ('' = not chosen yet, so the old value is read). Kept registered and never rewritten.
+  game.settings.register(MODULE_ID, 'pinNameMode', {
+    name: 'Locations — Name under the pin', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: () => refreshPins()
+  });
   game.settings.register(MODULE_ID, 'pinShowName', {
-    name: 'Locations — Show name under the pin', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
+    name: 'Locations — Show name under the pin (before 0.22.2)', scope: 'world', config: false, type: Boolean, default: false, restricted: true, onChange: () => refreshPins()
   });
   game.settings.register(MODULE_ID, 'pinNameSize', {
     name: 'Locations — Pin name size', scope: 'world', config: false, type: Number, default: NAME_SIZE.default, restricted: true, onChange: () => refreshPins()
+  });
+  game.settings.register(MODULE_ID, 'pinNameWrap', {
+    name: 'Locations — Wrap pin name after (characters)', scope: 'world', config: false, type: Number, default: 0, restricted: true, onChange: () => refreshPins()
   });
   registerPinLook();
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
