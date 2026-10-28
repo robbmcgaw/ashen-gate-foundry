@@ -1,3 +1,22 @@
+## 0.24.1 — 2026-10-28
+
+New: **Name distance from the pin** (GM Setup → Map Pins), for the name under a map pin.
+
+- Whole pixels, −40 to 40, default 0 (Foundry's own position, so nothing changes until you set it). **Negative numbers move the name closer to the pin.** Foundry leaves a 12 px gap between the pin's edge and the label's box, and the label box itself has room above the letters (line spacing plus the outline), so the visible gap is larger than 12 px; **−8 is a good starting value**, then adjust. The name never goes past the pin's edge.
+- Works with Pin look *Image only*, any icon size and any text anchor, in both *Always shown* and *Only when hovering*. Display only: the Note's own text anchor and settings are never written, and the position is recalculated from Foundry's rule on every refresh, so it does not drift.
+- Tests use mocked Foundry; they do not render the canvas.
+
+## 0.24.0 — 2026-10-28
+
+New: **Active locations**, where the party is now.
+
+- **Editor head: Active / Not active** (GM). One click, applies at once: no Save, no Publish, and it never touches unsaved edits. Several locations can be active (a Region being active implies nothing for the places inside it). New and existing locations start Not active; an import never switches one on.
+- **Players** see a *Here now* badge on an active place they can see, in their list (active places come first) and in the viewer, and get "The party is now at <name>." (an Unidentified place uses its unidentified label; a Selected-players place goes only to those players). Hidden places are never shown or counted.
+- **A Hidden location** asks **Reveal and make active?** first; it is never revealed silently. Making a place Hidden again clears Active.
+- **GM list:** an *Active* badge on rows and **Filters → Status → Active (n)**.
+- **For other modules:** `setLocationActive(ref, bool)` (GM), `activeLocations()`, `isLocationActive(ref)` and the hook `ashen-gate-locations.activeChanged`, fired on every client with `{keys, added, removed}`. See the README API table. The Profession Ledger reads a place's gathering nodes with `resourcesAt(key)`.
+- Active is live state like Revealed, stored on the location and carried in the player view, not part of the published content. No migration: locations without it read Not active. Tests use mocked Foundry.
+
 ## 0.23.0 — 2026-10-28
 
 New: **Show to Players**. The GM opens a location in everyone else's Locations window.

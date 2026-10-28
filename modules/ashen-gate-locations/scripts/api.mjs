@@ -83,8 +83,8 @@ export function createApi(deps) {
     const old = data?.id ? all.find(l => l.id === data.id) : null;
     let loc = normalizeLocation(data);
     // The audience is play state like the marker state (players can add to it mid-session): only setAudience and sharing change it.
-    if (old) loc = {...loc, pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience, convertedFromRoute: old.convertedFromRoute};
-    else loc = {...loc, id: newLocation(data?.name, all.map(l => l.id)).id, state: 'hidden', revealed: false, published: null, passConditions: loc.passConditions === true};
+    if (old) loc = {...loc, pinKey: old.pinKey, state: old.state, revealed: old.revealed, active: old.active, published: old.published, audience: old.audience, convertedFromRoute: old.convertedFromRoute};
+    else loc = {...loc, id: newLocation(data?.name, all.map(l => l.id)).id, state: 'hidden', revealed: false, active: false, published: null, passConditions: loc.passConditions === true};
     checkParent(loc, all);
     await deps.writeAll([...all.filter(l => l.id !== loc.id), loc]);
     return clone(loc);
@@ -179,9 +179,44 @@ export function createApi(deps) {
       const {all, loc} = findGM(id);
       loc.state = state;
       loc.revealed = state === 'revealed';
+      if (state === 'hidden') loc.active = false; // a hidden place is never "here"
       if (state !== 'hidden') loc.published = publishable(loc);
       await deps.writeAll(all);
       return clone(loc);
+    },
+    /**
+     * 0.24.0, GM: marks a location as where the party is now (many may be active). Live state like the marker state: it applies at
+     * once, needs no Publish, and is not part of the published content. A Hidden location cannot be active: reveal it (or mark it
+     * unidentified) first. Resolves to the GM record.
+     */
+    async setLocationActive(ref, active) {
+      requireGM();
+      if (typeof active !== 'boolean') throw new TypeError('active must be true or false.');
+      const loc0 = find(ref);
+      if (!loc0) throw new Error('No location found with that reference.');
+      const {all, loc} = findGM(loc0.id);
+      if (active && (loc.state === 'hidden' || !loc.published)) throw new Error(`${loc.name} is hidden. Reveal it or mark it unidentified before making it active.`);
+      if (loc.active === active) return clone(loc);
+      loc.active = active;
+      await deps.writeAll(all);
+      return clone(loc);
+    },
+    /** Is this location active? GM: any location (LOC id or pin key). Player: only one they can see (a hidden or unknown one reads false). */
+    isLocationActive(ref) {
+      requireAccess();
+      return gm() ? find(ref)?.active === true : findView(ref)?.active === true;
+    },
+    /**
+     * The active locations. GM: [{id, key, name, state}] of every active one. Player: [{key, name, state}] of the visible ones only,
+     * with the name the player may see (an unidentified place has only its label); hidden places and other players' Selected-players
+     * places never appear. Sorted by name.
+     */
+    activeLocations() {
+      requireAccess();
+      const rows = gm()
+        ? deps.readAll().filter(l => l.active === true).map(l => ({id: l.id, key: l.pinKey, name: l.name, state: l.state}))
+        : deps.readViews().filter(v => v.active === true).map(v => ({key: v.key, name: v.name, state: v.state}));
+      return rows.sort((a, b) => a.name.localeCompare(b.name));
     },
     /** Shows players the saved content of an unidentified or revealed location. */
     async publishLocation(id) {
