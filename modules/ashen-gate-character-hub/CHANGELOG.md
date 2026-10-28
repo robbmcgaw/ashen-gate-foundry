@@ -1,3 +1,12 @@
+## 0.62.0 — 2026-10-28
+
+Hide a profession (or any Origin group) from the Features list.
+
+- On **Features → Group → Origin**, each **Professions: …** heading has a **Hide** button. A hidden group leaves the Features list in every Group view; a **Hidden groups (n)** button above the list opens them, each with **Show**, plus **Show all**.
+- Nothing is deleted or changed: the profession's Item, the Profession Ledger, Skill Trees and the standard sheet's own feature list are as they were. The choice is stored per character on the Actor in the Hub's own flag (`flags.ashen-gate-character-hub.hiddenFeatureGroups`), so it is not a world setting. The character's owners and the GM can change it (checked in the data layer; observers see the list without the buttons). Everyone who opens that character's Hub sees the same list.
+- A hidden group that no longer exists (the profession was removed) is ignored and not counted. With every group hidden the tab says so and points to **Hidden groups**; hidden groups are not treated as a "Nothing matches" problem. Starred (favourite) features still show in Favourites.
+- Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.61.0 — 2026-10-28
 
 Double-click the portrait opens Tokenizer when it is enabled.

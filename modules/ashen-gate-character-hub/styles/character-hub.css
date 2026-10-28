@@ -52,6 +52,10 @@
 .agch-app [data-sec-body][hidden] { display: none !important; }
 .agch-app .agch-sec__head { display: flex; align-items: center; }
 .agch-app .agch-sec__toggle { display: inline-flex; align-items: center; gap: var(--ag-space-2); width: auto; min-height: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.agch-app .agch-sec__head .agch-sec__hide { margin-left: auto; flex: none; font-size: var(--ag-text-sm); font-weight: normal; }
+.agch-app .agch-hiddengroups { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
+.agch-app .agch-hiddengroups__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ag-space-1); width: 100%; }
+.agch-app .agch-hiddengroups__list li { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-3); }
 .agch-app .agch-sec__toggle:hover .agch-sec__title, .agch-app .agch-sec__toggle:focus-visible .agch-sec__title { color: var(--ag-accent); }
 .agch-app .agch-sec__chev { font-size: var(--ag-text-xs); color: var(--ag-muted); transition: transform var(--ag-dur-fast); }
 .agch-app .agch-sec__toggle[aria-expanded="false"] .agch-sec__chev { transform: rotate(-90deg); }
