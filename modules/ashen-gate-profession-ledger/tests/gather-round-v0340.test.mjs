@@ -650,3 +650,64 @@ test('player flow: Roll as <name> from the pop-up opens the Ledger on Gathering 
  game.user=gm;app.view='individual';await _test.onSocket(reveal,'gm');assert.equal(app.view,'individual');
  _test.cancelRound(round.id);
 });
+
+/* ---- 0.37.11: who is included in a gather -------------------------------------------------------------- */
+test('include: only the chosen characters are offered a roll; excluded rolls are refused in the data layer; the panel and banner say N of M; alsoInclude adds the requester',async()=>{
+ game.user=gm;sent.length=0;_test.setExoticRoll(dice(50,50));
+ const round=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10,include:['ana']});
+ assert.deepEqual(round.rollers.map(r=>[r.actorId,r.included]),[['ana',true],['bo',false],['fay',false]]);
+ const prompts=sentOf('gather-round');
+ assert.deepEqual(prompts.map(p=>p.toUserIds[0]).sort(),['u1'],'only Ana’s owner is prompted: Bo’s and Fay’s owners get nothing');
+ assert.deepEqual(prompts[0].rollers.map(r=>r.actorId),['ana']);
+ // GM side data layer.
+ assert.throws(()=>_test.recordRoll(round.id,{actorId:'bo',total:14}),/The GM did not include \[TEST\] Bo in this gather\./);
+ sent.length=0;ana.nextRoll=13;
+ const forged={type:'gather-rolled',roundId:round.id,actorId:'bo',total:20,choice:round.rollers.find(r=>r.actorId==='bo').plan.selected};
+ assert.equal(await _test.receiveGatherRoll(forged,'u2'),false,'Bo’s owner cannot roll for an excluded character');
+ const refusal=sentOf('gather-roll-refused')[0];assert.deepEqual([refusal.toUserIds,refusal.message],[['u2'],'The GM did not include [TEST] Bo in this gather.']);
+ // The player client learns it and refuses the API roll too.
+ game.user=bob;await _test.onSocket({type:'gather-round',toUserIds:['u2'],roundId:round.id,title:'x',summary:'',professions:['Herbalism'],dc:null,rollers:[{roundId:round.id,actorId:'bo',actorName:'[TEST] Bo',professionName:'Herbalism',options:round.rollers[1].plan.options,selected:round.rollers[1].plan.selected,advantageTools:[],advantageItems:[],assists:[]}]},'gm');
+ await _test.onSocket(refusal,'gm');
+ await assert.rejects(()=>api.gathering.roll(round.id,{actorId:'bo'}),/The GM did not include \[TEST\] Bo in this gather\./);
+ game.user=gm;
+ // Panel: checkboxes with labels, the count, include all / none.
+ let h=await html();
+ assert.match(h,/1 of 3 included · 0 of 1 have rolled/);assert.match(h,/<input type="checkbox" data-gather-include="ana" checked[^>]*> Included<span class="ag-sr-only"> in this gather: \[TEST\] Ana/);
+ assert.match(h,/<input type="checkbox" data-gather-include="bo"  ?>/);assert.match(h,/Not included/);assert.match(h,/data-action="gather-include-all"/);assert.match(h,/data-action="gather-include-none"/);
+ // Add while open: Bo is prompted then; withdraw: he is told.
+ sent.length=0;_test.setIncluded(round.id,'bo',true);
+ assert.deepEqual(sentOf('gather-round').map(p=>[p.toUserIds[0],p.rollers.map(r=>r.actorId)]),[['u2',['bo']]]);
+ sent.length=0;_test.setIncluded(round.id,'bo',false);
+ assert.deepEqual(sentOf('gather-round-withdraw').map(m=>[m.toUserIds,m.actorId]),[[['u2'],'bo']]);
+ // Someone who rolled stays recorded.
+ _test.recordRoll(round.id,{actorId:'ana',total:14});
+ assert.throws(()=>_test.setIncluded(round.id,'ana',false),/has already rolled/);
+ // Include all / none (none leaves the one who rolled).
+ _test.setAllIncluded(round.id,true);assert.ok(_test.openRound().rollers.every(r=>r.included));
+ _test.setAllIncluded(round.id,false);assert.deepEqual(_test.openRound().rollers.filter(r=>r.included).map(r=>r.actorId),['ana']);
+ // Only GMs change it.
+ game.user=alice;assert.throws(()=>_test.setIncluded(round.id,'bo',true),/Only the GM/);assert.throws(()=>api.gathering.include(round.id,'bo'),/Only the GM/);game.user=gm;
+ // Reveal counts only the included who rolled; "did not roll" lists only included ones.
+ const out=_test.revealRound(round.id);assert.deepEqual(out.rows.map(r=>r.actorId),['ana']);assert.deepEqual(_test.openRound().result.unrolled,[]);
+ _test.cancelRound(round.id);
+ // alsoInclude (an approved request’s character) is always in, even when the list leaves them out.
+ const second=await _test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10,include:['bo'],alsoInclude:['ana']});
+ assert.deepEqual(second.rollers.filter(r=>r.included).map(r=>r.actorId).sort(),['ana','bo']);_test.cancelRound(second.id);
+ await assert.rejects(()=>_test.startRound({node:nodeOf('adhoc-p'),professions:['herbalism'],tiers:[1],dc:10,include:['nobody']}),/Include at least one character/);
+});
+
+test('include: the setup form lists everyone with an Included box, Include all / none work, the choice is remembered and a start with nobody included is blocked',async()=>{
+ game.user=gm;app.gather.excluded=new Set();app.gather.source='adhoc';app.gather.professions=['herbalism'];app.gather.tiers=[1];app.gatherTab='start';
+ let h=await html();
+ assert.match(h,/Can roll \(3\):/);assert.match(h,/data-gather-setup-include="ana" checked/);
+ await app._click('gather-setup-include','none');
+ h=await html();assert.match(h,/Can roll \(0 of 3 included\):/);assert.match(h,/Include at least one character\./);assert.match(h,/data-action="gather-start" disabled/);
+ assert.deepEqual([...app._ui.get('gatherExcluded',[])].sort(),['ana','bo','fay'],'remembered on this device');
+ app.gather.excluded.delete('bo');app._ui.set('gatherExcluded',[...app.gather.excluded]);
+ h=await html();assert.match(h,/Can roll \(1 of 3 included\):/);
+ await app._click('gather-start');
+ assert.deepEqual(_test.openRound().rollers.filter(r=>r.included).map(r=>r.actorId),['bo'],'the form’s choice reaches the round');
+ assert.match(app.notice,/Gather open: \[TEST\] Bo can roll\./);
+ _test.cancelRound(_test.openRound().id);
+ await app._click('gather-setup-include','all');assert.equal(app.gather.excluded.size,0);
+});
