@@ -75,7 +75,7 @@ test('it is GM-only: not published, and in no player view or page', () => {
 test('Save refreshes placed pins; a pin edited by hand in the Note config is kept; the own value is never rewritten', async () => {
   const g = installFoundry(); const scene = new Scene(); g.scenes.push(scene);
   g.settings = {get: () => ''};
-  const api = createApi({version: '0.27.3', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const api = createApi({version: '0.28.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   const region = await api.createLocation('[TEST] Region'), a = await api.createLocation('[TEST] Auto'), b = await api.createLocation('[TEST] Edited'), c = await api.createLocation('[TEST] Own');
   for (const l of [a, b, c]) await api.saveLocation({...(await api.getLocation(l.id)), parentLocationId: region.id});
   await api.saveLocation({...(await api.getLocation(c.id)), pin: {img: 'own.webp', unidentifiedImg: '', size: 0}});
@@ -106,7 +106,7 @@ test('notePatch keeps a hand-edited Note whatever the resolved image is', () => 
 
 test('API: effectivePin is GM only; a player cannot save or read it', async () => {
   installFoundry(); game.settings = {get: () => ''};
-  const api = createApi({version: '0.27.3', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const api = createApi({version: '0.28.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   const r = await api.createLocation('[TEST] R'); await api.saveLocation({...(await api.getLocation(r.id)), childPin: cp('r.webp')});
   const k = await api.createLocation('[TEST] K'); await api.saveLocation({...(await api.getLocation(k.id)), parentLocationId: r.id});
   assert.equal(api.effectivePin(k.id).img, 'r.webp'); assert.equal(api.effectivePin('LOC-NOPE'), null);

@@ -89,12 +89,16 @@ export function createApi(deps) {
     let loc = normalizeLocation(data);
     // The audience is play state like the marker state (players can add to it mid-session): only setAudience and sharing change it.
     if (old) loc = {...loc, pinKey: old.pinKey, state: old.state, revealed: old.revealed, active: old.active, published: old.published, audience: old.audience, convertedFromRoute: old.convertedFromRoute};
+    // 0.28.0: the companion key belongs to the audience (play state), so the draft can't change or drop it.
+    if (old) { if (old.companionKey) loc.companionKey = old.companionKey; else delete loc.companionKey; }
     else loc = {...loc, id: newLocation(data?.name, all.map(l => l.id)).id, state: 'hidden', revealed: false, active: false, published: null, passConditions: loc.passConditions === true};
     checkParent(loc, all);
     await deps.writeAll([...all.filter(l => l.id !== loc.id), loc]);
     return clone(loc);
   }
 
+  /** 0.28.0: the audience as the API returns it: othersUnidentified is always a boolean (storage leaves it out while off). */
+  const audienceOut = a => ({...clone(a), othersUnidentified: a.othersUnidentified === true});
   const idList = ids => { if (!Array.isArray(ids) || ids.some(i => typeof i !== 'string')) throw new TypeError('ids must be a list of location ids.'); return ids; };
   function bulkPreview(action, ids) {
     const all = deps.readAll(), plan = planBulk(action, all, idList(ids), {notes: deps.notedIds?.() ?? new Set()});
@@ -415,26 +419,29 @@ export function createApi(deps) {
     /** GM: {mode: 'everyone'|'selected', userIds, sharedBy: {userId: sharer}, sharing}. */
     getAudience(id) {
       requireGM();
-      return clone(findGM(id).loc.audience);
+      return audienceOut(findGM(id).loc.audience);
     },
     /**
      * GM: sets who may see a location. mode 'everyone' (default) or 'selected' with player user ids; `sharing`: may
-     * those players share it on. Takes effect at once (like the marker state). A player kept in the list keeps its
+     * those players share it on; `othersUnidentified` (0.28.0, boolean, only has an effect with 'selected'): players who are not selected see an
+     * unidentified companion pin at the same spot instead of nothing. Takes effect at once (like the marker state). A player kept in the list keeps its
      * "shared by" note; removing one is how the GM undoes a share.
      */
-    async setAudience(id, {mode, userIds, sharing} = {}) {
+    async setAudience(id, {mode, userIds, sharing, othersUnidentified} = {}) {
       requireGM();
       const {all, loc} = findGM(id);
       const old = loc.audience;
       if (mode !== undefined && !AUDIENCE_MODES.includes(mode)) throw new Error(`Unknown audience "${mode}"; use ${AUDIENCE_MODES.join(' or ')}.`);
       if (userIds !== undefined && !Array.isArray(userIds)) throw new TypeError('userIds must be a list of player user ids.');
       if (sharing !== undefined && typeof sharing !== 'boolean') throw new TypeError('sharing must be true or false.');
+      if (othersUnidentified !== undefined && typeof othersUnidentified !== 'boolean') throw new TypeError('othersUnidentified must be true or false.');
       const known = deps.playerIds ? new Set(deps.playerIds()) : null;
       const unknown = known ? (userIds ?? []).filter(u => !known.has(u) && !old.userIds.includes(u)) : [];
       if (unknown.length) throw new Error(`Not a player in this world: ${unknown.join(', ')}.`);
-      loc.audience = normalizeAudience({mode: mode ?? old.mode, userIds: userIds ?? old.userIds, sharedBy: old.sharedBy, sharing: sharing ?? old.sharing});
+      loc.audience = normalizeAudience({mode: mode ?? old.mode, userIds: userIds ?? old.userIds, sharedBy: old.sharedBy, sharing: sharing ?? old.sharing,
+        othersUnidentified: othersUnidentified ?? old.othersUnidentified});
       await deps.writeAll(all);
-      return clone(loc.audience);
+      return audienceOut(loc.audience);
     },
     /**
      * Player (1.8.0): shares a "Selected players" location this player can see with other players (adds only).
