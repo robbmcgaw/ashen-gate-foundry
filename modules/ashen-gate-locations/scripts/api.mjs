@@ -10,7 +10,7 @@
  * returns only pages Foundry lets this user open, so for anyone else it answers exactly as for a hidden location.
  */
 import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, ROUTES_RETIRED, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf,
-  nodeForGM, nodeMatch, publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
+  nodeForGM, nodeMatch, publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions, effectivePin} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {planRouteConversion} from './route-convert.mjs';
 
@@ -316,6 +316,16 @@ export function createApi(deps) {
       requireGM();
       const loc = find(id);
       return loc && deps.pinsOf ? deps.pinsOf(loc) : [];
+    },
+    /**
+     * GM (0.25.0): the pin art and size this location resolves to: its own value, else the nearest ancestor's "default pin for
+     * places inside", else the world's unidentified-pin setting, else Foundry's icons. {img, unidentifiedImg, size, from: {img,
+     * unidentifiedImg, size}} where `from` is 'own', 'default' (LOC id of the ancestor), 'world' or 'built-in'. Null for an unknown reference.
+     */
+    effectivePin(ref) {
+      requireGM();
+      const loc = find(ref);
+      return loc ? effectivePin(loc, deps.readAll(), deps.viewOptions?.().unknownImg) : null;
     },
     /**
      * GM (1.8.0): moves a location inside another (parentId '' = top level). Refuses a move that would put it inside

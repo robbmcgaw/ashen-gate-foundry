@@ -175,7 +175,7 @@ async function syncNotes(locations, opts = presentationOptions()) {
     for (const note of scene.notes ?? []) {
       const loc = byKey.get(bindingKey(note, keyById));
       if (!loc) continue;
-      const patch = notePatch(note, loc.pinKey, pinPresentation(loc, opts));
+      const patch = notePatch(note, loc.pinKey, pinPresentation(loc, {...opts, all: locations}));
       if (patch) updates.push({_id: note.id, ...patch});
     }
     if (updates.length) await scene.updateEmbeddedDocuments('Note', updates);
@@ -334,7 +334,7 @@ export async function placeNote(location, {scene, x, y}) {
   await syncPlayerView(all);
   const journal = byRole(ROLE_VIEW);
   const page = [...journal.pages].find(p => p.getFlag(MODULE_ID, 'pinKey') === loc.pinKey);
-  const pres = pinPresentation(loc, presentationOptions());
+  const pres = pinPresentation(loc, {...presentationOptions(), all});
   const [note] = await scene.createEmbeddedDocuments('Note', [{
     entryId: journal.id, pageId: page?.id ?? null, x: Math.round(x), y: Math.round(y),
     text: pres.text, texture: {src: pres.src}, iconSize: pres.size,

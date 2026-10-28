@@ -1,3 +1,14 @@
+## 0.25.0 — 2026-10-28
+
+New: **Default pin for places inside this one** (Region-level pin art).
+
+- In the editor, **Visibility & map → Unidentified Marker & Pin**, any place has *Default pin image (revealed)*, *Default pin image (hidden / unidentified)* and *Default pin size*. Every place inside it, at any depth, uses them when it has none of its own. Order: the place's own value, then the nearest place above it that sets one (each of the three is looked up separately), then GM Setup's *Default unidentified pin image*, then Foundry's built-in icons. A place's own value is never changed.
+- The empty boxes now show what the place would use (including what it inherits). Draft and **Save Changes** as before, with the usual *Unsaved changes* guard.
+- Placed pins refresh when you save, like any other pin change. A Note whose image or size you changed by hand in Foundry's Note settings is left alone, as before.
+- GM only: saved with the location, not published, never in a player view or page. Players still get just the pin image on the Note they already see. Old locations simply have no default (no migration, nothing rewritten). Export and import round-trip it; an update import that leaves it out keeps the world's value.
+- API: GM `effectivePin(idOrPinKey)` returns the resolved image, hidden image and size and where each came from. A missing parent or a parent loop ends the lookup without hanging.
+- Tests use mocked Foundry; they do not render the canvas or the editor in a real browser.
+
 ## 0.24.1 — 2026-10-28
 
 New: **Name distance from the pin** (GM Setup → Map Pins), for the name under a map pin.

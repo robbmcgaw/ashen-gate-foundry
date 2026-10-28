@@ -28,6 +28,7 @@
 .agl-row__rev { color: var(--ag-muted); }
 .agl-row__warn { color: var(--ag-warn); }
 .agl-row__icon { color: var(--ag-accent); }
+.agl-subhead { margin: var(--ag-space-3) 0 0; font-size: var(--ag-text-md, 1rem); }
 .agl-hint { color: var(--ag-muted); font-size: var(--ag-text-sm); margin: var(--ag-space-2) 0; }
 .agl-dot { width: var(--ag-space-3); height: var(--ag-space-3); border-radius: 50%; background: var(--ag-warn); flex: 0 0 auto; }
 
