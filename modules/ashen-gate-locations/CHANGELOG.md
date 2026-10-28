@@ -1,3 +1,11 @@
+## 0.25.1 — 2026-10-28
+
+Changed: the GM **Locations** button now sits in the **Scenes** sidebar instead of the Items sidebar.
+
+- As GM, open the Scenes tab: **Locations** is in the Ashen Gate shelf above the search bar. The Items sidebar no longer shows it (General Manager's button stays there).
+- Players are unaffected: the player-facing Locations button in the Actors sidebar (Player Access) is unchanged, and players never see a button in Scenes.
+- Nothing saved changes. Tests use mocked Foundry; they do not render the real sidebar.
+
 ## 0.25.0 — 2026-10-28
 
 New: **Default pin for places inside this one** (Region-level pin art).

@@ -12,7 +12,7 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.25.0';
+const VERSION = '0.25.1';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -143,9 +143,9 @@ Hooks.once('ready', () => {
   console.info(`${MODULE_ID} | ${VERSION} ready`);
 });
 
-// Player-facing viewer in the shared Actors group; GM-only builder in the Items sidebar.
+// Player-facing viewer in the shared Actors group; GM-only launcher in the Scenes sidebar (Foundry shows that tab to GMs only).
 Hooks.on('renderActorDirectory', (app, html) => attachActorsLauncher(app, html));
-Hooks.on('renderItemDirectory', (app, html) => {
+Hooks.on('renderSceneDirectory', (app, html) => {
   mountLocationLauncher(html ?? app?.element, {isGM: isGM(), onOpen: () => game.modules.get(MODULE_ID).api.open()});
 });
 

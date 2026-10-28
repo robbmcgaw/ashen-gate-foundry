@@ -201,7 +201,7 @@ test('LOC-NAV-03: Party Notes buttons say what they save; 0.20.0: players get Lo
   assert.match(notes, /<span>Cancel notes edit<\/span>[\s\S]*<span>Save Party Notes<\/span>/);
 });
 
-test('LOC-NAV-05: the GM Items launcher is called Locations', () => {
+test('LOC-NAV-05: the GM Scenes launcher is called Locations', () => {
   assert.equal(LOCATION_LAUNCHER.label, 'Locations');
   const made = [];
   const el = tag => ({tagName: tag, dataset: {}, children: [], classList: {add() {}}, setAttribute(k, v) { this[k] = v; }, append(c) { this.children.push(c); c.parentElement = this; },
