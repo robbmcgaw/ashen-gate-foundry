@@ -1,3 +1,14 @@
+## 0.74.0 — 2026-10-28
+
+Sync: renames follow the package, and Actors can be updated from it.
+
+- **Why a renamed record did not rename its world document.** Sync does compare names, but a rename was only ever one line inside an Overwrite row: it needed the typed phrase, and if you had edited the same document in any other way (a Journal page, say) the whole record was "Kept: edited in your world", name included. The normal Import never updates an existing Roll Table or Macro, blocks a Journal whose pages changed, and an Actor update there writes only name, image, token and items. Hand-off records (Locations, Routes, Shops, Renown) go to their module, which applies the name itself.
+- **New "Renames" fold in the Sync preview** (`Old name → New name`, with the kind). It covers Items, Journals, Actors, Roll Tables and Macros. The same document is renamed (permanent id, uuid, links, folder, ownership, sheets and tokens stay; nothing is duplicated). A rename counts only while the world name is still the one the last import gave it: a name you changed by hand is kept, unless Also overwrite records I edited is on. A record that stays "Kept: edited in your world" for another reason is still renamed (only its name is written). A rename onto the name of an unmanaged document is refused.
+- **Renames need no typed phrase** when that is all the run does (the button reads "Rename 3 records"). Any other write still needs it; the run reads this from the plan's rows, not from a flag. The backup includes renamed documents.
+- **New Advanced switch "Also update Actors from the package"** (off by default, GM only; the data layer refuses anyone else). NPC Actors take the package's new stat block by a three-way comparison (last import, world, package): what the package changed is written (abilities, skills, traits, AC, max HP, name, the package's embedded items, features and spells), what it did not change is left alone. Kept: art and token settings you set, ownership, folder, items you added, item uses and quantities, current HP (until the NPC is back at its imported HP; never above the new max) and the biography unless it is still as imported. Only embedded items carrying the package's mark are ever removed; one whose type changed is replaced by a new one (diffing cannot change a type in place), and items you added are never touched. Shown under "Actor updates" with a count badge; same backup and typed phrase. Off: nothing about Actors changes.
+- **Hand-off rows** for Locations and the other modules now say "Renamed in the package: A → B" when the name changed since the last hand-off.
+- No saved data changes.
+
 ## 0.73.0 — 2026-10-28
 
 Preview and Browse know GM-applied enchantments.

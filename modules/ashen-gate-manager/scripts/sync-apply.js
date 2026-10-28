@@ -18,7 +18,7 @@ import {applySpecialist} from './specialist-handoff.js';
 import {replacingSourceFlag} from './source-projection.mjs';
 import {bulkWrite, bulk} from './bulk.js';
 import {ConnectionLost, isInterruption} from './sync-connection.js';
-import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk} from './sync.js';
+import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk, phraseRequired} from './sync.js';
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const get = (o, path) => path.split('.').reduce((v, k) => v == null ? undefined : v[k], o);
@@ -83,6 +83,21 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
   await doc.update(update, bulk());
 }
 
+/**
+ * 0.74.0: a rename and nothing else. The document keeps its id, uuid, folder, ownership, sheet and every other field; only its name and
+ * the name the last import recorded change, so the next preview sees the new name as the baseline. Everything else about the
+ * record (and any edit the GM made to it) is left exactly as it is.
+ */
+export async function writeRename(doc, row, {user}) {
+  assertSyncTarget(doc, user, row.id);
+  const to = row?.ops?.rename?.to, from = row?.ops?.rename?.from;
+  if (typeof to !== 'string' || !to.trim()) throw new Error('This row has no new name.');
+  if (doc.name !== from && doc.name !== to) throw new Error(`The name changed since the preview (${doc.name}); preview again. Nothing was renamed.`);
+  if (doc.name === to) return doc;
+  await doc.update({name: to, [`flags.${MODULE_ID}.source.managedFields.name`]: to}, bulk());
+  return doc;
+}
+
 /** Flag scopes never copied from the old Item to its recreation: Manager's own (rebuilt from the package), Foundry core's and the system's. */
 export const RECREATE_SKIP_SCOPES = [MODULE_ID, 'core', 'dnd5e'];
 /**
@@ -137,16 +152,22 @@ export async function writeRebind(doc, row, {user, flag, extra = {}, replaceArt 
  * After a write (and after links are bound): remember, per path, where Foundry stores something other than the package
  * text (rich-text links, normalised numbers), so the next preview calls that field unchanged. JSON text, one write.
  */
-export async function stampDoc(doc, record) { await doc.update(stampUpdate(doc, record), bulk()); }
+export async function stampDoc(doc, record, options = {}) { await doc.update(stampUpdate(doc, record, options), bulk()); }
 /** The one update stampDoc writes ({flag path: JSON text}); sync, so a run can batch many documents into one write. */
-export function stampUpdate(doc, record) {
+export function stampUpdate(doc, record, {only = null} = {}) {
   const raw = doc.toObject();
-  const memo = {};
+  // 0.74.0: an Actor update stamps only what it wrote (`only`), on top of what is already remembered; a value the GM kept
+  // (a field the package did not change) must not be remembered as "Foundry's way of storing the package value".
+  let memo = {};
+  if (only) { try { memo = JSON.parse(doc.getFlag?.(MODULE_ID, 'source')?.[MEMO_KEY] ?? 'null') ?? {}; } catch { memo = {}; } }
+  const want = key => !only || only(key);
   for (const [path, incoming] of Object.entries(incomingFields(record))) {
+    if (!want(path)) continue;
     if (incoming && typeof incoming === 'object' && !Array.isArray(incoming) && !Object.keys(incoming).length) continue;
     if (isArtPath(path)) continue; // 0.70.0: the GM's art is never remembered as a "normalised" package value (art-fields.js)
     const live = get(raw, path);
     if (!same(live, incoming)) memo[path] = {raw: contentHash(incoming ?? null), live: contentHash(live ?? null)};
+    else delete memo[path];
   }
   if (record.foundry.document_type === 'Actor') {
     const defs = record.foundry.data.items ?? [], keys = itemKeys(defs), marked = new Map((raw.items ?? []).filter(keyOf).map(i => [keyOf(i), i]));
@@ -155,8 +176,10 @@ export function stampUpdate(doc, record) {
       if (!liveItem) return;
       for (const [path, incoming] of Object.entries(itemLeaves(def))) {
         if (ITEM_PLAY_STATE.has(path) || (incoming && typeof incoming === 'object' && !Array.isArray(incoming) && !Object.keys(incoming).length)) continue;
+        if (!want(`item:${keys[i]}:${path}`)) continue;
         const cur = get(liveItem, path);
         if (!same(cur, incoming)) memo[`item:${keys[i]}:${path}`] = {raw: contentHash(incoming ?? null), live: contentHash(cur ?? null)};
+        else delete memo[`item:${keys[i]}:${path}`];
       }
     });
   }
@@ -177,6 +200,22 @@ export function stampUpdate(doc, record) {
 }
 function nameKeysOf(names) { const seen = new Map(); return names.map(n => { const c = (seen.get(n) ?? 0) + 1; seen.set(n, c); return c === 1 ? n : `${n}#${c}`; }); }
 
+/** Which memo keys an Actor update row wrote: its field paths, and the paths of the embedded items it updated or created. */
+export function actorStampScope(row, doc) {
+  const fields = new Set(Object.keys(row.ops?.fields ?? {})), byKey = new Map();
+  const liveItems = doc.toObject?.().items ?? [];
+  for (const u of row.ops?.items?.update ?? []) {
+    const key = keyOf(liveItems.find(i => i._id === u._id));
+    if (key) byKey.set(key, new Set([...(byKey.get(key) ?? []), ...Object.keys(u).filter(k => k !== '_id')]));
+  }
+  for (const c of row.ops?.items?.create ?? []) { const key = c.flags?.[MODULE_ID]?.[ITEM_FLAG]; if (key) byKey.set(key, true); }
+  return memoKey => {
+    if (!memoKey.startsWith('item:')) return fields.has(memoKey);
+    for (const [key, spec] of byKey) if (memoKey.startsWith(`item:${key}:`)) return spec === true || spec.has(memoKey.slice(`item:${key}:`.length));
+    return false;
+  };
+}
+
 /** Removes one Manager-imported world document. Copies on character sheets are separate documents and are not touched. */
 export async function removeDoc(doc, row, {user}) {
   assertSyncTarget(doc, user, row.id, {deleting: true});
@@ -190,7 +229,7 @@ export async function removeDoc(doc, row, {user}) {
  * public exports hold. The package files themselves are what a rebuild needs for created records.
  */
 export function buildSyncBackup(plan, {world = null, now = new Date(), modules = null} = {}) {
-  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind', 'recreate'].includes(r.group) && r.snap);
+  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind', 'recreate', 'rename'].includes(r.group) && r.snap);
   return {
     schema_version: 'ag-foundry-snapshot/0.3', created_at: now.toISOString(), reason: 'before-sync-from-package', world_id: world?.id ?? null,
     sync: {phrase: SYNC_PHRASE, counts: plan.counts, lines: plan.scope.lines, files: plan.scope.files},
@@ -247,7 +286,7 @@ export async function executeSync(plan, adapter, options = {}) {
 async function runSync(plan, adapter, options = {}, log, state) {
   const {user, confirmation, signal, onProgress, chunk = 20} = options;
   if (!user?.isGM) throw new Error('Only a GM can run Sync from package.');
-  if (!phraseOk(confirmation)) throw new Error(`Type "${SYNC_PHRASE}" to confirm.`);
+  if (phraseRequired(plan) && !phraseOk(confirmation)) throw new Error(`Type "${SYNC_PHRASE}" to confirm.`);
   if (!plan?.ok) throw new Error('This sync has errors; fix them and preview again. Nothing was changed.');
   const say = (phase, label, done, total, extra = {}) => { Object.assign(state, {phase, label, done, total, step: null, stepDone: 0, stepTotal: 0}, extra); onProgress?.({phase, label, done, total, ...extra}); };
   const conn = adapter.connection ?? null;
@@ -272,11 +311,12 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const creates = plan.rows.filter(r => r.group === 'create' && !r.external);
   const overwrites = plan.rows.filter(r => r.group === 'overwrite' && !r.external);
   const rebinds = plan.rows.filter(r => r.group === 'rebind');
+  const renames = plan.rows.filter(r => r.group === 'rename');
   const recreates = plan.rows.filter(r => r.group === 'recreate');
   const specialistSupersedes = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0);
   const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group));
   const deletes = plan.rows.filter(r => r.group === 'delete');
-  const total = rebinds.length + recreates.length + creates.length + overwrites.length + external.length + deletes.length;
+  const total = rebinds.length + renames.length + recreates.length + creates.length + overwrites.length + external.length + deletes.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
   const co = {guard, ensure, halted};
@@ -288,7 +328,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
   await ensure();
   const fresh = await guard(adapter.replan());
   if (fresh.fingerprint !== plan.fingerprint) throw new Error('The world or the files changed since the preview. Preview again; nothing was changed.');
-  if (adapter.uploadArt) await guard(adapter.uploadArt([...rebinds, ...creates, ...overwrites]));
+  if (adapter.uploadArt) await guard(adapter.uploadArt([...rebinds, ...creates, ...overwrites, ...renames.filter(r => !r.partial)]));
 
   const touched = [];
   const mark = (phase, label) => tick(phase, label);
@@ -318,9 +358,23 @@ async function runSync(plan, adapter, options = {}, log, state) {
     mark('create', row.name)();
   }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
+  // 0.74.0: an Actor update never writes ownership (the adapter's ownership rule is for records, not for Actors the GM already set up).
   r = await chunked(overwrites, chunk, signal, async row => {
-    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
+    try { await writeOverwrite(row.snap?.doc ?? adapter.docFor(row), row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: row.actorUpdate ? {} : adapter.extraUpdate?.(row.snap?.doc ?? adapter.docFor(row), row) ?? {}}); touched.push(row); ok(row, 'update', row.metadataOnly ? {metadataOnly: true} : {}); } catch (e) { fail(row, 'update', e); }
     mark('overwrite', row.name)();
+  }, adapter.pause, null, co);
+  if (r.cancelled) return result(plan, log, true);
+
+  // 0.74.0: renames. A rename of a record nothing else differs on is written like any overwrite; one whose record the GM edited writes the name only
+  // (and is never stamped or link-bound: that would record the GM's edits as normal).
+  r = await chunked(renames, chunk, signal, async row => {
+    try {
+      const doc = row.snap?.doc ?? adapter.docFor(row);
+      if (row.partial) await writeRename(doc, row, {user});
+      else { await writeOverwrite(doc, row, {user, flag: adapter.buildFlag(row), replaceArt: Boolean(plan.replaceArt), extra: {}}); touched.push(row); }
+      ok(row, 'rename', {from: row.rename?.from, to: row.rename?.to});
+    } catch (e) { fail(row, 'rename', e); }
+    mark('rename', row.name)();
   }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
 
@@ -369,7 +423,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
   } finally { (options.clearInterval ?? clearInterval)(watch.id); }
   // Remember how Foundry stores each written field (stampDoc), in chunks; one write per document type per chunk.
   const STAMP = 'Remembering what was written…';
-  const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind', 'recreate'].includes(l.action)).map(l => l.id));
+  const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind', 'recreate', 'rename'].includes(l.action)).map(l => l.id));
   const stampable = linksStalled ? [] : touched.filter(row => wroteIds.has(row.id)); // unbound text would be remembered wrongly
   const docsById = adapter.docsById?.() ?? null;
   const docOf = row => docsById ? docsById.get(row.id)?.[0] : adapter.docFor(row);
@@ -383,8 +437,8 @@ async function runSync(plan, adapter, options = {}, log, state) {
       try {
         const doc = docOf(row);
         if (!doc) continue;
-        if (adapter.updateDocuments) batch.push({row, doc, update: stampUpdate(doc, row.record)});
-        else await guard(stampDoc(doc, row.record));
+        if (adapter.updateDocuments) batch.push({row, doc, update: stampUpdate(doc, row.record, row.actorUpdate ? {only: actorStampScope(row, doc)} : {})});
+        else await guard(stampDoc(doc, row.record, row.actorUpdate ? {only: actorStampScope(row, doc)} : {}));
       } catch (e) { if (isInterruption(e)) throw e; log.push({id: row.id, kind: row.kind, name: row.name, action: 'stamp', status: 'error', message: String(e?.message ?? e)}); }
     }
     const changed = batch.filter(b => { const [key] = Object.keys(b.update); return !same(get(b.doc, key), b.update[key]); });
@@ -459,7 +513,7 @@ const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { 
 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
-  const counts = {rebound: n('rebind'), created: n('create'), recreated: n('recreate'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
+  const counts = {rebound: n('rebind'), renamed: n('rename'), created: n('create'), recreated: n('recreate'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
     deleted: n('delete'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
   return {cancelled, log, counts, completed: !cancelled && !counts.failed && !counts.skipped};
 }
