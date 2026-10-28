@@ -31,7 +31,7 @@ const held=(id,name,flags,type='loot')=>({id,name,type,system:{quantity:1,descri
 const items=[held('hp','Alchemy — Profession',src('PROF-ALCHEMY','Profession'),'feat'),held('hp2','Cooking — Profession',src('PROF-COOKING','Profession'),'feat')];items.get=i=>items.find(x=>x.id===i);
 const actor={id:'a1',name:'[TEST] Alpha',type:'character',hasPlayerOwner:true,items,flags:{'ashen-gate-profession-ledger':{knownRecipes:[]}},testUserPermission:()=>true,setFlag:async()=>{}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.37.0'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.37.1'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[actor],get:id=>id==='a1'?actor:undefined},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -88,6 +88,7 @@ test('open/closed state: a tier click is remembered per user and restored; Expan
  await app._click('tier-toggle','alchemy:apprentice');
  h=await html('catalog');
  assert.match(h,/data-id="alchemy:apprentice" aria-expanded="false"/);assert.match(h,/id="agl-tier-alchemy-apprentice" hidden>/);
+ app._flushTree();
  assert.match(store.get([...store.keys()][0]),/"t:alchemy:apprentice":false/,'saved in the per-user store, not world data');
  // A new window (a fresh state read) restores it.
  app.__tree=undefined;h=await html('catalog');assert.match(h,/data-id="alchemy:apprentice" aria-expanded="false"/);
@@ -110,4 +111,27 @@ test('players see the same tree (only the recipes they can see), and no GM contr
  game.user=player;app.__tree={};
  const h=await html('catalog');assert.match(h,/data-action="tree-expand"/);assert.doesNotMatch(h,/data-action="manager"/);
  game.user=gm;
+});
+
+test('0.37.1: a tier toggle and Expand/Collapse all change the open state in place: no re-render; the write is coalesced',async()=>{
+ app.__tree={};store.clear();
+ // A stand-in for the rendered tree: one tier group and one profession folder with the attributes the renderer writes.
+ const attrs={};const panel={hidden:false},btn={attrs:{'aria-expanded':'true'},setAttribute(k,v){this.attrs[k]=v;}};
+ const group={dataset:{tierGroup:'alchemy:apprentice',storedOpen:'1'},querySelector:s=>s==='.agl-tier-body'?panel:s==='.agl-tier-toggle'?btn:null};
+ const folder={dataset:{tree:'p:alchemy',folder:'alchemy',storedOpen:'0'},open:false};
+ app.element={querySelector:()=>null,querySelectorAll:s=>s==='[data-tier-group]'?[group]:s==='details[data-tree]'?[folder]:[]};
+ let renders=0;const render=app.render;app.render=()=>{renders++;return app;};
+ let writes=0;const setItem=globalThis.localStorage.setItem;globalThis.localStorage.setItem=(k,v)=>{writes++;return setItem(k,v);};
+ try{
+  await app._click('tier-toggle','alchemy:apprentice');
+  assert.equal(panel.hidden,true);assert.equal(btn.attrs['aria-expanded'],'false');assert.equal(group.dataset.storedOpen,'0');assert.equal(renders,0,'no re-render');
+  await app._click('tier-toggle','alchemy:apprentice');assert.equal(panel.hidden,false);assert.equal(btn.attrs['aria-expanded'],'true');
+  await app._click('tree-expand');assert.equal(folder.open,true);assert.equal(folder.dataset.storedOpen,'1');
+  await app._click('tree-collapse');assert.equal(folder.open,false);assert.equal(renders,0,'still no re-render');
+  assert.equal(writes,0,'nothing written on each click');
+  await new Promise(r=>setTimeout(r,260));assert.equal(writes,1,'one coalesced write for the whole burst');
+  assert.equal(app._treeState()['p:alchemy'],false);
+  // While a search is active the panel opens and closes without touching the remembered state.
+  app.query='x';await app._click('tier-toggle','alchemy:apprentice');assert.equal(panel.hidden,false,'it opened');assert.equal(app._treeState()['t:alchemy:apprentice'],false,'unchanged by a toggle during a search');app.query='';
+ }finally{app.render=render;globalThis.localStorage.setItem=setItem;app.__tree={};}
 });

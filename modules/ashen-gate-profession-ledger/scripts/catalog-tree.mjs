@@ -73,3 +73,19 @@ export function applyTreeSearch(folder,query){
   }
   folder.open=query?!folder.hidden:folder.dataset.storedOpen==='1';
 }
+
+/** Opens or closes one tier group in place (no re-render): the panel, the button's aria-expanded and the remembered flag. Returns the new state. */
+export function toggleTierGroup(group,open=null){
+  const panel=group.querySelector('.agl-tier-body'),btn=group.querySelector('.agl-tier-toggle');
+  const next=open==null?Boolean(panel?.hidden):Boolean(open);
+  if(panel)panel.hidden=!next;
+  if(btn)btn.setAttribute('aria-expanded',String(next));
+  return next;
+}
+/** Expand all / Collapse all in place: every profession folder and tier group under `root`. Returns {folders:[keys], tiers:[keys]} it changed. */
+export function setAllTree(root,on){
+  const folders=[],tiers=[];
+  for(const f of root.querySelectorAll('details[data-tree]')){f.dataset.storedOpen=on?'1':'0';if(f.open!==on)f.open=on;folders.push(f.dataset.folder);}
+  for(const g of root.querySelectorAll('[data-tier-group]')){g.dataset.storedOpen=on?'1':'0';toggleTierGroup(g,on);tiers.push(g.dataset.tierGroup);}
+  return {folders,tiers};
+}
