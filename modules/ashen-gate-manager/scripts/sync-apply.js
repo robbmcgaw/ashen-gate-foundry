@@ -83,6 +83,40 @@ export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceA
   await doc.update(update, bulk());
 }
 
+/** Flag scopes never copied from the old Item to its recreation: Manager's own (rebuilt from the package), Foundry core's and the system's. */
+export const RECREATE_SKIP_SCOPES = [MODULE_ID, 'core', 'dnd5e'];
+/**
+ * 0.72.2 "Also recreate Items whose type changed": a swap, not a retire. The new Item is created from the package first (folder of the
+ * old one, ownership by the current Items rule, Manager source flag and baseline); other modules' flags are copied from the old Item;
+ * art the GM set is kept unless "Also replace art I set". Only then is the old Item deleted. Any failure before the delete removes the
+ * new Item again and leaves the old one untouched. Copies on Actors are separate documents and are never touched.
+ * adapter: {create(row) → new document}.
+ */
+export async function recreateItem(oldDoc, row, {user, adapter, replaceArt = false}) {
+  assertSyncTarget(oldDoc, user, row.id, {deleting: true});
+  if (oldDoc.documentName !== 'Item') throw new Error('Only Items can be recreated.');
+  const baseline = baselineFields(oldDoc.getFlag?.(MODULE_ID, 'source')?.managedFields) ?? {};
+  const raw = oldDoc.toObject?.() ?? {};
+  const fresh = await adapter.create(row);
+  if (!fresh) throw new Error('Foundry did not return a saved document.');
+  try {
+    const update = {folder: oldDoc.folder?.id ?? raw.folder ?? null};
+    const flags = {};
+    for (const [scope, value] of Object.entries(raw.flags ?? {})) if (!RECREATE_SKIP_SCOPES.includes(scope)) flags[scope] = structuredClone(value);
+    if (Object.keys(flags).length) update.flags = flags;
+    // Art the GM set stays theirs: not a Foundry default icon, not an icon Manager picked itself, and not the package's own value.
+    const gmArt = raw.img && !String(raw.img).startsWith('icons/svg/') && !oldDoc.getFlag?.(MODULE_ID, 'iconSource') && (baseline.img === undefined || raw.img !== baseline.img);
+    if (!replaceArt && gmArt) update.img = raw.img;
+    await fresh.update(update, bulk());
+  } catch (error) {
+    try { await fresh.delete(bulk()); } catch (rollback) { throw new Error(`${error?.message ?? error}; the new Item could not be removed again (${rollback?.message ?? rollback}). Delete the duplicate by hand.`); }
+    throw error;
+  }
+  try { await oldDoc.delete(bulk()); }
+  catch (error) { throw new Error(`The new Item was created but the old one could not be deleted (${error?.message ?? error}). Delete the old ${row.name} by hand; the next preview lists the duplicate.`); }
+  return fresh;
+}
+
 /**
  * Replaces one document in place with the record that supersedes it (0.64.0): the SAME world document (so tokens on scenes,
  * ownership, folder, linked actors and links stay) is rewritten with the new record's content and re-bound to the new id.
@@ -156,7 +190,7 @@ export async function removeDoc(doc, row, {user}) {
  * public exports hold. The package files themselves are what a rebuild needs for created records.
  */
 export function buildSyncBackup(plan, {world = null, now = new Date(), modules = null} = {}) {
-  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind'].includes(r.group) && r.snap);
+  const rows = plan.rows.filter(r => ['overwrite', 'delete', 'rebind', 'recreate'].includes(r.group) && r.snap);
   return {
     schema_version: 'ag-foundry-snapshot/0.3', created_at: now.toISOString(), reason: 'before-sync-from-package', world_id: world?.id ?? null,
     sync: {phrase: SYNC_PHRASE, counts: plan.counts, lines: plan.scope.lines, files: plan.scope.files},
@@ -238,10 +272,11 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const creates = plan.rows.filter(r => r.group === 'create' && !r.external);
   const overwrites = plan.rows.filter(r => r.group === 'overwrite' && !r.external);
   const rebinds = plan.rows.filter(r => r.group === 'rebind');
+  const recreates = plan.rows.filter(r => r.group === 'recreate');
   const specialistSupersedes = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0);
   const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group));
   const deletes = plan.rows.filter(r => r.group === 'delete');
-  const total = rebinds.length + creates.length + overwrites.length + external.length + deletes.length;
+  const total = rebinds.length + recreates.length + creates.length + overwrites.length + external.length + deletes.length;
   let finished = 0;
   const tick = (phase, label) => () => say(phase, label, ++finished, total);
   const co = {guard, ensure, halted};
@@ -289,6 +324,17 @@ async function runSync(plan, adapter, options = {}, log, state) {
   }, adapter.pause, null, co);
   if (r.cancelled) return result(plan, log, true);
 
+  // 0.72.2: Items whose type changed are swapped (create the new one, then delete the old one). Not a retire: the id stays live.
+  r = await chunked(recreates, chunk, signal, async row => {
+    try {
+      const old = row.snap?.doc ?? adapter.docFor(row);
+      const doc = await guard(recreateItem(old, row, {user, adapter, replaceArt: Boolean(plan.replaceArt)}));
+      touched.push(row); ok(row, 'recreate', {uuid: doc.uuid});
+    } catch (e) { fail(row, 'recreate', e); }
+    mark('recreate', row.name)();
+  }, adapter.pause, null, co);
+  if (r.cancelled) return result(plan, log, true);
+
   // Link binding: one pass with every lookup built once, written in chunks (link-binding.js). Reports its own sub-steps.
   const LINKS = 'Binding links between records…';
   const okIds = new Set(log.filter(l => l.status === 'ok' && l.action !== 'link-sync').map(l => l.id));
@@ -323,7 +369,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
   } finally { (options.clearInterval ?? clearInterval)(watch.id); }
   // Remember how Foundry stores each written field (stampDoc), in chunks; one write per document type per chunk.
   const STAMP = 'Remembering what was written…';
-  const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind'].includes(l.action)).map(l => l.id));
+  const wroteIds = new Set(log.filter(l => l.status === 'ok' && ['create', 'update', 'rebind', 'recreate'].includes(l.action)).map(l => l.id));
   const stampable = linksStalled ? [] : touched.filter(row => wroteIds.has(row.id)); // unbound text would be remembered wrongly
   const docsById = adapter.docsById?.() ?? null;
   const docOf = row => docsById ? docsById.get(row.id)?.[0] : adapter.docFor(row);
@@ -413,7 +459,7 @@ const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { 
 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
-  const counts = {rebound: n('rebind'), created: n('create'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
+  const counts = {rebound: n('rebind'), created: n('create'), recreated: n('recreate'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
     deleted: n('delete'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
   return {cancelled, log, counts, completed: !cancelled && !counts.failed && !counts.skipped};
 }

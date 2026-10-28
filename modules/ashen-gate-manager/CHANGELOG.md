@@ -1,3 +1,11 @@
+## 0.72.2 — 2026-10-28
+
+Sync: recreate Items whose type changed.
+
+- **New Advanced switch in Sync from package: "Also recreate Items whose type changed".** dnd5e cannot change an Item's type in place, so such records (for example a crafted result corrected from loot to equipment) were refused with "Sync does not change an Item's type". Off by default: they stay in the Refused list, with a hint to tick the switch. On: each becomes a **Recreate** row (name, old type to new type), counted in the summary, listed in a **Recreate (N)** fold, and included in the backup with its full document.
+- **Running it is a swap, not a retire.** The new Item is created from the package first (same folder, readable by players as the Items setting says, Manager source flag and baseline rebuilt); flags other modules put on the old Item are copied over (not Manager's, Foundry core's or the system's); art you set is kept unless "Also replace art I set" is ticked. Then the old Item is deleted. If anything fails before that, the new Item is removed again and the old one stays; the id is never added to the retired list, so the next Sync shows Already matches. GM only, stoppable, safe to run again. Copies on character sheets are separate documents and are not touched.
+- Check afterwards anything that stored the old Item's world uuid: the Item has a new Foundry uuid (see the PR for which modules store the permanent id).
+
 ## 0.72.1 — 2026-10-28
 
 Sync from package: the run button says what it does.

@@ -150,6 +150,8 @@ export function nameIndex(docs) {
   for (const d of docs) if (!d.getFlag?.(MODULE_ID, 'source')?.sourceId) (out[d.documentName] ??= new Set()).add(d.name);
   return out;
 }
+/** Set by planSync (the planners are called without a context): ctx.recreateTypeChange = "Also recreate Items whose type changed". */
+const recreateMode = {on: false};
 const memoOf = snap => { try { return JSON.parse(snap.flag?.[MEMO_KEY] ?? 'null') ?? {}; } catch { return {}; } };
 
 // ---------- field comparison ----------
@@ -295,7 +297,11 @@ function effectsPlan(defs, liveRaw) {
 
 function planItem(record, snap) {
   const data = record.foundry.data, raw = snap.raw;
-  if (raw.type !== data.type) return refuse(`The world Item is a ${raw.type} and the package says ${data.type}; Sync does not change an Item's type.`);
+  if (raw.type !== data.type) {
+    // 0.72.2: dnd5e Item types cannot be changed in place. With the switch on, the Item is recreated (new document, same record id).
+    if (recreateMode.on) return {recreate: {from: raw.type, to: data.type}};
+    return refuse(`The world Item is a ${raw.type} and the package says ${data.type}; Sync does not change an Item's type. Tick "Also recreate Items whose type changed" to replace them.`);
+  }
   const baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
   const fields = incomingFields(record);
   const link = snap.coreLink?.adopted ? snap.coreLink : null;
@@ -463,6 +469,7 @@ export function planRebind(record, snap) {
   const virtual = {...snap, raw: snap.raw, flag: {...(snap.flag ?? {}), sourceId: record.id}};
   const p = planner(record, virtual);
   if (p.refuse) return p;
+  if (p.recreate) return refuse(`The world Item is a ${p.recreate.from} and the package says ${p.recreate.to}; a replaced-in-place Item cannot change type.`);
   adjustRebindOps(p, record, snap.raw);
   return p;
 }
@@ -516,6 +523,7 @@ export function planSync(set, world, ctx = {}) {
   if (!errors.length) errors.push(...(ctx.validateExtra?.([...set.records.values()].map(r => r.record)) ?? []));
   uuidSourceIds = new Map(docs.filter(d => d.uuid && d.flag?.sourceId).map(d => [d.uuid, d.flag.sourceId]));
   artMode.replace = Boolean(ctx.replaceArt);
+  recreateMode.on = Boolean(ctx.recreateTypeChange);
   const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt)};
   const lines = [...set.lines.values()];
   plan.scope = {
@@ -594,6 +602,12 @@ export function planSync(set, world, ctx = {}) {
     try {
       const p = PLANNERS[record.foundry.document_type](record, snap);
       if (p.refuse) { rows.push(untouched(id, name, kind, p.refuse, {...base, refused: true})); continue; }
+      if (p.recreate) {
+        rows.push({group: 'recreate', key: rowKey('recreate', kind, id), id, name, kind, snap, recreate: p.recreate,
+          reason: `The world Item is a ${p.recreate.from}; the package says ${p.recreate.to}. It is deleted and created again from the package (copies on character sheets are untouched).`,
+          changes: [{path: 'type', label: 'Item type', from: p.recreate.from, to: p.recreate.to, gmEdited: false}], lost: 0, ...base});
+        planned.add(id); continue;
+      }
       if (p.artKept?.length) artKept = p.artKept;
       const meta = metaDiff(snap.flag, ctx.buildFlag?.(record, manifest, available) ?? snap.flag);
       // 0.71.0: an activity whose effect link is missing or points at an old id is a quiet refresh, not a content difference.
@@ -762,6 +776,7 @@ function finish(plan) {
   const c = {create: 0, overwrite: 0, rebind: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
+    if (r.group === 'recreate') { c.recreate = (c.recreate ?? 0) + 1; continue; }
     c[r.group]++;
     if (r.group === 'untouched' && r.refused) c.refused++;
     if (r.notRemoved) c.notRemoved++;
@@ -776,17 +791,19 @@ function finish(plan) {
   plan.counts = c;
   plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects} : r.reason)]));
   c.supersedeFiles = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0).length;
-  plan.records = c.create + c.overwrite + c.rebind;
+  plan.records = c.create + c.overwrite + c.rebind + (c.recreate ?? 0);
   // 0.72.1: the run button says what it does. Metadata refreshes are not "replaced" records, and nothing is "deleted" unless it is.
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const parts = [];
-  if (plan.records > 0) parts.push(`${plan.records > 0 && !c.overwrite && !c.rebind ? 'Create' : 'Replace'} ${plural(plan.records, 'record')}${c.rebind ? ` (${c.rebind} in place)` : ''}`);
+  const basic = c.create + c.overwrite + c.rebind;
+  if (basic > 0) parts.push(`${!c.overwrite && !c.rebind ? 'Create' : 'Replace'} ${plural(basic, 'record')}${c.rebind ? ` (${c.rebind} in place)` : ''}`);
+  if (c.recreate > 0) parts.push(`recreate ${plural(c.recreate, 'Item')}`);
   if (c.metadataRefreshes > 0) parts.push(`refresh metadata on ${plural(c.metadataRefreshes, 'record')}`);
   if (c.delete > 0) parts.push(`delete ${c.delete}`);
   const sentence = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] ?? 'Apply changes';
   plan.buttonLabel = sentence.charAt(0).toUpperCase() + sentence.slice(1);
   plan.metadataOnly = plan.records === 0 && c.delete === 0 && c.metadataRefreshes > 0;
-  plan.destructive = c.overwrite + c.rebind + c.delete > 0;
+  plan.destructive = c.overwrite + c.rebind + c.delete + (c.recreate ?? 0) > 0;
   return plan;
 }
 

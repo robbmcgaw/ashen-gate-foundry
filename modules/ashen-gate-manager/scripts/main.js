@@ -367,7 +367,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.zipBundle = null;
     this.previewShown = PREVIEW_PAGE;
     // 0.56.0 Sync from package: off by default; its files, preview and progress live here, apart from the normal import.
-    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, replaceArt:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
+    this.sync = {on:false, inputs:[], set:null, plan:null, deleteUnscoped:false, overwriteEdited:false, replaceArt:false, recreateTypeChange:false, phrase:'', progress:null, stopping:false, abort:null, result:null, message:'Choose the package files, then press Preview sync. Nothing in your world changes before you confirm.'};
     // 0.59.0 Pull from GitHub: the form draft, the packs found and the last pull. The token is never kept here beyond what is typed.
     this.gh = {draft:null, dirty:false, packs:[], selected:[], rows:[], progress:null, message:null, update:null, pulled:null, abort:null, stopping:false};
     this.uploadZipArtwork = true;
@@ -4088,6 +4088,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
       this.focusAfterRender='[data-ag-sync-edited]';void this.render();
     });
+    root.querySelector('[data-ag-sync-recreate]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.sync.recreateTypeChange=Boolean(event.target.checked)&&Boolean(game.user?.isGM);
+      this.#syncDrop('The option changed. Press Preview sync again; nothing in your world changed.');
+      this.focusAfterRender='[data-ag-sync-recreate]';void this.render();
+    });
     root.querySelector('[data-ag-sync-art]')?.addEventListener('change',event=>{
       if(this.busy)return;
       this.sync.replaceArt=Boolean(event.target.checked)&&Boolean(game.user?.isGM);
@@ -4162,7 +4168,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   #syncHtml() {
     const s=this.sync, joined=joinSyncInputs(s.inputs);
     return syncView({inputs:s.inputs.map(i=>({name:i.name,imports:i.sources})),skipped:joined.skipped,fileButton:this.#syncFileButton(),
-      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message,unfinished:Boolean(s.unfinished),shown:s.shown??{},github:s.inputs.some(i=>i.github)?s.github:null});
+      deleteUnscoped:s.deleteUnscoped,overwriteEdited:s.overwriteEdited,replaceArt:s.replaceArt,recreateTypeChange:s.recreateTypeChange,isGM:Boolean(game.user?.isGM),plan:s.plan,phrase:s.phrase,busy:this.busy,progress:s.progress,stopping:s.stopping,result:s.result,message:s.message,unfinished:Boolean(s.unfinished),shown:s.shown??{},github:s.inputs.some(i=>i.github)?s.github:null});
   }
   #syncFileButton() {
     return fileButton({label:'Choose files or ZIPs for the sync…',accept:'.json,.zip,application/json,application/zip',multiple:true,icon:'fa-solid fa-folder-open',disabled:this.busy,data:{agFileKind:'sync'}});
@@ -4206,7 +4212,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     }
     const handed=moduleRecordIndex(locApi,shpApi);
     return {supersedeChoices:this.sync.supersede??{},supersedePreview:(kind,sup)=>this.sync.supersedePending?.get(JSON.stringify(sup.map)),
-      includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,replaceArt:Boolean(this.sync.replaceArt&&game.user?.isGM),
+      includeDrafts:this.includeDrafts,deleteUnscoped:this.sync.deleteUnscoped,overwriteEdited:this.sync.overwriteEdited,replaceArt:Boolean(this.sync.replaceArt&&game.user?.isGM),recreateTypeChange:Boolean(this.sync.recreateTypeChange&&game.user?.isGM),
       retiredIds:new Set(game.settings.get(MODULE_ID,SYNC_RETIRED_SETTING)??[]),ledger:game.settings.get(MODULE_ID,HANDOFF_LEDGER_SETTING)??{},
       buildFlag:(record,manifest,available)=>sourceMetadata(record,{manifest},available),
       externalIds:new Set(withLocationIds(existingSourceIndex(),locApi).keys()),
@@ -4293,7 +4299,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const c=plan.counts;
     const yes=plan.metadataOnly
       ?await confirmDialog(`Nothing in your world's content changes. ${c.metadataRefreshes} record(s) will have their stored package data (definition, version, provenance) updated so new package fields reach the world. Nothing is created or deleted.`,{title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel})
-      :await confirmDanger(`${c.create} record(s) will be created, ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${plan.replaceArt?', and art you set is REPLACED by the package\'s (Also replace art I set is ticked)':c.artKept?`, your art kept on ${c.artKept} record(s)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are${c.keptRemoved?` (${c.keptRemoved} of them are no longer in the files and are not deleted)`:''}`:''} and ${c.delete} deleted${plan.overwriteEdited?' (including records you edited that the files no longer carry)':''}${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
+      :await confirmDanger(`${c.create} record(s) will be created,${c.recreate?` ${c.recreate} Item(s) recreated (deleted and created again because their type changed; copies on character sheets stay),`:''} ${c.overwrite} updated${plan.overwriteEdited?` (${plan.lost} GM-edited field(s) replaced)`:''}${plan.replaceArt?', and art you set is REPLACED by the package\'s (Also replace art I set is ticked)':c.artKept?`, your art kept on ${c.artKept} record(s)`:''}${c.keptEdited?`, ${c.keptEdited} edited in your world kept as they are${c.keptRemoved?` (${c.keptRemoved} of them are no longer in the files and are not deleted)`:''}`:''} and ${c.delete} deleted${plan.overwriteEdited?' (including records you edited that the files no longer carry)':''}${c.metadataRefreshes?`, and ${c.metadataRefreshes} refreshed with no content change`:''}.\nCharacter sheets, their Items, effects, flags and hotbars are not touched. Documents Manager did not import are not touched. Records other modules own are passed to them in update mode and never deleted from here.\nA JSON backup of everything that will be overwritten or deleted downloads first; if it fails nothing is written. You can cancel while it runs, and running the same files again finishes the job.`,
       {title:`${SYNC_PHRASE}?`,yes:plan.buttonLabel});
     if(!yes)return;
     const set=this.sync.set, controller=new AbortController();
@@ -4340,7 +4346,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const named=r=>`${r.name??r.id??''} ${r.action??''}: ${r.message??r.status}`;
     const lines=failure?[`${SYNC_NAME} stopped before finishing: ${failure}`,'Anything already written stays; the sync is safe to run again.']
       :outcome.interrupted?[outcome.interrupted.message,`So far: ${k.created} created, ${k.updated} overwritten, ${k.deleted} deleted. Nothing is half-written that the same sync does not finish.`]
-      :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
+      :[`${outcome.cancelled?'Cancelled part way. ':''}${k.created} created, ${k.recreated?`${k.recreated} recreated, `:''}${k.updated} overwritten, ${k.metadataRefreshed} metadata refreshed, ${k.deleted} deleted, ${k.failed} failed, ${k.skipped} skipped.`,
         ...(outcome.cancelled?['Run the same files again to finish; what is already done is not repeated.']:[]),
         ...summarizeErrors(outcome.log).map(e=>`${e.count} records failed with the same error: ${e.message} (for example ${e.names.join(', ')})`),
         ...outcome.log.filter(r=>['error','skipped'].includes(r.status)&&!summarizeErrors(outcome.log).some(e=>e.message===r.message)).slice(0,8).map(named)];
