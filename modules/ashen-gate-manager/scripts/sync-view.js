@@ -101,6 +101,7 @@ export function syncView(state) {
         ${c.artKept ? `<span class="ag-badge ag-badge--ok"><strong>${c.artKept}</strong> keeping your art</span>` : ''}
         ${plan.replaceArt ? `<span class="ag-badge ag-badge--warn">art you set will be replaced</span>` : ''}
         ${c.refused ? `<span class="ag-badge ag-badge--warn"><strong>${c.refused}</strong> refused</span>` : ''}</div>`);
+      if (!plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0)) parts.push(`<p><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-sync-jump><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Jump to confirm and run</button></p>`);
       parts.push(`<p class="agmanager-tiny">Character sheets and everything on them are untouched (${plural(plan.characterCount, 'player character')} in this world). Item copies on character sheets stay exactly as they are even where the world Item is updated or deleted.</p>`);
       const rows = g => plan.rows.filter(r => r.group === g);
       const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
@@ -111,7 +112,8 @@ export function syncView(state) {
       const reb = rows('rebind');
       if (reb.length) parts.push(group('Replaced in place', reb.length, list(reb, overwriteRow), {open: reb.length <= 12}));
       parts.push(group('Create', creates.length, creates.length ? list(creates, line) : '<p class="agmanager-tiny">Nothing new.</p>'));
-      parts.push(group('Overwrite', over.length, `${over.length ? list(over, overwriteRow) : '<p class="agmanager-tiny">No content differs.</p>'}${meta.length ? `<p class="agmanager-tiny">Also refreshes metadata on ${meta.length} record(s) whose content already matches.</p>` : ''}`, {open: over.length > 0 && over.length <= 12}));
+      parts.push(group('Overwrite', over.length, `${over.length ? list(over, overwriteRow) : '<p class="agmanager-tiny">No content differs.</p>'}`, {open: over.length > 0 && over.length <= 12}));
+      if (meta.length) parts.push(group(`Metadata refreshes`, meta.length, `<p class="agmanager-tiny">The content of these records already matches. Applying updates the package data stored with each (definition, version, provenance) so new fields reach your world. Names, descriptions, art and everything else on the document stay as they are.</p>${list(meta, line)}`, {open: plan.metadataOnly && meta.length <= 12}));
       parts.push(group('Delete', del.length, del.length ? list(del, line, del.length) : '<p class="agmanager-tiny">Nothing is deleted.</p>', {open: del.length > 0 && del.length <= 40}));
       parts.push(group('Kept: edited in your world', kept.length, kept.length ? `<p class="agmanager-tiny">You changed these since they were imported, so Sync leaves them alone. Open one to see what would differ.</p>${list(kept, overwriteRow)}` : '<p class="agmanager-tiny">No record you edited is affected.</p>', {open: kept.length > 0 && kept.length <= 12}));
       parts.push(group('Kept: edited in your world, no longer in the package', keptGone.length, keptGone.length ? `<p class="agmanager-tiny">These are no longer in the files, but you changed them since they were imported, so Sync does not delete them.</p>${list(keptGone, line, keptGone.length)}` : '<p class="agmanager-tiny">No edited record is missing from the files.</p>', {open: keptGone.length > 0 && keptGone.length <= 12}));
@@ -131,9 +133,13 @@ export function syncView(state) {
     if (!plan.errors.length && !ready) parts.push('<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> The world already matches these files. Nothing to do.</p>');
     if (ready) {
       parts.push('<h3 class="agm-step"><span class="agm-step__n">3</span> Confirm and run</h3>');
-      parts.push(`<div class="ag-field agm-sync-confirm"><label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>
-        <input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>
-        <span class="ag-field__hint">A JSON backup of everything that will be overwritten or deleted downloads first. If it cannot be saved, nothing is written. Running the same files again changes nothing more, and a run you cancel is finished by running it again.</span></div>`);
+      if (plan.metadataOnly) parts.push(`<p class="ag-notice ag-notice--info" role="note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span><strong>Nothing in your world's content changes.</strong> ${plural(plan.counts.metadataRefreshes, 'record')} will have their stored package data (definition, version, provenance) updated. That is how new fields in the package, such as <code>former_starting</code> on recipes, reach the world.</span></p>`);
+      else if (plan.counts.metadataRefreshes) parts.push(`<p class="agmanager-tiny">${plural(plan.counts.metadataRefreshes, 'record')} also get their stored package data refreshed (no content change).</p>`);
+      const danger = Boolean(plan.destructive);
+      parts.push(`<div class="ag-field agm-sync-confirm" id="agm-sync-confirm"><label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>
+        <div class="ag-cluster"><input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>
+        <button type="button" class="ag-btn ${danger ? 'ag-btn--danger' : 'ag-btn--primary'}" data-ag-action="sync-run" data-ag-sync-run ${busy || !phraseOk(state.phrase) ? 'disabled' : ''}><i class="fa-solid ${danger ? 'fa-trash-can' : 'fa-rotate'}" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button></div>
+        <span class="ag-field__hint">A JSON backup of every document this run will overwrite, refresh or delete downloads first (a metadata refresh is included, so the backup is small when only a few records change). If it cannot be saved, nothing is written. Running the same files again changes nothing more, and a run you cancel is finished by running it again.</span></div>`);
     }
     if (state.progress) parts.push(`<div class="ag-cluster agclean-running" aria-label="Sync progress"><progress class="agclean-bar" data-ag-sync-bar max="1" value="${state.progress.pct}" aria-label="Sync progress"></progress>
       <span class="agmanager-tiny" role="status" data-ag-sync-status>${esc(state.stopping ? 'Stopping after the current chunk…' : state.progress.label)}</span>
@@ -143,8 +149,7 @@ export function syncView(state) {
       <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="sync-cancel" ${busy ? 'disabled' : ''}>Cancel</button>
       <span class="ag-footer__status"></span>
       <button type="button" class="ag-btn" data-ag-action="sync-report" ${!plan ? 'disabled' : ''}><i class="fa-solid fa-download" aria-hidden="true"></i> Download preview</button>
-      ${ready ? `<button type="button" class="ag-btn" data-ag-action="sync-backup" ${busy ? 'disabled' : ''}><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup</button>
-      <button type="button" class="ag-btn ag-btn--danger" data-ag-action="sync-run" data-ag-sync-run ${busy || !phraseOk(state.phrase) ? 'disabled' : ''}><i class="fa-solid fa-trash-can" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button>` : ''}</footer>`);
+      ${ready ? `<button type="button" class="ag-btn" data-ag-action="sync-backup" ${busy ? 'disabled' : ''}><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup</button>` : ''}</footer>`);
   }
   parts.push('</section>');
   return parts.join('\n');
