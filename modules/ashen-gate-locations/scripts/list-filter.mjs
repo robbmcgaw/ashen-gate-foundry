@@ -8,7 +8,7 @@ export const GROUP_MODES = Object.freeze([{value: 'none', label: 'None'}, {value
 export const SORTS = Object.freeze([{value: 'name', label: 'Name'}, {value: 'threat', label: 'Threat'}, {value: 'region', label: 'Region, then name'},
   {value: 'nodes', label: 'Gathering nodes'}, {value: 'status', label: 'Status'}]);
 export const STATUS_FILTERS = Object.freeze([{value: 'hidden', label: 'Hidden'}, {value: 'unidentified', label: 'Unidentified'}, {value: 'revealed', label: 'Revealed'},
-  {value: 'unpublished', label: 'Unpublished edits'}]);
+  {value: 'unpublished', label: 'Unpublished edits'}, {value: 'active', label: 'Active'}]);
 export const PLACEABLE_FILTERS = Object.freeze([{value: 'yes', label: 'Placeable on a map'}, {value: 'no', label: 'Representative only'}]);
 export const emptyFilters = () => ({threat: '', region: '', profession: '', quest: '', status: '', placeable: ''});
 export const hasFilters = f => Object.values(f).some(Boolean);
@@ -47,7 +47,7 @@ const test = {
   region: (l, v) => v === NONE ? !l.region : l.region === v,
   profession: (l, v) => skillsOf(l).includes(v),
   quest: (l, v) => v === HAS ? questIdsOf(l).length > 0 : v === NONE ? questIdsOf(l).length === 0 : questIdsOf(l).includes(v),
-  status: (l, v) => v === 'unpublished' ? hasUnpublishedChanges(l) : l.state === v,
+  status: (l, v) => v === 'unpublished' ? hasUnpublishedChanges(l) : v === 'active' ? l.active === true : l.state === v,
   placeable: (l, v) => (v === 'yes') === isPlaceable(l)
 };
 /** Rows that pass every filter (AND), optionally ignoring one so a dropdown can count its own alternatives. */
