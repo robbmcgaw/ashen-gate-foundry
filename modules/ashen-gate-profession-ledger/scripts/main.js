@@ -5,7 +5,8 @@ import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLea
 import {DRAFT_RECIPE_LABEL_DEFAULTS,RECIPE_LABEL_MAX,recipeLabelsOf,resolveRecipeLabels,pickRecipeLabel,cleanLabelStore,cleanRecipeLabel} from './recipe-labels.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionSource} from './definition-lookup.mjs';
-import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
+import {planCraft,craftBlockers,executeCraft,executeConsume,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
+import {ENCHANT_FLAG,TABLE_RULE,isGmApplied,hasBringFilter,bringCandidates,bringBlocker,requestRecord,enchantOf} from './enchanting.mjs';
 import {tierBadge} from './tier-style.mjs';
 import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -33,7 +34,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.9';
+const VERSION='0.38.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1131,7 +1132,7 @@ function craftRequirement(recipe,actor=null){
   const tool=tools[0]??null;
   const shown=anyOf??tools;
   return {tool,tools:anyOf??tools,anyOf:Boolean(anyOf),carried:carried?toolRefLabel(carried):null,activity,toolLabel:anyOf?orList(shown.map(toolRefLabel)):tools.map(toolRefLabel).join(activity?' or ':' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
-    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,anyOf??checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
+    check:checks[0]??null,skill,gmApplied:isGmApplied(recipe),checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,anyOf??checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
     lacks:missing.length>0,missing:missing.map(toolRefLabel)};
 }
 /** 0.37.6: why an activity cannot be completed for lack of its tool, or ''. Blocks only when the requirement is a TOOL (the recipe's own
@@ -1191,6 +1192,8 @@ function requirementHTML(req,actor){
     const state=!actor?'':req.lacks?badge(req.anyOf?'None carried':lacksText(req,actor),'warn'):req.anyOf?badge(`${req.carried}: carried`,'ok'):badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok');
     parts.push(`<span class="agl-station"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">${req.activity?'Uses':'Tool'}</span> <span>${esc(text)}</span>${state?` ${state}`:''}</span>`);}
   if(req.workstation)parts.push(`<span class="agl-station"><i class="fa-solid fa-warehouse" aria-hidden="true"></i><span class="agl-label agl-label--inline">Station</span> <span>${esc(req.workstation)}</span></span>`);
+  // 0.38.0: a GM-applied enchantment always names its check (Enchanting rolls the Arcana skill), even with no tool or station.
+  if(req.gmApplied&&req.skill)parts.push(`<span class="agl-station"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agl-label agl-label--inline">Check:</span> <span>${esc(skillLabel(req.skill))}</span></span>`);
   if(!parts.length&&!req.activity)parts.push('<span class="agl-station agl-sub"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">Tool or station</span> <span>None needed</span></span>');
   return parts.length?`<div class="agl-recipe-station">${parts.join('')}</div>`:'';
 }
@@ -1269,9 +1272,20 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     if(gm&&!knownBy.length&&!foundBy.length)status.push(badge('Not found by the party yet','muted'));
   }
   let actions='';
-  const activity=isActivity(recipe);
+  const activity=isActivity(recipe),gmApplied=isGmApplied(recipe);
+  // 0.38.0: a GM-applied enchantment has Request enchanting… in place of Craft / Complete activity. It makes nothing: the materials
+  // are used when the GM marks the request Done, so the button only checks that the character has them and something to bring.
+  if(craft&&actor&&gmApplied){
+    const missingOwn=craft.plan.requirements.filter(r=>r.own<r.required).map(r=>`${r.required-r.own} × ${r.name}`).join(', ');
+    const itemBlock=bringBlocker(recipe.bring,bringCandidates(actor,recipe.bring),actor.name),needId=`agl-need-${ctxKey(`${recipe.id}:${actor.id}`)}`;
+    const button=(attrs='disabled')=>`<button type="button" class="ag-btn" ${attrs}><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Request enchanting…</button>`;
+    const why=craft.blockers[0]||(missingOwn?`Missing ${missingOwn}`:'')||itemBlock;
+    if(!owned(actor))actions='';
+    else if(why)actions=`${button(`disabled aria-describedby="${needId}"`)}<span class="agl-reason" id="${needId}">${esc(why)}</span>`;
+    else actions=button(`data-action="request-enchanting" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"`);
+  }
   // 0.28.0: an activity has Complete activity in place of Craft (no materials to check).
-  if(craft&&actor&&activity){
+  else if(craft&&actor&&activity){
     const toolBlock=activityToolBlocker(recipe,actor),needId=`agl-need-${ctxKey(`${recipe.id}:${actor.id}`)}`;
     const button=(attrs='disabled')=>`<button type="button" class="ag-btn" ${attrs}><i class="fa-solid fa-masks-theater" aria-hidden="true"></i> Complete activity</button>`;
     if(craft.blockers.length)actions=`${owned(actor)?button():''}<span class="agl-reason">${esc(craft.blockers[0])}</span>`;
@@ -1290,7 +1304,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   if(learnItem&&actor)actions=learnControl(actor,learnItem,{available});
   const gp=extraCost(recipe);
   const effort=recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:'';
-  const meta=[activity?'Activity':'',tierLabel(recipe.tier),effort].filter(Boolean);
+  const meta=[gmApplied?'Enchantment':activity?'Activity':'',tierLabel(recipe.tier),effort].filter(Boolean);
   // The words inside the (possibly collapsed) details are searchable too: ingredients, tool or station, and the recipe text.
   const inside=[...(recipe.hasStructuredIngredients?recipe.ingredients.map(ing=>ingredientName(ing,lib)):[]),recipe.workstation??'',recipe.description??'',recipe.effectNote??''].join(' ');
   const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''} ${inside}`.toLowerCase();
@@ -1300,20 +1314,24 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   // 0.33.4: lists with no craft context (Party, Catalog) fold the body under the title; Known by stays visible.
   const compact=!craft&&!learnItem;
   const bodyHtml=`
-    ${activity?'':`<div class="agl-recipe-flow">
+    ${gmApplied?`<div class="agl-recipe-flow">
+      <div class="agl-recipe-needs"><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
+      <i class="fa-solid fa-arrow-right agl-recipe-arrow" aria-hidden="true"></i>
+      <div class="agl-recipe-makes"><span class="agl-label">Bring</span><div>${esc(recipe.bring?.text??'an item of your own')}</div></div>
+    </div>`:activity?'':`<div class="agl-recipe-flow">
       <div class="agl-recipe-needs"><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
       <i class="fa-solid fa-arrow-right agl-recipe-arrow" aria-hidden="true"></i>
       <div class="agl-recipe-makes"><span class="agl-label">Makes</span><div>${makes}</div></div>
     </div>`}
-    ${gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''}
+    ${gp?`<div><small class="agl-sub">${gmApplied?`Fee: ${gp} gp (the GM collects it)`:`Also costs ${gp} gp (not deducted automatically)`}</small></div>`:''}
     ${craft||learnItem?'':requirementHTML(craftRequirement(recipe,null),null)}
-    ${recipeTextHtml(recipe,{gmNote:Boolean(craft)})}`;
+    ${recipeTextHtml(recipe,{gmNote:Boolean(craft)&&!gmApplied})}`;
   // 0.37.2: on the Individual tab the details fold like the Party's, but the tool or station line (with any "missing" warning) stays visible beside the head.
   const requirementLine=craft||learnItem?requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null):'';
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
       <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
-        <span class="agl-recipe-badges">${activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
+        <span class="agl-recipe-badges">${gmApplied?badge('Enchantment'):activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
       <div class="agl-recipe-actions">${actions}</div>
     </div>
     ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`
@@ -1620,6 +1638,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
   if(!knownRecipesOf(actor).includes(recipeId))throw Error(`${actor.name} has not learned this recipe`);
   const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
   if(!recipe)throw Error('This recipe is not available to you');
+  if(isGmApplied(recipe))throw Error(`${recipe.name} is an enchantment: use Request enchanting`);
   if(isActivity(recipe))throw Error(`${recipe.name} is an activity: use Complete activity`);
   const ctx=craftContext(actor,recipe,lib);
   if(ctx.blockers.length)throw Error(ctx.blockers[0]);
@@ -1698,6 +1717,7 @@ async function completeActivity(actor,recipeId,{confirm=true}={}){
   const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
   if(!recipe)throw Error('This activity is not available to you');
   if(!isActivity(recipe))throw Error(`${recipe.name} is crafted, not completed as an activity`);
+  if(isGmApplied(recipe))throw Error(`${recipe.name} is an enchantment: use Request enchanting`);
   const ctx=craftContext(actor,recipe,lib);
   if(ctx.blockers.length)throw Error(ctx.blockers[0]);
   const toolBlock=activityToolBlocker(recipe,actor);if(toolBlock)throw Error(`${toolBlock} (${actor.name} doesn’t have it).`);
@@ -1730,6 +1750,173 @@ async function completeActivity(actor,recipeId,{confirm=true}={}){
     try{await activityChatCard(actor,recipe,check);}catch(err){console.warn(`[${ID}] Activity completed; chat card failed`,err);}
     return {ok:true,message:`${actor.name} completed ${recipe.name}.`};
   }finally{activityLocks.delete(actor.id);}
+}
+
+/* ---- GM-applied enchantments (0.38.0) ------------------------------------------------------------
+ * A Recipe with kind "activity" and gm_applied makes nothing. The player picks the item to bring, rolls the check like Complete
+ * activity, and the Ledger posts ONE chat card whispered to the GMs and the character's owners. The GM presses Done (the GM
+ * client re-checks everything from the world, uses up the materials, and the card becomes the record) or Decline (nothing is
+ * used). The gp fee is collected by the GM; the effect is added to the item by hand. The card is the record: it survives a
+ * reload, unlike the in-memory gather request queue. Nothing about the table rule (one enchantment per item, attunement,
+ * magical) is enforced. */
+const enchantLocks=new Set();
+const enchantRecipients=actor=>[...new Set(allUsers().filter(u=>u.isGM||actor.testUserPermission?.(u,'OWNER')).map(u=>u.id))];
+const feeLine=gp=>gp?`Fee: ${gp} gp, collected by the GM (not deducted automatically).`:'';
+/** The request card. Players and the GM see the same text; the buttons are added for the GM when the card renders. */
+function enchantCardHtml(e){
+  const meta=[e.professionName,e.tier?tierLabel(e.tier):'',effortLabel(e.effort)].filter(Boolean).join(' · ');
+  const mats=e.materials.map(m=>`<li>${m.quantity} × ${esc(m.name)}</li>`).join('');
+  return `<div class="agl-chat-card agl-enchant-card">
+    <header><div><strong>${esc(e.actorName)} asks to enchant: ${esc(e.recipeName)}</strong><span>${esc(meta)}</span></div></header>
+    <p><strong>Bring:</strong> ${esc(e.bringText)}${e.item?` — <em>${esc(e.item.name)}</em>`:' — no item chosen; settle it at the table'}</p>
+    ${e.effect?`<p class="agl-chat-note"><strong>Effect:</strong> ${esc(e.effect)}</p>`:''}
+    ${mats?`<p>Used up when the GM marks it done:</p><ul>${mats}</ul>`:''}
+    ${e.fee?`<p class="agl-chat-note">${esc(feeLine(e.fee))}</p>`:''}
+    ${checkLine(e.check)}
+    <div class="agl-enchant-slot" data-agl-enchant></div>
+    <div class="agl-xp-slot" data-agl-xp></div></div>`;
+}
+/** Player/GM entry point: Request enchanting…. Checks, picks the item, rolls the check, posts the card. Owner or GM. */
+async function requestEnchanting(actor,recipeId,{confirm=true,itemId=undefined}={}){
+  checkPlayerLedger();
+  playable(actor);
+  if(!actor||!owned(actor))throw Error('You need to own that character to request enchanting');
+  if(!knownRecipesOf(actor).includes(recipeId))throw Error(`${actor.name} has not learned this recipe`);
+  const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
+  if(!recipe)throw Error('This recipe is not available to you');
+  if(!isGmApplied(recipe))throw Error(`${recipe.name} is not an enchantment`);
+  const ctx=craftContext(actor,recipe,lib);
+  if(ctx.blockers.length)throw Error(ctx.blockers[0]);
+  // Materials come from the requesting character alone: the GM client re-checks the same inventory at Done.
+  const own=planCraft(recipe,actor,[],{materialDefs:lib.materials,playerView:!game.user.isGM,nameOf:ing=>ingredientName(ing,lib)});
+  if(!own.ownReady)throw Error(`Missing ${own.missing.map(m=>`${m.missing} × ${m.name}`).join(', ')}`);
+  const candidates=bringCandidates(actor,recipe.bring),itemBlock=bringBlocker(recipe.bring,candidates,actor.name);
+  if(itemBlock)throw Error(itemBlock);
+  const req=craftRequirement(recipe,actor),cplan=req.checkPlan;
+  let picked=cplan?.selected??null,option=picked?checkOption(actor,picked):null;
+  const preset=picked?.key?rollModeFor(actor,{kind:picked.kind,key:picked.key}):{mode:0,sources:[]};
+  let mode=preset.mode;
+  const pool=[...candidates.matches,...candidates.others];
+  let item=itemId===undefined?candidates.matches[0]??null:itemId?pool.find(i=>i.id===itemId)??null:null;
+  const gp=extraCost(recipe);
+  if(confirm){
+    const opt=i=>`<option value="${esc(i.id)}"${item?.id===i.id?' selected':''}>${esc(i.name)}</option>`;
+    const picker=`<label class="ag-field">Item to bring<select name="item">${candidates.matches.length?`<optgroup label="${esc(`Matches “${recipe.bring.text}”`)}">${candidates.matches.map(opt).join('')}</optgroup>`:''}${candidates.others.length?`<optgroup label="${candidates.matches.length?'Other items (the GM decides)':'Your items (the GM decides)'}">${candidates.others.map(opt).join('')}</optgroup>`:''}<option value=""${item?'':' selected'}>None of these — settle it at the table</option></select></label>`;
+    const needs=[req.workstation?`<li>Station: <strong>${esc(req.workstation)}</strong> (confirm with your GM)</li>`:'',
+      req.tool?`<li>${req.tools.length>1?'Uses one of':'Uses'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — ${esc(lacksText(req,actor))}`:''}</li>`:'',
+      gp?`<li>Fee: ${gp} gp — the GM collects it.</li>`:''].join('');
+    const list=own.requirements.map(r=>`<li>${r.required} × ${esc(r.name)} <small>(${r.own} on hand)</small></li>`).join('');
+    const meta=[tierLabel(recipe.tier),effortLabel(recipe.effort)].filter(Boolean).join(' · ');
+    const answer=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:`Request ${recipe.name}?`},modal:true,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+      content:`<p>${esc(actor.name)} asks the GM to enchant an item with <strong>${esc(recipe.name)}</strong>${meta?` (${esc(meta)})`:''}. Bring ${esc(recipe.bring.text)}.</p>
+        ${effectNote(recipe)?`<p><strong>Effect:</strong> ${esc(effectNote(recipe))}</p>`:''}${picker}
+        <p>These are used up only when the GM marks the request done:</p><ul>${list}</ul>${needs?`<ul>${needs}</ul>`:''}
+        ${checkPickHtml(actor,{cplan,picked,option,mode,preset,card:'request card'})}`,
+      buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'request',label:'Request enchanting',default:true,callback:(event,button)=>({item:button?.form?.elements?.item?.value,mode:button?.form?.elements?.mode?.value,check:button?.form?.elements?.check?.value})}]});
+    if(!answer)return null;
+    if(typeof answer==='object'){
+      item=answer.item?pool.find(i=>i.id===answer.item)??null:null;
+      if(answer.mode!=null)mode=Math.sign(Number(answer.mode)||0);
+      const chosen=cplan?.options.find(o=>choiceOf(o)===answer.check);
+      if(chosen&&chosen!==picked){picked=chosen;option=checkOption(actor,picked);}
+    }
+  }
+  const lockKey=`${actor.id}:${recipe.id}`;
+  if(enchantLocks.has(lockKey))throw Error(`${actor.name} already has this request in progress`);
+  enchantLocks.add(lockKey);
+  try{
+    let check=null;
+    if(option){
+      try{const rolled=await rollCheck(actor,option,mode);check=rolled?{label:option.label,total:rolled.total,mode}:{label:option.label,unavailable:true};}
+      catch(err){throw Error(`Request cancelled (${err.message}).`);}
+    }
+    if(typeof globalThis.ChatMessage?.create!=='function')throw Error('The request card could not be posted');
+    const prof=professionLabel(recipe);
+    const profId=recipe.professionId??agSourceId(professionItems(actor).find(i=>professionKey(professionDisplayName(i))===professionKey(prof)))??null;
+    const record=requestRecord({actor,recipe,professionId:profId,professionName:prof,item,materials:own.requirements.map(r=>({materialId:r.materialId,name:r.name,quantity:r.required})),
+      fee:gp,effect:effectNote(recipe)??'',check,userId:game.user.id});
+    await ChatMessage.create({speaker:ChatMessage.getSpeaker?.({actor}),whisper:enchantRecipients(actor),content:enchantCardHtml(record),flags:{[ID]:{[ENCHANT_FLAG]:record}}});
+    return {ok:true,message:`${actor.name} asked the GM to enchant ${item?item.name:'an item'} with ${recipe.name}. Nothing is used until the GM marks it done.`};
+  }finally{enchantLocks.delete(lockKey);}
+}
+/** GM only: Done or Decline on an enchanting card. Done re-reads everything from the world, uses up the materials and marks the card;
+ * Decline marks the card and uses nothing. `confirm:false` skips the dialogs (tests, API). */
+async function resolveEnchantRequest(message,outcome,{reason='',confirm=true}={}){
+  checkPlayerLedger();
+  if(!game.user.isGM)throw Error('Only the GM can resolve an enchanting request');
+  const e=enchantOf(message);
+  if(!e)throw Error('This card is not an enchanting request');
+  if(e.status!=='requested')throw Error(`This request was already ${e.status}`);
+  if(!['done','declined'].includes(outcome))throw Error('Choose Done or Decline');
+  const key=`enchant:${message.id}`;
+  if(enchantLocks.has(key))throw Error('This request is already being handled');
+  enchantLocks.add(key);
+  try{
+    const actor=actorById(e.actorId);
+    if(!actor)throw Error(`${e.actorName} is no longer in this world`);
+    const by={[`flags.${ID}.${ENCHANT_FLAG}.resolvedAt`]:Date.now(),[`flags.${ID}.${ENCHANT_FLAG}.resolvedBy`]:game.user.id,[`flags.${ID}.${ENCHANT_FLAG}.resolvedByName`]:game.user.name};
+    if(outcome==='declined'){
+      let why=String(reason??'');
+      if(confirm){
+        const answer=await formDialog(`Decline ${e.recipeName}?`,[{name:'reason',label:'Reason (optional; the player sees it)',type:'textarea',value:''}],{ok:'Decline request'});
+        if(!answer)return null;
+        why=answer.reason??'';
+      }
+      why=why.replace(/\s+/g,' ').trim().slice(0,200);
+      await message.update({[`flags.${ID}.${ENCHANT_FLAG}.status`]:'declined',[`flags.${ID}.${ENCHANT_FLAG}.reason`]:why,...by});
+      await whisperXpNote(actor,`<strong>${esc(e.actorName)}: ${esc(e.recipeName)} declined by the GM</strong><span>${why?esc(why)+' · ':''}Nothing was used.</span>`);
+      return {ok:true,message:`Declined ${e.recipeName} for ${e.actorName}. Nothing was used.`};
+    }
+    // Done: nothing on the card is trusted for what gets consumed. The recipe, the character's knowledge and inventory are read again.
+    const authorId=message.author?.id??message.user?.id??(typeof message.author==='string'?message.author:null);
+    if(e.requesterId&&authorId&&e.requesterId!==authorId)throw Error('This card does not match the player who posted it');
+    const requester=userById(authorId??e.requesterId);
+    if(!requester||!userOwns(requester,actor))throw Error(`${requester?.name??'The requester'} does not own ${actor.name}`);
+    if(!knownRecipesOf(actor).includes(e.recipeId))throw Error(`${actor.name} has not learned ${e.recipeName}`);
+    const lib=catalog(),recipe=lib.recipes.find(r=>r.id===e.recipeId);
+    if(!recipe||!isGmApplied(recipe))throw Error(`${e.recipeName} is not an enchantment in this world any more`);
+    const blockers=craftBlockers({recipe,crafter:actor,knownIds:knownRecipesOf(actor),result:null,label:recipeWord(recipe,{capitalize:false})});
+    if(blockers.length)throw Error(blockers[0]);
+    const plan=planCraft(recipe,actor,[],{materialDefs:lib.materials,playerView:false,nameOf:ing=>ingredientName(ing,lib)});
+    if(!plan.ownReady)throw Error(`Missing ${plan.missing.map(m=>`${m.missing} × ${m.name}`).join(', ')}. Nothing was used.`);
+    const uses=plan.allocations.map(a=>`${a.quantity} × ${a.name}`).join(', ');
+    if(confirm){
+      const target=e.item?.name?(itemOf(actor,e.item.id)?e.item.name:`${e.item.name} (no longer carried)`):'the item they bring';
+      const ok=await confirmDialog(`${actor.name}: ${recipe.name} on ${target}.\nThis uses up: ${uses}.\nYou add the effect to the item by hand${e.fee?`, and collect the ${e.fee} gp fee`:''}.`,{title:'Mark enchanting done?',yes:'Mark done'});
+      if(!ok)return null;
+    }
+    const out=await executeConsume({crafter:actor,recipe,allocations:plan.allocations,actorOf:id=>game.actors?.get?.(id),canWrite:a=>owned(a)});
+    const suggestion=suggestActivityXP(recipe.tier,recipe.effort);
+    const profId=recipe.professionId??e.professionId??null;
+    const xp=xpFlag('activity',actor,{professionId:profId,professionName:e.professionName,suggested:suggestion.xp,suggestedBasis:suggestion.text});
+    try{
+      await message.update({[`flags.${ID}.${ENCHANT_FLAG}.status`]:'done',[`flags.${ID}.${ENCHANT_FLAG}.consumed`]:out.consumed,[`flags.${ID}.xp`]:xp,...by});
+    }catch(err){console.warn(`[${ID}] Enchanting done and materials used; the card could not be marked`,err);}
+    try{Hooks.callAll?.(XP_HOOK,{...structuredClone(xp),messageId:message?.id??null,recipeId:recipe.id,effort:recipe.effort??null});}catch(err){console.warn(`[${ID}] ${XP_HOOK} listener failed`,err);}
+    await whisperXpNote(actor,`<strong>${esc(e.actorName)}: ${esc(e.recipeName)} done</strong><span>${e.item?.name?`The GM adds the effect to ${esc(e.item.name)}. `:'The GM adds the effect to the item. '}Used: ${esc(uses)}.</span>`);
+    return {ok:true,message:`${recipe.name} done for ${actor.name}: used ${uses}. Add the effect to the item by hand.`,consumed:out.consumed};
+  }finally{enchantLocks.delete(key);}
+}
+/** renderChatMessageHTML: the status of an enchanting card, and the GM's Done and Decline buttons. */
+function decorateEnchantCard(message,html){
+  const e=enchantOf(message),slot=html?.querySelector?.('[data-agl-enchant]');
+  if(!e||!slot)return;
+  if(e.status==='done'){
+    const used=(e.consumed??[]).map(c=>`${Number(c.quantity)} × ${esc(c.name)}`).join(', ');
+    slot.innerHTML=`<p class="agl-chat-note"><strong>Done.</strong> ${esc(e.resolvedByName||'The GM')} applied the enchantment${used?`; used up: ${used}`:''}.</p>`;return;}
+  if(e.status==='declined'){
+    slot.innerHTML=`<p class="agl-chat-note"><strong>Declined</strong> by ${esc(e.resolvedByName||'the GM')}${e.reason?`: ${esc(e.reason)}`:''}. Nothing was used.</p>`;return;}
+  if(!game.user.isGM){slot.innerHTML='<p class="agl-chat-note">Waiting for the GM. Nothing is used up until they mark it done.</p>';return;}
+  slot.innerHTML=`<p class="agl-chat-note">${esc(TABLE_RULE)} GM only.</p>
+    <div class="ag-btn-group"><button type="button" class="ag-btn" data-agl-enchant-decline><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline…</button><button type="button" class="ag-btn ag-btn--primary" data-agl-enchant-done><i class="fa-solid fa-check" aria-hidden="true"></i> Done</button></div>`;
+  const run=async(button,outcome)=>{
+    const buttons=[...slot.querySelectorAll('button')];buttons.forEach(b=>{b.disabled=true;});
+    try{const out=await resolveEnchantRequest(message,outcome);if(!out)buttons.forEach(b=>{b.disabled=false;});else say(out.message);}
+    catch(err){buttons.forEach(b=>{b.disabled=false;});say(`Profession Ledger: ${err.message}`,true);}
+  };
+  const done=slot.querySelector('[data-agl-enchant-done]'),decline=slot.querySelector('[data-agl-enchant-decline]');
+  done?.addEventListener?.('click',event=>{event.preventDefault?.();run(done,'done');});
+  decline?.addEventListener?.('click',event=>{event.preventDefault?.();run(decline,'declined');});
 }
 
 /* ---- Gathering ---------------------------------------------------------------------------------
@@ -2770,6 +2957,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
   }
   if(action==='craft')return craft(actor,id);
   if(action==='complete-activity')return completeActivity(actor,id);
+  if(action==='request-enchanting')return requestEnchanting(actor,id);
   throw Error(`Unknown action ${action}`);
 }
 
@@ -3249,6 +3437,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>Skill trees:</strong> a profession card has an <em>Open skill tree…</em> button when Skill Trees is enabled; it opens that profession’s tree for the character (owner or GM).</p>
     <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: An activity that needs a tool is disabled (with the reason shown) until the character carries one; compositions at a station are not blocked. <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
+    <p><strong>Enchantments:</strong> some Enchanting recipes add an effect to an item you already own instead of making a new one. They show <em>Request enchanting…</em>: pick the item to bring, roll the check and the GM gets a card. The materials are used up only when the GM presses <em>Done</em>; <em>Decline…</em> uses nothing. The GM adds the effect to your item by hand and collects any gp fee; your item keeps its name.</p>
     <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
@@ -3972,7 +4161,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.labelDirty){await game.settings.set(ID,RECIPE_LABEL_SETTING,compactLabels(this.labelDraft));saved.push('recipe names');}
         if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
         this._clearSetupDrafts();this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
-      if(['learn-recipe','craft','complete-activity','award-xp','adjust-xp'].includes(action)){
+      if(['learn-recipe','craft','complete-activity','request-enchanting','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
         const q=n=>this.element?.querySelector?.(`[data-xp-${n}="${id}"]`)?.value;
@@ -4340,6 +4529,10 @@ Hooks.once('ready',()=>{
     craft:(actor,recipeId,options)=>craft(actor,recipeId,options),
     /** 0.28.0: complete an activity recipe (kind "activity"): roll, post the card with the GM's XP award. Owner or GM. */
     completeActivity:(actor,recipeId,options)=>completeActivity(actor,recipeId,options),
+    /** 0.38.0: ask the GM to enchant an item with a GM-applied enchantment recipe (`gm_applied`). Owner or GM. Posts a chat card; nothing is used yet. {confirm = true, itemId} */
+    requestEnchanting:(actor,recipeId,options)=>requestEnchanting(actor,recipeId,options),
+    /** 0.38.0, GM only: mark an enchanting card Done (uses up the materials) or Declined (uses nothing). outcome: 'done' | 'declined'; {reason, confirm = true}. */
+    resolveEnchantRequest:(message,outcome,options)=>resolveEnchantRequest(message,outcome,options),
     /** 0.29.0: what a profession (name or PROF-* id) calls a recipe, e.g. "Formula"; {plural, capitalize}. Display only: ids,
      * types and saved data say Recipe/REC- as before. Unknown professions get "Recipe". Feature-detect it. */
     recipeLabel:(professionNameOrId,{plural=false,capitalize=true}={})=>recipeLabelFor(professionNameOrId,{plural:Boolean(plural),capitalize:capitalize!==false}),
@@ -4480,10 +4673,11 @@ function addActorDirectoryLauncher(application, renderedElement){
 Hooks.on('closeApplicationV2',app=>openLedgerWindows.delete(app));
 Hooks.on('renderActorDirectory',(app,el)=>addActorDirectoryLauncher(app,el));
 Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,html);}catch(err){console.warn(`[${ID}] chat card controls`,err);}});
+Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(message,html);}catch(err){console.warn(`[${ID}] enchanting card controls`,err);}});
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
-  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
+  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

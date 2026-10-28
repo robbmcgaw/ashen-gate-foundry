@@ -340,8 +340,8 @@ function checkRecipes(game, ctx) {
   let craft = 0;
   for (const {id, source} of recipes) {
     const def = {id, ...(source.definition ?? {})};
-    // Activity recipes have no result item and no ingredients by design.
-    if (recipeKind(def) !== 'craft') continue;
+    // Activity recipes have no result item and no ingredients by design; a GM-applied enchantment still has ingredients (used when the GM marks it done).
+    if (recipeKind(def) !== 'craft' && def.gm_applied !== true) continue;
     craft++;
     const missing = [];
     const result = typeof def.result_item_id === 'string' ? def.result_item_id.trim() : '';

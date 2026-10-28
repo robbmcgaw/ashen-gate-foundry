@@ -1,6 +1,7 @@
 /** Ashen Gate Profession Ledger core v0.2.3; side-effect-free, reusable transforms. */
 export const SCHEMA = 'ag-ledger/0.1';
 import {BUILTIN_PROFESSIONS,allProfessions,declaredCategory} from './professions.mjs';
+import {cleanBring,gmAppliedFlag} from './enchanting.mjs';
 /** The 14 original professions, then Artistry (0.28.0); from the registry in professions.mjs. */
 export const PROFESSION_NAMES = Object.freeze(BUILTIN_PROFESSIONS.map(p=>p.name));
 export const norm = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
@@ -80,7 +81,10 @@ export function normalizeRecipe(raw) {
   const professionId=canonical?.profession_id ?? src?.profession_id ?? null;
   const resultItemId=canonical?.result_item_id ?? src?.result_item_id ?? null;
   const profession=src?.professionName??src?.profession??raw?.profession??professionId??'';
-  return {id, name, profession:displayProfession(profession),professionId,kind:recipeKind(canonical,src,raw),
+  const kind=recipeKind(canonical,src,raw),gmApplied=kind==='activity'&&gmAppliedFlag(canonical,src,raw);
+  return {id, name, profession:displayProfession(profession),professionId,kind,
+    // 0.38.0: a GM-applied enchantment (`gm_applied`, an activity): the player brings an item (`bring`) and the GM adds the effect by hand.
+    gmApplied,bring:gmApplied?cleanBring(canonical?.bring??src?.bring??raw?.bring):null,
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
     // 0.30.0: `starting: true` marks a starting recipe (the GM grants these from Assign → Starting recipes).
     starting:[canonical,src,raw].some(x=>x?.starting===true),

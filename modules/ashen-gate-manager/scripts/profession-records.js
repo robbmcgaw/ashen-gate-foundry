@@ -8,6 +8,9 @@
  *    as its recipe Item (the learnable item). For an activity `required_tools` are alternatives (any one).
  *  - 0.49.0 (Ledger 0.29.0), optional and display only: an activity's `effect_note` (or `effectNote`; up to 400 characters,
  *    a boon the GM decides) and a profession's `recipeLabel` / `recipeLabelPlural` (1–30 characters; its word for a recipe).
+ *  - 0.73.0 (Ledger 0.38.0), display only: `gm_applied: true` on an activity (a GM-applied enchantment: the player brings an item named by
+ *    `bring.text`, the GM adds the effect by hand, nothing is made) shows a "GM-applied" chip and a Bring line. The fields round-trip in the
+ *    stored definition like every other; no validation is added here (the schema and the supplement's normalizer check them).
  *  - 0.70.8 (supplement recipes carry `required_tools` XOR `workstation`): a recipe shows ONE requirement row. A `workstation` shows
  *    "Workstation: <name>" and never the tools; tools show "Tools: A or B" (any-of, for crafts and activities alike); a recipe with
  *    neither shows "Tools: Profession default" (the Ledger's configured tool). Both present is a content defect: the station wins.
@@ -35,6 +38,15 @@ export function recipeKind(record) {
   return lower(record?.kind) === 'activity' ? 'activity' : 'craft';
 }
 export const isActivityRecipe = record => recipeKind(record) === 'activity';
+/** 0.73.0: `gm_applied: true` counts only on an activity Recipe (same reading as the Ledger). */
+export const gmApplied = record => isActivityRecipe(record) && record?.gm_applied === true;
+/** The player-facing "bring" text of a GM-applied enchantment: whitespace collapsed, 1 to 80 characters, else null. */
+export function bringText(record) {
+  const value = record?.bring?.text;
+  if (typeof value !== 'string') return null;
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length >= 1 && text.length <= 80 ? text : null;
+}
 
 const tierLabel = tier => tier === null || tier === undefined || tier === '' ? null
   : /^\d+$/.test(String(tier)) ? `Tier ${tier}` : capital(String(tier).replace(/[-_]+/g, ' '));
@@ -83,10 +95,12 @@ export function professionFacts(record) {
     const requirement = station ? ['Workstation', station] : ['Tools', tools.length ? tools.map(t => t.trim()).join(' or ') : 'Profession default'];
     // 0.49.0: only activities carry an effect note (the Ledger shows it nowhere else).
     const note = activity ? effectNoteOf(record) : null;
+    // 0.73.0 (Ledger 0.38.0): a GM-applied enchantment (`gm_applied` on an activity) makes no item; the player brings `bring.text`.
+    const applied = gmApplied(record), bring = applied ? bringText(record) : null;
     const fields = [['Recipe kind', label], ['Effort', effort], ['Tier', tier],
-      requirement, ['Effect note', note]].filter(([, v]) => v);
-    return {label, fields, summary: [label, effort ? `${effort} effort` : null, tier, note ? 'Effect note' : null].filter(Boolean).join(' · '),
-      chips: [label, note ? 'Effect note' : null].filter(Boolean), searchText: [label, note].filter(Boolean)};
+      requirement, applied ? ['Applied by', 'GM'] : null, ['Bring', bring], ['Effect note', note]].filter(f => f && f[1]);
+    return {label, fields, summary: [label, applied ? 'GM-applied' : null, effort ? `${effort} effort` : null, tier, note ? 'Effect note' : null].filter(Boolean).join(' · '),
+      chips: [label, applied ? 'GM-applied' : null, bring ? `Bring: ${bring}` : null, note ? 'Effect note' : null].filter(Boolean), searchText: [label, applied ? 'GM-applied enchantment' : null, bring, note].filter(Boolean)};
   }
   if (isProfessionRecord(record)) {
     const category = professionCategory(record), recipeLabel = recipeLabelText(record);
