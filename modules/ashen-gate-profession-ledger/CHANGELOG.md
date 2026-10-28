@@ -1,3 +1,11 @@
+## 0.39.0 — 2026-10-28
+
+Favorite recipes and professions.
+
+- A star on each profession card and each known recipe card marks it as a favorite for that character. Favorite professions come first in the Professions list and their folders come first under Known recipes; favorite recipes come first in their folder. Under Professions a **Favorite recipes** list shows the starred recipes (select a name to jump to its card; the star there removes it). **Favorites only (n)** above Known recipes hides the rest; it is remembered on this device.
+- Stored on the character (`flags.ashen-gate-profession-ledger.favorites = {professions, recipes}`), so each character has its own. Only the character's owners and the GM can change them; the check is in the data layer (`api.setFavorite`), not only in the buttons. Only a recipe the character knows (and this user may read) and a profession the character holds can be starred, so favorites reveal nothing. Missing or malformed data is read as empty; ids that no longer exist are ignored and dropped the next time a favorite is changed. A change to favorites does not re-run the GM's recipe-preview rebuild.
+- API: `api.getFavorites(actor)` (OBSERVER or GM) and `api.setFavorite(actor, {kind: 'recipe'|'profession', id, on})` (OWNER or GM). Also works on the sheet tab and the Character Hub embed (stars and ordering; the filter is in the window).
+- Help: a paragraph on favorites. No other saved data changes.
 ## 0.38.0 — 2026-10-28
 
 GM-applied enchantments: **Request enchanting…**.

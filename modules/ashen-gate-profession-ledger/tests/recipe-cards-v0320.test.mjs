@@ -34,7 +34,7 @@ world.get=id=>world.find(x=>x.id===id);
 const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:true,items:[{id:'bprof',name:'[TEST] Alchemy — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-ALCHEMY','Profession',{definition:def('PROF-TEST-ALCHEMY','Profession',{name:'[TEST] Alchemy'})})}],flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-TEST-SALVE','REC-TEST-JEST']}},
   testUserPermission:(u,role)=>u.isGM||u.id==='u1'||role==='LIMITED'};
 belwar.items.get=id=>belwar.items.find(i=>i.id===id)??null;
-const moduleObj={active:true,version:'0.38.0',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.39.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar],get:id=>id==='belwar'?belwar:undefined},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -60,7 +60,7 @@ test('standard recipe card: header badges, Needs → Makes, effort, station, sum
   assert.match(h,/<span class="agl-qty">2 ×<\/span>/);
   assert.match(h,/<span class="agl-label agl-label--inline">Station<\/span>/,'a workstation recipe names no tool');
   assert.match(h,/<span class="agl-label agl-label--inline">Station<\/span> <span>\[TEST\] Laboratory<\/span>/);
-  assert.doesNotMatch(h,/(REC|MAT|ITEM|PROF)-TEST/,'no internal ids in the card’s text or tooltips');
+  assert.doesNotMatch(h.replace(/ data-id="[^"]*"/g,''),/(REC|MAT|ITEM|PROF)-TEST/,'no internal ids in the card’s text or tooltips');
   assert.doesNotMatch(h.replace(/data-id="[^"]*"/g,''),/(REC|MAT|ITEM|PROF)-/,'none in the markup either (apart from the action buttons’ own data-id)');
 });
 

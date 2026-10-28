@@ -8,6 +8,7 @@ import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionS
 import {planCraft,craftBlockers,executeCraft,executeConsume,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {ENCHANT_FLAG,TABLE_RULE,isGmApplied,hasBringFilter,bringCandidates,bringBlocker,requestRecord,enchantOf} from './enchanting.mjs';
 import {tierBadge} from './tier-style.mjs';
+import {FAVORITES_FLAG,favoritesOf,planFavorite,favoritesFirst,filterFavorites} from './favorites.mjs';
 import {recipeTexts} from './recipe-text.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {journalFolderId,backupsFolderId,migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
@@ -35,7 +36,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.38.0';
+const VERSION='0.39.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1349,7 +1350,7 @@ const recipeDetailsKey=id=>{let h=5381;for(const c of String(id??''))h=((h*33)^c
 const recipeDetailsOpen=id=>recipeDetailsState()[recipeDetailsKey(id)]!==false;
 function flushRecipeDetails(){clearTimeout(recipeDetailsTimer);recipeDetailsTimer=null;try{uiState(ID).set('recipeDetails',recipeDetailsState());}catch{}}
 function setRecipeDetails(entries){const st=recipeDetailsState();for(const [id,open] of entries){if(open)delete st[id];else st[id]=false;}if(!recipeDetailsTimer)recipeDetailsTimer=setTimeout(flushRecipeDetails,200);}
-function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true}={}){
+function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true,favorite=null}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
   const ctx=ctxKey(recipe.id);
@@ -1428,7 +1429,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   const requirementLine=craft||learnItem?requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null):'';
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
-      <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
+      <div class="agl-recipe-title">${favorite&&actor?favButton({kind:'recipe',id:recipe.id,actor,name:recipe.name,on:favorite.on}):''}${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
         <span class="agl-recipe-badges">${gmApplied?badge('Enchantment'):activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
       <div class="agl-recipe-actions">${actions}</div>
     </div>
@@ -1508,12 +1509,70 @@ function xpModeClick(button){
   fold?.querySelectorAll?.('[data-xp-pane]')?.forEach(pane=>{pane.hidden=pane.dataset.xpPane!==mode;});
   return true;
 }
-function professionCard(actor,p,{lastAward=null}={}){
+/* ---- 0.39.0: favorites. Per character, stored on the Actor (flags.<id>.favorites); owners and GMs write, nobody else. ---- */
+const favQueues=new Map();
+/** What this character may star right now: held professions, known recipes (new stars only for ones this user can read). */
+function favoriteScope(actor){
+  const lib=catalog();
+  const known=knownRecipesOf(actor);
+  return {valid:{professions:new Set(professionItems(actor).map(agSourceId)),recipes:new Set(known)},
+    canAdd:{professions:new Set(professionItems(actor).map(agSourceId)),recipes:new Set(known.filter(id=>partyRecipeDefinition(id,lib)))}};
+}
+/** Star or un-star one recipe or profession of a character. OWNER or GM only; changes nothing else. */
+async function setFavorite(actor,{kind,id,on}={}){
+  checkPlayerLedger();
+  playable(actor);
+  if(!actor||!owned(actor))throw Error('You need OWNER permission on that character to change its favorites');
+  const key=actor.id,run=async()=>{
+    const {valid,canAdd}=favoriteScope(actor);
+    const plan=planFavorite(actor.flags?.[ID]?.[FAVORITES_FLAG],{kind,id,on},valid,canAdd);
+    if(plan.changed)await actor.setFlag(ID,FAVORITES_FLAG,plan.next);
+    return {kind,id,on:plan.on,changed:plan.changed,favorites:favoritesOf({flags:{[ID]:{[FAVORITES_FLAG]:plan.next}}})};
+  };
+  // One change at a time per character, so two quick clicks cannot overwrite each other.
+  const next=(favQueues.get(key)??Promise.resolve()).catch(()=>{}).then(run);
+  favQueues.set(key,next);
+  try{return await next;}finally{if(favQueues.get(key)===next)favQueues.delete(key);}
+}
+/** The character's favorites that still exist (stale ids left out). OBSERVER or GM. */
+function getFavorites(actor){
+  checkPlayerLedger();
+  if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');
+  const lib=catalog(),fav=favoritesOf(actor),profs=new Set(professionItems(actor).map(agSourceId)),known=new Set(knownRecipesOf(actor));
+  return {professions:fav.professions.filter(id=>profs.has(id)),recipes:fav.recipes.filter(id=>known.has(id)&&partyRecipeDefinition(id,lib))};
+}
+/** A star toggle: a real button, state in aria-pressed (the label stays the same), filled star when on. */
+function favButton({kind,id,actor,name,on,where=''}){
+  return `<button type="button" class="ag-btn ag-btn--icon ag-btn--sm ag-btn--ghost agl-fav${on?' is-on':''}" data-action="fav-${kind}" data-id="${esc(id)}" data-actor="${esc(actor.id)}"${where?` data-where="${where}"`:''} aria-pressed="${on?'true':'false'}" aria-label="${esc(`Favorite ${kind}: ${name}`)}" ${tip(on?'Remove from favorites':'Add to favorites')}><i class="fa-${on?'solid':'regular'} fa-star" aria-hidden="true"></i><span class="ag-sr-only">${on?'Favorite':'Not a favorite'}</span></button>`;
+}
+/** Handles fav-recipe / fav-profession clicks from the window, the sheet tab and the embed. Returns true when it was one. */
+async function favoriteClick(button){
+  const action=button?.dataset?.action;
+  if(action!=='fav-recipe'&&action!=='fav-profession')return false;
+  const kind=action==='fav-recipe'?'recipe':'profession',actor=actorById(button.dataset.actor),id=button.dataset.id;
+  const was=favoritesOf(actor)[kind==='recipe'?'recipes':'professions'].includes(id);
+  await setFavorite(actor,{kind,id,on:!was});
+  return true;
+}
+/** fav-jump: open the folders around a favorite recipe's card, bring it into view and put focus on its star. */
+function favJumpClick(button){
+  if(button?.dataset?.action!=='fav-jump')return false;
+  const root=button.closest?.('.agl-character')??button.getRootNode?.();
+  const star=[...(root?.querySelectorAll?.('.agl-recipe-row .agl-fav[data-action="fav-recipe"]')??[])].find(b=>b.dataset.id===button.dataset.id);
+  const row=star?.closest?.('.agl-recipe-row');
+  if(!row)return true;
+  if(row.hidden){say('That recipe is hidden by the search. Clear the search to see it.',true);return true;}
+  for(let el=row.parentElement;el;el=el.parentElement)if(el.tagName==='DETAILS')el.open=true;
+  row.scrollIntoView?.({block:'center'});
+  star.focus?.();
+  return true;
+}
+function professionCard(actor,p,{lastAward=null,favorite=null}={}){
   const gm=game.user.isGM;
   const flash=lastAward&&lastAward.actorId===actor.id&&lastAward.profId===p.sourceId;
   const value=`${p.xp} XP${p.toNext!==null?` · ${p.toNext} XP to level ${p.level+1}`:' · maximum level'}`;
   return `<div class="ag-card agl-prof ${flash?'agl-flash':''}">
-    <div class="agl-prof-head"><strong class="agl-prof-name" data-tooltip="${esc(p.name)}">${esc(p.name)}</strong><span class="agl-prof-badges">${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</span></div>
+    <div class="agl-prof-head">${favorite?favButton({kind:'profession',id:p.sourceId,actor,name:p.name,on:favorite.on}):''}<strong class="agl-prof-name" data-tooltip="${esc(p.name)}">${esc(p.name)}</strong><span class="agl-prof-badges">${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</span></div>
     <div class="ag-meter ag-meter--ok"><span class="ag-meter__label">${tierBadge(p.tier,esc)}</span><span class="ag-meter__value">${esc(value)}</span><span class="ag-meter__track" role="progressbar" aria-label="${esc(p.name)} XP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}" aria-valuetext="${esc(value)}" style="--ag-meter:${p.percent}%"><span class="ag-meter__fill"></span></span></div>
     ${p.tracked?'':'<div class="agl-sub">No XP awarded yet.</div>'}
     ${skillTreesApi()&&owned(actor)?`<div class="agl-prof-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="skilltree" data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open skill tree…</button></div>`:''}
@@ -1521,12 +1580,15 @@ function professionCard(actor,p,{lastAward=null}={}){
   </div>`;
 }
 /** The crafting panel for one character: used by the Individual tab and the Tidy5e sheet tab. */
-function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'}={}){
-  const profs=professionsOf(actor),mats=materialsOf(actor,lib);
+function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app',favOnly=false}={}){
+  const fav=favoritesOf(actor),favRec=new Set(fav.recipes),favProf=new Set(fav.professions),canFav=owned(actor)&&!isLevelBackup(actor);
+  const profs=favoritesFirst(professionsOf(actor),favProf,p=>p.sourceId),mats=materialsOf(actor,lib);
   const known=knownRecipesOf(actor);
-  const knownRows=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).map(recipe=>({group:professionLabel(recipe),recipe,
-    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM})}));
-  const hiddenKnown=known.length-knownRows.length;
+  const allKnown=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
+  const favShown=allKnown.filter(r=>favRec.has(r.id));
+  const knownRows=filterFavorites(favoritesFirst(allKnown,favRec,r=>r.id),favRec,favOnly&&canFav,r=>r.id).map(recipe=>({group:professionLabel(recipe),recipe,order:favProf.has(recipe.professionId)?-1:0,
+    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM,favorite:canFav?{on:favRec.has(recipe.id)}:null})}));
+  const hiddenKnown=known.length-allKnown.length;
   // 0.36.0: entries of the known-recipes list that the catalog no longer has (everyone sees the count; only the GM gets the button).
   const gone=missingRecipeCount({known,knownRaw:Array.isArray(actor.flags?.[ID]?.knownRecipes)?actor.flags[ID].knownRecipes:null,recipes:lib.recipes,exactCatalog:game.user.isGM});
   const canRefresh=game.user.isGM&&surface==='app'&&isPlayerCharacter(actor);
@@ -1542,9 +1604,13 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   return `<div class="agl-character ${surface==='sheet'?'agl-on-sheet':''}">
     <section class="agl-col-side">
       <div class="agl-section"><h3>Professions</h3>
-        ${profs.map(p=>professionCard(actor,p,{lastAward})).join('')||emptyState(`${esc(actor.name)} has no profession yet.`,game.user.isGM?'Drag a profession feature (imported by General Manager) onto the character sheet, or use Assign.':'Your GM adds professions to your character.')}
+        ${profs.map(p=>professionCard(actor,p,{lastAward,favorite:canFav?{on:favProf.has(p.sourceId)}:null})).join('')||emptyState(`${esc(actor.name)} has no profession yet.`,game.user.isGM?'Drag a profession feature (imported by General Manager) onto the character sheet, or use Assign.':'Your GM adds professions to your character.')}
         ${profs.length?`<p class="agl-sub agl-where"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> XP is stored on ${esc(actor.name)} by the Profession Ledger, and also shown in each profession feature’s description on the character sheet.</p>`:''}
       </div>
+      ${canFav||favShown.length?`<div class="agl-section agl-favs"><h3>Favorite recipes <span class="ag-badge">${favShown.length}</span></h3>
+        ${favShown.length?`<ul class="ag-rows">${favShown.map(r=>`<li class="ag-row"><span class="ag-row__main"><button type="button" class="ag-link" data-action="fav-jump" data-id="${esc(r.id)}" ${tip('Show in Known recipes')}>${esc(r.name)}</button>${rowMeta(esc(professionLabel(r)))}</span>${canFav?`<span class="ag-row__end">${favButton({kind:'recipe',id:r.id,actor,name:r.name,on:true,where:'side'})}</span>`:''}</li>`).join('')}</ul>`
+          :`<p class="agl-sub">Star a recipe under Known recipes to keep it here.</p>`}
+      </div>`:''}
       <div class="agl-section"><h3>Materials</h3>
         ${mats.length?`<ul class="ag-rows">${mats.map(i=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(i.name)}</span>${rowMeta(qualityBadge(materialQuality(i.sourceId,lib)))}</span><span class="ag-row__end"><b>× ${i.qty}</b></span></li>`).join('')}</ul>`
           :emptyState('No crafting materials yet.','Materials appear here when the character gathers or carries them.')}
@@ -1554,8 +1620,8 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
       ${toLearn.length?`<div class="agl-section"><h3>Recipes to learn <span class="ag-badge">${toLearn.length}</span></h3>
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
       <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
-        ${refreshButton||(surface==='app'&&knownRows.length+toLearn.length>1)?`<div class="ag-btn-group agl-folder-actions">${refreshButton}${surface==='app'&&knownRows.length+toLearn.length>1?`<button type="button" class="ag-btn ag-btn--sm" data-action="details-expand"><i class="fa-solid fa-angles-down" aria-hidden="true"></i> Expand all</button><button type="button" class="ag-btn ag-btn--sm" data-action="details-collapse"><i class="fa-solid fa-angles-up" aria-hidden="true"></i> Collapse all</button>`:''}</div>`:''}${goneNote}${replacedNote}
-        ${folders(knownRows,closed)||emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.')}
+        ${refreshButton||(surface==='app'&&knownRows.length+toLearn.length>1)||(surface==='app'&&canFav&&allKnown.length)?`<div class="ag-btn-group agl-folder-actions">${refreshButton}${surface==='app'&&canFav&&allKnown.length?`<button type="button" class="ag-chip" data-action="fav-only" aria-pressed="${favOnly?'true':'false'}" ${tip('Show only starred recipes')}>Favorites only (${favShown.length})</button>`:''}${surface==='app'&&knownRows.length+toLearn.length>1?`<button type="button" class="ag-btn ag-btn--sm" data-action="details-expand"><i class="fa-solid fa-angles-down" aria-hidden="true"></i> Expand all</button><button type="button" class="ag-btn ag-btn--sm" data-action="details-collapse"><i class="fa-solid fa-angles-up" aria-hidden="true"></i> Collapse all</button>`:''}</div>`:''}${goneNote}${replacedNote}
+        ${folders(knownRows,closed)||(favOnly&&canFav&&allKnown.length?emptyState('No favorite recipes yet.','Star a recipe, or turn off Favorites only to see them all.'):emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.'))}
         ${hiddenKnown>0?`<p class="agl-sub">${game.user.isGM?`${plural(hiddenKnown,'known recipe is','known recipes are')} not in this world’s recipe catalog, so ${hiddenKnown===1?'it isn’t':'they aren’t'} listed and can’t be crafted. Import ${hiddenKnown===1?'it':'them'} with General Manager.`
           :`${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now: your GM hasn’t released ${hiddenKnown===1?'it':'them'} in this world yet, so ${hiddenKnown===1?'it':'they'} can’t be crafted.`}</p>`:''}
       </div>
@@ -3152,7 +3218,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   render(options){checkPlayerLedger();return super.render(options);}
   // Compact size; Comfortable scales it when the window is created (windowSize). A size the user resized to is kept by Foundry.
   constructor(options={},...rest){super({...options,position:{...windowSize(LedgerApp.DEFAULT_OPTIONS.position),...options?.position}},...rest);this.view='individual';this.actorId=null;this.demo=false;this.query='';
-    this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
+    this.closedFolders=new Set();this.favOnly=this._favOnlyStored();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
     // source: 'location' | 'template' (0.25.0, a Ledger node template) | 'adhoc'. allowDraft: the GM's "use draft materials anyway".
     // source: 'adhoc' | 'location' | 'template' (0.25.0, a Ledger node template). professions: null = the saved spot's own. allowDraft: the GM's "use draft materials anyway".
@@ -3177,6 +3243,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   /** Per-user, per-device UI memory (sub-tabs, folds); never world data. */
   get _ui(){return this.__ui??=uiState(ID);}
+  _favOnlyStored(){try{return this._ui.get('favOnly',false)===true;}catch{return false;}}
   /** Asks before closing over unsaved GM Setup or node editor changes (Keep editing is the default). */
   async close(options={}){
     if(this._treeTimer)this._flushTree();
@@ -3218,7 +3285,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!actor)return game.user.isGM&&!rosterIds().length?this._noRoster():(game.user.isGM?emptyState('No characters in the party.','Add characters in GM Setup.'):emptyState('No character of yours in the party yet.','Ask your GM to add your character to the party.'));
     const picker=mine.length>1?`<label class="ag-field ag-field--inline">Character <select data-agl-actor>${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong></div>`;
     const gmNote=game.user.isGM?notice(`Viewing <b>${esc(actor.name)}</b> as GM. Award or adjust XP under <b>GM: XP</b> on a profession below; ${actor.hasPlayerOwner?'the player learns recipes from their own Ledger or sheet.':'you can learn recipes for this character.'}`):'';
-    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes')}<div class="ag-toolbar__filters">${picker}</div></div>${gmNote}${characterPanel(actor,lib,{closed:this.closedFolders,lastAward:this.lastAward})}`;
+    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes')}<div class="ag-toolbar__filters">${picker}</div></div>${gmNote}${characterPanel(actor,lib,{closed:this.closedFolders,lastAward:this.lastAward,favOnly:this.favOnly})}`;
   }
   _party(lib){
     if(!rosterIds().length)return this._noRoster();
@@ -3587,6 +3654,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _help(){return `
     <p><strong>Individual:</strong> your character’s crafting bench: professions with level and XP, materials, recipe items you can learn, and known recipes. <em>Craft</em> checks you know the recipe and have the materials, uses them up and puts the crafted item in your inventory, with a chat card. If a party member has what you’re missing, <em>Craft — ask the party</em> asks their owner on their screen; any decline cancels and nothing is used.</p>
+    <p><strong>Favorites:</strong> the star on a profession pins it to the top of your list; the star on a known recipe moves it to the top of its profession and adds it to <em>Favorite recipes</em> under your professions (select a name there to jump to the card). <em>Favorites only</em> above Known recipes hides every other recipe. Favorites belong to each character; only that character’s owners and the GM can change them. Nothing else changes.</p>
     <p><strong>Learn:</strong> a recipe item in your inventory has a Learn button. Learning uses up one recipe item and the recipe stays known.</p>
     <p><strong>Party:</strong> every party member’s materials and recipes, by player or by profession.</p>
     <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked':''}.</p>
@@ -4336,6 +4404,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.labelDirty){await game.settings.set(ID,RECIPE_LABEL_SETTING,compactLabels(this.labelDraft));saved.push('recipe names');}
         if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
         this._clearSetupDrafts();this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
+      if(action==='fav-jump'){favJumpClick({dataset:{action,id},closest:()=>this.element?.querySelector?.('.agl-character')});return;}
+      if(action==='fav-only'){this.favOnly=!this.favOnly;try{this._ui.set('favOnly',this.favOnly);}catch{}await this.render();return;}
+      if(action==='fav-recipe'||action==='fav-profession'){
+        await favoriteClick({dataset:{action,id,actor:data.actor??this.actor?.id}});
+        await this.render();
+        // Unstarring in "Favorites only" removes the card; keep focus in the list by landing on the filter.
+        const sel=`[data-action="${action}"][data-id="${String(id).replace(/["\\]/g,'\\$&')}"]`;
+        if(!this.element?.querySelector?.(sel))this.element?.querySelector?.('[data-action="fav-only"]')?.focus?.({preventScroll:true});
+        return;}
       if(['learn-recipe','craft','complete-activity','request-enchanting','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
@@ -4599,9 +4676,10 @@ function renderSheetTab(params){
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
-    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
+      if(b.dataset.action==='fav-recipe'||b.dataset.action==='fav-profession'){const kept=captureFocus(target);await favoriteClick(b);renderSheetTab({...params,tabContentsElement:target});restoreFocus(target,kept);return;}
       if(b.dataset.action==='open-ledger'){game.modules.get(ID)?.api?.open({actorId:sheetActor.id,view:'individual'});return;}
       const input=b.dataset.action==='award-xp'?target.querySelector(`[data-xp-input="${b.dataset.id}"]`):null;
       const q=n=>target.querySelector(`[data-xp-${n}="${b.dataset.id}"]`)?.value;
@@ -4643,10 +4721,11 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
-    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
+      if(b.dataset.action==='fav-recipe'||b.dataset.action==='fav-profession'){const kept=captureFocus(element);await favoriteClick(b);ctrl.render();restoreFocus(element,kept);return;}
       const input=b.dataset.action==='award-xp'?element.querySelector(`[data-xp-input="${b.dataset.id}"]`):null;
       const q=n=>element.querySelector(`[data-xp-${n}="${b.dataset.id}"]`)?.value;
       const adj=b.dataset.action==='adjust-xp';
@@ -4707,6 +4786,10 @@ Hooks.once('ready',()=>{
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     adjustProfessionXP:(actor,profId,options)=>adjustXP(actor,profId,options),
     getProfessionXPHistory:(actor,profId)=>{if(!game.user.isGM)throw Error('Only the GM can read XP history');return xpHistoryOf(actor,profId);},
+    /** 0.39.0: a character's favorites {professions:[PROF-*],recipes:[REC-*]} (stale ids left out). OBSERVER or GM. */
+    getFavorites:actor=>getFavorites(actor),
+    /** 0.39.0: star or un-star one recipe or profession: setFavorite(actor,{kind:'recipe'|'profession',id,on}). OWNER or GM only; resolves {kind,id,on,changed,favorites}. */
+    setFavorite:(actor,change)=>setFavorite(actor,change),
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
     learnRecipe:(actor,item)=>{checkPlayerLedger();return learnRecipe(actor,item);},
@@ -4822,7 +4905,7 @@ Hooks.once('ready',()=>{
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
   // 0.33.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
   const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
-  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();if(game.user?.isGM&&((doc?.documentName==='Item'&&!doc.parent)||(hook==='updateActor'&&!(rest[0]?.flags?.[ID]&&Object.keys(rest[0].flags[ID]).every(k=>k===PREVIEW_FLAG)))))publishPreviewsSoon();});
+  for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();if(game.user?.isGM&&((doc?.documentName==='Item'&&!doc.parent)||(hook==='updateActor'&&!(rest[0]?.flags?.[ID]&&Object.keys(rest[0].flags[ID]).every(k=>k===PREVIEW_FLAG||k===FAVORITES_FLAG)))))publishPreviewsSoon();});
   Hooks.on('ashenGate.bulkFinished',()=>{refresh();publishPreviewsSoon();});
   publishPreviewsSoon();
   // 0.37.12: Locations' Active places changed on this client: the player's request picker and the GM's queue notes re-read.
@@ -4865,7 +4948,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(message,html);}catch(err){console.warn(`[${ID}] enchanting card controls`,err);}});
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
-export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
+export const _test={favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
