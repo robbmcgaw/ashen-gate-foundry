@@ -343,8 +343,9 @@ test('cancel stops between chunks; running again finishes the job', async () => 
   assert.ok(done > 0 && done < 7, `partly applied (${done})`);
   const rest = await world.run(set);
   assert.equal(rest.cancelled, false);
-  assert.equal(world.plan(set).counts.overwrite, 0);
-  assert.equal(rest.counts.updated, 7 - done, 'only what was left');
+  // 0.74.0: records whose only difference is the name are Renames (same writes, no phrase needed), not Overwrites.
+  assert.deepEqual([world.plan(set).counts.overwrite, world.plan(set).counts.rename], [0, 0]);
+  assert.equal(rest.counts.renamed + rest.counts.updated, 7 - done, 'only what was left');
 });
 
 test('deletes are skipped when an earlier step failed', async () => {
@@ -540,7 +541,7 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.73.0');
+  assert.equal(manifest.version, '0.74.0');
   assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /m);
 });
 
@@ -564,16 +565,20 @@ test('by default a record edited in your world is kept and listed; unedited ones
   const world = makeWorld({docs: [unedited, edited, actor, legacy], overwriteEdited: false});
   const set = set1([item('MAT-A', 'A new'), item('MAT-B', 'B new'), npc('NPC-A', 'A', {system: {abilities: {str: {value: 16}}}}), item('MAT-C', 'C new')]);
   const plan = world.plan(set);
-  assert.deepEqual([plan.counts.overwrite, plan.counts.keptEdited], [1, 3]);
+  assert.deepEqual([plan.counts.overwrite, plan.counts.keptEdited, plan.counts.rename], [1, 3, 1]);
   const kept = plan.rows.filter(r => r.keptEdited);
   assert.deepEqual(sorted(kept), ['MAT-B', 'MAT-C', 'NPC-A']);
-  assert.ok(kept.find(r => r.id === 'MAT-B').changes.some(c => c.path === 'name'), 'what would differ stays available');
+  // 0.74.0: the rename the GM did not make by hand follows the package (its own Rename row); the GM's edit and the rest stay kept.
+  assert.ok(plan.rows.some(r => r.group === 'rename' && r.id === 'MAT-B' && r.partial), 'the rename is its own row');
+  assert.ok(!kept.find(r => r.id === 'MAT-B').changes.some(c => c.path === 'name'));
+  assert.ok(kept.find(r => r.id === 'MAT-C').changes.some(c => c.path === 'name'), 'with no record of the last import the name is not called a rename; what would differ stays available');
   assert.match(kept.find(r => r.id === 'MAT-C').reason, /no record of the last import/);
   const out = await world.run(set);
   assert.equal(out.counts.updated, 1);
   assert.equal(unedited.raw.name, 'A new');
-  assert.deepEqual([edited.writes.length, actor.writes.length, legacy.writes.length], [0, 0, 0], 'edited records are not written at all');
-  assert.equal(edited.raw.name, 'B');
+  assert.equal(out.counts.renamed, 1);
+  assert.deepEqual([edited.writes.length, actor.writes.length, legacy.writes.length], [1, 0, 0], 'edited records are written only for the rename');
+  assert.equal(edited.raw.name, 'B new'); assert.equal(edited.raw.system.price.value, 99);
   // The option lets the package win again, counting what is lost.
   const wins = makeWorld({docs: [edited], overwriteEdited: true}).plan(set1([item('MAT-B', 'B new')]));
   assert.deepEqual([wins.counts.overwrite, wins.counts.keptEdited], [1, 0]);

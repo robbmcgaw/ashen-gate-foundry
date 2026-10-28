@@ -2,14 +2,14 @@
  * Sync from package (0.56.0): the window section, as HTML text so the Node suite can check what the GM is told.
  * The wiring (file picker, buttons, progress) is in main.js; every control here carries a data attribute it binds.
  */
-import {SYNC_NAME, SYNC_PHRASE, phraseOk} from './sync.js';
+import {SYNC_NAME, SYNC_PHRASE, phraseOk, phraseRequired} from './sync.js';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** Rows shown per group before "and N more"; deletions are never cut off: every one is listed by name and kind. */
 export const SHOWN_ROWS = 300;
 
-export const SYNC_INTRO = `${SYNC_NAME} makes the world match the files you choose, as if they were literally the old files. A record that matches by permanent id is updated to the package's version; one you edited in this world since it was imported is kept as it is (listed, with what would differ) unless you tick the option below. Records Manager imported from these packages that no file mentions are deleted. Character sheets are never touched: no player character, nothing on one, no hotbar. An Item that is also on a character sheet stays there exactly as it is, even when the world Item is changed or deleted. Documents Manager did not import (your own, core and player ones) are never read or changed.`;
+export const SYNC_INTRO = `${SYNC_NAME} makes the world match the files you choose, as if they were literally the old files. A record that matches by permanent id is updated to the package's version; one you edited in this world since it was imported is kept as it is (listed, with what would differ) unless you tick the option below. Records Manager imported from these packages that no file mentions are deleted. Character sheets are never touched: no player character, nothing on one, no hotbar. An Item that is also on a character sheet stays there exactly as it is, even when the world Item is changed or deleted. A record the package renamed is renamed in your world too (listed under Renames, no typed confirmation when that is all the run does), unless you renamed it by hand. Documents Manager did not import (your own, core and player ones) are never read or changed.`;
 
 const group = (title, count, body, {open = false} = {}) => `<details class="ag-fold"${open ? ' open' : ''}>
   <summary class="ag-fold__summary"><span class="ag-fold__title">${esc(title)}</span><span class="ag-fold__count">${count}</span></summary>
@@ -24,6 +24,9 @@ function overwriteRow(r) {
   return `<li class="ag-row"><details class="ag-row__main"><summary><strong>${esc(r.name)}</strong> ${esc(r.kind)} · ${plural(r.changes.length, 'difference')}${edits}</summary>
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Field</th><th scope="col">Now</th><th scope="col">Package</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div></details></li>`;
 }
+
+/** A rename (0.74.0): "Old name → New name", with what it does and does not touch. */
+const renameLine = r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.rename?.from ?? '')} → ${esc(r.rename?.to ?? r.name)}</span><span class="ag-row__meta">${esc(r.kind)} — ${esc(r.reason)}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`;
 
 /** "Keeping your art" (0.70.0): one short line per record, expandable to the fields (what the world has now, what the package has). */
 function artRow(a) {
@@ -70,7 +73,7 @@ export function syncView(state) {
   if (files.length) parts.push(`<details class="ag-fold" open><summary class="ag-fold__summary"><span class="ag-fold__title">Files in this sync</span><span class="ag-fold__count">${files.length}</span></summary><div class="ag-fold__body">
     <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Package line</th></tr></thead><tbody>${fileRows}</tbody></table></div>
     ${state.skipped.length ? `<p class="agmanager-tiny">Not part of the sync: ${state.skipped.map(s => `<code>${esc(s.filename)}</code> (${esc(s.reason)})`).join('; ')}</p>` : ''}</div></details>`);
-  const adv = [state.deleteUnscoped ? 'deleting records not in the files' : null, state.overwriteEdited ? 'overwriting edited records' : null, state.replaceArt ? 'replacing art' : null, state.recreateTypeChange ? 'recreating Items whose type changed' : null].filter(Boolean);
+  const adv = [state.deleteUnscoped ? 'deleting records not in the files' : null, state.overwriteEdited ? 'overwriting edited records' : null, state.replaceArt ? 'replacing art' : null, state.recreateTypeChange ? 'recreating Items whose type changed' : null, state.updateActors ? 'updating Actors from the package' : null].filter(Boolean);
   parts.push(`<details class="ag-fold agm-sync-advanced" data-ag-fold="sync-advanced" ${adv.length ? 'open' : ''}><summary class="ag-fold__summary"><span class="ag-fold__title">Advanced</span><span class="ag-fold__hint">${esc(adv.length ? `On: ${adv.join(', ')}` : 'Default: keep what you edited, keep your art, delete only what the files drop')}</span></summary><div class="ag-fold__body">`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-unscoped ${state.deleteUnscoped ? 'checked' : ''} ${busy ? 'disabled' : ''}> <strong>Also delete records not in these files</strong></label>
     <p class="ag-field__hint">Off by default. Records imported by an older Manager have no package line, so Sync cannot tell whether they belong to these files and keeps them. Ticking this lets Sync delete those that no chosen file mentions. Only documents with Manager's flag are ever considered.</p>`);
@@ -80,6 +83,8 @@ export function syncView(state) {
     <p class="ag-field__hint">Off by default: such an Item stays in the Refused list with its reason. dnd5e cannot change an Item's type in place, so On deletes the world Item and creates it again from the package (same folder; readable by players as the Items setting says; flags other modules put on it are copied over; art you set is kept). Its id stays live, nothing is retired. Copies on character sheets are separate documents and are not touched.</p>`);
   parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-art ${state.replaceArt ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>Also replace art I set</strong></label>
     <p class="ag-field__hint">Off by default, and separate from the option above. Art you set yourself (a portrait, a token image or a token ring, for example from Link files to records) is always kept, even when you overwrite edited records. On: art you changed is replaced by the package's art. The backup keeps what you had.</p>`);
+  parts.push(`<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-sync-actors ${state.updateActors ? 'checked' : ''} ${busy || !state.isGM ? 'disabled' : ''}> <strong>Also update Actors from the package</strong></label>
+    <p class="ag-field__hint">Off by default: Actors are handled as before. On: each NPC Actor the files carry takes the package's new stat block, comparing the last import, your world and the package. Abilities, skills, traits, AC, max HP, name, and the items, features and spells that came from the package follow the package where it changed. Your art, token settings, ownership, folder, notes in the biography, items you added, current HP (until the NPC is back at its imported HP), item uses and quantities are kept. Player characters are never touched. The preview lists these Actors under Actor updates; the backup keeps what you had.</p>`);
   parts.push('</div></details>');
   parts.push('<h3 class="agm-step"><span class="agm-step__n">2</span> Preview</h3>');
   parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
@@ -101,13 +106,15 @@ export function syncView(state) {
         ${plan.overwriteEdited ? `<span class="ag-badge ag-badge--warn"><strong>${plan.lost}</strong> GM-edited field${plan.lost === 1 ? '' : 's'} will be lost</span>` : ''}
         ${c.metadataRefreshes ? `<span class="ag-badge"><strong>${c.metadataRefreshes}</strong> metadata refresh${c.metadataRefreshes === 1 ? '' : 'es'} (no content change)</span>` : ''}
         ${c.artKept ? `<span class="ag-badge ag-badge--ok"><strong>${c.artKept}</strong> keeping your art</span>` : ''}
+        ${c.rename ? `<span class="ag-badge ag-badge--ok"><strong>${c.rename}</strong> rename${c.rename === 1 ? '' : 's'}</span>` : ''}
+        ${c.actorUpdates ? `<span class="ag-badge ag-badge--ok"><strong>${c.actorUpdates}</strong> Actor update${c.actorUpdates === 1 ? '' : 's'}</span>` : ''}
         ${c.recreate ? `<span class="ag-badge ag-badge--warn"><strong>${c.recreate}</strong> recreate</span>` : ''}
         ${plan.replaceArt ? `<span class="ag-badge ag-badge--warn">art you set will be replaced</span>` : ''}
         ${c.refused ? `<span class="ag-badge ag-badge--warn"><strong>${c.refused}</strong> refused</span>` : ''}</div>`);
       if (!plan.errors.length && (plan.records > 0 || plan.counts.delete > 0 || plan.counts.metadataRefreshes > 0 || plan.counts.supersedeFiles > 0)) parts.push(`<p><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-sync-jump><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> Jump to confirm and run</button></p>`);
       parts.push(`<p class="agmanager-tiny">Character sheets and everything on them are untouched (${plural(plan.characterCount, 'player character')} in this world). Item copies on character sheets stay exactly as they are even where the world Item is updated or deleted.</p>`);
       const rows = g => plan.rows.filter(r => r.group === g);
-      const creates = rows('create'), over = rows('overwrite').filter(r => !r.metadataOnly), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
+      const creates = rows('create'), actorUpd = rows('overwrite').filter(r => !r.metadataOnly && r.actorUpdate), over = rows('overwrite').filter(r => !r.metadataOnly && !r.actorUpdate), renames = rows('rename'), meta = rows('overwrite').filter(r => r.metadataOnly), del = rows('delete'), keep = rows('untouched'), kept = keep.filter(r => r.keptEdited && !r.keptRemoved), keptGone = keep.filter(r => r.keptRemoved);
       const list = (items, fn, cap = SHOWN_ROWS) => `<ul class="ag-rows">${items.slice(0, cap).map(fn).join('')}</ul>${more(Math.min(cap, items.length), items.length)}`;
       if ((plan.offers ?? []).length) parts.push(replacesFold(plan));
       const art = plan.artKept ?? [];
@@ -115,6 +122,8 @@ export function syncView(state) {
       const reb = rows('rebind');
       if (reb.length) parts.push(group('Replaced in place', reb.length, list(reb, overwriteRow), {open: reb.length <= 12}));
       parts.push(group('Create', creates.length, creates.length ? list(creates, line) : '<p class="agmanager-tiny">Nothing new.</p>'));
+      if (renames.length) parts.push(group('Renames', renames.length, `<p class="agmanager-tiny">The package gives these records a new name. Applying renames the same document (its permanent id, links, folder, ownership and sheets stay; no duplicate is made). A name you changed by hand is never renamed unless you tick Also overwrite records I edited.</p><ul class="ag-rows">${renames.slice(0, SHOWN_ROWS).map(renameLine).join('')}</ul>${more(Math.min(SHOWN_ROWS, renames.length), renames.length)}`, {open: renames.length <= 40}));
+      if (state.updateActors || actorUpd.length) parts.push(group('Actor updates', actorUpd.length, `<p class="agmanager-tiny">${actorUpd.length ? 'Each Actor takes what the package changed since the last import. Open one to see the fields. Kept: your art, token settings, ownership, folder, biography notes, items you added, current HP, item uses and quantities. A field of yours that the package also changed is replaced and counted as a GM edit.' : 'No Actor differs from the package.'}</p>${actorUpd.length ? list(actorUpd, overwriteRow) : ''}`, {open: actorUpd.length > 0 && actorUpd.length <= 12}));
       parts.push(group('Overwrite', over.length, `${over.length ? list(over, overwriteRow) : '<p class="agmanager-tiny">No content differs.</p>'}`, {open: over.length > 0 && over.length <= 12}));
       const recs = rows('recreate');
       if (recs.length) parts.push(group('Recreate', recs.length, `<p class="agmanager-tiny">dnd5e cannot change an Item's type in place, so each of these world Items is deleted and created again from the package, keeping its folder, flags from other modules and art you set. Copies on character sheets are untouched.</p><ul class="ag-rows">${recs.slice(0, SHOWN_ROWS).map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.recreate.from)} → ${esc(r.recreate.to)}</span></span></li>`).join('')}</ul>${more(Math.min(SHOWN_ROWS, recs.length), recs.length)}`, {open: recs.length <= 12}));
@@ -140,10 +149,11 @@ export function syncView(state) {
       parts.push('<h3 class="agm-step"><span class="agm-step__n">3</span> Confirm and run</h3>');
       if (plan.metadataOnly) parts.push(`<p class="ag-notice ag-notice--info" role="note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span><strong>Nothing in your world's content changes.</strong> ${plural(plan.counts.metadataRefreshes, 'record')} will have their stored package data (definition, version, provenance) updated. That is how new fields in the package, such as <code>former_starting</code> on recipes, reach the world.</span></p>`);
       else if (plan.counts.metadataRefreshes) parts.push(`<p class="agmanager-tiny">${plural(plan.counts.metadataRefreshes, 'record')} also get their stored package data refreshed (no content change).</p>`);
-      const danger = Boolean(plan.destructive);
-      parts.push(`<div class="ag-field agm-sync-confirm" id="agm-sync-confirm"><label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>
-        <div class="ag-cluster"><input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>
-        <button type="button" class="ag-btn ${danger ? 'ag-btn--danger' : 'ag-btn--primary'}" data-ag-action="sync-run" data-ag-sync-run ${busy || !phraseOk(state.phrase) ? 'disabled' : ''}><i class="fa-solid ${danger ? 'fa-trash-can' : 'fa-rotate'}" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button></div>
+      const danger = Boolean(plan.destructive), needsPhrase = phraseRequired(plan);
+      if (!needsPhrase) parts.push(`<p class="ag-notice ag-notice--info" role="note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span><strong>Only renames.</strong> ${plural(plan.counts.rename, 'record')} will be renamed to the package's name. Nothing else in your world changes, so no typed confirmation is needed.</span></p>`);
+      parts.push(`<div class="ag-field agm-sync-confirm" id="agm-sync-confirm">${needsPhrase ? `<label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>` : ''}
+        <div class="ag-cluster">${needsPhrase ? `<input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>` : ''}
+        <button type="button" class="ag-btn ${danger ? 'ag-btn--danger' : 'ag-btn--primary'}" data-ag-action="sync-run" data-ag-sync-run ${busy || (needsPhrase && !phraseOk(state.phrase)) ? 'disabled' : ''}><i class="fa-solid ${danger ? 'fa-trash-can' : needsPhrase ? 'fa-rotate' : 'fa-pen'}" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button></div>
         <span class="ag-field__hint">A JSON backup of every document this run will overwrite, refresh or delete downloads first (a metadata refresh is included, so the backup is small when only a few records change). If it cannot be saved, nothing is written. Running the same files again changes nothing more, and a run you cancel is finished by running it again.</span></div>`);
     }
     if (state.progress) parts.push(`<div class="ag-cluster agclean-running" aria-label="Sync progress"><progress class="agclean-bar" data-ag-sync-bar max="1" value="${state.progress.pct}" aria-label="Sync progress"></progress>

@@ -152,6 +152,8 @@ export function nameIndex(docs) {
 }
 /** Set by planSync (the planners are called without a context): ctx.recreateTypeChange = "Also recreate Items whose type changed". */
 const recreateMode = {on: false};
+/** Set by planSync: ctx.updateActors = "Also update Actors from the package" (0.74.0). Off: Actors are planned exactly as before. */
+const actorMode = {update: false};
 const memoOf = snap => { try { return JSON.parse(snap.flag?.[MEMO_KEY] ?? 'null') ?? {}; } catch { return {}; } };
 
 // ---------- field comparison ----------
@@ -223,7 +225,7 @@ function matches(path, live, incoming, memo) {
  * Differences between live data and the package's flat fields. `baseline` is the last import (flat); a changed live value
  * that is neither the baseline nor the incoming value is a GM edit this sync will replace.
  */
-export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => false, label = p => p, kind = 'Actor'} = {}) {
+export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => false, keep = () => false, label = p => p, kind = 'Actor'} = {}) {
   const changes = [], patch = {}, artKept = [];
   for (const [path, incoming] of Object.entries(fields)) {
     if (emptyObject(incoming) || skip(path)) continue;
@@ -238,6 +240,7 @@ export function diffFields(raw, fields, {baseline = {}, memo = {}, skip = () => 
       changes.push({path, label: label(path), from: show(live), to: show(incoming), gmEdited: decision === 'keep', art: true});
       continue;
     }
+    if (keep(path, live, incoming)) continue; // 0.74.0: a three-way rule (the package did not change it, or it is the GM's to keep)
     const gmEdited = own(baseline, path) && !same(live, baseline[path]) && !equivalentValue(path, live, baseline[path]);
     patch[path] = incoming;
     changes.push({path, label: label(path), from: hasMarker(incoming) ? '(text with links)' : show(live), to: hasMarker(incoming) ? '(text with links)' : show(incoming), gmEdited});
@@ -379,13 +382,45 @@ function planMacro(record, snap) {
   return {fields: patch, changes, notes, artKept, contentChange: changes.length > 0};
 }
 
+const BIO_PATH = 'system.details.biography.value', HP_PATH = 'system.attributes.hp.value', HP_MAX = 'system.attributes.hp.max';
+const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/**
+ * 0.74.0 "Also update Actors from the package": the three-way rule for one Actor field. The last import (baseline), the world and the
+ * package are compared; a field the package did not change since the last import is never written (a GM edit stays, and so does
+ * a value dnd5e stored differently), a field the package changed is written (replacing a GM edit, which the row counts), and the
+ * GM's own things win even when the package changed them: token settings and the biography are written only while they are still
+ * as the last import left them.
+ */
+function actorKeep(baseline) {
+  const unchangedByPackage = (path, incoming) => own(baseline, path) && (same(baseline[path], incoming) || equivalentValue(path, baseline[path], incoming));
+  return (path, live, incoming) => {
+    if (unchangedByPackage(path, incoming)) return true;
+    if ((path === BIO_PATH || path.startsWith('prototypeToken.')) && own(baseline, path)) return !(same(live, baseline[path]) || equivalentValue(path, live, baseline[path]));
+    return false;
+  };
+}
+/** Current HP: follows the package while the NPC is still at the HP the last import gave it; otherwise kept, and never above the new maximum. */
+function hpPatch(raw, data, baseline, patch, changes) {
+  const live = num(getPath(raw, HP_PATH)), incoming = num(getPath(data, HP_PATH)), max = num(own(patch, HP_MAX) ? patch[HP_MAX] : getPath(raw, HP_MAX));
+  if (live === null) return;
+  if (incoming !== null && own(baseline, HP_PATH) && same(live, baseline[HP_PATH]) && live !== incoming) {
+    patch[HP_PATH] = incoming; changes.push({path: HP_PATH, label: HP_PATH, from: show(live), to: show(incoming), gmEdited: false});
+  } else if (max !== null && live > max) {
+    patch[HP_PATH] = max; changes.push({path: HP_PATH, label: HP_PATH, from: show(live), to: show(max), gmEdited: false});
+  }
+}
+
 function planActor(record, snap) {
   const data = record.foundry.data, raw = snap.raw, baseline = snap.flag?.managedFields ?? {}, memo = memoOf(snap);
+  const upd = actorMode.update;
   if (raw.type === 'character') return refuse('Character sheets are never changed by Sync.');
   if (data.type === 'character') return refuse('The package record is a character; Sync never writes characters.');
   if (raw.type !== data.type) return refuse(`The world Actor is a ${raw.type} and the package says ${data.type}.`);
   const fields = incomingFields(record);
-  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, kind: 'Actor'});
+  // The biography is where the GM writes notes: Sync has always kept it. With the switch it follows the package only while it is untouched.
+  if (upd && typeof getPath(data, BIO_PATH) === 'string') fields[BIO_PATH] = getPath(data, BIO_PATH);
+  const {changes, patch, artKept} = diffFields(raw, fields, {baseline, memo, kind: 'Actor', ...(upd ? {keep: actorKeep(baseline)} : {})});
+  if (upd) hpPatch(raw, data, baseline, patch, changes);
   const notes = [];
   if (objects(data.effects).length) notes.push('Actor-level effects are not synced (conditions are play state)');
   // Embedded Items: the package's own (marked) Items follow it; anything the GM added stays.
@@ -396,6 +431,11 @@ function planActor(record, snap) {
   const unmarked = (type, name) => liveItems.filter(i => !keyOf(i) && i.type === type && i.name === name);
   const legacy = !raw.flags?.[MODULE_ID]?.[ACTOR_ITEMS_FLAG];
   const items = {create: [], update: [], adopt: [], delete: []};
+  const flagged = def => {
+    const copy = structuredClone(def);
+    if (Array.isArray(copy.effects)) copy.effects = upgradeEffectChanges(copy.effects);
+    return copy;
+  };
   defs.forEach((def, i) => {
     const key = keys[i];
     let liveItem = marked.get(key);
@@ -405,8 +445,7 @@ function planActor(record, snap) {
       if (found.length === 1) { liveItem = found[0]; items.adopt.push({_id: liveItem._id, key}); }
     }
     if (!liveItem) {
-      const copy = structuredClone(def);
-      if (Array.isArray(copy.effects)) copy.effects = upgradeEffectChanges(copy.effects);
+      const copy = flagged(def);
       copy.flags = {...(copy.flags ?? {}), [MODULE_ID]: {...(copy.flags?.[MODULE_ID] ?? {}), [ITEM_FLAG]: key}};
       items.create.push(copy); changes.push({path: `items.${key}`, label: `item "${def.name}"`, from: '—', to: 'added', gmEdited: false});
       return;
@@ -418,6 +457,7 @@ function planActor(record, snap) {
       if (ITEM_PLAY_STATE.has(path) || emptyObject(incoming)) continue;
       const cur = getPath(liveItem, path);
       if (matches(`item:${key}:${path}`, cur, incoming, memo)) continue;
+      if (upd && own(baseLeaves, path) && (same(baseLeaves[path], incoming) || equivalentValue(path, baseLeaves[path], incoming))) continue; // the package did not change it
       itemPatch[path] = incoming; bits.push(path);
       if (own(baseLeaves, path) && !same(cur, baseLeaves[path])) edited = true;
     }
@@ -429,7 +469,7 @@ function planActor(record, snap) {
     const textKeys = [...new Set([...Object.keys(stored), ...Object.keys(incomingDef)])].filter(k => !same(stored[k], incomingDef[k])).sort();
     if (textKeys.length) changes.push({path: 'definition', label: 'record text', from: 'older', to: textKeys.join(', '), gmEdited: false});
   }
-  return {fields: patch, items, changes, notes, artKept, contentChange: changes.length > 0};
+  return {fields: patch, items, changes, notes, artKept, contentChange: changes.length > 0, ...(upd ? {actorUpdate: true} : {})};
 }
 
 /**
@@ -467,11 +507,25 @@ export function planRebind(record, snap) {
   const type = record.foundry?.document_type, planner = PLANNERS[type];
   if (!planner || !['Actor', 'JournalEntry', 'Item'].includes(type)) return refuse(`A ${type ?? 'record'} cannot be replaced in place.`);
   const virtual = {...snap, raw: snap.raw, flag: {...(snap.flag ?? {}), sourceId: record.id}};
-  const p = planner(record, virtual);
+  const was = actorMode.update; actorMode.update = false; // a replace-in-place has its own rules (the package wins)
+  let p;
+  try { p = planner(record, virtual); } finally { actorMode.update = was; }
   if (p.refuse) return p;
   if (p.recreate) return refuse(`The world Item is a ${p.recreate.from} and the package says ${p.recreate.to}; a replaced-in-place Item cannot change type.`);
   adjustRebindOps(p, record, snap.raw);
   return p;
+}
+/**
+ * 0.74.0: a content-driven rename. The package's name for a record differs from the world document's, and the world document still
+ * carries the name the last import gave it (the GM did not rename it by hand). Without that baseline name the two cannot be told apart,
+ * so nothing is called safe. Only the name is judged here; the rest of the record is planned as always.
+ */
+const RENAME_OK = new Set(['name', 'definition']);
+export function renameOf(snap, p) {
+  const to = p?.fields?.name;
+  if (typeof to !== 'string' || !(p.changes ?? []).some(c => c.path === 'name' && !c.art)) return null;
+  const from = snap.raw?.name, base = snap.flag?.managedFields;
+  return {from, to, safe: isPlainObject(base) && own(base, 'name') && same(from, base.name)};
 }
 const META_KEYS = ['entityType', 'status', 'visibility', 'version', 'sourceVersion', 'provenance', 'scope', 'schemaVersion', 'ownerSystemId', 'objectiveKind', 'definition', 'packageId', 'packageVersion', 'ownedResourceIds'];
 const metaDiff = (flag, expected) => META_KEYS.filter(k => canonical(flag?.[k] ?? null) !== canonical(expected?.[k] ?? null));
@@ -524,7 +578,8 @@ export function planSync(set, world, ctx = {}) {
   uuidSourceIds = new Map(docs.filter(d => d.uuid && d.flag?.sourceId).map(d => [d.uuid, d.flag.sourceId]));
   artMode.replace = Boolean(ctx.replaceArt);
   recreateMode.on = Boolean(ctx.recreateTypeChange);
-  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt)};
+  actorMode.update = Boolean(ctx.updateActors);
+  const plan = {ok: !errors.length, errors, rows, notes, set, counts: {}, lost: 0, metadataRefreshes: 0, scope: {}, characterCount: world.characterCount ?? 0, deleteUnscoped: Boolean(ctx.deleteUnscoped), overwriteEdited: Boolean(ctx.overwriteEdited), replaceArt: Boolean(ctx.replaceArt), updateActors: Boolean(ctx.updateActors)};
   const lines = [...set.lines.values()];
   plan.scope = {
     files: set.files.map(f => ({filename: f.filename, origin: f.origin, kind: f.kind, records: f.records, packageId: f.packageId, version: f.version})),
@@ -614,18 +669,35 @@ export function planSync(set, world, ctx = {}) {
       if (record.foundry.document_type === 'Item' && activityLinksNeeded(record, snap.raw)) meta.push('activity effect links');
       if (!p.contentChange && !meta.length) { rows.push(untouched(id, name, kind, `Already matches the package.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`, {...base, unchanged: true})); have.add(id); continue; }
       const lost = lostOf(p.changes);
-      const edited = p.contentChange ? editedFields(record, snap, p.changes) : [];
+      // 0.74.0: with "Also update Actors from the package" the three-way rule (planActor) already protects what is the GM's, so an Actor is not kept for an edit.
+      const edited = p.contentChange && !p.actorUpdate ? editedFields(record, snap, p.changes) : [];
+      const rn = p.contentChange ? renameOf(snap, p) : null;
+      const renameRow = partial => ({group: 'rename', renameOnly: !partial, partial, key: rowKey('rename', kind, id), id, kind, snap, changes: partial ? [] : p.changes.filter(c => c.path === 'name'), lost: 0,
+        ops: partial ? {rename: {from: rn.from, to: rn.to}} : p, rename: {from: rn.from, to: rn.to},
+        reason: `Renamed in the package: ${rn.from} → ${rn.to}. The same ${kind === 'JournalEntry' ? 'journal' : kind === 'RollTable' ? 'roll table' : kind.toLowerCase()} keeps its id, links, folder, ownership and sheets.${partial ? ' Your other edits to it are kept.' : ''}`, ...base, name: rn.to});
+      const nameTaken = rn?.safe && Boolean(world.unflaggedNames?.[record.foundry.document_type]?.has?.(rn.to));
       if (edited.length && !ctx.overwriteEdited) {
         // Edited in this world since the import: left alone, with what would differ available on expand.
+        let shown = p.changes;
+        if (rn?.safe) {
+          // 0.74.0: a rename the GM did not make by hand follows the package even when the rest of the record is kept (only the name is written).
+          if (nameTaken) rows.push(untouched(id, name, kind, `Not renamed to ${rn.to}: an unmanaged document with that name exists; rename or resolve it first.`, {...base, refused: true}));
+          else { rows.push(renameRow(true)); shown = p.changes.filter(c => c.path !== 'name'); }
+        }
         rows.push(untouched(id, name, kind, `Kept: edited in your world (${edited.slice(0, 4).join(', ')}${edited.length > 4 ? `, +${edited.length - 4} more` : ''}). Tick "Also overwrite records I edited" to replace it with the package's version.`,
-          {...base, keptEdited: true, changes: p.changes, editedFields: edited, snap}));
+          {...base, keptEdited: true, changes: shown, editedFields: edited, snap}));
         have.add(id); continue;
+      }
+      if (rn?.safe && !edited.length && p.changes.every(c => RENAME_OK.has(c.path))) {
+        // Only the name (and stored record text) differs: a rename, not a replacement.
+        if (nameTaken) { rows.push(untouched(id, name, kind, `Not renamed to ${rn.to}: an unmanaged document with that name exists; rename or resolve it first.`, {...base, refused: true})); have.add(id); continue; }
+        rows.push(renameRow(false)); continue;
       }
       if (!p.contentChange) {
         rows.push({group: 'overwrite', metadataOnly: true, key: rowKey('overwrite', kind, id), id, name, kind, reason: `Content already matches; refreshes ${meta.join(', ')}.`, changes: [], lost: 0, snap, ops: p, ...base});
         plan.metadataRefreshes++; continue;
       }
-      rows.push({group: 'overwrite', key: rowKey('overwrite', kind, id), id, name, kind, reason: `${p.changes.length} difference(s) from the package${lost ? `, ${lost} of them replace a GM edit` : ''}.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`,
+      rows.push({group: 'overwrite', key: rowKey('overwrite', kind, id), id, name, kind, ...(p.actorUpdate ? {actorUpdate: true} : {}), reason: `${rn?.safe ? `Also renamed: ${rn.from} → ${rn.to}. ` : ''}${p.changes.length} difference(s) from the package${lost ? `, ${lost} of them replace a GM edit` : ''}.${p.notes.length ? ` ${p.notes.join('; ')}.` : ''}`,
         changes: p.changes, lost: Math.max(lost, edited.length), snap, ops: p, ...base});
       kinds.overwrite++; plan.lost += Math.max(lost, edited.length);
     } catch (error) {
@@ -716,15 +788,17 @@ function planModuleRows(set, ctx, rows, errors) {
   const map = (action, reason) => action === 'create' ? 'create' : action === 'update' ? 'overwrite' : 'untouched';
   const push = (record, moduleLabel, kind, res, extra = {}) => {
     let group = map(res.action), more = {}, reason = res.reason;
+    const name = record.location?.name ?? record.route?.name ?? record.name ?? record.id;
     if (group === 'create') more = {fp: handoffFingerprint(record)}; // remembered after the hand-off, so the next sync can say Unchanged
     if (group === 'overwrite') {
       const fp = handoffFingerprint(record), entry = ctx.ledger?.[ledgerKey(extra.line)]?.[record.id];
       const d = handoffDecision({fp, entry, held: ctx.heldFingerprint?.(moduleLabel === 'Utilities' ? 'shops' : 'locations', record.id) ?? null, overwriteEdited: ctx.overwriteEdited});
       group = d.group; more = {fp, ...(d.unchanged ? {unchanged: true} : {}), ...(d.keptEdited ? {keptEdited: true} : {})};
+      const renamed = entry?.name && name && entry.name !== name && !d.unchanged && !d.keptEdited ? `Renamed in the package: ${entry.name} → ${name}. ` : '';
       reason = d.unchanged ? `Already matches the package (last handed to ${moduleLabel} unchanged).` : d.keptEdited ? `Kept: edited in ${moduleLabel}. Tick "Also overwrite records I edited" to replace it.`
-        : `${res.reason} ${d.first ? 'No earlier import is recorded for this record, so it is passed on once and remembered. ' : ''}Passed to ${moduleLabel}, which keeps its own state; no per-field preview is available.`;
+        : `${renamed}${res.reason} ${d.first ? 'No earlier import is recorded for this record, so it is passed on once and remembered. ' : ''}Passed to ${moduleLabel}, which keeps its own state; no per-field preview is available.`;
     }
-    rows.push({group, key: rowKey(group, kind, record.id), id: record.id, name: record.location?.name ?? record.route?.name ?? record.name ?? record.id, kind, record, external: true, module: moduleLabel,
+    rows.push({group, key: rowKey(group, kind, record.id), id: record.id, name, kind, record, external: true, module: moduleLabel,
       reason, changes: [], lost: 0, refused: res.action === 'blocked', ...more, ...extra});
   };
   const locationIds = ctx.locationIds ?? null;
@@ -773,9 +847,10 @@ function planModuleRows(set, ctx, rows, errors) {
 }
 
 function finish(plan) {
-  const c = {create: 0, overwrite: 0, rebind: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
+  const c = {create: 0, overwrite: 0, rebind: 0, rename: 0, actorUpdates: 0, delete: 0, untouched: 0, refused: 0, notRemoved: 0, keptEdited: 0, keptRemoved: 0};
   for (const r of plan.rows) {
     if (r.group === 'overwrite' && r.metadataOnly) { c.metadataRefreshes = (c.metadataRefreshes ?? 0) + 1; continue; }
+    if (r.group === 'overwrite' && r.actorUpdate) c.actorUpdates++; // also counted as an overwrite: it is one, listed in its own group
     if (r.group === 'recreate') { c.recreate = (c.recreate ?? 0) + 1; continue; }
     c[r.group]++;
     if (r.group === 'untouched' && r.refused) c.refused++;
@@ -789,14 +864,15 @@ function finish(plan) {
   c.artKept = withArt.length;
   plan.artKept = withArt.map(r => ({key: r.key, id: r.id, name: r.name, kind: r.kind, group: r.group, summary: artSentence(r.artKept.map(a => a.path), r.kind), fields: r.artKept}));
   plan.counts = c;
-  plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects} : r.reason)]));
+  plan.fingerprint = contentHash(plan.rows.map(r => [r.group, r.key, contentHash(r.ops ? {f: r.ops.fields, i: r.ops.items, p: r.ops.pages, r: r.ops.results, e: r.ops.effects, n: r.rename} : r.reason)]));
   c.supersedeFiles = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0).length;
-  plan.records = c.create + c.overwrite + c.rebind + (c.recreate ?? 0);
+  plan.records = c.create + c.overwrite + c.rebind + c.rename + (c.recreate ?? 0);
   // 0.72.1: the run button says what it does. Metadata refreshes are not "replaced" records, and nothing is "deleted" unless it is.
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const parts = [];
   const basic = c.create + c.overwrite + c.rebind;
   if (basic > 0) parts.push(`${!c.overwrite && !c.rebind ? 'Create' : 'Replace'} ${plural(basic, 'record')}${c.rebind ? ` (${c.rebind} in place)` : ''}`);
+  if (c.rename > 0) parts.push(`rename ${plural(c.rename, 'record')}`);
   if (c.recreate > 0) parts.push(`recreate ${plural(c.recreate, 'Item')}`);
   if (c.metadataRefreshes > 0) parts.push(`refresh metadata on ${plural(c.metadataRefreshes, 'record')}`);
   if (c.delete > 0) parts.push(`delete ${c.delete}`);
@@ -804,7 +880,19 @@ function finish(plan) {
   plan.buttonLabel = sentence.charAt(0).toUpperCase() + sentence.slice(1);
   plan.metadataOnly = plan.records === 0 && c.delete === 0 && c.metadataRefreshes > 0;
   plan.destructive = c.overwrite + c.rebind + c.delete + (c.recreate ?? 0) > 0;
+  plan.renameOnly = !phraseRequired(plan);
   return plan;
+}
+
+/**
+ * 0.74.0: the typed phrase guards a replacement. A plan whose only writes are renames of documents nobody renamed by hand (plus
+ * rows that write nothing) is not one, so it runs without it. Computed from the rows themselves, here and again in the data layer.
+ */
+export function phraseRequired(plan) {
+  const rows = plan?.rows ?? [];
+  if (!rows.some(r => r.group === 'rename')) return true;
+  if ((plan.specialistSupersedes ?? []).some(x => x.pending !== 0)) return true;
+  return rows.some(r => ['create', 'overwrite', 'rebind', 'recreate', 'delete'].includes(r.group));
 }
 
 /** True when the typed text is the confirmation phrase (case and surrounding space do not matter). */
