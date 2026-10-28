@@ -103,10 +103,12 @@ export const exhaustsNode=(node,outcome)=>Boolean(node?.finite)||outcome?.result
  * player can never request an unrevealed location or a hidden node. One message for "unknown" and
  * "hidden" so a refusal does not confirm that something exists.
  */
-export function checkGatherRequest({ownsActor,inParty,location,node,busy=false}){
+export function checkGatherRequest({ownsActor,inParty,location,node,busy=false,inactive=false}){
   if(!ownsActor)return {ok:false,reason:'You need to own that character to request gathering: ask the GM to give you Owner permission on it.'};
   if(!inParty)return {ok:false,reason:'That character is not in the party: ask the GM to tick them in Ledger > GM Setup.'};
   if(!location||location.revealed!==true||!node||node.visible===false)return {ok:false,reason:'That gathering spot is not available'};
+  // 0.37.9: with Locations' Active places, a player can only ask at a place the party is at now.
+  if(inactive)return {ok:false,reason:'That place is not active right now. Ask your GM where the party is.'};
   if(busy)return {ok:false,reason:'Someone is already gathering there'};
   if(!node.gatherable)return {ok:false,reason:nodeBlocker(node,{forPlayer:true})||node.why||'That gathering spot is not available'};
   return {ok:true};
