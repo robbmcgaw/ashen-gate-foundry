@@ -315,7 +315,14 @@ async function runSync(plan, adapter, options = {}, log, state) {
   const renames = plan.rows.filter(r => r.group === 'rename');
   const recreates = plan.rows.filter(r => r.group === 'recreate');
   const specialistSupersedes = (plan.specialistSupersedes ?? []).filter(x => x.pending !== 0);
-  const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group));
+  // 0.76.0: Locations, Routes and Shops are only ever replaced when "Also update existing locations, routes and shops" is on. Enforced here, not only in the
+  // preview: the switch is read from the plan the planner stamped (and from the live setting when the adapter supplies it), so a plan row that says
+  // "overwrite" for one of these is refused when the switch is off. The module is also called in create-only mode then.
+  const updateExternal = plan.updateExternal === true && adapter.updateExternal !== false;
+  const MODULE_KINDS = new Set(['Location', 'Route', 'Shop', 'Service', 'MerchantList']);
+  const refusedUpdates = updateExternal ? [] : plan.rows.filter(r => r.external && !r.specialist && r.group === 'overwrite' && MODULE_KINDS.has(r.kind));
+  for (const r of refusedUpdates) log.push({id: r.id, kind: r.kind, name: r.name, action: 'update', status: 'skipped', message: 'Kept: update switch off. Not replaced.'});
+  const external = plan.rows.filter(r => r.external && ['create', 'overwrite'].includes(r.group) && !refusedUpdates.includes(r));
   const deletes = plan.rows.filter(r => r.group === 'delete');
   const docRestores = plan.rows.filter(r => r.group === 'restore' && !r.external), partnerRestores = plan.rows.filter(r => r.group === 'restore' && r.external);
   const docArchives = plan.rows.filter(r => r.group === 'archive' && !r.external), partnerArchives = plan.rows.filter(r => r.group === 'archive' && r.external);
@@ -462,7 +469,7 @@ async function runSync(plan, adapter, options = {}, log, state) {
     await adapter.pause?.();
   }
 
-  // Other modules' records: their own import APIs, update mode, in dependency order (locations, routes, shops, specialist files).
+  // Other modules' records: their own import APIs, update mode only with the 0.76.0 switch (Locations/Routes/Shops), in dependency order (locations, routes, shops, specialist files).
   const apis = adapter.apis ?? {};
   const pass = async (rows, runner, kind) => {
     if (!rows.length) return;
@@ -496,9 +503,9 @@ async function runSync(plan, adapter, options = {}, log, state) {
   };
   if (partnerRestores.length && !signal?.aborted) await partnerPass(partnerRestores, 'restore');
   if (!signal?.aborted) {
-    await pass(ext('Location'), (recs, a) => applyLocations(recs, a.locations, {updateExisting: true}), 'Locations');
-    await pass(ext('Route'), (recs, a) => applyRoutes(recs, a.routes, {updateExisting: true}), 'Routes');
-    await pass(external.filter(x => ['Shop', 'Service', 'MerchantList'].includes(x.kind)), (recs, a) => applyShops(recs, a.shops, {updateExisting: true}), 'Shops');
+    await pass(ext('Location'), (recs, a) => applyLocations(recs, a.locations, {updateExisting: updateExternal}), 'Locations');
+    await pass(ext('Route'), (recs, a) => applyRoutes(recs, a.routes, {updateExisting: updateExternal}), 'Routes');
+    await pass(external.filter(x => ['Shop', 'Service', 'MerchantList'].includes(x.kind)), (recs, a) => applyShops(recs, a.shops, {updateExisting: updateExternal}), 'Shops');
     for (const file of plan.set.specialistFiles) {
       const rows = external.filter(x => x.specialist === file.kind && x.filename === file.filename);
       if (!rows.length) continue;

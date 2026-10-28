@@ -70,7 +70,7 @@ function makeWorld({docs = [], retired = [], ledger = {}, deleteUnscoped = false
   const world = {docs: [...docs], retired: new Set(retired), ledger: clone(ledger), saved: [], downloads: [], tokens: new Set(), hotbar: new Set(), protectedFolders: new Set(), apis: {}};
   const sourceOf = (record, manifest, available = new Set()) => ({...sourceMetadata(record, {manifest}, record.refs ?? []), managedFields: exportedFields(record),
     pagesDefinition: record.foundry.document_type === 'JournalEntry' ? record.foundry.data.pages ?? [] : []});
-  const ctx = () => ({includeDrafts, deleteUnscoped, overwriteEdited, retiredIds: world.retired, ledger: world.ledger, buildFlag: sourceOf, externalIds: new Set(),
+  const ctx = () => ({includeDrafts, deleteUnscoped, overwriteEdited, retiredIds: world.retired, ledger: world.ledger, buildFlag: sourceOf, externalIds: new Set(), updateExternal: true,
     sceneActorIds: world.tokens, hotbarMacroIds: world.hotbar, isProtectedFolder: id => world.protectedFolders.has(id),
     locationIds: world.apis.locations ? new Set(world.apis.locations.listLocations().map(l => l.id)) : null,
     routeIds: world.apis.routes?.listRoutes ? new Set(world.apis.routes.listRoutes().map(r => r.id)) : null, specialistApi: kind => world.apis.specialist?.[kind] ?? null, ...extra});
@@ -419,13 +419,13 @@ test('switch on: refusals stay (character sheets, an unmanaged Actor with the sa
 
 test('wiring: the switch is off by default, GM-gated where it is read, dropped on change, and versioned', () => {
   const main = read('../scripts/main.js'), view = read('../scripts/sync-view.js'), hbs = read('../scripts/sync-apply.js');
-  assert.match(main, /updateActors:false, archiveMissing:false, phrase:''/);
+  assert.match(main, /updateActors:false, archiveMissing:false, updateExternal:false, phrase:''/);
   assert.match(main, /this\.sync\.updateActors=Boolean\(event\.target\.checked\)&&Boolean\(game\.user\?\.isGM\)/);
   assert.match(main, /updateActors:Boolean\(this\.sync\.updateActors&&game\.user\?\.isGM\)/);
   assert.match(main, /phraseRequired\(plan\)&&!phraseOk\(this\.sync\.phrase\)/);
   assert.match(view, /Also update Actors from the package/); assert.match(hbs, /phraseRequired\(plan\) && !phraseOk\(confirmation\)/);
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.75.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.75.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.76.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.76.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.74\.0 /m); assert.match(read('../README.md'), /Also update Actors from the package/);
   assert.match(main, /Also update Actors from the package/, 'Help mentions it');
 });
