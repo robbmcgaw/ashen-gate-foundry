@@ -1,3 +1,11 @@
+## 0.37.5 — 2026-10-28
+
+Refresh recipes shows a pack check, so a missing former-starter marker is visible.
+
+- The Refresh recipes windows (one character, whole party, and the "No problems found" state) now start with a GM line: how many recipes in this world carry `former_starting`, and per profession how many are starting and how many former. If none carry it, the line says to sync or import the updated recipe packs in General Manager, then reopen the window.
+- No planning rules changed: a recipe is only found as a replaced starter if it is recorded as granted or carries the marker (verified end to end with recipes stored exactly as Manager writes them).
+- No saved data changes.
+
 ## 0.37.4 — 2026-10-28
 
 Refresh recipes finds replaced starters even when they were never recorded as granted.

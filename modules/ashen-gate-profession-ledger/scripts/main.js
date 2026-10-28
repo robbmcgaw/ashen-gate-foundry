@@ -20,7 +20,7 @@ import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLe
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {spotRange,compareSpots,spotLabel,groupByTier,tierHeading} from './spot-order.mjs';
 import {buildTree,treeHtml,treeKeys,applyTreeSearch,toggleTierGroup,setAllTree} from './catalog-tree.mjs';
-import {planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
+import {starterCheck,starterCheckText,planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -32,7 +32,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.37.4';
+const VERSION='0.37.5';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1041,6 +1041,7 @@ function recipeRefreshInputs(actor,{remove=null,add=null}={}){
     recipeNames:new Map(items.filter(i=>classify(i)==='Recipe'&&agSourceId(i)).map(i=>[agSourceId(i),String(i.name??'').replace(/^Recipe:\s*/,'')])),
     crafted:items.filter(i=>i.flags?.[ID]?.craftedFrom).map(i=>({recipeId:i.flags[ID].craftedFrom}))};
 }
+const starterCheckLine=()=>`<p class="agl-sub agl-rr-check">${esc(starterCheckText(starterCheck(catalog().recipes,r=>/^PROF-/.test(r.profession??'')||!r.profession?professionDisplayName(lookupWorldDefinition(game,r.professionId,{entityType:'Profession'}).document)||humanizeId(r.professionId):r.profession)))}</p>`;
 const recipeRefreshPlanFor=(actor,opts)=>planRecipeRefresh(recipeRefreshInputs(actor,opts));
 const recipeRefreshSummary=(actor,plan)=>({actor:{id:actor.id,name:actor.name},rows:plan.rows.map(r=>({...r})),missing:plan.missing.map(m=>({...m})),counts:{...plan.counts},
   needsTypedConfirmation:plan.needsTypedConfirmation,problems:plan.problems});
@@ -3088,13 +3089,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const confirm=p.needsTypedConfirmation?`<label class="ag-field">A ticked recipe has progress. Type <b>${name}</b> to confirm<input data-rr-confirm autocomplete="off" value="${esc(r.confirm)}"></label>`:'';
     return `<section class="ag-card agl-panel" aria-labelledby="agl-rr-h"><h2 id="agl-rr-h">Refresh recipes: ${name}</h2>
       <p class="agl-sub">Nothing changes until you press the button below. Recipes that no longer exist are ticked because they cannot work. Crafted items, materials, XP and gear are never touched; a snapshot is saved first.</p>
+      ${starterCheckLine()}
       ${groups||'<p class="agl-sub">This character has no known recipes.</p>'}${missing}${confirm}</section>`;
   }
   _recipeRefreshParty(){
     const r=this.recipeRefresh,chars=r.characters;
-    if(!chars.length)return `<section class="ag-card agl-panel"><h2>Refresh recipes for the whole party</h2>${emptyState('No problems found.','No party character has a recipe that no longer exists, a replaced starting recipe, or a missing starting recipe.')}</section>`;
+    if(!chars.length)return `<section class="ag-card agl-panel"><h2>Refresh recipes for the whole party</h2>${starterCheckLine()}${emptyState('No problems found.','No party character has a recipe that no longer exists, a replaced starting recipe, or a missing starting recipe.')}</section>`;
     return `<section class="ag-card agl-panel" aria-labelledby="agl-rr-h"><h2 id="agl-rr-h">Refresh recipes for the whole party</h2>
       <p class="agl-sub">Only characters with a problem are listed: a recipe that no longer exists, a starter that was replaced, or a starting recipe they are missing. Untick anything you want to keep. A snapshot is saved for each character first.</p>
+      ${starterCheckLine()}
       ${chars.map(c=>{const sel=r.sel.get(c.actor.id)??{remove:new Set(),add:new Set()};
         const gone=c.rows.filter(x=>x.group==='gone'||x.group==='replaced'),miss=c.missing.filter(m=>m.status==='new');
         return `<section class="agl-rr-group"><h3>${esc(c.actor.name)} <span class="ag-badge">${gone.length+miss.length}</span></h3><ul class="ag-rows">
