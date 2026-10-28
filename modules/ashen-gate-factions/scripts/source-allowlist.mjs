@@ -5,7 +5,7 @@
  * Pure JS; no Foundry API, reward ownership, or permission side effects.
  */
 const BASE=['id','entity_type','status','version','provenance','visibility','refs'];
-const FACTION=[...BASE,'supersedes','scope','name','leader','public_role','folder_key','tags','discovery','renown_track','individual_track','entries','rewards'];
+const FACTION=[...BASE,'supersedes','scope','name','leader','public_role','folder_key','tags','discovery','renown_track','individual_track','entries','rewards','relations'];
 const DEITY=[...BASE,'supersedes','scope','name','tags','discovery','individual_track','entries','rewards','deity'];
 const DEITY_PROFILE=['symbol','title','domain','tier','blurb','portfolio','teachings','followers','practices','saying','relations'];
 const TRACK=[...BASE,'default_scope','milestones'];
@@ -62,6 +62,8 @@ export function assertReusableFactionSource(value){
  closed(value.discovery,['placeholder','sharing_enabled'],'Faction.discovery');for(const key of ['placeholder','sharing_enabled'])if(typeof value.discovery[key]!=='boolean')throw new TypeError(`Faction.discovery.${key}: boolean required`);
  track(value.renown_track,'Faction.renown_track');track(value.individual_track,'Faction.individual_track');
  list(value.entries,'Faction.entries',entry);list(value.rewards,'Faction.rewards',reward);
+ // 0.22.0: optional faction-to-faction relations (personal-scope knock-ons). Closed shape; absent on older definitions.
+ optional(value.relations,'Faction.relations',(rows,path)=>list(rows,path,(r,p)=>{closed(r,['faction_id','resonance'],p);if(!ROOT_ID.test(r.faction_id??''))throw new Error(`${p}.faction_id: FACTION- id required`);if(typeof r.resonance!=='number'||!Number.isFinite(r.resonance)||r.resonance<0||r.resonance>1)throw new TypeError(`${p}.resonance: number 0..1 required`);}));
  return value;
 }
 /** Deity source: the faction envelope without group track, leader, description or folder, plus a closed `deity` profile. */
