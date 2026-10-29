@@ -1,15 +1,21 @@
 /**
- * Hide sidebar tabs from players (Manager 0.79.0 Journals, 0.80.0 Compendiums). Presentation only: no document,
- * permission, flag or ownership is written, and nothing here touches how journals, compendium documents or pages open
- * (by uuid or id), so Locations, Quest Log, handouts and links keep working. The GM is never affected: a tab is hidden
- * only for a non-GM user while its world setting is on.
+ * Hide sidebar tabs from players (Manager 0.79.0 Journals, 0.80.0 Compendiums, 0.81.0 "only the Chat tab"). Presentation
+ * only: no document, permission, flag or ownership is written, and nothing here touches how journals, compendium documents
+ * or pages open (by uuid or id), so Locations, Quest Log, handouts and links keep working. The GM is never affected: a tab
+ * is hidden only for a non-GM user while its world setting is on.
  *
  * A hidden tab loses its whole layout slot: the tab button's wrapper (the <li> around it in the tab column, or the button
  * itself when there is none) gets display:none, so the remaining icons sit together with no gap. The panel is hidden too.
  *
+ * 0.81.0 "Show players only the Chat tab": every tab found in the tab column except Chat is hidden (the known core tab ids
+ * plus whatever tab buttons the DOM has, so a module's added tab goes too). The player dock can still open a hidden tab:
+ * `openSidebarTab` either pops the tab out (a separate window, outside #sidebar, so nothing here touches it) or "peeks" it,
+ * showing just that panel (its button stays hidden) until the player switches to another tab, which puts Chat back.
+ *
  * Foundry V14 names are from the V13/V14 ApplicationV2 sidebar and were not confirmed in a live world: the tab column is
  * `#sidebar-tabs` (a <menu> of <li><button data-action="tab" data-tab="...">), panels are `section#<id>` with
  * `data-tab="<id>"`, and the active tab is `ui.sidebar.tabGroups.primary` (changed with `ui.sidebar.changeTab(tab, "primary")`).
+ * Also unconfirmed: `ui.sidebar.expand()`, and `ui.<tab>.renderPopout()` for the pop-out route. Each is feature-detected.
  */
 export const FALLBACK_TAB = 'chat';
 const MARK = 'agmTabHidden';
@@ -19,6 +25,19 @@ export const SIDEBAR_TABS = Object.freeze({
   journal: Object.freeze({ stateKey: 'hideJournalsTab', bodyClass: 'agm-hide-journals', hook: 'renderJournalDirectory' }),
   compendium: Object.freeze({ stateKey: 'hideCompendiumsTab', bodyClass: 'agm-hide-compendiums', hook: 'renderCompendiumDirectory' })
 });
+
+/** Core sidebar tab ids (V13/V14). The DOM's own tab buttons are added to this list, so a module's extra tab is covered too. */
+export const KNOWN_TABS = Object.freeze(['chat', 'combat', 'scenes', 'actors', 'items', 'journal', 'tables', 'cards', 'playlists', 'compendium', 'settings']);
+export const CHAT_ONLY_CLASS = 'agm-chat-only-sidebar';
+/** Tab whose panel the player dock is showing although its button is hidden. Cleared once the player moves to another tab. */
+export const sharedPeek = { tab: null, armed: false };
+
+/** Tab ids to consider: the known core ids plus every tab button in the tab column. The second place that reads the sidebar DOM. */
+export function listTabIds(doc) {
+  const ids = new Set(KNOWN_TABS);
+  for (const el of doc?.querySelectorAll?.('#sidebar-tabs [data-tab]') ?? []) if (el.dataset?.tab) ids.add(el.dataset.tab);
+  return [...ids];
+}
 
 /**
  * The one place that knows where a tab lives in the DOM. Returns the elements to hide: the panel, and for the tab button
@@ -31,14 +50,20 @@ export function tabElements(doc, tabId) {
   return [...out];
 }
 
+/** A tab button (or its wrapper) sits in the tab column; a panel does not. */
+const inTabColumn = el => Boolean(el.closest?.('#sidebar-tabs') || el.closest?.('#sidebar-tabs li') || el.matches?.('#sidebar-tabs li'));
+
 /** Hide only for a non-GM user with the setting on. */
 export const shouldHideTab = ({ isGM, setting }) => !isGM && setting === true;
 
-/** Hides or restores the elements, remembering which ones we hid so showing again never un-hides anything else. */
-export function setTabHidden(doc, tabId, hidden) {
+/**
+ * Hides or restores the elements, remembering which ones we hid so showing again never un-hides anything else.
+ * keepPanel: hide only the tab button (the dock is showing that panel).
+ */
+export function setTabHidden(doc, tabId, hidden, { keepPanel = false } = {}) {
   const els = tabElements(doc, tabId);
   for (const el of els) {
-    if (hidden) {
+    if (hidden && !(keepPanel && !inTabColumn(el))) {
       el.hidden = true;
       el.style?.setProperty?.('display', 'none', 'important');
       if (el.dataset) el.dataset[MARK] = '1';
@@ -48,41 +73,87 @@ export function setTabHidden(doc, tabId, hidden) {
       delete el.dataset[MARK];
     }
   }
-  doc?.body?.classList?.toggle?.(SIDEBAR_TABS[tabId].bodyClass, Boolean(hidden));
+  const bodyClass = SIDEBAR_TABS[tabId]?.bodyClass;
+  if (bodyClass) doc?.body?.classList?.toggle?.(bodyClass, Boolean(hidden));
   return els.length;
 }
+
+/** The open sidebar tab, or null when this Foundry exposes neither name. */
+export const activeTab = ui => ui?.sidebar?.tabGroups?.primary ?? ui?.sidebar?.activeTab ?? null;
 
 /** If a hidden tab is the open sidebar tab, switch to Chat so the player is not left on a hidden panel. */
 export function leaveTabs(ui, tabIds) {
   const sidebar = ui?.sidebar;
-  const active = sidebar?.tabGroups?.primary ?? sidebar?.activeTab;
+  const active = activeTab(ui);
   if (!tabIds.includes(active) || typeof sidebar?.changeTab !== 'function') return false;
   sidebar.changeTab(FALLBACK_TAB, 'primary');
   return true;
 }
 
-/** Applies every tab setting for the current user. Returns the ids of the tabs now hidden. */
-export function applySidebarTabs({ game, doc, ui, appearance }) {
+/**
+ * Applies every tab setting for the current user. Returns the ids of the tabs now hidden (a peeked tab counts: its button is
+ * hidden even though its panel is showing). Idempotent: running it again changes nothing.
+ */
+export function applySidebarTabs({ game, doc, ui, appearance, peek = sharedPeek }) {
   const state = appearance?.getState?.() ?? {};
-  const hiddenIds = [];
-  for (const [tabId, cfg] of Object.entries(SIDEBAR_TABS)) {
-    const hide = shouldHideTab({ isGM: Boolean(game?.user?.isGM), setting: state[cfg.stateKey] === true });
-    setTabHidden(doc, tabId, hide);
-    if (hide) hiddenIds.push(tabId);
+  const isGM = Boolean(game?.user?.isGM);
+  const chatOnly = shouldHideTab({ isGM, setting: state.chatOnlySidebar === true });
+  const active = activeTab(ui);
+  if (peek.tab) {
+    if (active === peek.tab) peek.armed = true;
+    else if (peek.armed || !chatOnly) { peek.tab = null; peek.armed = false; }
   }
-  if (hiddenIds.length) leaveTabs(ui, hiddenIds);
+  const hiddenIds = [], mustLeave = [];
+  for (const tabId of listTabIds(doc)) {
+    const cfg = SIDEBAR_TABS[tabId];
+    const own = cfg ? shouldHideTab({ isGM, setting: state[cfg.stateKey] === true }) : false;
+    const byChatOnly = chatOnly && tabId !== FALLBACK_TAB;
+    const peeked = byChatOnly && !own && peek.tab === tabId;
+    const hide = own || byChatOnly;
+    setTabHidden(doc, tabId, hide, { keepPanel: peeked });
+    if (hide) { hiddenIds.push(tabId); if (!peeked) mustLeave.push(tabId); }
+  }
+  doc?.body?.classList?.toggle?.(CHAT_ONLY_CLASS, chatOnly);
+  if (mustLeave.length) leaveTabs(ui, mustLeave);
   return hiddenIds;
 }
 
 /**
+ * The one place that opens a sidebar tab for the dock. prefer 'popout' tries `ui.<tab>.renderPopout()` first (a separate
+ * window, so a collapsed sidebar stays collapsed); otherwise it expands the sidebar, marks the tab as peeked and switches to
+ * it. Every Foundry name is feature-detected. Returns 'popout', 'tab' or false (nothing could be opened); never throws.
+ */
+export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, prefer = 'tab', reapply = null } = {}) {
+  const popout = () => {
+    const app = ui?.[tabId];
+    if (typeof app?.renderPopout !== 'function') return false;
+    try { app.renderPopout(); return 'popout'; } catch (error) { console.warn('[ashen-gate-manager] Pop-out failed', error); return false; }
+  };
+  const inline = () => {
+    const sidebar = ui?.sidebar;
+    if (typeof sidebar?.changeTab !== 'function') return false;
+    try {
+      if (typeof sidebar.expand === 'function') sidebar.expand();
+      peek.tab = tabId; peek.armed = false;
+      sidebar.changeTab(tabId, 'primary');
+      if (typeof reapply === 'function') reapply();
+      return 'tab';
+    } catch (error) { console.warn('[ashen-gate-manager] Sidebar tab not opened', error); peek.tab = null; return false; }
+  };
+  return (prefer === 'popout' ? popout() || inline() : inline() || popout()) || false;
+}
+
+/**
  * Applies on load, whenever a setting changes (live), and after the sidebar or a hidden tab's directory renders (a render
- * replaces the buttons). Returns a function that stops listening.
+ * replaces the buttons). Returns a function that stops listening; `.apply` re-runs it on demand (the dock uses that).
  */
 export function installSidebarTabHider({ game, hooks, doc = globalThis.document, getUi = () => globalThis.ui, appearance }) {
   const apply = () => { try { applySidebarTabs({ game, doc, ui: getUi(), appearance }); } catch (error) { console.warn('[ashen-gate-manager] Sidebar tabs not updated', error); } };
   apply();
-  const names = ['ready', 'renderSidebar', 'changeSidebarTab', ...Object.values(SIDEBAR_TABS).map(t => t.hook)];
+  const names = ['ready', 'renderSidebar', 'renderSidebarTab', 'changeSidebarTab', ...Object.values(SIDEBAR_TABS).map(t => t.hook)];
   const ids = names.map(name => [name, hooks?.on?.(name, apply)]);
   const stop = appearance?.subscribe?.(apply);
-  return () => { for (const [name, id] of ids) if (id !== undefined) hooks?.off?.(name, id); if (typeof stop === 'function') stop(); };
+  const off = () => { for (const [name, id] of ids) if (id !== undefined) hooks?.off?.(name, id); if (typeof stop === 'function') stop(); };
+  off.apply = apply;
+  return off;
 }

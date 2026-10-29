@@ -1,0 +1,63 @@
+/*
+ * Ashen Gate player dock (Manager 0.81.0). Presentation only; drawn by scripts/player-dock.js for players when the GM
+ * turns on "Show the player dock". Colours, sizes and spacing come from the shared kit tokens (styles/ag-ui.css, loaded by
+ * this module, so the default theme applies without any skin; a chosen skin re-themes it).
+ *
+ * Layout assumptions (Foundry V14, unconfirmed in a live world; change --agm-dock-* on :root or a world stylesheet to nudge):
+ *  - top-left: the scene controls column sits at the left edge, so the dock starts a column's width in (--agm-dock-left).
+ *  - top-right: the sidebar is the right-hand column; the dock stops short of it, and moves to the edge while the sidebar is
+ *    collapsed (#sidebar.collapsed). Chat notifications sit at the bottom of that column, away from the top.
+ *  - bottom-left: sits above the players list and hotbar (--agm-dock-bottom).
+ * The buttons keep visible text labels at every size (a column about 7rem wide).
+ */
+.agm-dock {
+  --agm-dock-left: 5rem;
+  --agm-dock-bottom: 9rem;
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ag-space-2);
+  padding: var(--ag-space-2);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  font-family: var(--ag-font-body);
+  font-size: var(--ag-text-md);
+  box-shadow: var(--ag-shadow);
+}
+.agm-dock[data-corner="top-left"] { top: var(--ag-space-3); left: var(--agm-dock-left); }
+.agm-dock[data-corner="top-right"] { top: var(--ag-space-3); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
+body:has(#sidebar.collapsed) .agm-dock[data-corner="top-right"] { right: 4rem; }
+.agm-dock[data-corner="bottom-left"] { bottom: var(--agm-dock-bottom); left: var(--ag-space-3); }
+.agm-dock__slot { position: relative; display: block; }
+.agm-dock__slot:empty { display: none; }
+.agm-dock__btn { width: 100%; justify-content: flex-start; gap: var(--ag-space-2); white-space: nowrap; }
+.agm-dock__btn:focus-visible,
+.agm-dock__item:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
+.agm-dock__menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--ag-space-3));
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ag-space-1);
+  min-width: 11rem;
+  padding: var(--ag-space-2);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-raised);
+  box-shadow: var(--ag-shadow);
+}
+.agm-dock__menu[hidden] { display: none; }
+.agm-dock[data-corner="top-right"] .agm-dock__menu { left: auto; right: calc(100% + var(--ag-space-3)); }
+.agm-dock[data-corner="bottom-left"] .agm-dock__menu { top: auto; bottom: 0; }
+.agm-dock__item { width: 100%; justify-content: flex-start; gap: var(--ag-space-2); white-space: nowrap; color: var(--ag-text); }
+.agm-dock__item[aria-disabled="true"] { color: var(--ag-muted-strong); cursor: default; }
+.agm-dock .ag-btn { transition: background var(--ag-dur-fast) var(--ag-ease), border-color var(--ag-dur-fast) var(--ag-ease); }
+@media (prefers-reduced-motion: reduce) {
+  .agm-dock .ag-btn { transition: none; }
+}

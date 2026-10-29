@@ -1,3 +1,13 @@
+## 0.81.0 — 2026-10-29
+
+A clean, almost full-canvas screen for players. Four optional settings in **GM Setup > General > Sidebar** (all off by default, saved with Save Changes, GM only), plus the corner for the dock. Everything is visual only: no permission, document or saved data changes, and you always see the normal interface.
+
+- **Hide Region Controls and Journal Notes from players' scene controls.** Players no longer see those two tool groups; if one was open they land on the Token controls. Live.
+- **Show players only the Chat tab in the sidebar.** Every other sidebar tab (including tabs other modules add) is hidden for players, and the remaining tab sits alone with no gap. Live.
+- **Start players with the sidebar collapsed.** Collapses the sidebar once when a player loads the game. Players expand and collapse it as usual afterwards, and it is not closed again by later renders or chat messages. Takes effect the next time a player loads the game.
+- **Show the player dock** and **Player dock corner** (top left, top right or bottom left). A small group of buttons for players: **Combat** (opens the combat tracker), **Settings** (opens the sidebar Settings tab: Configure Settings, Manage Modules, Players, Log Out) and **Ashen Gate**, a menu of the Ashen Gate windows that player may open. A window is listed only if its module is active, has an open function, and reports Player Access on through the shared Player Access contract, the same gate its Actors launcher uses. Escape closes the menu and returns focus to the button. A slot is reserved for the Character Hub's player-portrait button.
+- Help describes the settings. One new stylesheet (`player-dock.css`). Six new world settings, read as off when absent, no migration. Tests are mocked: the live V14 scene controls, sidebar and dock placement have not been seen.
+
 ## 0.80.0 — 2026-10-29
 
 A fourth sidebar setting for players, and hidden tabs no longer leave a gap.

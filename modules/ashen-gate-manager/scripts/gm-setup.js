@@ -6,6 +6,8 @@
  */
 
 /** Reads the GM Setup form. Missing controls stay undefined, so saveGmSetup leaves those settings alone. */
+import { PLAYER_SCREEN_FLAGS, DOCK_CORNERS } from './appearance.js';
+
 export function readGmSetupForm(root) {
   const q = selector => root?.querySelector?.(selector) ?? null;
   const all = selector => [...(root?.querySelectorAll?.(selector) ?? [])];
@@ -21,6 +23,7 @@ export function readGmSetupForm(root) {
   const hideCompendiums = q('[data-ag-setup-hide-compendiums]');
   const handouts = q('[data-ag-setup-handouts-only]');
   const playersFolder = q('[data-ag-setup-players-only]');
+  const dockCorner = q('[data-ag-setup-dock-corner]:checked');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
@@ -28,6 +31,8 @@ export function readGmSetupForm(root) {
     ...(handouts ? {playerHandoutsOnly: Boolean(handouts.checked)} : {}),
     ...(playersFolder ? {playersFolderOnly: Boolean(playersFolder.checked)} : {}),
     ...(hideCompendiums ? {hideCompendiumsTab: Boolean(hideCompendiums.checked)} : {}),
+    ...Object.fromEntries(PLAYER_SCREEN_FLAGS.flatMap(flag => { const box = q(`[data-ag-setup-screen="${flag.state}"]`); return box ? [[flag.state, Boolean(box.checked)]] : []; })),
+    ...(dockCorner && Object.hasOwn(DOCK_CORNERS, dockCorner.value) ? {playerDockCorner: dockCorner.value} : {}),
     ...(items ? {itemsReadable: items.value === 'player' ? 'player' : 'gm'} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
@@ -89,6 +94,20 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (Boolean(values.hideCompendiumsTab) !== Boolean(appearance.getState().hideCompendiumsTab)) {
       await appearance.setHideCompendiumsTab(values.hideCompendiumsTab);
       saved.push(values.hideCompendiumsTab ? 'Compendiums tab hidden from players' : 'Compendiums tab shown to players');
+    }
+  }
+  for (const flag of PLAYER_SCREEN_FLAGS) {
+    if (values[flag.state] !== undefined && appearance?.[flag.setter]) {
+      if (Boolean(values[flag.state]) !== Boolean(appearance.getState()[flag.state])) {
+        await appearance[flag.setter](values[flag.state]);
+        saved.push(`${flag.name}: ${values[flag.state] ? 'on' : 'off'}`);
+      }
+    }
+  }
+  if (values.playerDockCorner !== undefined && appearance?.setPlayerDockCorner) {
+    if (values.playerDockCorner !== appearance.getState().playerDockCorner) {
+      await appearance.setPlayerDockCorner(values.playerDockCorner);
+      saved.push('player dock corner');
     }
   }
   if (values.itemsReadable !== undefined && itemsKey) {
