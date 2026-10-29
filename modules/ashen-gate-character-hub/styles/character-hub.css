@@ -505,6 +505,24 @@
 .agch-app .agch-embed { min-width: 0; }
 /* An embedded partner view brings its own cards: the panel around it drops its own card look */
 .agch-app .agch-panel:has(> .agch-embed) { background: transparent; border-color: transparent; padding: 0; box-shadow: none; }
+/* 0.63.0: an older Locations still draws its own Open Locations button in its embed; the panel header already has the one. */
+.agch-app .agch-embed [data-agl-embed="open-all"] { display: none; }
+/* 0.63.0 Ashen Gate → Locations: Locations' own folders, drawn with kit parts. Folders nest; a folder folds from its header button. */
+.agch-app .agch-loc { display: grid; gap: var(--ag-space-2); min-width: 0; }
+.agch-app .agch-loc__tools { flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.agch-app .agch-loc__filters { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
+.agch-app .agch-loc__count-line { margin-inline-start: auto; font-size: var(--ag-text-sm); }
+.agch-app .agch-loc__groups, .agch-app .agch-loc__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-loc__groups .agch-loc__groups, .agch-app .agch-loc__body > .agch-loc__rows { margin-inline-start: var(--ag-space-4); }
+.agch-app .agch-loc__rows .agch-loc__rows { margin-inline-start: var(--ag-space-4); margin-top: var(--ag-space-1); }
+.agch-app .agch-loc__row { overflow-wrap: anywhere; }
+.agch-app .agch-loc__row--path > .ag-link { opacity: .7; }
+.agch-app .agch-loc__head { display: flex; align-items: center; gap: var(--ag-space-1); margin: 0; font-size: var(--ag-text-sm); }
+.agch-app .agch-loc__toggle { display: inline-flex; align-items: center; gap: var(--ag-space-2); background: none; border: 0; padding: var(--ag-space-1) 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: start; }
+.agch-app .agch-loc__toggle[aria-expanded="false"] .agch-sec__chev { transform: rotate(-90deg); }
+.agch-app .agch-loc__toggle:focus-visible { outline: 2px solid var(--ag-focus, currentColor); outline-offset: 2px; }
+.agch-app .agch-loc__body { display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-loc__body[hidden] { display: none; }
 /* Cinders: powers and sockets as kit rows (read only, except Push) */
 /* 0.24.0 Cinders sub-tab: one compact orb card per Cinder (Cinders 0.6.0's orb, ring and socket look at a smaller size): mini orb left,
    Push lines and socket rows right; the orb goes above the lines in a narrow panel. Sizes come from kit tokens, so both sizes scale. */

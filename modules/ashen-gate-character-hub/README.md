@@ -102,7 +102,7 @@ Stored shape (world setting `ashen-gate-character-hub.playerVisibility`, GM only
 ```
 
 ## Embedded module views
-When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note. The Hub checks for the API, never a partner's version number.
+When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note. Locations 0.34.0+ is the exception: it offers `api.listModel(...)` (the list as data: nested Region folders, search, filters, sort, already limited to what this user may see), and the Hub draws that with its own markup (`scripts/locations-list.mjs`); a place opens through `api.openLocation(ref)`. Without `listModel` the Hub uses the embed as before. The Hub keeps only the search text, filters and sort of the open window, and which folders you folded (per user, on this computer). The Hub checks for the API, never a partner's version number.
 
 | Where in the Hub | Module (version with the embed) | What it shows |
 |---|---|---|
@@ -111,7 +111,7 @@ When a partner module offers `api.embed.mount(element, {actorId, mode})` (return
 | Ashen Gate → Skill Trees | Skill Trees 0.14.0 | Points, perks available now with Unlock, unlocked and locked perks, Open tree |
 | Ashen Gate → Renown | Renown 0.10.0 | Party and character standing per organization, next milestone, Open |
 | Ashen Gate → Quests | Quest Log 0.8.0 | Party and character quests, Track, objectives, Character notes |
-| Ashen Gate → Locations | Locations 1.13.0 under the old numbering; every 0.18.0+ (renumbered from 1.18.0) | Journey progress, revealed places by region, Open |
+| Ashen Gate → Locations | Locations 0.34.0+ for the folders, filters and sorting (`api.listModel`); older Locations 0.18.0+ show their embed or the flat summary | The Locations list, drawn by the Hub: nested Region folders, search, the GM's filters and sort, one Open Locations button; a place opens in Locations |
 | Ashen Gate → Headquarters | Headquarters 0.10.0 | Guildhall, rank, this character's facilities and benefits, Open |
 
 ## Ashen Gate panels
@@ -124,7 +124,7 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 | Cinders (ashen-gate-cinders, 0.18.0) | `cinder.list(actor)`: the character's Cinders, powers and Push modes with cost and Backfire chance. **Push** uses `cinder.previewPush` for the confirmation, then `cinder.push` (a player's Push is rolled by the GM client). Each Cinder is a compact orb (0.24.0): Strain ring, socket dots, and `cinder.list` `art` (Cinders 0.6.0+) or the default orb whose colour follows Strain; 0.31.0: art sits on the Strain-toned orb as a glow and turns slowly (Cinders 0.9.0's markup; off when Cinders' `rotateArt` or `rotateArtLocal` setting is off, and under reduced motion). **Open skill tree** next to the Cinders title opens Skill Trees' `api.open({actorId, treeId})` (players: while Perks is shown). **Sockets** (Cinders 0.3.0+, contract `ag-sockets/1`): `sockets.hosts(actor)` rows with **Attach / Swap / Detach** and drop-on-a-row through `canAttach`, `attach`, `swap`, `detach` (GM: `attachDropped` for a sidebar Item), and an Items that fit tray from `socketable`. Owner while Cinders' Player Access is on and the Cinder isn't locked; GM always; Cinders checks again | `open({actorId})` |
 | Renown (ashen-gate-factions) | `getFactions` (the user's own filtered view) | `open()` |
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |
-| Locations | `listLocations` (GM: revealed only) | `openLocation(id)` / `open()` |
+| Locations | `listModel` (0.34.0+; else the `embed`, else `listLocations`, GM: revealed only) | `openLocation(ref)` / `open()` |
 | Headquarters | `playerView(actor)` (Headquarters 0.9.0+): Guildhall name and rank, visible facilities; else a pointer to Headquarters | `open()` |
 | Utilities (Inventory → Party stash) | `purse.totals`, and `stash.listItems()` (Utilities 0.11.0+) for the stash items | `stash.open()` |
 

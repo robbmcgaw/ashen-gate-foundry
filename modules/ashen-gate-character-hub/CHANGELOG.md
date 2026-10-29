@@ -1,3 +1,16 @@
+## 0.63.0 — 2026-10-29
+
+Ashen Gate → Locations shows Locations' own folders, filters and sorting.
+
+- The list was flat ("Other places 31") with an **Open Locations** button twice. It now follows the Locations window: the nested Region folders (Fosstryn Frontier › Fosstryn Approaches › Fosstryn › The Muster, and so on) that fold from their header, search, and the GM's **Filters** (threat, region, profession, quest, status, placeable) with **Sort by** and its direction. A place under a place that is not a Region nests under it. There is one **Open Locations** button, in the panel header.
+- **A link opens the real record in Locations:** the viewer for a player, the editor for the GM. The Hub keeps no copy of a place.
+- **Same visibility as the Locations window:** the folders, filters and sorting are built by Locations itself (new in Locations 0.34.0: `api.listModel`), not here, so they cannot drift. A player sees only what the window shows a player: revealed places, and unidentified ones by their generic label; hidden places and GM fields never reach the Hub. Players get the window's player list: search and name order (the window offers them no filters). The GM's Hub still lists revealed places only.
+- **Folded folders are remembered per user** on this computer, like the Hub's other folds (while you search or filter every folder shows open). The search text, filters and sort belong to the open Hub window. Search, Filters, Sort, folders and every link are buttons, links and fields the keyboard reaches, and focus stays put when the list redraws.
+- The list redraws by itself when Locations says something changed (a place revealed, Player Access switched).
+- **Older Locations** (without `listModel`) keeps working as before: its embed, or the flat summary. The embed's own second **Open Locations** button is hidden. The Hub never stops opening because of Locations.
+- Display only: nothing stored changes, no migration. Install Locations 0.34.0 with this version.
+- Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.62.3 — 2026-10-29
 
 Musical instruments can go in a trinket slot.

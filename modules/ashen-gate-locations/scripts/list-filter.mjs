@@ -10,6 +10,9 @@ export const SORTS = Object.freeze([{value: 'name', label: 'Name'}, {value: 'thr
 export const STATUS_FILTERS = Object.freeze([{value: 'hidden', label: 'Hidden'}, {value: 'unidentified', label: 'Unidentified'}, {value: 'revealed', label: 'Revealed'},
   {value: 'unpublished', label: 'Unpublished edits'}, {value: 'active', label: 'Active'}]);
 export const PLACEABLE_FILTERS = Object.freeze([{value: 'yes', label: 'Placeable on a map'}, {value: 'no', label: 'Representative only'}]);
+/** The filter dropdowns in the order the window shows them: key, label, and the text of the "no filter" choice. Shared by the window and the list model. */
+export const FILTER_CONTROLS = Object.freeze([{key: 'threat', label: 'Threat', all: 'All'}, {key: 'region', label: 'Region', all: 'All'}, {key: 'profession', label: 'Profession', all: 'All'},
+  {key: 'quest', label: 'Quest', all: 'Any'}, {key: 'status', label: 'Status', all: 'All'}, {key: 'placeable', label: 'Placeable', all: 'All'}]);
 export const emptyFilters = () => ({threat: '', region: '', profession: '', quest: '', status: '', placeable: ''});
 export const hasFilters = f => Object.values(f).some(Boolean);
 

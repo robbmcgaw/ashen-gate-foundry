@@ -11,6 +11,7 @@ import {coinChip} from './coins.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
 import {cindersSummary, skillTreeBtn} from './cinders.mjs';
 import {linkButton, subTabs, tabPanelAttrs} from './ag-html.mjs';
+import {LOCATIONS_ID, listModelApi, locationsPanelState} from './locations-list.mjs';
 
 /** The active module's API, or null. */
 export function partnerApi(id) {
@@ -328,11 +329,14 @@ export const agPanelsFor = (user = globalThis.game?.user) => AG_PANELS.filter(p 
  */
 export function ashenGateTab({actor, sheet}) {
   const gm = globalThis.game?.user?.isGM === true;
-  let panels = agPanelsFor(), current = null, state = null, embedded = null;
+  let panels = agPanelsFor(), current = null, state = null, embedded = null, ownList = false;
   while (panels.length) {
     current = panels.find(p => p.id === sheet?.agTab) ?? panels[0];
-    embedded = embedApi(current.id, current.embedMode);
-    state = embedded ? {state: 'ok', html: embedSlot(current.id, current.embedMode, actor)} : panelState(current, actor);
+    // 0.63.0: Locations offers its list as data (api.listModel): the Hub draws it with its own markup. Older Locations: its embed, else the summary.
+    ownList = current.id === LOCATIONS_ID && !!sheet && !!listModelApi(partnerApi);
+    embedded = ownList ? null : embedApi(current.id, current.embedMode);
+    state = ownList ? locationsPanelState(sheet, listModelApi(partnerApi), globalThis.game?.user)
+      : embedded ? {state: 'ok', html: embedSlot(current.id, current.embedMode, actor)} : panelState(current, actor);
     if (gm || !state.refused) break;
     panels = panels.filter(p => p !== current); current = null;
   }
@@ -345,7 +349,7 @@ export function ashenGateTab({actor, sheet}) {
     .replace('class="ag-tabs ag-tabs--sub"', 'class="ag-tabs ag-tabs--sub agch-agtabs"').replaceAll('role="tab" ', 'role="tab" data-action="ag-subtab" data-ag-always ');
   return `${tabs}<div ${tabPanelAttrs(group, current.id)} class="agch-agpanel">
     ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}</div>
-    <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : current.id === 'ashen-gate-cinders' ? 'Cinders keeps its own records: Push and socket changes go through it and it checks them again.' : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
+    <p class="agch-muted agch-hint">${ownList ? 'The folders, filters and sorting come from Locations, and a place opens in Locations: it keeps its own records and permissions.' : embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : current.id === 'ashen-gate-cinders' ? 'Cinders keeps its own records: Push and socket changes go through it and it checks them again.' : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }
 
 // ---------- Embedded partner views (api.embed.mount) ----------

@@ -13,6 +13,7 @@ import {isBackup} from './level-backup.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
 import {openPartner, mountEmbeds, unmountEmbeds, depositToParty, partnerApi, pickTreeTab} from './partners.mjs';
+import * as locs from './locations-list.mjs';
 import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
@@ -95,6 +96,11 @@ export const ACTIONS = {
   'group-hide': (s, t) => featureGroupVisibility(s, t.dataset.key, true),
   'group-show': (s, t) => featureGroupVisibility(s, t.dataset.key, false),
   'group-show-all': async s => { const r = await showAllGroups(s.document); if (r.ok) { s.hiddenGroupsOpen = false; s.render(); } return r; },
+  // 0.63.0: Ashen Gate → Locations (the list is Locations' own, drawn by locations-list.mjs).
+  'loc-fold': (s, t) => locs.foldFolder(s, t),
+  'loc-filters': s => locs.toggleFilters(s),
+  'loc-sortdir': s => locs.toggleDirection(s),
+  'loc-clear': s => locs.clearAll(s),
   'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
   'ag-jump': async (s, t) => { if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
@@ -523,6 +529,8 @@ function hpButton(sheet, target, sign) {
 
 /** Change handlers by data-edit. Each receives (sheet, input). */
 export const EDITS = {
+  'loc-filter': (s, i) => locs.setFilter(s, i.dataset.filterKey, i.value),
+  'loc-sort': (s, i) => locs.setSort(s, i.value),
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
@@ -780,6 +788,7 @@ export function createHubSheetClass(Base) {
       content.addEventListener?.('input', ev => {
         if (ev.target?.matches?.('[data-link-find]')) submitLinkFind(this, ev);
         if (ev.target?.matches?.('[data-ctype-filter]')) filterCompanionTypes(content, ev.target.value);
+        if (ev.target?.matches?.('[data-agch-loc="query"]')) locs.setQuery(this, ev.target.value);
         if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
         if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
         if (ev.target?.closest?.('[data-bio]')) onBioInput(this, ev.target);
