@@ -2,7 +2,7 @@
   "id": "ashen-gate-quest-manager",
   "title": "Ashen Gate | Quest Log",
   "description": "Quest Log: quests, work orders and contracts with Party and Individual logs, a session journal, rewards, and GM-controlled reveal and progress.",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -32,5 +32,5 @@
   },
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-quest-manager/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-quest-manager-v0.29.0/ashen-gate-quest-manager.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-quest-manager-v0.30.0/ashen-gate-quest-manager.zip"
 }

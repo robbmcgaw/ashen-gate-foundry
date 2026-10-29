@@ -148,3 +148,28 @@ test('GM notifications for nobody connected, Player Access off and repeats', asy
   const f=flow(entry({},{status:'Active',revealed:true}),{sendStatus:s});await showQuestFlow(view.id,f.deps);assert.match(f.calls.notes[0][0],re);
  }
 });
+
+// ---- 0.30.0 Hide / Reveal as a pair ----
+import {planHide,hideFlow,revealFlow} from '../scripts/show-to-players.mjs';
+const src={id:'QUEST-TEST-LANTERN',entity_type:'Objective',objective_kind:'quest',status:'approved',version:'0.1.0',provenance:{sources:['synthetic']},visibility:'reveal_gated',refs:[],name:'[TEST] Lantern',source:{},public_summary:'',objectives:[{key:'a',goal:'[TEST] Light it',visibility:'player'}],locations:[],parameters:{},outcomes:{}};
+const state={status:'Active',scope:'party',actorId:null,revealed:false,objectiveReveal:[],progress:{},partyNotes:'',gmNotes:'',rewardRecorded:false};
+test('hide keeps the quest: reveal-gated only clears revealed; a player-visible one goes Hidden and remembers its status; reveal puts it back', async()=>{
+ const gated={...src,visibility:'reveal_gated'},open={...src,visibility:'player'};
+ const sActive={...state,status:'Active',revealed:true};
+ assert.deepEqual(planHide(gated,sActive).patch,{revealed:false});
+ const h=planHide(open,sActive).patch;assert.deepEqual(h,{revealed:false,status:'Hidden',statusBeforeHide:'Active'});
+ assert.deepEqual(planHide(gated,{...sActive,revealed:false}),{noop:true});
+ const back=planShowReveal(open,{...sActive,...h});
+ assert.equal(back.patch.status,'Active');assert.equal(back.patch.statusBeforeHide,null);
+ assert.equal(planShowReveal(open,{...sActive,status:'Hidden'}).patch.status,'Available','no memory: Available as before');
+});
+test('hideFlow updates through updateState (GM-only there) and says so; a dirty editor is refused; reveal needs no confirmation', async()=>{
+ const calls=[],say=[];
+ const e={source:{...src,visibility:'reveal_gated'},state:{...state,revealed:true,status:'Active'}};
+ const deps={entries:()=>[e],updateState:async(id,p)=>calls.push([id,p]),notify:(m)=>say.push(m),dirty:()=>false};
+ assert.deepEqual(await hideFlow(src.id,deps),{status:'hidden'});assert.deepEqual(calls,[[src.id,{revealed:false}]]);
+ await assert.rejects(()=>hideFlow(src.id,{...deps,dirty:()=>true}),/Save or cancel/);
+ const hiddenEntry={source:e.source,state:{...e.state,revealed:false}};
+ let asked=0;const d2={entries:()=>[hiddenEntry],updateState:async(id,p)=>calls.push([id,p]),send:async()=>({status:'sent',count:2}),sleep:async()=>{},notify:m=>say.push(m),dirty:()=>false,confirm:async()=>{asked++;return false;},info:async()=>{}};
+ calls.length=0;assert.equal((await revealFlow(src.id,d2)).status,'sent');assert.equal(asked,0);assert.deepEqual(calls,[[src.id,{revealed:true}]]);
+});

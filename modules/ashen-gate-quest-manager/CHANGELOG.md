@@ -1,3 +1,17 @@
+## 0.30.0 — 2026-10-29
+
+A quest reveal now pops the small tracker on players' screens, not the whole Quest Log, and the GM can hide a quest again with one click.
+
+- **Reveal / Show to Players open the tracker, not the Quest Log.** On a player's screen, a quest revealed by Show to Players (or, with the GM Setup switch on, by a normal reveal) no longer opens or switches the Quest Log window and never takes focus; a Quest Log that is already open is only refreshed. The *Tracked objectives* window pops (or is refreshed and brought to the front) instead:
+  - A player who tracks nothing they can see gets the revealed quest tracked (their own tracked list only).
+  - A player who already tracks something keeps that choice: the tracker pops showing it, and the usual notification names the new quest.
+  - A quest with no revealed objective, and nothing else to show, gives the notification only. A player who may not see the quest gets nothing.
+  - The tracker's saved Show/Hide choice is not changed by a reveal; it closes again with its own Hide button or when it has nothing left to show.
+- **Open Quest Log** icon button in the tracker's header (aria-label and tooltip), beside the existing fade and Hide controls.
+- **Hide from players / Reveal to players** on every Party and Individual row (GM only; text and icon, no confirmation, focus stays on the button). Hiding reuses the existing reveal state: a reveal-gated quest only has Revealed cleared; a player-visible one is set to Hidden and remembers its status (`statusBeforeHide`), which Reveal puts back. Nothing is deleted; status, progress, notes and reveals are kept. Players lose it from their lists, tracker (it drops out without error), API and exports. Hidden quests stay in the GM's rows marked *Hidden from players*. Reveal to players runs the same reveal-and-show path as above. An Individual quest is only ever visible to that character's players, so hiding it hides it from them only.
+- GM Setup wording now says "tracker" for the two Players' screens switches; the settings and defaults are unchanged. No saved data is migrated (one optional state field, `statusBeforeHide`, is written only when hiding a player-visible quest).
+- Tests use mocked Foundry; they prove the logic and wiring, not the live windows.
+
 ## 0.29.0 — 2026-10-28
 
 New: **select several quests, then Archive or Delete them together** (GM only), for trimming quests that arrived from a pack you have since moved to the reserve.

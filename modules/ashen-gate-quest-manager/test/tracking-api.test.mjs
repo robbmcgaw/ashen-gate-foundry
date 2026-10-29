@@ -35,7 +35,7 @@ await import('../scripts/main.mjs');
 once.get('init')();once.get('ready')();
 
 test('v0.4.0 preserves original APIs, hides both advanced world settings in Game Settings',()=>{
- assert.equal(module.api.version,'0.29.0');
+ assert.equal(module.api.version,'0.30.0');
  assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
  assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');
  assert.equal(settingsDefs.get('playerAccessEnabled').config,false);
@@ -99,4 +99,16 @@ test('non-GM cannot change Player Access or query GM-only quest state or assignm
  await assert.rejects(()=>module.api.playerAccess.setEnabled(true),/GM permission/);
  assert.throws(()=>module.api.getGMState('QUEST-PUBLIC'),/GM permission/);
  assert.throws(()=>module.api.assignments.list(),/GM permission/);
+});
+
+import {planRevealTracker} from '../scripts/tracking.mjs';
+test('planRevealTracker: tracks the revealed quest only when nothing visible is tracked; never replaces; falls back with no objectives', () => {
+ const q=(id,extra={})=>({id,name:id,status:'Active',objectives:[{key:'a',goal:'x'}],...extra});
+ assert.deepEqual(planRevealTracker([q('QUEST-A')],[],'QUEST-A'),{show:true,track:true,ids:['QUEST-A']});
+ assert.deepEqual(planRevealTracker([q('QUEST-A'),q('QUEST-B')],['QUEST-B'],'QUEST-A'),{show:true,track:false,ids:['QUEST-B']});
+ assert.deepEqual(planRevealTracker([q('QUEST-A',{objectives:[]})],[],'QUEST-A'),{show:false,track:false,ids:[]});
+ assert.equal(planRevealTracker([q('QUEST-A',{objectives:[]}),q('QUEST-B')],['QUEST-B'],'QUEST-A').show,true);
+ assert.equal(planRevealTracker([q('QUEST-B')],[],'QUEST-A').show,false,'not visible to this player');
+ assert.equal(planRevealTracker([q('QUEST-A',{status:'Hidden'})],[],'QUEST-A').show,false);
+ assert.deepEqual(planRevealTracker([q('QUEST-A')],['QUEST-GONE'],'QUEST-A').ids,['QUEST-GONE','QUEST-A']);
 });

@@ -81,11 +81,12 @@ A quest record can list item rewards in `outcomes.item_rewards` (at most 50):
 
 ## Show to Players (0.28.0)
 
-GM only. At the top of a quest's editor (Quests tab), **Show to Players** opens that quest in the Quest Log on every other connected player's screen that may see it, like Foundry's Show to Players for journals. A character-only (Individual) quest goes only to the players who own that character, and you see "Shown to N players".
+GM only. At the top of a quest's editor (Quests tab), **Show to Players** pops the small tracked-objectives window on every other connected player's screen that may see the quest (0.30.0: it no longer opens the Quest Log). A character-only (Individual) quest goes only to the players who own that character, and you see "Shown to N players".
 
 - If the quest is not visible to players yet, you are asked **Reveal it, then show it?** first. Nothing is revealed without that confirmation. A Hidden quest is revealed and set to Available; drafts and GM-only definitions are refused.
-- The player's one Quest Log window switches to the quest (it does not stack another). If they are typing in the Quest Log, or Player Access is off, they are not interrupted; with Player Access off nothing is sent.
-- GM Setup > Players' screens: **Players' windows open automatically when the GM shows a quest** (on by default). Off: players get a notification only.
+- On the player's screen the tracker pops (or is refreshed and brought forward). A player who tracks nothing visible gets the quest tracked; one who already tracks something keeps it and gets a notification naming the quest; a quest with nothing revealed yet gives the notification only. An open Quest Log is only refreshed. The tracker header has an **Open Quest Log** button. With Player Access off nothing is sent.
+- 0.30.0: **Hide from players** / **Reveal to players** on each Party and Individual row (GM only, reversible; status, progress and notes are kept).
+- GM Setup > Players' screens: **Players' tracker opens automatically when the GM shows a quest** (on by default). Off: players get a notification only.
 - Only an opaque key goes over the socket. Each player's client checks the sender is a GM and that the player may see the quest before opening it; if not, nothing opens and no message appears.
 
 ## Select, Archive and Delete (0.29.0)
