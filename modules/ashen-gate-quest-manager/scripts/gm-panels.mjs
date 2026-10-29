@@ -132,10 +132,10 @@ export function setupPanel({playerAccess,packIds,openForPlayers=false,showOpensW
  <p class="ag-field__hint">Controls the player window only, not which quests they see. Reveal each quest from the Quests tab.</p>
  <p class="ag-field__hint">The Journal tab also follows Character Hub's Quests visibility, when Character Hub is active.</p></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Players' screens</h3></div>
- <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-for-players" ${openForPlayers?'checked':''}> Open the Quest Log for players when a quest is revealed to them</label>
- <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-on-show" ${showOpensWindow?'checked':''}> Players' windows open automatically when the GM shows a quest</label>
- <p class="ag-field__hint">On by default: Show to Players (in the quest editor) opens the quest in the Quest Log on every player's screen that may see it. Off: those players only get a notification.</p>
- <p class="ag-field__hint">Off by default: assigning, revealing or completing a quest, or giving rewards, opens nothing on players' screens. When on, a newly revealed quest opens the player's Quest Log window at that quest (never a journal page).</p></section>
+ <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-for-players" ${openForPlayers?'checked':''}> Open the tracker for players when a quest is revealed to them</label>
+ <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-on-show" ${showOpensWindow?'checked':''}> Players' tracker opens automatically when the GM shows a quest</label>
+ <p class="ag-field__hint">On by default: Show to Players (in the quest editor) pops the tracked-objectives window on every player's screen that may see the quest; their Quest Log is not opened. Off: those players only get a notification.</p>
+ <p class="ag-field__hint">Off by default: assigning, revealing or completing a quest, or giving rewards, opens nothing on players' screens. When on, a newly revealed quest pops the player's tracked-objectives window (never the Quest Log or a journal page).</p></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Compendium packs</h3></div>
  <label class="ag-field">Compendium pack IDs<input id="ag-compendium-packs" value="${E(packIds||'')}" placeholder="world.my-quests"><span class="ag-field__hint">Optional read-only quest definitions, not player quests. Leave blank unless you use a quest compendium. Reload Foundry after changing.</span></label></section></div>
  <footer class="ag-footer">${safeButton('Cancel','cancel-setup',{kind:'ghost'})}<span class="ag-footer__status" role="status"></span>${safeButton('Save Changes','save-setup',{kind:'primary'})}</footer></div>`;

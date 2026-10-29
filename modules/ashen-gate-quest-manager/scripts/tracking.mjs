@@ -26,3 +26,20 @@ export function clampPosition({left,top},size,screen){
  const fit=(v,box,max)=>Math.max(0,Math.min(Math.max(0,(Number(max)||0)-(Number(box)||0)),Math.round(Number(v)||0)));
  return {left:fit(left,size?.width,screen?.width),top:fit(top,size?.height,screen?.height)};
 }
+
+/**
+ * 0.30.0 A quest revealed to this player pops the tracker (not the Quest Log). `views` are this player's own visible views
+ * (already permission-filtered), `ids` their tracked ids. Returns {show, track, ids}:
+ *   - show:false  nothing for the tracker to show (the quest is not visible, or it has no revealed objective and the player
+ *     tracks nothing else visible): the caller only notifies.
+ *   - track:false the player already tracks something visible: their choice is left alone and the tracker shows it.
+ *   - track:true  the player tracks nothing visible, so the revealed quest is added to their tracked ids (ids = the new list).
+ */
+export function planRevealTracker(views,ids,revealedId){
+ const list=Array.isArray(views)?views:[],current=trackingState({ids}).ids;
+ const revealed=list.find(v=>v&&v.id===revealedId&&validTrackedId(v.id)&&v.status!=='Hidden');
+ if(!revealed)return {show:false,track:false,ids:current};
+ if(selectTrackedViews(list,current).length)return {show:true,track:false,ids:current};
+ if(!Array.isArray(revealed.objectives)||!revealed.objectives.length)return {show:false,track:false,ids:current};
+ return {show:true,track:true,ids:trackingState({ids:[...current,revealed.id]}).ids};
+}

@@ -109,14 +109,25 @@ test('Open for players is an off-by-default GM Setup switch; on, a newly reveale
  sets.length=0;const form={querySelector:s=>s==='#ag-player-access'?{checked:true}:s==='#ag-compendium-packs'?{value:''}:s==='#ag-open-for-players'?{checked:true}:null};
  await lastApp.action({dataset:{action:'save-setup'}},form);assert.deepEqual(sets,[['openForPlayers',true]]);
  html=await lastApp.render();assert.match(html,/id="ag-open-for-players" checked/);
- // Player client: the switch off opens nothing; on, a quest they had not seen opens once.
- game.user=alice;settings.openForPlayers=false;lastApp.tab='party';lastApp.selectedId=null;
+ // Player client (0.30.0): off, nothing happens; on, a newly revealed quest pops the tracker, once, and never the Quest Log window.
+ game.user=alice;settings.openForPlayers=false;lastApp.tab='party';lastApp.selectedId=view.id;alice.flags.tracking={ids:[],visible:false};overlay=null;notes.length=0;
  const fresh={...view,id:'QUEST-TEST-NEW',name:'[TEST] New'},doc=projection(fresh);journal.push(doc);
- call('createJournalEntry',doc,{},'gm');await new Promise(r=>setTimeout(r,0));assert.equal(lastApp.selectedId===fresh.id,false);
+ call('createJournalEntry',doc,{},'gm');await new Promise(r=>setTimeout(r,0));assert.equal(overlay,null);assert.equal(lastApp.selectedId,view.id);
  settings.openForPlayers=true;const doc2=projection({...fresh,id:'QUEST-TEST-NEWER'});journal.push(doc2);
- call('createJournalEntry',doc2,{},'gm');await new Promise(r=>setTimeout(r,0));assert.equal(lastApp.selectedId,'QUEST-TEST-NEWER');
- lastApp.selectedId=view.id;call('createJournalEntry',doc2,{},'gm');await new Promise(r=>setTimeout(r,0));assert.equal(lastApp.selectedId,view.id,'only once');
- journal.splice(journal.indexOf(doc),1);journal.splice(journal.indexOf(doc2),1);settings.openForPlayers=false;game.user=gm;
+ lastApp.rendered=false;
+ call('createJournalEntry',doc2,{},'gm');await new Promise(r=>setTimeout(r,10));
+ assert.equal(lastApp.rendered,false,'the main window was not opened');assert.equal(lastApp.selectedId,view.id,'and not switched to the quest');
+ assert.ok(overlay,'the tracker popped');assert.match(overlay.innerHTML,/\[TEST\] New/);
+ assert.deepEqual(alice.flags.tracking,{ids:['QUEST-TEST-NEWER'],visible:false},'nothing tracked before: the revealed quest is tracked; the saved on/off choice is untouched');
+ assert.deepEqual(notes,[],'a quest the tracker now shows needs no extra toast');
+ call('createJournalEntry',doc2,{},'gm');await new Promise(r=>setTimeout(r,0));assert.equal(alice.flags.tracking.ids.length,1,'only once');
+ // Already tracking something visible: that choice stays, the tracker still pops, and the usual notification names the new quest.
+ const doc3=projection({...fresh,id:'QUEST-TEST-THIRD',name:'[TEST] Third'});journal.push(doc3);overlay=null;
+ call('createJournalEntry',doc3,{},'gm');await new Promise(r=>setTimeout(r,10));
+ assert.deepEqual(alice.flags.tracking.ids,['QUEST-TEST-NEWER'],'existing tracking is not replaced');assert.ok(overlay);
+ assert.equal(notes.length,1);assert.match(notes[0],/\[TEST\] Third/);
+ journal.splice(journal.indexOf(doc3),1);
+journal.splice(journal.indexOf(doc),1);journal.splice(journal.indexOf(doc2),1);settings.openForPlayers=false;game.user=gm;
 });
 
 // ---- 2. overlay: move, remove, fade ----

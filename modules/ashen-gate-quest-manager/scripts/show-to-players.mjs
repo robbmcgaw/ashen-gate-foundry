@@ -1,5 +1,5 @@
 // 0.28.0 Show to Players: a GM presses "Show to Players" on a quest and every other connected client that may see it
-// opens the player Quest Log at that quest, like Foundry's own Show to Players for journals. No Foundry globals here:
+// is told about it. Since 0.30.0 that pops the small tracked-objectives tracker (openQuest in main.mjs), not the Quest Log window. No Foundry globals here:
 // main.mjs hands in everything the Foundry side provides (users, socket, the visibility check, the opener).
 //
 // One socket channel (module.<id>, shared with the Game Journal) and one message: {type:'show-quest', key}. The key is
@@ -9,7 +9,7 @@
 //   who may observe that view (so a character-only quest reaches its owners only); rate limited.
 //   Receiving side: ignored unless the socket's sender is a GM user; GMs open nothing; Player Access, the document and
 //   the player's own OBSERVER permission are re-checked here, and a refusal opens nothing and shows nothing.
-import {assertGM} from './core.mjs';
+import {assertGM,STATUSES} from './core.mjs';
 import {statusChip,isPlayerVisible,UNTITLED} from './quests-tab.mjs';
 
 export const SHOW_SOCKET_TYPE='show-quest';
@@ -28,10 +28,38 @@ export function planShowReveal(source,state){
  if(statusChip(source,state)==='Draft')return {refuse:'This quest is still a draft, and drafts stay GM only. Give it a status first.'};
  const patch={},lines=[];
  if(source.visibility==='reveal_gated'&&!state.revealed){patch.revealed=true;lines.push('It is marked Revealed.');}
- if(state.status==='Hidden'){patch.status='Available';lines.push('Its status changes from Hidden to Available.');}
+ if(state.status==='Hidden'){
+  // 0.30.0 A quest hidden with the Hide button remembers the status it had and gets it back.
+  const prev=state.statusBeforeHide,back=STATUSES.includes(prev)&&prev!=='Hidden'?prev:'Available';
+  patch.status=back;if(prev!==undefined)patch.statusBeforeHide=null;lines.push(`Its status changes from Hidden to ${back}.`);}
  if(!isPlayerVisible(source,{...state,...patch}))return {refuse:'This quest cannot be made visible from here. Check its status, reveal and audience in its editor.'};
  return {patch,lines};
 }
+
+/**
+ * 0.30.0 The inverse of Reveal, from the same two state fields. Hiding keeps the quest, its status, progress, notes and
+ * reveal history: a reveal-gated quest only has `revealed` cleared; a player-visible one is set to Hidden and remembers the
+ * status it had (`statusBeforeHide`), which Reveal puts back. Returns {noop:true} | {patch}.
+ */
+export function planHide(source,state){
+ if(!isPlayerVisible(source,state))return {noop:true};
+ const patch={revealed:false};
+ if(isPlayerVisible(source,{...state,...patch})){patch.statusBeforeHide=state.status;patch.status='Hidden';}
+ return {patch};
+}
+/** GM only (updateState refuses anyone else). deps: {entries(), updateState(id,patch), notify(msg,kind), dirty()}. */
+export async function hideFlow(id,deps){
+ const entry=deps.entries().find(e=>e.source.id===id);
+ if(!entry)throw new Error('Quest not found.');
+ const name=entry.source.name||UNTITLED,plan=planHide(entry.source,entry.state);
+ if(plan.noop){deps.notify(`${name} is already hidden from players.`,'info');return {status:'already_hidden'};}
+ if(deps.dirty())throw new Error('Save or cancel your changes to the open quest first.');
+ await deps.updateState(id,plan.patch);
+ deps.notify(`${name} is hidden from players. Reveal to players brings it back as it was.`,'info');
+ return {status:'hidden'};
+}
+/** The Reveal to players button: the same reveal-then-show path as Show to Players, without its confirmation (the click is the choice). */
+export const revealFlow=(id,deps)=>showQuestFlow(id,{...deps,confirm:async()=>true});
 
 /**
  * deps: {moduleId, user(), users(), socket, access(), now(), sleep(ms), projection(questId) -> GM-only published view document,
@@ -75,7 +103,7 @@ export function createShowToPlayers(deps){
   }
   if(!found)return true;
   const name=found.view?.name||UNTITLED;
-  if(deps.autoOpen()&&!deps.busy())await deps.openQuest(found.view.id);
+  if(deps.autoOpen()&&!deps.busy()){const shown=await deps.openQuest(found.view.id);if(shown?.notify)deps.notify(`Your GM shared a quest: ${name}. Open the Quest Log to read it.`);}
   else deps.notify(`Your GM shared a quest: ${name}. Open the Quest Log to read it.`);
   return true;
  }
