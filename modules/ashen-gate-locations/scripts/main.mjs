@@ -10,9 +10,10 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
+import {registerPinTravel} from './travel-ui.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.32.2';
+const VERSION = '0.33.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -94,6 +95,7 @@ Hooks.once('init', () => {
     name: 'Locations — Open the window when the GM shows a location', scope: 'world', config: false, type: Boolean, default: true, restricted: true
   });
   registerPinLook();
+  registerPinTravel(); // 0.33.0: right-click > Travel on a pin
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
 });
 
@@ -119,6 +121,9 @@ Hooks.once('ready', () => {
   mod.api = createApi({
     embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},
     version: VERSION, isGM, playerAccessEnabled,
+    // 0.33.0 Travel: the current user and a way to find a scene by uuid (null when this client does not hold it).
+    currentUser: () => game.user,
+    resolveScene: uuid => { try { const d = fromUuidSync(uuid); return d?.documentName === 'Scene' ? d : null; } catch { return null; } },
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
     sharing: {request: sharing.request}, show: {send: show.send},

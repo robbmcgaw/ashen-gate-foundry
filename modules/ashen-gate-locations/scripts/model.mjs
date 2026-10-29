@@ -298,6 +298,9 @@ function normalizeBody(r, id) {
   body.parentLocationId = LOCATION_ID.test(r.parentLocationId ?? '') && r.parentLocationId !== id ? r.parentLocationId : '';
   body.unidentifiedLabel = line(r.unidentifiedLabel, 80);
   body.teaser = text(r.teaser, 2000);
+  // 0.33.0: the linked scenes the GM allows players to travel to ("Players can travel here", default off). Part of the published content, so players get
+  // it only at Publish. Scene uuids only; no name is stored. normalizeLocation and publishable keep it to scenes that are still linked.
+  body.travelSceneUuids = uuidList(r.travelSceneUuids);
   // size 0 = the default (PIN_DEFAULTS.size).
   body.pin = {img: safePath(r.pin?.img), unidentifiedImg: safePath(r.pin?.unidentifiedImg), size: int(r.pin?.size, 0, 16, 256)};
   return body;
@@ -305,10 +308,13 @@ function normalizeBody(r, id) {
 /** 0.25.0: {img, unidentifiedImg, size}; '' / 0 = not set here. */
 export const normalizeChildPin = raw => ({img: safePath(raw?.img), unidentifiedImg: safePath(raw?.unidentifiedImg), size: int(raw?.size, 0, 16, 256)});
 const BODY_KEYS = Object.keys(normalizeBody({}, ''));
+/** Distinct, safe Foundry uuids (at most 20). */
+function uuidList(list) { return [...new Set((Array.isArray(list) ? list : []).map(safeUuid).filter(Boolean))].slice(0, 20); }
 /** The part of a location that Publish copies for players. */
 export const publishable = loc => {
   const body = clone(Object.fromEntries(BODY_KEYS.map(k => [k, loc[k]])));
   for (const k of GM_ONLY_BLOCKS) delete body.sections?.[k]; // 0.32.0: the GM-side switch is not content
+  body.travelSceneUuids = body.travelSceneUuids.filter(u => (loc.sceneUuids ?? []).includes(u)); // 0.33.0: only scenes that are still linked
   return body;
 };
 /**
@@ -342,7 +348,9 @@ export function normalizeLocation(raw = {}) {
   // 0.32.0, GM-only: creatures that may roam here, and the (GM-side) switch. Kept off the body so Publish never copies them; both default off.
   loc.beasts = normalizeBeasts(r.beasts);
   loc.sections.beasts = bool(r.sections?.beasts, false);
-  loc.sceneUuids = [...new Set((Array.isArray(r.sceneUuids) ? r.sceneUuids : []).map(safeUuid).filter(Boolean))].slice(0, 20);
+  loc.sceneUuids = uuidList(r.sceneUuids);
+  // 0.33.0, GM switch per linked scene: "Players can travel here". Always a subset of sceneUuids; absent = none (default off).
+  loc.travelSceneUuids = loc.travelSceneUuids.filter(u => loc.sceneUuids.includes(u));
   // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
   loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
   loc.audience = normalizeAudience(r.audience);
@@ -564,6 +572,9 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   }
   const view = {id: loc.id, key: loc.pinKey, state: 'revealed', name: pub.name};
   if (loc.active) view.active = true;
+  // 0.33.0: scene uuids the GM allows players to travel to (set at Publish). Uuids only, never a name; a revealed location only. The player's client
+  // still checks that it can view each scene before offering it (travel.mjs).
+  if (pub.travelSceneUuids.length) view.travelScenes = [...pub.travelSceneUuids];
   // 0.32.0: a revealed Region says so, so the list can nest places under it. Only on a place the player already sees by name.
   if (pub.isRegion) view.isRegion = true;
   for (const f of FIELDS) if (pub.show[f] && pub[f]) view[f] = pub[f];
@@ -871,8 +882,8 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0, 0.30.0 and 0.32.0 (beasts). An update that leaves one out keeps the world's value instead of clearing it. */
-const ADDITIVE = ['beasts', 'npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
+/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0, 0.30.0, 0.32.0 (beasts) and 0.33.0 (travelSceneUuids). An update that leaves one out keeps the world's value instead of clearing it. */
+const ADDITIVE = ['beasts', 'npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'travelSceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
   'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
 
 /**

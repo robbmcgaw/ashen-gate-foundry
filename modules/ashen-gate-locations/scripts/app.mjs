@@ -12,6 +12,8 @@ import {buildTree, withAncestors, breadcrumb, regionChoices, regionNames, region
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
 import {buildRegionSections, arrangeFolds, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
+import {travel, travelCount, onRowContextMenu} from './travel-ui.mjs';
+import {travelLabel} from './travel.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
@@ -669,6 +671,12 @@ export class LocationsApp extends Base {
     await this.render(); this.focusBack('#agl-archived');
   }
 
+  /** 0.33.0: the Travel button for a location, or '' when this user has no scene to travel to (the API decides, so a player never sees one for a hidden or unidentified place). */
+  travelBtn(ref, kind = 'sm') {
+    const n = ref ? travelCount(ref) : 0;
+    return n ? btn('travel', travelLabel(n), {kind, icon: 'fa-solid fa-map', data: {ref}, title: n > 1 ? 'Choose a linked scene to view. Only you move.' : 'Views the linked scene. Only you move.'}) : '';
+  }
+
   // ---------- player viewer ----------
   viewerHtml(v, {partyNotes = true} = {}) {
     if (!v) return '<div class="ag-empty"><p class="ag-empty__title">No place selected</p><p class="ag-empty__text">Pick a place from the list.</p></div>';
@@ -713,6 +721,7 @@ export class LocationsApp extends Base {
     return `<article class="agl-view">
       ${crumbs.length ? `<nav class="agl-crumbs" aria-label="Where this is">${crumbs.map(c => `${place(c)} <span aria-hidden="true">›</span> `).join('')}<span>${esc(v.name)}</span></nav>` : ''}
       <div class="agl-title"><h2>${esc(v.name)}</h2>${hereNow(v)}</div>${share}
+      ${(() => { const t = this.travelBtn(v.key || v.id); return t ? `<div class="agl-travel">${t}</div>` : ''; })()}
       ${v.threat ? `<p class="agl-meta agl-threat-row"><span class="agl-threat-label">Threat Level:</span> ${threatBadge(v.threat)}</p>` : ''}
       ${v.type || v.region ? `<p class="agl-meta">${[v.type, v.region].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
       ${v.parent && !crumbs.length ? `<p class="agl-meta">Part of ${place(v.parent)}</p>` : ''}
@@ -953,7 +962,7 @@ export class LocationsApp extends Base {
       <div class="agl-editor__head">
         <nav class="agl-crumbs" aria-label="Where this is">${crumbs.length ? crumbs.map(c => `${go(c.name, 'select', {id: c.id})} <span aria-hidden="true">›</span> `).join('') : '<span class="agl-hint">Top level ›</span> '}
           <span>${esc(d.name || 'New location')}</span></nav>
-        <div class="ag-btn-group">${d.id ? `<button type="button" class="ag-btn ag-btn--sm agl-activebtn${d.active ? ' ag-btn--primary' : ''}" data-action="toggle-active" aria-pressed="${d.active === true}"${tip(d.active ? 'The party is here now. Click to mark this place not active' : 'Mark this place as where the party is now. Applies at once')}><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${d.active ? 'Active' : 'Not active'}</button>` : ''}${d.id ? btn('show-players', 'Show to Players', {kind: 'sm', icon: 'fa-solid fa-bullseye', title: 'Opens this location in every other player\'s Locations window'}) : ''}${placeable ? btn('place', 'Place on Scene', {kind: 'sm', icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${d.id ? `${btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'})}${btn('delete', 'Delete location', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}` : ''}</div>
+        <div class="ag-btn-group">${d.id ? `<button type="button" class="ag-btn ag-btn--sm agl-activebtn${d.active ? ' ag-btn--primary' : ''}" data-action="toggle-active" aria-pressed="${d.active === true}"${tip(d.active ? 'The party is here now. Click to mark this place not active' : 'Mark this place as where the party is now. Applies at once')}><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${d.active ? 'Active' : 'Not active'}</button>` : ''}${d.id ? this.travelBtn(d.id) : ''}${d.id ? btn('show-players', 'Show to Players', {kind: 'sm', icon: 'fa-solid fa-bullseye', title: 'Opens this location in every other player\'s Locations window'}) : ''}${placeable ? btn('place', 'Place on Scene', {kind: 'sm', icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${d.id ? `${btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'})}${btn('delete', 'Delete location', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}` : ''}</div>
       </div>
       <div class="agl-title">
         <div class="ag-field agl-name"><label for="agl-name">Name</label><input id="agl-name" type="text" data-bind="name" value="${esc(d.name)}" placeholder="Location name"></div>
@@ -1152,14 +1161,15 @@ export class LocationsApp extends Base {
   }
   /** Linked scenes: GM only, never in any player view. 0.19.0: on the Visibility & map sub-tab, not a reorderable block. */
   scenesHtml(d) {
-    const linked = new Set(d.sceneUuids);
+    const linked = new Set(d.sceneUuids), travelOn = new Set(d.travelSceneUuids ?? []);
     const sceneRows = d.sceneUuids.length ? `<ul class="ag-list agl-entries">${d.sceneUuids.map(u => `<li><span class="agl-entry">${esc(sceneName(u) ?? 'Linked scene (missing)')}</span>
+      <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-travel-scene="${esc(u)}" ${travelOn.has(u) ? 'checked' : ''}> Players can travel here</label>
       <span class="agl-tools">${btn('open-scene', 'Open scene', {kind: 'sm', icon: 'fa-solid fa-map', data: {uuid: u}, title: 'Views the scene for you only. Players are not moved.'})}${btn('remove-scene', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {uuid: u}, title: `Unlink ${sceneName(u) ?? 'this scene'}`})}</span></li>`).join('')}</ul>` : '';
     const sceneOpts = [...(game.scenes ?? [])].filter(sc => !linked.has(sc.uuid)).sort((a, b) => a.name.localeCompare(b.name))
       .map(sc => `<option value="${esc(sc.uuid)}">${esc(sc.name)}</option>`).join('');
     return `<section class="ag-card agl-section"><header class="ag-card__head"><h3>Linked Scenes</h3><span class="agl-hint">GM only</span></header>${sceneRows}
       <div class="agl-add"><select id="agl-add-scene" aria-label="Scene to link"><option value="">Choose a scene…</option>${sceneOpts}</select>${btn('add-scene', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}</div>
-      <p class="agl-hint">Players never see this card. Open scene never switches players.</p></section>`;
+      <p class="agl-hint">Players never see this card. Open scene never switches players. <em>Players can travel here</em> (off by default) lets players right-click this location's pin, or use <em>Travel</em> in the Locations window, to view that scene for themselves; it reaches them at Publish, only while the location is Revealed, and only for scenes Foundry lets them view (a scene's Navigation or Observer permission is yours to set in the scene's settings). You can always travel to any linked scene.</p></section>`;
   }
 
   /** A node's status for its summary row: Exhausted, Available or Unavailable, always as text. */
@@ -1411,7 +1421,14 @@ export class LocationsApp extends Base {
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
+    // 0.33.0: right-click (or the context-menu key) on a row offers Travel when the API says there is a scene to go to. The button in the detail is the always-visible way.
+    for (const row of root.querySelectorAll('.agl-row[data-action="select"]')) row.addEventListener('contextmenu', ev => onRowContextMenu(ev, row.dataset.id));
     if (!this.gm) return;
+    for (const el of root.querySelectorAll('[data-travel-scene]')) el.addEventListener('change', () => {
+      const set = new Set(this.draft.travelSceneUuids ?? []);
+      if (el.checked) set.add(el.dataset.travelScene); else set.delete(el.dataset.travelScene);
+      this.draft.travelSceneUuids = [...set]; this.dirty = true; this.render();
+    });
     this.showDrawnSize(root);
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       if (el.dataset.bind === 'parentLocationId') this.draft.region = regionAfterParentChange(api().listLocations(), this.draft, el.value);   // 0.32.1
@@ -1743,7 +1760,8 @@ export class LocationsApp extends Base {
         if (!uuid || this.draft.sceneUuids.includes(uuid)) return;
         this.draft.sceneUuids.push(uuid); this.dirty = true; return this.render();
       }
-      case 'remove-scene': this.draft.sceneUuids = this.draft.sceneUuids.filter(u => u !== el.dataset.uuid); this.dirty = true; return this.render();
+      case 'remove-scene': this.draft.sceneUuids = this.draft.sceneUuids.filter(u => u !== el.dataset.uuid); this.draft.travelSceneUuids = (this.draft.travelSceneUuids ?? []).filter(u => u !== el.dataset.uuid); this.dirty = true; return this.render();
+      case 'travel': return travel(el.dataset.ref).then(() => this.focusBack('[data-action="travel"]'));
       case 'open-scene': {
         const scene = await fromUuid(el.dataset.uuid);
         if (!scene) return ui.notifications.warn('That scene no longer exists.');
@@ -2118,6 +2136,7 @@ export class LocationsApp extends Base {
         '<strong>Active</strong> (editor head, GM only) marks where the party is now; several places can be active. It applies at once (no Publish), shows a <em>Here now</em> badge to players who can see the place and tells them "The party is now at …". A hidden place asks <em>Reveal and make active?</em> first. Filters → Status → Active lists them. Other modules read the active places through the Locations API.',
         '<strong>Show to Players</strong> (editor head, GM only) opens the location in every other connected player\'s Locations window, like Foundry\'s Show to Players for journals. Players see only what they could already see: an unidentified place opens its unidentified card, and a Selected-players place goes only to those players. A hidden place asks <em>Reveal and show</em> first. Players\' windows switch to it rather than stacking, and a player who is typing or has unsaved Party Notes is not interrupted. GM Setup → Show to Players can turn the automatic opening off (they then get a notification).',
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
+        '<strong>Travel</strong>: link scenes on <em>Visibility &amp; map &rarr; Linked Scenes</em>. Right-click a location\'s pin on the map, or a row in the list, and choose <strong>Travel</strong> (the button in the location\'s header does the same; it reads <strong>Travel to scene&hellip;</strong> when several scenes are linked and asks which). It views the scene for you only; nobody else moves and no scene is activated. You can travel to any linked scene. Tick <strong>Players can travel here</strong> beside a scene (off by default) and <strong>Publish</strong> so players get Travel too, but only while the location is Revealed and only for scenes Foundry lets them view: set the scene\'s <em>Navigation</em> on, or give players Observer permission on it, in the scene\'s own settings. A scene a player cannot view is never offered or named.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [
         '<strong>Group by Region</strong> (the default) nests places under their Regions: <em>Fosstryn Frontier</em> &gt; <em>Fosstryn</em> &gt; <em>The Muster</em>. Click a Region\'s name to fold or unfold it (the number is how many places are inside); the arrow beside it opens the Region itself. Places with no Region above them are grouped by their <em>Region</em> text, as before. Any header can be folded, even the ones holding the place you have open. When you pick a different place, every folder that does not hold it folds and the folders on its path open; after that your own clicks stick, and a redraw never changes them. Which headers you folded is remembered for you on this computer. A search opens the headers that hold a match; you can still fold one while you search, until you change the search.',
@@ -2145,7 +2164,7 @@ export class LocationsApp extends Base {
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed, under the Regions they are in (click a Region\'s name to fold or unfold it; it is remembered for you). An unidentified pin on the map always shows its label. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
+      : '<p>These are the places your GM has revealed, under the Regions they are in (click a Region\'s name to fold or unfold it; it is remembered for you). An unidentified pin on the map always shows its label. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). Where your GM has allowed it, right-click a place\'s pin (or its row in the list) and choose <strong>Travel</strong>, or use the <strong>Travel</strong> button, to view its scene; only you move. A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }

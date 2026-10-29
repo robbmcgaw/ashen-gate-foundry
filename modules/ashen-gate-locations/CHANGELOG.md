@@ -1,3 +1,14 @@
+## 0.33.0 — 2026-10-29
+
+New: **Travel** to a location's linked scene, from a map pin, a list row or the location's header.
+
+- **Right-click > Travel.** Right-click a location's Map Note or its row in the list and choose **Travel**; the location's header also has a **Travel** button (**Travel to scene…** when several scenes are linked, which opens a small chooser listing the scenes by name). It calls `Scene#view()` for you alone: no scene is activated, no one else moves. Foundry gives players no right-click menu on a Note, so the module draws its own small menu from a listener it adds to each of its pins when they are drawn; core's own handling of the click is left alone (a GM's right-click may still do what Foundry does with it, and the Travel menu appears beside that).
+- **GM:** any linked scene that still exists. **Players:** only for a Revealed location they can read, and only scenes the GM ticks **Players can travel here** (new, per linked scene on *Visibility & map → Linked Scenes*, off by default) that the player's own client can view (the scene's Navigation is on, or they have Observer permission). The switch reaches players at **Publish**, as `travelScenes` (uuids only) in the player view. A scene a player cannot view is skipped and never named; Hidden and Unidentified locations never offer Travel. The API enforces this, not the buttons.
+- **API:** `travelScenes(idOrPinKey)` → `[{uuid, name}]` and `travelToLocation(idOrPinKey, {sceneUuid})` → `{ok, reason?}` (README).
+- **Data:** `travelSceneUuids` is additive: absent means none; always a subset of `sceneUuids`; kept by Save, Export, Import and a Manager update (an update that leaves it out keeps the world's). No migration.
+- Tests use mocked Foundry; they check the rules, the HTML and the listener wiring, not the live canvas.
+- Check in Forge: update Locations. As GM, link two scenes to a Revealed location (*Visibility & map → Linked Scenes*), tick *Players can travel here* on one, Save Changes, Publish. Right-click its pin, or its list row: **Travel to scene…** lists only what you may go to; pick one and only your view changes. Then as a player (or in a private window): the same right-click offers **Travel** for the ticked scene only if its Navigation is on or you have Observer permission on it; a Hidden or Unidentified place offers nothing.
+
 ## 0.32.2 — 2026-10-29
 
 Fix: you can fold any folder in the list, even with a place open.
