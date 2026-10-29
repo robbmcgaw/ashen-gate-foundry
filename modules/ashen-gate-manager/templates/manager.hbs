@@ -1432,6 +1432,8 @@
       <section class="ag-section" aria-label="Sidebar">
         <div class="ag-section__head"><h3 class="ag-section__title">Sidebar</h3></div>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-hide-journals {{#if hideJournalsTab}}checked{{/if}}> Hide the Journals tab from players</label>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-hide-compendiums {{#if hideCompendiumsTab}}checked{{/if}}> Hide the Compendiums tab from players</label>
+        <p class="agmanager-tiny">On removes the Compendiums tab for players, who land on Chat if it was open, and the other tabs close up the space. You always see it. Only the tab is hidden: compendium permissions are unchanged, and links and Ashen Gate windows that open compendium entries still work. Saved with Save Changes.</p>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-handouts-only {{#if playerHandoutsOnly}}checked{{/if}}> Show players only Player Handouts in the Items tab</label>
         <p class="agmanager-tiny">On, players see only the Items inside a folder named Player Handouts (and its subfolders) in the Items tab; nothing else is listed. With no such folder, players see an empty Items tab. Only the list changes: item access, character sheets, compendiums and links are unchanged, and you always see everything. Saved with Save Changes.</p>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-players-only {{#if playersFolderOnly}}checked{{/if}}> Show players only the Players folder in the Actors tab</label>

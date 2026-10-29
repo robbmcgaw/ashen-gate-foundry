@@ -2,7 +2,7 @@
   "id": "ashen-gate-manager",
   "title": "Ashen Gate | General Manager",
   "description": "GM-only import/library and optional module hub, Player Access dashboard, plus the appearance controller with separate GM and player choices. For Foundry V14.",
-  "version": "0.79.0",
+  "version": "0.80.0",
   "socket": true,
   "authors": [
     {
@@ -27,5 +27,5 @@
   ],
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-manager/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-manager-v0.79.0/ashen-gate-manager.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-manager-v0.80.0/ashen-gate-manager.zip"
 }

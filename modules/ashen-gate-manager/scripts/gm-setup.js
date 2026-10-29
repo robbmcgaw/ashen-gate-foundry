@@ -18,6 +18,7 @@ export function readGmSetupForm(root) {
   const pause = q('[data-ag-setup-pause]');
   const items = q('[data-ag-setup-items]');
   const hideJournals = q('[data-ag-setup-hide-journals]');
+  const hideCompendiums = q('[data-ag-setup-hide-compendiums]');
   const handouts = q('[data-ag-setup-handouts-only]');
   const playersFolder = q('[data-ag-setup-players-only]');
   return {
@@ -26,6 +27,7 @@ export function readGmSetupForm(root) {
     ...(hideJournals ? {hideJournalsTab: Boolean(hideJournals.checked)} : {}),
     ...(handouts ? {playerHandoutsOnly: Boolean(handouts.checked)} : {}),
     ...(playersFolder ? {playersFolderOnly: Boolean(playersFolder.checked)} : {}),
+    ...(hideCompendiums ? {hideCompendiumsTab: Boolean(hideCompendiums.checked)} : {}),
     ...(items ? {itemsReadable: items.value === 'player' ? 'player' : 'gm'} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
@@ -81,6 +83,12 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (Boolean(values.playersFolderOnly) !== Boolean(appearance.getState().playersFolderOnly)) {
       await appearance.setPlayersFolderOnly(values.playersFolderOnly);
       saved.push(values.playersFolderOnly ? 'players see only the Players folder in the Actors tab' : 'players see the Actors tab as before');
+    }
+  }
+  if (values.hideCompendiumsTab !== undefined && appearance?.setHideCompendiumsTab) {
+    if (Boolean(values.hideCompendiumsTab) !== Boolean(appearance.getState().hideCompendiumsTab)) {
+      await appearance.setHideCompendiumsTab(values.hideCompendiumsTab);
+      saved.push(values.hideCompendiumsTab ? 'Compendiums tab hidden from players' : 'Compendiums tab shown to players');
     }
   }
   if (values.itemsReadable !== undefined && itemsKey) {

@@ -1,3 +1,11 @@
+## 0.80.0 — 2026-10-29
+
+A fourth sidebar setting for players, and hidden tabs no longer leave a gap.
+
+- **Hide the Compendiums tab from players** (GM Setup > General > Sidebar, off by default, GM only). Players no longer see the Compendiums tab; if it was open they land on Chat. You always see it. Only the tab is hidden: compendium permissions are unchanged, and links and Ashen Gate windows that open compendium entries still work for players.
+- **Fix:** hiding the Journals tab left an empty space in the player's tab column. A hidden tab now gives up its whole slot, so the remaining tab icons sit together with no gap. This covers the Journals and Compendiums settings.
+- Help describes the new setting. No saved data changes: one new world setting, read as off when absent, no migration. Tests are mocked: the live V14 sidebar has not been seen.
+
 ## 0.79.0 — 2026-10-29
 
 Three optional sidebar settings for players, in **GM Setup > General > Sidebar** (all off by default, saved with Save Changes, GM only).
