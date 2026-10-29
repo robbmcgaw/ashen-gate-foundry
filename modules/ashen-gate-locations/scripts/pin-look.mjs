@@ -102,6 +102,19 @@ export function labelIsOurs(doc) {
   } catch { return false; }
 }
 
+/**
+ * 0.32.0: is this Note an unidentified pin (its player page says state "unidentified")? Read from the page's player view, which the Note's
+ * viewers can already read, so it needs no flag on the Note and applies to pins already on the map. A Hidden or Revealed pin, a Note with no
+ * module page, or anything unreadable is false. Cheap: the page flag is only parsed when it mentions "unidentified".
+ */
+export function isUnidentifiedPin(note) {
+  try {
+    const raw = note?.document?.page?.getFlag?.(MODULE_ID, 'view');
+    if (typeof raw !== 'string' || !raw.includes('unidentified')) return false;
+    return JSON.parse(raw)?.state === 'unidentified';
+  } catch { return false; }
+}
+
 /** Draws one bound Note in the chosen look. Does nothing for other Notes. Never throws. */
 export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName = false, nameSize = NAME_SIZE.default, wrap = 0, nameOffset = 0} = {}) {
   if (!isBound(note)) return false;
@@ -132,7 +145,8 @@ export function applyPinLook(note, {look = DEFAULT_PIN_LOOK, nameMode, showName 
     if (tip && hidesName(note)) { tip.visible = false; return true; }
     if (tip && labelIsOurs(note.document) && note.document?.label) {
       // Always: force the label on. Hover: leave tooltip.visible to core (hover or Notes-layer highlight). The label style below applies in both.
-      if (always) tip.visible = true;
+      // 0.32.0: an unidentified pin always shows its label (the generic one), whatever the name setting says; a revealed pin follows the setting.
+      if (always || isUnidentifiedPin(note)) tip.visible = true;
       // Wrap the displayed text only: the Note's own text is never touched. Core rebuilds tooltip.text from document.label on its
       // refreshTooltip flag, so wrap 0 (or the name off) is restored by refreshPins().
       // 0.28.0: on the GM's client only, a companion's label starts with COMPANION_MARK. Display only; the Note's text and label data are untouched.

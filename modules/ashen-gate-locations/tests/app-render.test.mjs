@@ -126,7 +126,7 @@ test('player: unidentified place shows only its label and teaser; children list 
   game.user = player;
   const app = new LocationsApp();
   const list = await app._renderHTML();
-  assert.match(list, /<h3[^>]*>Unidentified<\/h3>/);
+  assert.match(list, /<h3[^>]*>[\s\S]*?<span>Unidentified<\/span>/, 'a collapsible Unidentified group (0.32.0)');
   assert.doesNotMatch(list, /Ash Wastes|ASH-WASTES|Hidden Cave|HIDDEN-CAVE/);
   app.select(key);   // what a click on its Map Note does
   const view = await app._renderHTML();

@@ -1,3 +1,14 @@
+## 0.32.0 — 2026-10-29
+
+New: a GM-only **Beasts** block, unidentified pin labels that are always drawn, and nested Region headers in the list.
+
+- **Beasts (GM only).** A new block beside People on the Content sub-tab: the creature Actors that may roam here. Drop an Actor on it, or choose one and click **Link**; each row has a note for you. It has no eye and no "Show section to players" switch because players never see it. The data layer enforces that: Beasts are kept off the published copy, the Player View pages, Player Preview, the player API and a player client's own reads, even if an entry's `visible` or `sections.beasts` is true. Both default to false. Export, Import, a Manager update, Archive and the normaliser keep `beasts` and `sections.beasts`; an update record that leaves them out keeps the world's.
+- **Unidentified pin labels are always shown.** The label under an unidentified pin (for example "Abandoned Hamlet") is now drawn all the time, not only on hover, in both *Name under the pin* modes. It is read from the pin's player page, so pins already on the map change at once and nothing is written. Revealed pins behave as before (they follow *Name under the pin*). With *Keep pin art proportions* on and *show name* off, no label is drawn, as before.
+- **Nested Region headers.** The list nests places under collapsible headers by Region ancestry: *Fosstryn Frontier* > *Fosstryn* > *The Muster*. For the GM this is **Group by Region** (the default view; Tree mode is unchanged); players get the same. Headers are buttons that fold and unfold (`aria-expanded`), show how many places are inside, and which are folded is remembered for each user in this browser. A search, or the open place, keeps its headers open. The arrow beside a header opens the Region itself. Places with no Region above them stay in the free-text Region groups.
+- **Players never learn a hidden Region's name.** A player's list is built only from what they can see: a revealed Region says so (`isRegion` in its view); an unidentified place is a header only when a visible place is inside it, under its generic label; a visible place whose Region is hidden has no parent in its view, so it falls into the nearest visible ancestor's header (or the flat groups).
+- Tests use mocked Foundry; they check the data and the HTML, not the live window or canvas.
+- Check in Forge: update Locations. Beasts: open a location, Content sub-tab, link a creature in **Beasts**, Save Changes, then open **Player Preview** (nothing from Beasts). Pins: put an unidentified location's pin on a scene and look at the map without hovering. Headers: open the Locations list as GM (default Group by Region) and as a player, fold a Region and reopen the window.
+
 ## 0.31.0 — 2026-10-29
 
 New: **Publish all changes…** (GM). One button to publish every location whose saved changes players do not see yet.

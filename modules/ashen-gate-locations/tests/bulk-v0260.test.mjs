@@ -302,7 +302,7 @@ test('window: Select shows tick boxes, "Id starts with" narrows the list, Select
   assert.equal((listPane(html).match(/<input type="checkbox" data-pick="[^"]+" checked>/g) ?? []).length, 4);
   assert.match(html, /data-action="bulk-archive"[^>]*>[\s\S]*?Archive…/);
   assert.match(html, /placeholder="Start of an id, e.g. LOC-"/, 'the prefix box is the one place an id shows');
-  assert.doesNotMatch(listPane(html).replace(/data-pick="[^"]*"/g, '').replace(/placeholder="[^"]*"/g, '').replace(/value="[^"]*"/g, ''), /LOC-/, 'no raw ids in the list text');
+  assert.doesNotMatch(listPane(html).replace(/data-pick="[^"]*"/g, '').replace(/data-id="[^"]*"/g, '').replace(/placeholder="[^"]*"/g, '').replace(/value="[^"]*"/g, ''), /LOC-/, 'no raw ids in the list text');
   // Region narrowing works with it.
   app.idPrefix = ''; app.filters.region = 'Core';
   html = await app._renderHTML();

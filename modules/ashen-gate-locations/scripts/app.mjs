@@ -1,5 +1,5 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
-import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, NPC_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
+import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, GM_ONLY_BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, NPC_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, inheritedPin, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
@@ -10,6 +10,7 @@ import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
+import {buildRegionSections, sectionHas, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
@@ -114,6 +115,9 @@ const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?
 const docName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? ''; } catch { return ''; } };
 /** 0.30.0: the world's Actors, and Actors plus Journals (a People link may be either), as plain arrays. */
 const worldActors = () => [...(game.actors ?? [])];
+/** NPC-type world Actors not yet linked (by uuid or sourceId), for the People and Beasts pickers. */
+const actorChoices = (linkedUuids, linkedIds) => worldActors().filter(a => a.type === 'npc' && a.uuid && !linkedUuids.has(a.uuid) && !actorFacts(a).excluded && !linkedIds.has(actorFacts(a).sourceId || null))
+  .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const worldPeopleDocs = () => [...worldActors(), ...(game.journal ?? [])];
 const worldTables = () => [...(game.tables ?? [])].filter(t => t?.uuid).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(t => ({value: t.uuid, label: t.name}));
 /** Threat as a kit badge: Settled plain, Light and Normal ok, Hot warn, Deadly a solid danger fill (agl-threat--deadly). */
@@ -231,6 +235,8 @@ export class LocationsApp extends Base {
     // 0.19.0: the editor sub-tab and whether the filter row is open, remembered per user (kit uiState).
     this.editorTab = uiMem().get('editorTab', 'content', EDITOR_TABS.map(t => t.id));
     this.filtersOpen = uiMem().get('filtersOpen', false, [true, false]);
+    // 0.32.0: the Region headers folded in the list, remembered per user (kit uiState) and kept live here.
+    this.folds = readFolds(uiMem());
   }
   get gm() { return game.user.isGM === true; }
   /** 0.19.0: unsaved location edits are tracked by the kit's guardDirty (it asks before they are discarded). */
@@ -267,6 +273,7 @@ export class LocationsApp extends Base {
   }
   /** List header click: folds or unfolds that group. */
   toggleGroup(key) {
+    if (this.groupBy === 'region') { toggleFold(uiMem(), this.folds, `loose:${key}`); return this.render(); }   // 0.32.0: remembered per user
     const id = `${this.groupBy}:${key}`;
     if (!this.collapsed.delete(id)) this.collapsed.add(id);
     return this.render();
@@ -354,7 +361,8 @@ export class LocationsApp extends Base {
     const filtering = hasFilters(this.filters) || !!this.query.trim() || !!idPrefix(this.idPrefix);
     let items;
     if (this.gm && this.treeMode) items = this.treeHtml(list, rows, filtering);
-    else if (!this.gm) items = this.playerTreeHtml(list, rows, !!this.query.trim());
+    else if (!this.gm) items = this.regionHtml(list, rows, !!this.query.trim(), VIEW_ACCESS);
+    else if (this.groupBy === 'region') items = this.regionHtml(list, rows, filtering, GM_ACCESS);
     else {
       items = groupRows(rows, this.groupBy, this.qName).map(g => {
         if (this.groupBy === 'none') return `<li class="agl-group"><div class="ag-rows">${g.rows.map(l => this.rowButton(l)).join('')}</div></li>`;
@@ -441,18 +449,40 @@ export class LocationsApp extends Base {
     return `${tools}<li><ul class="agl-tree agl-tree--root" aria-label="Locations by folder">${nodes.map(n => this.treeNodeHtml(n, {open, path: show && new Set(rows.map(l => l.id))})).join('')}</ul></li>`;
   }
   /**
-   * Players: places they can see, nested under the visible places they are in (a parent they cannot see is never
-   * named; an unidentified one shows its label). Top-level places are grouped by region, unidentified ones last.
+   * 0.32.0: nested, collapsible Region headers (GM "Group by Region", and the player list). A place sits under the headers of its Region
+   * ancestors; places with no Region ancestor are grouped by their free-text region, as before. Players only ever get what they can see: a
+   * hidden Region is never named (see region-groups.mjs). Folded headers are remembered per user (kit uiState); searching, and the selected
+   * place's own headers, keep things open so a match is never hidden.
    */
-  playerTreeHtml(list, rows, filtering) {
-    const show = filtering ? withAncestors(list, rows, VIEW) : null;
-    const nodes = buildTree(list, {...VIEW, show, sort: (a, b) => a.name.localeCompare(b.name)});
-    const open = this.treeOpener(list, filtering, VIEW);
-    const groups = new Map(), UNID = 'Unidentified';
-    for (const n of nodes) { const g = n.item.state === 'unidentified' ? UNID : n.item.region || 'No region'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); }
-    const last = g => g === 'No region' || g === UNID;
-    return [...groups.entries()].sort(([a], [b]) => last(a) - last(b) || (a === UNID) - (b === UNID) || a.localeCompare(b))
-      .map(([group, ns]) => `<li class="agl-group"><h3 class="agl-group__title ag-eyebrow">${esc(group)}</h3><ul class="agl-tree agl-tree--root">${ns.map(n => this.treeNodeHtml(n, {open})).join('')}</ul></li>`).join('');
+  regionHtml(list, rows, filtering, access) {
+    const sortRows = this.gm ? comparator(this.sort, this.sortDesc) : (a, b) => a.name.localeCompare(b.name);
+    const show = filtering ? withAncestors(list, rows, access) : null;
+    const items = show ? list.filter(i => show.has(access.idOf(i))) : list;
+    const sections = buildRegionSections(items, access, {sortRows});
+    const folds = this.folds;
+    const open = this.treeOpener(list, filtering, access);
+    const path = show && new Set(rows.map(access.idOf));
+    const sel = this.selectedId;
+    const section = (s, depth) => {
+      const folded = !filtering && folds.has(s.id) && !sectionHas(s, sel, access);
+      // The GM's flat groups (places with no Region above them) keep their plain, untreed rows; only the fold is the new, remembered one.
+      if (this.gm && s.flat) return `<li class="agl-group"><h3 class="agl-group__title"><button type="button" class="agl-group__head ag-eyebrow" data-action="toggle-group" data-group="${esc(s.label)}" aria-expanded="${!folded}"
+          ${tip(folded ? 'Unfold' : 'Fold')}><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(s.label)}</span><span class="agl-count">${s.count}</span></button></h3>
+          ${folded ? '' : `<div class="ag-rows">${s.rows.map(l => this.rowButton(l)).join('')}</div>`}</li>`;
+      // GM: plain rows, as the flat groups always were (every place listed, none tucked under a toggle). Players: the nested tree rows.
+      const nodes = this.gm ? '' : buildTree(s.rows, {...access, sort: sortRows}).map(n => this.treeNodeHtml(n, {open, path})).join('');
+      const plain = this.gm && s.rows.length ? `<li><div class="ag-rows">${s.rows.map(l => this.rowButton(l)).join('')}</div></li>` : '';
+      const kids = s.sections.map(c => section(c, depth + 1)).join('');
+      const name = esc(s.label);
+      const head = `<button type="button" class="agl-group__head ag-eyebrow agl-rgroup__toggle" data-action="region-fold" data-id="${esc(s.id)}" aria-expanded="${!folded}"${tip(folded ? 'Unfold' : 'Fold')}>
+          <i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${name}</span><span class="agl-count"${tip(`${s.count} ${s.count === 1 ? 'place' : 'places'} inside`)}>${s.count}</span></button>`;
+      // In Select mode a Region that matches the list gets its tick box, so it can be picked like any row; otherwise a button opens it.
+      const tick = this.pickMode && s.item && (!path || path.has(access.idOf(s.item)));
+      const openBtn = tick ? this.pickRow(s.item) : s.item ? btn('select', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-right', data: {id: this.rid(s.item)}, title: `Open ${s.label}`}) : '';
+      return `<li class="agl-group agl-rgroup" data-depth="${depth}"><h3 class="agl-group__title agl-rgroup__title">${head}${openBtn}</h3>
+        ${folded ? '' : `<ul class="agl-rgroup__body">${kids}${plain}${nodes ? `<li><ul class="agl-tree agl-tree--root">${nodes}</ul></li>` : ''}</ul>`}</li>`;
+    };
+    return sections.map(s => section(s, 0)).join('');
   }
   /** After a move: what happened, with Undo (GM). */
   undoHtml() {
@@ -767,7 +797,8 @@ export class LocationsApp extends Base {
     const byId = new Map(all.map(l => [l.id, l.name]));
     // 0.19.0 (LOC-A11Y-04): repeated tools name their entry ("Remove [TEST] Faction A", not six "Remove").
     const entryName = (key, e) => String(e.label || e.title || (key === 'quests' ? questName(e.questId, quests) : key === 'related' ? byId.get(e.locationId) : key === 'resources' ? nodeName(e) : '') || 'this entry');
-    const entryTools = (key, e) => { const n = entryName(key, e); return `${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-up', data: {section: key, key: e.key, dir: -1}, title: `Move ${n} up`})}${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-down', data: {section: key, key: e.key, dir: 1}, title: `Move ${n} down`})}${eye(`${key}.${e.key}.visible`, e.visible, n)}${btn('remove', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {section: key, key: e.key}, title: `Remove ${n}`})}`; };
+    // 0.32.0: Beasts are GM only, so their rows have no eye (there is nothing to show players).
+    const entryTools = (key, e) => { const n = entryName(key, e); return `${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-up', data: {section: key, key: e.key, dir: -1}, title: `Move ${n} up`})}${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-down', data: {section: key, key: e.key, dir: 1}, title: `Move ${n} down`})}${GM_ONLY_BLOCKS.includes(key) ? '' : eye(`${key}.${e.key}.visible`, e.visible, n)}${btn('remove', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {section: key, key: e.key}, title: `Remove ${n}`})}`; };
     const handle = (key, e) => `<span class="agl-handle" draggable="true" data-drag-entry="${esc(key)}:${esc(e.key)}" tabindex="0" role="button" aria-label="Move ${esc(entryName(key, e))}. Drag, or press Alt+Up or Alt+Down."${tip('Drag to reorder (Alt+Up / Alt+Down)')}><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>`;
     const docLink = (label, uuid) => uuid ? go(label, 'open-doc', {uuid}) : `<span>${esc(label)}</span>`;
     const rows = (key, fn) => d[key].length ? `<ul class="ag-list agl-entries">${d[key].map(e => `<li data-entry="${esc(key)}:${esc(e.key)}" class="${e.visible ? '' : 'agl-hidden'}">${handle(key, e)}${fn(e)}<span class="agl-tools">${entryTools(key, e)}</span></li>`).join('')}</ul>` : '';
@@ -793,9 +824,16 @@ export class LocationsApp extends Base {
       `<li><span class="agl-entry"><strong>${esc(sg.name)}</strong> <small>${sg.placed ? 'Its record places it here' : 'Its record only mentions this place'}</small></span>
         <span class="agl-tools">${btn('link-npc', `Link ${sg.name}`, {kind: 'sm', icon: 'fa-solid fa-link', data: {uuid: sg.uuid}})}</span></li>`).join('')}</ul></div>` : '';
     const linkedUuids = new Set(d.npcs.map(n => n.uuid)), linkedIds = new Set(d.npcs.map(n => n.sourceId).filter(Boolean));
-    const npcChoices = worldActors().filter(a => a.type === 'npc' && a.uuid && !linkedUuids.has(a.uuid) && !actorFacts(a).excluded && !linkedIds.has(actorFacts(a).sourceId || null))
-      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const npcChoices = actorChoices(linkedUuids, linkedIds);
     const npcAdd = `${suggestHtml}<select id="agl-add-npcs" aria-label="Person to link"><option value="">${npcChoices.length ? 'Choose a person…' : 'No other NPC characters in this world'}</option>${npcChoices.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join('')}</select>${btn('add-npc', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`;
+    // 0.32.0: Beasts (GM only). The same Actor picker and drop as People; no eye, no player toggle, and nothing here is ever published.
+    const beastRows = rows('beasts', e => {
+      const name = e.uuid ? docName(e.uuid) : '';
+      return `<span class="agl-entry agl-npc">${name ? docLink(name, e.uuid) : `<span>${esc(e.label || 'This creature')}</span> <small>(not found in this world)</small>`}
+        ${text(`beasts.${e.key}.note`, e.note, 'Short note for you (optional)', `Note for ${name || e.label || 'this creature'}`)}</span>`;
+    });
+    const beastChoices = actorChoices(new Set(d.beasts.map(n => n.uuid)), new Set(d.beasts.map(n => n.sourceId).filter(Boolean)));
+    const beastAdd = `<select id="agl-add-beasts" aria-label="Creature to link"><option value="">${beastChoices.length ? 'Choose a creature…' : 'No other NPC actors in this world'}</option>${beastChoices.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join('')}</select>${btn('add-beast', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`;
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
       return `<span class="agl-entry">${go(name ?? 'Unknown quest', 'open-quest', {id: e.questId}, {icon: 'fa-solid fa-scroll'})}${name ? '' : ' <small>(not found in Quest Log)</small>'}</span>`;
@@ -847,6 +885,7 @@ export class LocationsApp extends Base {
       resources: sec('resources', resources, this.nodePickHtml(nodes), 'Drop material Items here, or click Add node… for a Profession Ledger node template or a custom gathering node.'),
       factions: sec('factions', factions, addText('factions', 'Custom faction name'), 'Drop Actors or Journals here, or add a custom faction.'),
       npcs: sec('npcs', npcRows, npcAdd, 'Drop an NPC Actor or Journal here, or choose one. Each person stays hidden from players until you turn on its eye and show this section.'),
+      beasts: block('beasts', 'Beasts', 'Beasts', `${beastRows || '<p class="agl-hint">Drop a creature Actor here, or choose one.</p>'}<div class="agl-add">${beastAdd}</div>`, '<span class="agl-hint">GM only. Creatures that may roam here; players never see this list.</span>'),
       quests: sec('quests', questRows, questAdd, 'No quests linked.'),
       related: sec('related', relatedRows, relatedAdd, 'No related locations.'),
       loot: sec('loot', lootRows, addText('loot', 'Plain reward (coins, clue, favour, key)'), 'Drag an Item here (world or compendium), or add a plain reward. A link never gives anyone the item.'),
@@ -1482,11 +1521,13 @@ export class LocationsApp extends Base {
     return this.render();
   }
   /** 0.30.0: links an NPC (or a Journal about someone) to this location. Hidden from players until its eye is turned on. A link only: nothing is copied. */
-  linkPerson(doc) {
+  linkPerson(doc) { return this.linkActor('npcs', doc); }
+  /** 0.32.0: People and Beasts share this: links an Actor (a Journal too, for People) to a list on this location, hidden by default. A link only. */
+  linkActor(section, doc) {
     if (!this.draft || !doc?.uuid) return;
     const facts = actorFacts(doc);
-    if (this.draft.npcs.some(n => n.uuid === doc.uuid || (facts.sourceId && n.sourceId === facts.sourceId))) { ui.notifications.info(`${doc.name} is already linked here.`); return; }
-    return this.addEntry('npcs', {label: doc.name, uuid: doc.uuid, docType: doc.documentName ?? 'Actor', sourceId: facts.sourceId, note: '', visible: false});
+    if (this.draft[section].some(n => n.uuid === doc.uuid || (facts.sourceId && n.sourceId === facts.sourceId))) { ui.notifications.info(`${doc.name} is already linked here.`); return; }
+    return this.addEntry(section, {label: doc.name, uuid: doc.uuid, docType: doc.documentName ?? 'Actor', sourceId: facts.sourceId, note: '', visible: false});
   }
   addEntry(section, data) {
     this.draft[section].push({key: newKey(), visible: true, ...data});
@@ -1528,6 +1569,10 @@ export class LocationsApp extends Base {
       if (!NPC_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor or Journal here.');
       return this.linkPerson(doc);
     }
+    if (section === 'beasts') {
+      if (type !== 'Actor') return ui.notifications.warn('Drop a creature Actor here.');
+      return this.linkActor('beasts', doc);
+    }
     if (section === 'conditions') return ui.notifications.warn('Conditions are text. Type the condition name and click Add.');
     if (section === 'hazards' || section === 'rollTables') {
       if (type !== 'RollTable') return ui.notifications.warn('Drop a Roll Table here.');
@@ -1547,6 +1592,7 @@ export class LocationsApp extends Base {
     if (action === 'retry') return this.render();
     if (action === 'clear-filters') return this.clearFilters();
     if (action === 'toggle-group') return this.toggleGroup(el.dataset.group);
+    if (action === 'region-fold') { toggleFold(uiMem(), this.folds, el.dataset.id); return this.render(); }
     if (action === 'tree-toggle') { const open = LocationsApp.treeOpen; if (!open.delete(el.dataset.id)) open.add(el.dataset.id); return this.render(); }
     if (action === 'tree-all') {
       if (el.dataset.open === '1') for (const l of this.list()) { const p = this.gm ? l.parentLocationId : l.parent?.key; if (p) LocationsApp.treeOpen.add(p); }
@@ -1614,13 +1660,13 @@ export class LocationsApp extends Base {
       case 'preview': return this.preview();
       case 'show-players': return this.showToPlayers();
       case 'toggle-active': return this.toggleActive();
-      case 'link-npc': case 'add-npc': {
-        const uuid = action === 'link-npc' ? el.dataset.uuid : root.querySelector('#agl-add-npcs')?.value;
+      case 'link-npc': case 'add-npc': case 'add-beast': {
+        const uuid = action === 'link-npc' ? el.dataset.uuid : root.querySelector(action === 'add-beast' ? '#agl-add-beasts' : '#agl-add-npcs')?.value;
         if (!uuid) return;
         let doc = null;
         try { doc = await fromUuid(uuid); } catch { doc = null; }
         if (!doc) return ui.notifications.warn(MISSING_DOC);
-        return this.linkPerson(doc);
+        return this.linkActor(action === 'add-beast' ? 'beasts' : 'npcs', doc);
       }
       case 'relink-npc': {
         const plan = relinkPlan(this.draft.npcs, worldPeopleDocs(), uuid => !!docName(uuid)).filter(r => r.key === el.dataset.key);
@@ -2012,6 +2058,7 @@ export class LocationsApp extends Base {
         '<strong>Description</strong> (Content sub-tab, the first block) is a few sentences on what the place looks and feels like. The <i class="fa-solid fa-eye"></i> beside it decides whether players see it once the location is Revealed and Published; closed, they never receive it. You can drag the block lower if you prefer.',
         'Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry. <strong>Add detail</strong> makes a custom block with a title, text and an optional linked document.',
         '<strong>Reorder:</strong> drag a grip, or use the arrows (Alt+Up / Alt+Down on a grip), to move a block or an entry. Players see published blocks in your order.',
+        '<strong>Beasts</strong> (Content sub-tab, next to People) lists the creature Actors that may roam here. It is for you only: drop a creature Actor on the block, or choose one and click <strong>Link</strong>, and add a note for yourself. Players never see this list, whatever else you turn on: it is not published, not in Player Preview, and not in anything a player can read.',
         '<strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.',
         'Quests come from Quest Log. Clicking one opens the Quest Log.']),
       topic('Visibility', [
@@ -2020,7 +2067,7 @@ export class LocationsApp extends Base {
         'The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.',
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden, unless you tick <em>Everyone else sees it as unidentified</em>: they then see an unidentified marker at the same spot (a second, generic pin that follows the real one; you see both on the scene) and cannot open the real page. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
-        '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.',
+        '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed, and an unidentified pin\'s label is always drawn under it (not only on hover); set pin art under <em>Unidentified Marker &amp; Pin</em>.',
         '<strong>Default pin for places inside this one</strong> (Visibility &amp; map, GM only): give a Region such as a country or a town a pin image for revealed places, one for hidden / unidentified places, and a pin size, and every place inside it (and inside those) uses them. Order: the place\'s own value, then the nearest place above it that sets one, then <em>GM Setup</em>\'s default unidentified image, then Foundry\'s icons. A place\'s own value is never changed. Placed pins update when you Save; a pin whose image or size you changed in Foundry\'s Note settings keeps your change. The empty boxes show what the place would use now.',
         '<strong>Keep pin art proportions</strong> (Visibility &amp; map, next to Pin size, per location): off by default, so a pin is Foundry\'s square. Tick it and Save Changes and that location\'s pin is drawn wider or taller to match its image, e.g. a wide banner for a district label. <em>Pin size</em> sets the height; the width follows the picture, up to 4 times the height (a taller picture is limited the same way; anything more extreme is shown whole, smaller, inside that limit). The frame, shading, click and drag follow the new shape. <strong>Banner width</strong> (appears while this is on; empty = off) draws the pin that many pixels wide (48 to 1024) and the height follows the image, with the same 4:1 limit; <em>Pin size</em> is greyed while a width is set, and \'Draws about W x H\' shows the result. A pin whose size you changed in Foundry\'s own Note settings ignores the Banner width and uses that size as its height, as before. The name under the pin is hidden (the art usually carries the name); tick <em>Show the name under the pin</em> beside it to bring it back. It applies to whichever image the pin shows, needs no Publish, and is not inherited by places inside a Region.',
         '<strong>Active</strong> (editor head, GM only) marks where the party is now; several places can be active. It applies at once (no Publish), shows a <em>Here now</em> badge to players who can see the place and tells them "The party is now at …". A hidden place asks <em>Reveal and make active?</em> first. Filters → Status → Active lists them. Other modules read the active places through the Locations API.',
@@ -2028,6 +2075,7 @@ export class LocationsApp extends Base {
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [
+        '<strong>Group by Region</strong> (the default) nests places under their Regions: <em>Fosstryn Frontier</em> &gt; <em>Fosstryn</em> &gt; <em>The Muster</em>. Click a Region\'s name to fold or unfold it (the number is how many places are inside); the arrow beside it opens the Region itself. Places with no Region above them are grouped by their <em>Region</em> text, as before. Which headers you folded is remembered for you on this computer; a search, or the place you have open, keeps its headers unfolded.',
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
         '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
         '<em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
@@ -2052,7 +2100,7 @@ export class LocationsApp extends Base {
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
+      : '<p>These are the places your GM has revealed, under the Regions they are in (click a Region\'s name to fold or unfold it; it is remembered for you). An unidentified pin on the map always shows its label. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }

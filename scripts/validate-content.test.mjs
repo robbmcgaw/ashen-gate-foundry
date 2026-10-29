@@ -354,3 +354,12 @@ test('Work Orders: work_order_domain "creative" validates (Quest Log 0.18.0, Man
     assert.ok(manager.errors.some(e => e.includes('work_order_domain: Work Order requires a crafting, production or creative domain.')), JSON.stringify(manager.errors));
   }
 });
+
+test('Location beasts (Locations 0.32.0, GM only) are accepted with an NPC-* sourceId and flagged when Locations would drop them', async () => {
+  const withBeasts = beasts => ({...location(node()), location: {...location(node()).location, beasts, sections: {beasts: false}}});
+  assert.deepEqual((await checkContent(pack([withBeasts([{key: 'b1', label: '[TEST] Wolf', sourceId: 'NPC-TEST-WOLF', docType: 'Actor'}])]))).errors, []);
+  const dropped = (await checkContent(pack([withBeasts([{label: '[TEST] No link'}])]))).errors;
+  assert.deepEqual(dropped, ['LOC-TEST-FIELD: beasts[0] dropped (needs a uuid or a sourceId like NPC-*).']);
+  const badId = (await checkContent(pack([withBeasts([{label: '[TEST] Bear', uuid: 'Actor.bear', sourceId: 'bear'}])]))).errors;
+  assert.deepEqual(badId, ['LOC-TEST-FIELD: beasts[0].sourceId "bear" is not an NPC-* id.']);
+});
