@@ -1,3 +1,13 @@
+## 0.32.1 — 2026-10-29
+
+Fix: the **Inside** list offers Regions only, and **Region** is a drop-down of your Regions.
+
+- **Inside lists Regions only.** The Place card's *Inside* select (and *Move to…*, which now shares the same list) offers only places ticked *This is a Region (a folder)*, sorted by path (*Fosstryn Frontier › Fosstryn › The Muster*; the path is shown when two Regions share a name). Still excluded: the place itself and anything inside it. A place's current parent stays listed and selected even if it is not a Region, labelled *(not a Region)*, so opening a record never changes it; a deleted parent still shows as before. To put a place inside a non-Region, tick *This is a Region* on the container first.
+- **Region is a drop-down.** The Content tab's *Region* offers *No region* and each Region's name once. A record's existing text that names no Region (for example *Eastern Mountains*) stays selected as *(custom)*. The stored value is still the plain name, so Group by Region, filters, search, imports and Manager are unchanged. Changing *Inside* to a Region fills *Region* with its name, but only if *Region* was empty or the old parent Region's name.
+- No data change and no migration. Tree, list and the API still accept any parent id, including a non-Region one.
+- Tests use mocked Foundry; they check the data and the HTML, not the live window.
+- Check in Forge: update Locations. Open a place, Visibility & map tab: *Inside* lists only Regions (an existing non-Region parent shows *(not a Region)* and stays selected). Click *Move to…*: the same Regions. Content tab: *Region* is a drop-down; a record with free text shows it as *(custom)*. Change *Inside* to a Region and watch *Region* follow, then Save Changes.
+
 ## 0.32.0 — 2026-10-29
 
 New: a GM-only **Beasts** block, unidentified pin labels that are always drawn, and nested Region headers in the list.

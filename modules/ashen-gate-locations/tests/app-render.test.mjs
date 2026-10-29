@@ -149,7 +149,7 @@ test('GM: nesting picker offers no place that would loop; state shown on rows', 
   const html = await app._renderHTML();
   const picker = html.slice(html.indexOf('id="agl-parent"'), html.indexOf('</select>', html.indexOf('id="agl-parent"')));
   assert.doesNotMatch(picker, /Old Quarry|Hidden Cave|value="LOC-TEST-MILLBROOK"/, 'its own children and itself are not offered');
-  assert.match(picker, /Ash Wastes/);
+  assert.doesNotMatch(picker, /Ash Wastes/, '0.32.1: only Regions are offered, and Ash Wastes is not one');
   assert.match(html, /Places inside/);
   assert.match(html, /fa-circle-question agl-row__rev" data-tooltip="Unidentified"/);
   assert.match(html, /data-action="new-child"/);
