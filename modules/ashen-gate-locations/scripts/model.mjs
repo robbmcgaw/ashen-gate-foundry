@@ -35,6 +35,7 @@ export const BLOCKS = Object.freeze([
   {key: 'resources', label: 'Gathering Resources'},
   {key: 'factions', label: 'Factions'},
   {key: 'npcs', label: 'People'},
+  {key: 'beasts', label: 'Beasts'},
   {key: 'quests', label: 'Quests'},
   {key: 'related', label: 'Related Locations'},
   {key: 'loot', label: 'Loot & Rewards'},
@@ -43,6 +44,12 @@ export const BLOCKS = Object.freeze([
   {key: 'notes', label: 'Notes'},
   {key: 'scenes', label: 'Linked Scenes'}
 ]);
+/**
+ * 0.32.0: GM-only blocks. `beasts` (creature Actor links, shaped like `npcs`) and its `sections.beasts` flag live on the GM record only:
+ * they are not part of the authored body, so Publish never copies them, the player view never carries them, and a stored `published`
+ * copy never holds them, whatever `visible` or `sections.beasts` say. See normalizeBeasts / publishable / stripGmOnly.
+ */
+export const GM_ONLY_BLOCKS = Object.freeze(['beasts']);
 export const DETAIL_PREFIX = 'detail:';
 export const LOOT_STATUSES = Object.freeze(['available', 'discovered', 'taken']);
 export const LOOT_STATUS_LABELS = Object.freeze({available: 'Available', discovered: 'Discovered', taken: 'Taken'});
@@ -193,6 +200,9 @@ const ENTRY_SHAPES = {
     status: LOOT_STATUSES.includes(e.status) ? e.status : 'available'}),
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };
+/** 0.32.0: creatures that may roam here. Same entry shape as `npcs`, but GM only: `visible` defaults to false and has no effect (nothing here is ever published). */
+export const normalizeBeasts = list => (Array.isArray(list) ? list : []).map(e => entry(e, ENTRY_SHAPES.npcs, false)).filter(KEEP_ENTRY.beasts)
+  .filter((e, i, all) => all.findIndex(x => x.key === e.key) === i).slice(0, MAX_LIST);
 const DETAIL_SHAPE = e => ({title: line(e.title), text: text(e.text), ...linked(e)});
 /**
  * 0.20.0: hazards and linked roll tables, on any location (a "Route" is just a location of type Route). Lists of
@@ -221,6 +231,7 @@ const KEEP_ENTRY = {
   resources: e => e.nodeId || e.label || e.materialId || e.rareMaterialId || e.uuid,
   factions: e => e.label || e.uuid,
   npcs: e => e.uuid || e.sourceId,
+  beasts: e => e.uuid || e.sourceId,
   quests: e => e.questId,
   related: e => e.locationId,
   notes: e => e.title || e.text || e.uuid
@@ -295,7 +306,23 @@ function normalizeBody(r, id) {
 export const normalizeChildPin = raw => ({img: safePath(raw?.img), unidentifiedImg: safePath(raw?.unidentifiedImg), size: int(raw?.size, 0, 16, 256)});
 const BODY_KEYS = Object.keys(normalizeBody({}, ''));
 /** The part of a location that Publish copies for players. */
-export const publishable = loc => clone(Object.fromEntries(BODY_KEYS.map(k => [k, loc[k]])));
+export const publishable = loc => {
+  const body = clone(Object.fromEntries(BODY_KEYS.map(k => [k, loc[k]])));
+  for (const k of GM_ONLY_BLOCKS) delete body.sections?.[k]; // 0.32.0: the GM-side switch is not content
+  return body;
+};
+/**
+ * 0.32.0: what a player-side reader may hold. Drops every GM-only block from a view (defence in depth: playerView never builds one, but a stored
+ * page flag from anywhere is passed through this before a player client uses it).
+ */
+export function stripGmOnly(view) {
+  if (!view || typeof view !== 'object') return view;
+  const out = {...view};
+  for (const k of GM_ONLY_BLOCKS) delete out[k];
+  if (out.sections && typeof out.sections === 'object') { out.sections = {...out.sections}; for (const k of GM_ONLY_BLOCKS) delete out.sections[k]; }
+  if (Array.isArray(out.layout)) out.layout = out.layout.filter(k => !GM_ONLY_BLOCKS.includes(k));
+  return out;
+}
 
 /**
  * Fills defaults and drops anything malformed. Unknown keys are discarded. Re-runnable.
@@ -312,6 +339,9 @@ export function normalizeLocation(raw = {}) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const id = LOCATION_ID.test(r.id ?? '') ? r.id : '';
   const loc = {id, pinKey: PIN_KEY.test(r.pinKey ?? '') ? r.pinKey : newPinKey(), ...normalizeBody(r, id)};
+  // 0.32.0, GM-only: creatures that may roam here, and the (GM-side) switch. Kept off the body so Publish never copies them; both default off.
+  loc.beasts = normalizeBeasts(r.beasts);
+  loc.sections.beasts = bool(r.sections?.beasts, false);
   loc.sceneUuids = [...new Set((Array.isArray(r.sceneUuids) ? r.sceneUuids : []).map(safeUuid).filter(Boolean))].slice(0, 20);
   // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
   loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
@@ -534,6 +564,8 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   }
   const view = {id: loc.id, key: loc.pinKey, state: 'revealed', name: pub.name};
   if (loc.active) view.active = true;
+  // 0.32.0: a revealed Region says so, so the list can nest places under it. Only on a place the player already sees by name.
+  if (pub.isRegion) view.isRegion = true;
   for (const f of FIELDS) if (pub.show[f] && pub[f]) view[f] = pub[f];
   const on = key => pub.sections[key] ? pub[key].filter(e => e.visible) : [];
   const resources = on('resources').map(e => nodeForPlayer(e, nodeView));
@@ -839,8 +871,8 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0 and 0.30.0. An update that leaves one out keeps the world's value instead of clearing it. */
-const ADDITIVE = ['npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
+/** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0, 0.30.0 and 0.32.0 (beasts). An update that leaves one out keeps the world's value instead of clearing it. */
+const ADDITIVE = ['beasts', 'npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
   'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
 
 /**
@@ -871,7 +903,7 @@ export function importRecords(records, existing = [], {mode = 'skip', unarchive 
     if (old) {
       for (const k of ADDITIVE) if (!(k in body)) body[k] = old[k];
       // A package from before 1.4.0 has no switch for the new sections; keep the world's.
-      body.sections = {conditions: old.sections.conditions, loot: old.sections.loot, npcs: old.sections.npcs, ...(body.sections ?? {})};
+      body.sections = {conditions: old.sections.conditions, loot: old.sections.loot, npcs: old.sections.npcs, beasts: old.sections.beasts, ...(body.sections ?? {})};
     }
     const incoming = normalizeLocation(body);
     if (wouldCycle(incoming.id, incoming.parentLocationId, parents)) { skipped.push({id, reason: `parentLocationId ${incoming.parentLocationId} would put it inside itself.`}); continue; }

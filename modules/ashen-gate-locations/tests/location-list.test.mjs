@@ -121,7 +121,7 @@ test('quest and status filters; sort keys and direction', () => {
   assert.deepEqual(groupRows(rows, 'quest').map(g => g.label), ['QUEST-1', 'No quest']);
 });
 
-test('player list stays simple: revealed only, plain headings, no grouping controls', async () => {
+test('player list: revealed only, collapsible region headings with counts, no grouping controls', async () => {
   const api = boot();
   const a = await api.saveLocation(L('Open', {region: 'North'}));
   await api.saveLocation(L('Secret', {region: 'North'}));
@@ -129,8 +129,9 @@ test('player list stays simple: revealed only, plain headings, no grouping contr
   game.user = player;
   const html = await new LocationsApp()._renderHTML();
   assert.match(html, /\[TEST\] Open/);
-  assert.doesNotMatch(html, /Secret|agl-groupby|agl-onlygroup|toggle-group|agl-count/);
-  assert.match(html, /<h3[^>]*>North<\/h3>/);
+  assert.doesNotMatch(html, /Secret|agl-groupby|agl-onlygroup|toggle-group/);
+  assert.match(html, /<h3[^>]*>[\s\S]*?<span>North<\/span><span class="agl-count"[^>]*>1<\/span>/);
+  assert.match(html, /data-action="region-fold"[^>]*aria-expanded="true"/);
 });
 
 test('100+ locations group quickly', async () => {

@@ -40,7 +40,7 @@
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
   normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, pinOverridden,
-  companionActive, companionView, companionNoteData, companionPatch} from './model.mjs';
+  companionActive, companionView, companionNoteData, companionPatch, stripGmOnly} from './model.mjs';
 import {nodePlayerView} from './ledger-nodes.mjs';
 import {folderIdOrNull} from './ag-folders.mjs';
 
@@ -272,6 +272,7 @@ export function readViews() {
     .filter(p => isGM() ? !p.getFlag(MODULE_ID, 'companionKey') : p.testUserPermission(game.user, 'OBSERVER')) // the GM list is the records; a companion is only a player's unidentified entry
     .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
     .filter(Boolean)
+    .map(v => isGM() ? v : stripGmOnly(v)) // 0.32.0: a player client never holds a GM-only block, whatever a page flag says
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
