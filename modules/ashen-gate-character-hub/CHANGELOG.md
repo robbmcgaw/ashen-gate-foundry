@@ -1,3 +1,11 @@
+## 0.62.3 — 2026-10-29
+
+Musical instruments can go in a trinket slot.
+
+- A tool Item whose type is Musical Instrument (dnd5e `system.type.value` of `music`) now counts as a trinket: an equipped one shows in a free trinket box instead of under Other equipped, and an empty trinket box's Equip… list offers carried instruments. Artisan's tools, gaming sets and other tools are unchanged, as are the other slots, the existing trinket items, and a slot you chose yourself for an item.
+- Display only: no Item is changed. Help mentions it.
+- Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.62.2 — 2026-10-28
 
 Companion gear and perks read the same whether their effects use the old dnd5e keys or the dnd5e 6.0 ones.
