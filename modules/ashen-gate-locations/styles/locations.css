@@ -161,6 +161,8 @@
 .agl-tree__item--path > .agl-tree__row .agl-row__name { color: var(--ag-muted); }
 .agl-tree__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); padding: var(--ag-space-1); margin-bottom: var(--ag-space-1); border: 1px dashed transparent; border-radius: var(--ag-radius); }
 .agl-tree__row.agl-dragover, .agl-tree__tools.agl-dragover { border-color: var(--ag-accent); background: var(--ag-surface-hover); }
+.agl-publishall { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ag-space-2); margin-bottom: var(--ag-space-2); }
+.agl-publishall .agl-hint { margin: 0; }
 .agl-undo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ag-space-3); padding: var(--ag-space-2) var(--ag-space-3); margin-bottom: var(--ag-space-2); border: 1px solid var(--ag-accent); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
 .agl-share { display: flex; align-items: center; gap: var(--ag-space-3); flex-wrap: wrap; }
 

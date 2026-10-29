@@ -1,3 +1,14 @@
+## 0.31.0 — 2026-10-29
+
+New: **Publish all changes…** (GM). One button to publish every location whose saved changes players do not see yet.
+
+- At the top of the Locations list. It is disabled, with the reason, when nothing is waiting. It asks first ("Publish N locations?"), then publishes every revealed or unidentified location that has saved changes, in one step, exactly as Publish does for one.
+- Hidden and archived locations are skipped. Nothing else changes: state, Active, who can see it, pins and Party Notes are left alone. Running it again publishes nothing.
+- If the open editor has unsaved changes, it offers **Save and publish all changes** first (or Keep editing).
+- API (GM only, rejected for anyone else): `publishAllLocations()` resolves `{published, ids}`.
+- Tests use mocked Foundry; they check the logic and the HTML, not the live window.
+- Check in Forge: update Locations. Edit and Save Changes on two revealed locations, then click **Publish all changes…** at the top of the list and confirm.
+
 ## 0.30.0 — 2026-10-28
 
 New: **People** and **Shops** on a location. Links only; nothing is given to anyone, and nothing is shown to players until you say so.
