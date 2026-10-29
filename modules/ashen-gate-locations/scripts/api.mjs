@@ -246,6 +246,19 @@ export function createApi(deps) {
       await deps.writeAll(all);
       return clone(loc);
     },
+    /**
+     * 0.31.0, GM: Publish for every location that is not archived, not Hidden and has saved edits players do not see yet (the same
+     * publishable() as publishLocation), in ONE write. Hidden, archived and up-to-date locations are skipped; state, Active, audience,
+     * pins and Party Notes are never touched. Re-runnable: a second call finds nothing and writes nothing. Resolves {published, ids}.
+     */
+    async publishAllLocations() {
+      requireGM();
+      const all = deps.readAll();
+      const todo = all.filter(l => !l.archived && l.state !== 'hidden' && hasUnpublishedChanges(l));
+      for (const l of todo) l.published = publishable(l);
+      if (todo.length) await deps.writeAll(all);
+      return {published: todo.length, ids: todo.map(l => l.id)};
+    },
     /** GM: does a location have saved edits players do not see yet? */
     hasUnpublishedChanges(id) {
       requireGM();

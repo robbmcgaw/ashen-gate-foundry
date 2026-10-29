@@ -75,6 +75,7 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | `locationsForQuest('QUEST-…')` | `[{id, name}]` (used by Quest Manager) |
 | `open()`, `openLocation(idOrPinKey)` | opens the window |
 | GM only: `setLocationState(id, 'hidden'\|'unidentified'\|'revealed')`, `publishLocation(id)` | change what players see (the only calls that do) |
+| GM only: `publishAllLocations()` (0.31.0) | Publish for every non-archived, non-Hidden location with unpublished changes, in one write. Resolves `{published, ids}`. Non-GM throws; a second call publishes 0 |
 | GM only: `setLocationActive(idOrPinKey, bool)` (0.24.0) | marks where the party is now; many may be active. Live state like Hidden/Revealed: applies at once, no Publish. Hidden throws (reveal first). Non-GM throws. Resolves to the GM record |
 | `activeLocations()` (0.24.0) | GM: `[{id, key, name, state}]` of every active one. Player: `[{key, name, state}]` of visible active ones only (the name they may see; an unidentified place has only its label); never hidden or other players' Selected-players places. Sorted by name |
 | `isLocationActive(idOrPinKey)` (0.24.0) | boolean. A player gets `false` for anything they cannot see |

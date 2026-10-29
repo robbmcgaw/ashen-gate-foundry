@@ -382,7 +382,7 @@ export class LocationsApp extends Base {
     return `<div class="ag-toolbar agl-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations"></label>
         ${quick}${this.gm ? `<span class="ag-toolbar__count" aria-live="polite">Showing ${rows.length} of ${total}</span>` : ''}${end}</div>
       ${this.gm && this.filtersOpen ? filters : ''}
-      <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${this.gm && this.pickMode ? this.bulkBarHtml() : ''}${this.undoHtml()}${this.bulkUndoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
+      <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${this.gm && !this.showArchived ? this.publishAllHtml(list) : ''}${this.gm && this.pickMode ? this.bulkBarHtml() : ''}${this.undoHtml()}${this.bulkUndoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
         ${this.gm && rows.length ? `<p class="agl-hint">Drag a placeable location onto the scene to place a Map Note${this.treeMode ? '; drag one onto a folder to move it inside' : ''}.</p>` : ''}</aside>
       <section class="agl-detail ag-split__detail">${this.gm ? (this.showArchived ? this.archivedPanelHtml() : this.editorHtml()) : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
   }
@@ -473,6 +473,34 @@ export class LocationsApp extends Base {
       ${this.treeMode ? '' : plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
       <label class="ag-field ag-field--inline agl-switch"${tip('Representative-only locations (most Regions) are not offered for placing on a map unless this is on')}><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>
       ${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost sm', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div></div>`;
+  }
+
+  // ---------- 0.31.0 Publish all changes (GM) ----------
+  /** The locations Publish all changes would publish: shown (not Hidden), not archived, with saved edits players do not see yet. */
+  unpublishedCount(list) { return list.filter(l => !l.archived && l.state !== 'hidden' && hasUnpublishedChanges(l)).length; }
+  /** A band at the top of the list (not the header, and the toolbar stays one row). Disabled, with the reason, when nothing is waiting. */
+  publishAllHtml(list) {
+    const n = this.unpublishedCount(list);
+    const why = n ? `Show players the saved changes of ${n} ${n === 1 ? 'location' : 'locations'}` : 'Nothing to publish: players already see every saved change';
+    const h = btn('publish-all', 'Publish all changes…', {kind: 'sm', icon: 'fa-solid fa-bullhorn', title: why});
+    return `<div class="agl-publishall" role="group" aria-label="Publish all changes">${n ? h : h.replace('<button ', '<button disabled aria-disabled="true" ')}
+      <span class="agl-hint" role="status">${n ? `${n} ${n === 1 ? 'location has' : 'locations have'} saved changes players do not see yet.` : 'Players see every saved change.'}</span></div>`;
+  }
+  /** Asks first (and saves unsaved editor changes if the GM agrees), then publishes everything waiting in one write. */
+  async publishAll() {
+    if (!(await this.saveFirst('publish all changes'))) return;
+    if (this.dirty && !(await this.saveDraft())) return;
+    const n = this.unpublishedCount(api().listLocations({archived: 'exclude'}));
+    if (!n) { ui.notifications.info('Nothing to publish.'); return this.render().then(() => this.focusBack('[data-action="publish-all"]')); }
+    const noun = `${n} ${n === 1 ? 'location' : 'locations'}`;
+    const ok = await confirmDialog(`Players will see the saved changes of ${noun} that are revealed or unidentified. Hidden locations stay hidden. Unsaved edits in the editor are not included.`,
+      {title: `Publish ${noun}?`, yes: `Publish ${noun}`});
+    if (!ok) return;
+    const res = await api().publishAllLocations();
+    if (this.draft?.id) this.select(this.draft.id);
+    ui.notifications.info(`Published ${res.published} ${res.published === 1 ? 'location' : 'locations'}.`);
+    await this.render();
+    this.focusBack('[data-action="publish-all"]');
   }
 
   // ---------- 0.26.0 bulk select, Archive, Restore, Delete (GM) ----------
@@ -1582,6 +1610,7 @@ export class LocationsApp extends Base {
         ui.notifications.info(`Published ${saved.name}.`);
         return this.render();
       }
+      case 'publish-all': return this.publishAll();
       case 'preview': return this.preview();
       case 'show-players': return this.showToPlayers();
       case 'toggle-active': return this.toggleActive();
@@ -1987,7 +2016,7 @@ export class LocationsApp extends Base {
         'Quests come from Quest Log. Clicking one opens the Quest Log.']),
       topic('Visibility', [
         'Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it at once.',
-        '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see in the location\'s current state; tick <em>Also show the other states</em> to compare (your choice is remembered on this computer). A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
+        '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Publish all changes…</strong> (top of the list, GM) publishes every revealed or unidentified location that has saved changes in one step, after asking; Hidden and archived locations are skipped. <strong>Player Preview</strong> shows what they would see in the location\'s current state; tick <em>Also show the other states</em> to compare (your choice is remembered on this computer). A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
         'The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.',
         '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden, unless you tick <em>Everyone else sees it as unidentified</em>: they then see an unidentified marker at the same spot (a second, generic pin that follows the real one; you see both on the scene) and cannot open the real page. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
       topic('Map pins', [
