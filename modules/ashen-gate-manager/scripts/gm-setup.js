@@ -17,9 +17,15 @@ export function readGmSetupForm(root) {
   const auto = q('[data-ag-setup-auto]');
   const pause = q('[data-ag-setup-pause]');
   const items = q('[data-ag-setup-items]');
+  const hideJournals = q('[data-ag-setup-hide-journals]');
+  const handouts = q('[data-ag-setup-handouts-only]');
+  const playersFolder = q('[data-ag-setup-players-only]');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
+    ...(hideJournals ? {hideJournalsTab: Boolean(hideJournals.checked)} : {}),
+    ...(handouts ? {playerHandoutsOnly: Boolean(handouts.checked)} : {}),
+    ...(playersFolder ? {playersFolderOnly: Boolean(playersFolder.checked)} : {}),
     ...(items ? {itemsReadable: items.value === 'player' ? 'player' : 'gm'} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
@@ -57,6 +63,24 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (Boolean(values.compactPause) !== Boolean(appearance.getState().compactPause)) {
       await appearance.setCompactPause(values.compactPause);
       saved.push(values.compactPause ? 'pause shown as a small indicator' : 'pause shown as the large banner');
+    }
+  }
+  if (values.hideJournalsTab !== undefined && appearance?.setHideJournalsTab) {
+    if (Boolean(values.hideJournalsTab) !== Boolean(appearance.getState().hideJournalsTab)) {
+      await appearance.setHideJournalsTab(values.hideJournalsTab);
+      saved.push(values.hideJournalsTab ? 'Journals tab hidden from players' : 'Journals tab shown to players');
+    }
+  }
+  if (values.playerHandoutsOnly !== undefined && appearance?.setPlayerHandoutsOnly) {
+    if (Boolean(values.playerHandoutsOnly) !== Boolean(appearance.getState().playerHandoutsOnly)) {
+      await appearance.setPlayerHandoutsOnly(values.playerHandoutsOnly);
+      saved.push(values.playerHandoutsOnly ? 'players see only Player Handouts in the Items tab' : 'players see the Items tab as before');
+    }
+  }
+  if (values.playersFolderOnly !== undefined && appearance?.setPlayersFolderOnly) {
+    if (Boolean(values.playersFolderOnly) !== Boolean(appearance.getState().playersFolderOnly)) {
+      await appearance.setPlayersFolderOnly(values.playersFolderOnly);
+      saved.push(values.playersFolderOnly ? 'players see only the Players folder in the Actors tab' : 'players see the Actors tab as before');
     }
   }
   if (values.itemsReadable !== undefined && itemsKey) {
