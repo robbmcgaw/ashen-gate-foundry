@@ -12,6 +12,7 @@
 import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, ROUTES_RETIRED, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf,
   nodeForGM, nodeMatch, publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions, effectivePin} from './model.mjs';
 import {checkMove} from './tree.mjs';
+import {travelOptions, TRAVEL_UNAVAILABLE} from './travel.mjs';
 import {planRouteConversion} from './route-convert.mjs';
 import {planBulk, applyArchive, applyRestore, applyDelete, idsWithPrefix} from './bulk.mjs';
 
@@ -25,7 +26,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        tables?: {draw(uuid) → {results: [text]}, uuidByName?(name)} (0.20.0: GM rolls a linked RollTable to chat),
  *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion),
  *        pins?: {report(locs) → [{uuid, name, managed, overridden}], remove(locs) → {removed, kept: [{uuid, name, count}]}} (0.26.0: Map Notes for bulk Delete),
- *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview)}
+ *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview),
+ *        resolveScene?(uuid) → Scene|null, currentUser?() → the User (0.33.0: Travel)}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
@@ -107,6 +109,17 @@ export function createApi(deps) {
       archivedParents: plan.archivedParents, partyNotes: plan.partyNotes, active: plan.active, pins, ok: plan.ok};
   }
 
+  // 0.33.0 Travel: the scenes this user may go to. GM: every linked scene that resolves. Player: only a Revealed location they can read, only
+  // the scenes the GM switched on at Publish (`travelScenes` in their view), and only those this client may view. Never names anything else.
+  const travelFor = ref => {
+    if (!deps.resolveScene || !deps.currentUser) return [];
+    const user = deps.currentUser();
+    if (gm()) return travelOptions(find(ref)?.sceneUuids, {resolve: deps.resolveScene, user});
+    if (!deps.playerAccessEnabled()) return [];
+    const v = findView(ref);
+    return v?.state === 'revealed' && v.id ? travelOptions(v.travelScenes, {resolve: deps.resolveScene, user}) : [];
+  };
+
   const api = {
     version: deps.version,
     GATHERING,
@@ -120,6 +133,24 @@ export function createApi(deps) {
     getLocation(ref) {
       requireAccess();
       return clone(gm() ? find(ref) : findView(ref));
+    },
+    /**
+     * 0.33.0, this user's own Travel choices for a location: [{uuid, name}] sorted by name; [] when there is none (unknown, hidden, unidentified,
+     * Player Access off, nothing linked, or no linked scene this user may view). Same answer for every reason, so nothing leaks.
+     */
+    travelScenes(ref) { return travelFor(ref).map(({uuid, name}) => ({uuid, name})); },
+    /**
+     * 0.33.0: views a linked scene for the current user only (Scene#view: never activates a scene, nobody else moves).
+     * `sceneUuid` picks one; without it a single choice is used, several need one. Resolves {ok: true, sceneUuid} or {ok: false, reason}; never throws.
+     */
+    async travelToLocation(ref, {sceneUuid} = {}) {
+      const options = travelFor(ref);
+      if (!options.length) return {ok: false, reason: TRAVEL_UNAVAILABLE};
+      if (sceneUuid === undefined && options.length > 1) return {ok: false, reason: 'Choose which scene to travel to.'};
+      const pick = sceneUuid === undefined ? options[0] : options.find(o => o.uuid === sceneUuid);
+      if (!pick) return {ok: false, reason: TRAVEL_UNAVAILABLE};
+      try { await pick.scene.view(); } catch (err) { return {ok: false, reason: err?.message || 'The scene could not be opened.'}; }
+      return {ok: true, sceneUuid: pick.uuid};
     },
     /**
      * GM: all (or revealed only; `placeableOnly` (1.8.0): only those marked Placeable on a map). Player: revealed only,
