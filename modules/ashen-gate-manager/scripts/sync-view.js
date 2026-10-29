@@ -9,6 +9,7 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** Rows shown per group before "and N more"; deletions are never cut off: every one is listed by name and kind. */
 export const SHOWN_ROWS = 300;
+const STALE_WHY = 'Sync holds files from an older pull. Load the new pull first.';
 
 export const SYNC_INTRO = `${SYNC_NAME} makes the world match the files you choose, as if they were literally the old files. A record that matches by permanent id is updated to the package's version; one you edited in this world since it was imported is kept as it is (listed, with what would differ) unless you tick the option below. Records Manager imported from these packages that no file mentions are deleted. Character sheets are never touched: no player character, nothing on one, no hotbar. An Item that is also on a character sheet stays there exactly as it is, even when the world Item is changed or deleted. A record the package renamed is renamed in your world too (listed under Renames, no typed confirmation when that is all the run does), unless you renamed it by hand. Documents Manager did not import (your own, core and player ones) are never read or changed.`;
 
@@ -84,6 +85,7 @@ export function syncView(state) {
   const files = state.inputs.flatMap(i => i.imports ?? []);
   const fileRows = files.map(f => `<tr><td><code>${esc(f.filename)}</code></td><td>${esc(f.label)}</td><td class="is-num">${f.records}</td><td>${esc(f.packageId ?? '—')}</td></tr>`).join('');
   const parts = [`<section class="ag-section agm-sync" aria-label="${esc(SYNC_NAME)}">`,
+    ...(state.githubStale ? [`<p class="ag-notice ag-notice--warn" role="status" data-ag-sync-stale><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>${esc(state.githubStaleNotice)}</span></p>`] : []),
     `<h3 class="agm-step"><span class="agm-step__n">1</span> Choose the files</h3>`,
     ...(busy ? ['<p id="agm-clear-why" class="agmanager-tiny">Clear inputs… is off while a sync is running.</p>'] : []),
     ...(state.unfinished && !busy ? ['<p class="ag-notice ag-notice--warn" role="status"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>The last sync did not finish. Preview and run the same files again to finish it; nothing already written is repeated. Discarding forgets the files and the preview.</span></p>'] : []),
@@ -114,7 +116,7 @@ export function syncView(state) {
     <p class="ag-field__hint">Off by default: a location, route, shop, service or merchant list that Locations or Utilities already holds is kept exactly as it is, and only new ones are created. On: the package's definition replaces theirs (a record you edited in that module since the last hand-off is still kept unless Also overwrite records I edited is ticked). ${esc(UPDATE_EXTERNAL_EXPLAIN)} Quest Log and Renown records have their own update mode and are not affected by this switch.</p>`);
   parts.push('</div></details>');
   parts.push('<h3 class="agm-step"><span class="agm-step__n">2</span> Preview</h3>');
-  parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length ? 'disabled' : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button></div>`);
+  parts.push(`<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="sync-preview" ${busy || !files.length || state.githubStale ? 'disabled' : ''}${state.githubStale ? ` aria-describedby="agm-stale-why" data-tooltip="${esc(STALE_WHY)}"` : ''}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Preview sync</button>${state.githubStale ? `<span id="agm-stale-why" class="agmanager-tiny">${esc(STALE_WHY)}</span>` : ''}</div>`);
   if (state.message) parts.push(`<p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> ${esc(state.message)}</p>`);
 
   if (plan) {
@@ -192,7 +194,7 @@ export function syncView(state) {
       if (!needsPhrase) parts.push(`<p class="ag-notice ag-notice--info" role="note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> <span><strong>Only renames.</strong> ${plural(plan.counts.rename, 'record')} will be renamed to the package's name. Nothing else in your world changes, so no typed confirmation is needed.</span></p>`);
       parts.push(`<div class="ag-field agm-sync-confirm" id="agm-sync-confirm">${needsPhrase ? `<label for="agm-sync-phrase">To confirm, type <strong>${esc(SYNC_PHRASE)}</strong></label>` : ''}
         <div class="ag-cluster">${needsPhrase ? `<input type="text" id="agm-sync-phrase" data-ag-sync-phrase value="${esc(state.phrase)}" autocomplete="off" spellcheck="false" ${busy ? 'disabled' : ''}>` : ''}
-        <button type="button" class="ag-btn ${danger ? 'ag-btn--danger' : 'ag-btn--primary'}" data-ag-action="sync-run" data-ag-sync-run ${busy || (needsPhrase && !phraseOk(state.phrase)) ? 'disabled' : ''}><i class="fa-solid ${danger ? 'fa-trash-can' : needsPhrase ? 'fa-rotate' : 'fa-pen'}" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button></div>
+        <button type="button" class="ag-btn ${danger ? 'ag-btn--danger' : 'ag-btn--primary'}" data-ag-action="sync-run" data-ag-sync-run ${busy || state.githubStale || (needsPhrase && !phraseOk(state.phrase)) ? 'disabled' : ''}${state.githubStale ? ` aria-describedby="agm-stale-why" data-tooltip="${esc(STALE_WHY)}"` : ''}><i class="fa-solid ${danger ? 'fa-trash-can' : needsPhrase ? 'fa-rotate' : 'fa-pen'}" aria-hidden="true"></i> ${esc(plan.buttonLabel)}</button></div>
         <span class="ag-field__hint">A JSON backup of every document this run will overwrite, refresh or delete downloads first (a metadata refresh is included, so the backup is small when only a few records change). If it cannot be saved, nothing is written. Running the same files again changes nothing more, and a run you cancel is finished by running it again.</span></div>`);
     }
     if (state.progress) parts.push(`<div class="ag-cluster agclean-running" aria-label="Sync progress"><progress class="agclean-bar" data-ag-sync-bar max="1" value="${state.progress.pct}" aria-label="Sync progress"></progress>
