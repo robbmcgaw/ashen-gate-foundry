@@ -1,3 +1,14 @@
+## 0.32.2 — 2026-10-29
+
+Fix: you can fold any folder in the list, even with a place open.
+
+- **Any folder folds.** Click a Region header (Group by Region and the player list) or a folder arrow (Tree) to fold or unfold it, including the top-level folder and every folder that holds the place you have open. The open place stays open in the editor; its row is simply hidden inside the folded folder until you unfold it.
+- **Picking a place arranges the folders, once.** The rule: when the open place changes (a row click, a Map Note or API open, a Tree/list switch, or the window opening on a place), every folder that does *not* hold it folds and the folders on its path unfold. After that your own clicks stick: saves, Publish and redraws never reopen a folder you folded. Opening the window with nothing open (it just shows the first row) does not fold anything. The folded state is still remembered per user in this browser.
+- **Search.** A search or filter opens the folders that hold a match, as before, but you can fold one while searching; that lasts until you change the search text or filters and is not saved.
+- **Players** get the same behaviour, built only from the places they can see; a hidden Region is never named. No data change and no migration.
+- Tests use mocked Foundry; they check the logic and the HTML, not the live window.
+- Check in Forge: update Locations. Group by Region: click a place inside *Fosstryn Frontier > Fosstryn*; the other Regions fold and its path opens. Click the *Fosstryn Frontier* header: it folds although the place is open (focus stays on the header). Edit and Save Changes: it stays folded. Click another place in a different Region: the first folds, the new path opens. Type a search, fold a header, change the search: it reopens. Repeat in Tree and as a player.
+
 ## 0.32.1 — 2026-10-29
 
 Fix: the **Inside** list offers Regions only, and **Region** is a drop-down of your Regions.

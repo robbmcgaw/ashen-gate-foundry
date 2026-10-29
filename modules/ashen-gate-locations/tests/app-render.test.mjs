@@ -145,7 +145,7 @@ test('player: unidentified place shows only its label and teaser; children list 
 test('GM: nesting picker offers no place that would loop; state shown on rows', async () => {
   await world();
   const app = new LocationsApp();
-  app.select('LOC-TEST-MILLBROOK');
+  app.select('LOC-TEST-MILLBROOK'); app.arrangedFor = 'LOC-TEST-MILLBROOK';   // 0.32.2: selecting folds the other folders; this test wants them all drawn
   const html = await app._renderHTML();
   const picker = html.slice(html.indexOf('id="agl-parent"'), html.indexOf('</select>', html.indexOf('id="agl-parent"')));
   assert.doesNotMatch(picker, /Old Quarry|Hidden Cave|value="LOC-TEST-MILLBROOK"/, 'its own children and itself are not offered');

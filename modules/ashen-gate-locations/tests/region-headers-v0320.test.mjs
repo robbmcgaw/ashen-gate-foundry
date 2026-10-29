@@ -138,7 +138,7 @@ test('GM Group by Region: nested collapsible headers with counts, aria-expanded 
   assert.ok(app.folds.has(ids.fosstryn));
   await app.onAction({dataset: {action: 'region-fold', id: ids.fosstryn}});
   assert.match(listPane(await app._renderHTML()), /Muster/);
-  // A fold never hides the selected place: its headers stay open.
+  // 0.32.2: selecting a place opens its headers (see folders-collapse-v0322.test.mjs for the full rule).
   await app.onAction({dataset: {action: 'region-fold', id: ids.fosstryn}});
   app.select(ids.muster);
   assert.match(listPane(await app._renderHTML()), /Muster/);
@@ -199,7 +199,7 @@ test('players: nested Region headers over what they can see; a hidden Region is 
   const frontierKey = readViews().find(v => v.name === '[TEST] Frontier').key;
   assert.equal(app.selectedId !== null, true);
   await app.onAction({dataset: {action: 'region-fold', id: frontierKey}});
-  assert.match(listPane(await app._renderHTML()), /Muster/, 'the header holding the selected place stays open');
+  assert.doesNotMatch(listPane(await app._renderHTML()), /Muster/, '0.32.2: the header holding the selected place can be folded too');
 });
 
 test('players never get a Region name from the view of a place inside it when the Region is hidden', async () => {

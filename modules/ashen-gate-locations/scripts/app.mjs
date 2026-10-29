@@ -10,7 +10,7 @@ import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, regionChoices, regionNames, regionAfterParentChange, VIEW} from './tree.mjs';
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
-import {buildRegionSections, sectionHas, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
+import {buildRegionSections, arrangeFolds, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
@@ -237,6 +237,9 @@ export class LocationsApp extends Base {
     this.filtersOpen = uiMem().get('filtersOpen', false, [true, false]);
     // 0.32.0: the Region headers folded in the list, remembered per user (kit uiState) and kept live here.
     this.folds = readFolds(uiMem());
+    // 0.32.2: the selection the folders were last arranged for (arrangement runs only when it changes), and the headers the user
+    // collapsed while a search was open (a manual collapse wins until the search or filters change).
+    this.arrangedFor = undefined; this.searchCollapsed = new Set(); this.searchKey = ''; this.filteringNow = false;
   }
   get gm() { return game.user.isGM === true; }
   /** 0.19.0: unsaved location edits are tracked by the kit's guardDirty (it asks before they are discarded). */
@@ -273,10 +276,32 @@ export class LocationsApp extends Base {
   }
   /** List header click: folds or unfolds that group. */
   toggleGroup(key) {
-    if (this.groupBy === 'region') { toggleFold(uiMem(), this.folds, `loose:${key}`); return this.render(); }   // 0.32.0: remembered per user
+    if (this.groupBy === 'region') return this.toggleRegion(`loose:${key}`);   // 0.32.0: remembered per user
     const id = `${this.groupBy}:${key}`;
     if (!this.collapsed.delete(id)) this.collapsed.add(id);
     return this.render();
+  }
+  /**
+   * 0.32.2: any header can be folded or unfolded by click, whatever is selected. While a search or filter is open the headers show what matches
+   * and a click lasts only until the search changes; otherwise the choice is remembered per user.
+   */
+  toggleRegion(id) {
+    if (this.filteringNow) { if (!this.searchCollapsed.delete(id)) this.searchCollapsed.add(id); }
+    else toggleFold(uiMem(), this.folds, id);
+    return this.render();
+  }
+  /** 0.32.2: when the selection changes (and when the window first opens with one), fold every folder that does not hold it and open the ones on its path. */
+  arrangeOnSelection(list, access) {
+    const sel = this.selectedId ?? null;
+    if (this.arrangedFor === sel) return;
+    this.arrangedFor = sel;
+    if (!sel) return;
+    // Tree rows (GM Tree mode, and the places a player sees nested under a non-Region parent): only the selected place's path is open.
+    if (!this.gm || this.treeMode) {
+      LocationsApp.treeOpen.clear();
+      for (const i of breadcrumb(list, sel, access ?? undefined)) LocationsApp.treeOpen.add(access?.idOf?.(i) ?? i.id);
+    }
+    if (access) arrangeFolds(uiMem(), this.folds, buildRegionSections(list, access), sel, access);
   }
   clearFilters() { this.filters = emptyFilters(); this.query = ''; return this.render(); }
   /** Asks before unsaved location edits are thrown away (kit guardDirty: Keep editing is the default). */
@@ -310,7 +335,8 @@ export class LocationsApp extends Base {
     if (this.gm) this.picked = new Set([...this.picked].filter(id => list.some(l => l.id === id)));
     if (!creating && !(this.gm && this.showArchived)) {
       if (this.selectedId && !list.some(l => this.rid(l) === this.selectedId)) this.select(null);
-      if (!this.selectedId && list.length) this.select(this.rid(list[0]));
+      // The default pick (the first row, when nothing is open) is not a choice the user made: it does not rearrange the folders.
+      if (!this.selectedId && list.length) { this.select(this.rid(list[0])); this.arrangedFor = this.selectedId; }
       if (this.gm && this.selectedId && !this.draft) this.select(this.selectedId);
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
@@ -359,6 +385,11 @@ export class LocationsApp extends Base {
       rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
     }
     const filtering = hasFilters(this.filters) || !!this.query.trim() || !!idPrefix(this.idPrefix);
+    const searchKey = JSON.stringify([this.query.trim(), this.filters, this.idPrefix]);
+    if (searchKey !== this.searchKey) { this.searchKey = searchKey; this.searchCollapsed.clear(); }
+    this.filteringNow = this.gm ? filtering : !!this.query.trim();
+    const grouped = !this.gm || this.treeMode || this.groupBy === 'region';
+    if (grouped) this.arrangeOnSelection(list, this.gm ? (this.treeMode ? null : GM_ACCESS) : VIEW_ACCESS);
     let items;
     if (this.gm && this.treeMode) items = this.treeHtml(list, rows, filtering);
     else if (!this.gm) items = this.regionHtml(list, rows, !!this.query.trim(), VIEW_ACCESS);
@@ -434,10 +465,9 @@ export class LocationsApp extends Base {
       <div class="agl-tree__row"${folder ? ` data-folder="${esc(l.id)}"` : ''}>${toggle}${this.rowButton(l)}${counts}${add}</div>
       ${isOpen ? `<ul class="agl-tree">${n.children.map(c => this.treeNodeHtml(c, {open, path})).join('')}</ul>` : ''}</li>`;
   }
-  /** Is this folder open? Filtering opens every path to a match; the selected location's folders are always open. */
-  treeOpener(items, filtering, accessors) {
-    const sel = this.selectedId ? new Set(breadcrumb(items, this.selectedId, accessors).map(i => accessors?.idOf?.(i) ?? i.id)) : new Set();
-    return id => filtering || sel.has(id) || LocationsApp.treeOpen.has(id);
+  /** Is this folder open? Filtering opens every path to a match unless the user collapsed it since the search changed; otherwise the user's own open/closed choice (set on selection, then by clicks). */
+  treeOpener(items, filtering) {
+    return id => filtering ? !this.searchCollapsed.has(id) : LocationsApp.treeOpen.has(id);
   }
   /** GM Tree mode: every location under its parent, Regions as folders. Filters and search keep matches and their folders. */
   treeHtml(list, rows, filtering) {
@@ -460,11 +490,10 @@ export class LocationsApp extends Base {
     const items = show ? list.filter(i => show.has(access.idOf(i))) : list;
     const sections = buildRegionSections(items, access, {sortRows});
     const folds = this.folds;
-    const open = this.treeOpener(list, filtering, access);
+    const open = this.treeOpener(list, filtering);
     const path = show && new Set(rows.map(access.idOf));
-    const sel = this.selectedId;
     const section = (s, depth) => {
-      const folded = !filtering && folds.has(s.id) && !sectionHas(s, sel, access);
+      const folded = filtering ? this.searchCollapsed.has(s.id) : folds.has(s.id);
       // The GM's flat groups (places with no Region above them) keep their plain, untreed rows; only the fold is the new, remembered one.
       if (this.gm && s.flat) return `<li class="agl-group"><h3 class="agl-group__title"><button type="button" class="agl-group__head ag-eyebrow" data-action="toggle-group" data-group="${esc(s.label)}" aria-expanded="${!folded}"
           ${tip(folded ? 'Unfold' : 'Fold')}><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(s.label)}</span><span class="agl-count">${s.count}</span></button></h3>
@@ -1369,14 +1398,14 @@ export class LocationsApp extends Base {
       await this.render(); this.focusBack('#agl-filters-toggle');
     });
     bindFileButtons(root, ([file]) => this.importFile(file).catch(notifyError));
-    root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.render(); });
+    root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.arrangedFor = undefined; this.render(); });
     root.querySelector('#agl-sort')?.addEventListener('change', e => { this.sort = e.target.value; this.render(); });
     root.querySelector('#agl-sortdir')?.addEventListener('click', () => { this.sortDesc = !this.sortDesc; this.render(); });
     root.querySelector('#agl-select')?.addEventListener('click', async () => { this.picking = !this.picking; if (!this.picking) this.picked.clear(); await this.render(); this.focusBack('#agl-select'); });
     root.querySelector('#agl-archived')?.addEventListener('click', () => this.setArchivedView(!this.showArchived).catch(notifyError));
     this.bindPrefix(root.querySelector('#agl-prefix'));
     for (const el of root.querySelectorAll('[data-pick]')) el.addEventListener('change', () => this.onPick(el, root));
-    root.querySelector('#agl-tree')?.addEventListener('click', async () => { this.treeMode = !this.treeMode; await this.render(); this.focusBack('#agl-tree'); });
+    root.querySelector('#agl-tree')?.addEventListener('click', async () => { this.treeMode = !this.treeMode; this.arrangedFor = undefined; await this.render(); this.focusBack('#agl-tree'); });
     root.querySelector('#agl-showrep')?.addEventListener('change', e => { this.showRep = e.target.checked; this.render(); });
     root.querySelector('#agl-shops-children')?.addEventListener('change', e => { this.shopsChildren = e.target.checked; this.render(); });
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
@@ -1605,8 +1634,12 @@ export class LocationsApp extends Base {
     if (action === 'retry') return this.render();
     if (action === 'clear-filters') return this.clearFilters();
     if (action === 'toggle-group') return this.toggleGroup(el.dataset.group);
-    if (action === 'region-fold') { toggleFold(uiMem(), this.folds, el.dataset.id); return this.render(); }
-    if (action === 'tree-toggle') { const open = LocationsApp.treeOpen; if (!open.delete(el.dataset.id)) open.add(el.dataset.id); return this.render(); }
+    if (action === 'region-fold') return this.toggleRegion(el.dataset.id);
+    if (action === 'tree-toggle') {
+      const open = this.filteringNow ? this.searchCollapsed : LocationsApp.treeOpen, id = el.dataset.id;
+      if (!open.delete(id)) open.add(id);
+      return this.render();
+    }
     if (action === 'tree-all') {
       if (el.dataset.open === '1') for (const l of this.list()) { const p = this.gm ? l.parentLocationId : l.parent?.key; if (p) LocationsApp.treeOpen.add(p); }
       else LocationsApp.treeOpen.clear();
@@ -2087,9 +2120,9 @@ export class LocationsApp extends Base {
         '<strong>Pin look</strong> (GM Setup → Map Pins): <em>Framed</em> is Foundry\'s own square pin. <em>Image only</em> shows just the picture, without the square or the shaded backing, on every player\'s screen; the frame still shows while you hover or select a pin. <em>Name under the pin</em> chooses <em>Always shown</em> or <em>Only when hovering</em> (Foundry\'s own behaviour), and <em>Name size</em> (8 to 48 pixels, default 14) sets how large it is, <em>Name distance from the pin</em> (negative = closer), and <em>Wrap the name after</em> breaks a long name into lines of that many characters (0 = off). To size one pin on its own, activate the Notes layer, right-click or double-click the note, and change <em>Font Size</em> in its configuration: a Font Size other than Foundry\'s default 32 overrides the module setting for that pin. Hidden pins never show a name and unidentified pins show only their unidentified label. It changes how pins are drawn, not the pins, so switch back any time.',
         '<strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em> (under <strong>Filters</strong>). The <em>Placeable</em> filter finds either kind.']),
       topic('List, tree and moving', [
-        '<strong>Group by Region</strong> (the default) nests places under their Regions: <em>Fosstryn Frontier</em> &gt; <em>Fosstryn</em> &gt; <em>The Muster</em>. Click a Region\'s name to fold or unfold it (the number is how many places are inside); the arrow beside it opens the Region itself. Places with no Region above them are grouped by their <em>Region</em> text, as before. Which headers you folded is remembered for you on this computer; a search, or the place you have open, keeps its headers unfolded.',
+        '<strong>Group by Region</strong> (the default) nests places under their Regions: <em>Fosstryn Frontier</em> &gt; <em>Fosstryn</em> &gt; <em>The Muster</em>. Click a Region\'s name to fold or unfold it (the number is how many places are inside); the arrow beside it opens the Region itself. Places with no Region above them are grouped by their <em>Region</em> text, as before. Any header can be folded, even the ones holding the place you have open. When you pick a different place, every folder that does not hold it folds and the folders on its path open; after that your own clicks stick, and a redraw never changes them. Which headers you folded is remembered for you on this computer. A search opens the headers that hold a match; you can still fold one while you search, until you change the search.',
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
-        '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
+        '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it Folders follow the same rule as the Region headers: picking a place opens its path and folds the rest, and you can fold or open any folder yourself afterwards.',
         '<em>Place</em>: put a location inside a Region (the <em>Inside</em> list shows Regions; to use another place as a container, tick <em>This is a Region</em> on it first). The <em>Region</em> field on the Content tab picks from your Regions too. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
       topic('People and shops', [
         '<strong>People</strong> (Content sub-tab) links NPC Actors or Journals to this place. Drop one on the block, or choose one and click <strong>Link</strong>. A link is only a link: nothing is copied, and players never see anything from the Actor itself. Each person has an eye (hidden by default), the <em>Name shown to players</em> and an optional note, both written by you. Turn on the eye and <em>Show section to players</em>, then Publish: players get a <strong>People</strong> card where a name opens the Actor or Journal only if Foundry lets them.',
