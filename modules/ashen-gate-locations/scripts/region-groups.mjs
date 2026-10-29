@@ -85,7 +85,7 @@ export function buildRegionSections(items, access = GM_ACCESS, {sortRows = null}
   return root.sort((a, b) => rankOf(a) - rankOf(b) || byLabel(a, b));
 }
 
-/** Does this section (or any section inside it) hold the place `id`, or is it that place's own header? Used to keep the selected place's headers open. */
+/** Does this section (or any section inside it) hold the place `id`, or is it that place's own header? Used to arrange the headers when a place is selected. */
 export function sectionHas(section, id, access = GM_ACCESS) {
   if (!id) return false;
   const A = {...GM_ACCESS, ...access};
@@ -111,5 +111,19 @@ export function readFolds(mem) {
 export function toggleFold(mem, folds, id) {
   if (!folds.delete(id)) folds.add(id);
   try { mem.set(FOLD_KEY, [...folds].slice(0, 500)); } catch { /* the choice lasts only until the window closes */ }
+  return folds;
+}
+
+/**
+ * 0.32.2: the arrangement a newly selected place gets. Every header that does not hold it folds; every header on its path (and its own
+ * header, when it is a Region) unfolds. Applied to the live `folds` Set and saved. Run only when the selection CHANGES, never on a redraw,
+ * so a header the user toggles afterwards stays as they left it. `sections` is what the user can see (players: visible places only).
+ */
+export function arrangeFolds(mem, folds, sections, selectedId, access = GM_ACCESS) {
+  if (!selectedId) return folds;
+  for (const {section} of flattenSections(sections)) {
+    if (sectionHas(section, selectedId, access)) folds.delete(section.id); else folds.add(section.id);
+  }
+  try { mem.set(FOLD_KEY, [...folds].slice(0, 500)); } catch { /* the arrangement lasts only until the window closes */ }
   return folds;
 }
