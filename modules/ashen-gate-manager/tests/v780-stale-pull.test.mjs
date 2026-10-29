@@ -64,8 +64,8 @@ test('main.js wiring: set after a different-commit pull, cleared by Preview in S
   assert.match(m, /async #syncRun\(\) \{[\s\S]{0,120}activeStale\(this\.sync\)\) \{ toast\(STALE_REFUSAL,true\)/);
   assert.ok(STALE_REFUSAL.includes('Nothing in your world changed'));
 });
-test('Help describes it; version is 0.78.0', () => {
+test('Help describes it; version is 0.79.0', () => {
   assert.match(read('../scripts/main.js'), /Pulling again does not replace the files Sync already holds/);
   const man = JSON.parse(read('../module.json'));
-  assert.equal(man.version, '0.78.0'); assert.ok(man.download.endsWith('/ashen-gate-manager-v0.78.0/ashen-gate-manager.zip'));
+  assert.equal(man.version, '0.79.0'); assert.ok(man.download.endsWith('/ashen-gate-manager-v0.79.0/ashen-gate-manager.zip'));
 });

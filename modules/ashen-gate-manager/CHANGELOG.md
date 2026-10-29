@@ -1,3 +1,13 @@
+## 0.79.0 — 2026-10-29
+
+Three optional sidebar settings for players, in **GM Setup > General > Sidebar** (all off by default, saved with Save Changes, GM only).
+
+- **Hide the Journals tab from players.** Players no longer see the Journals tab; if it was open they land on Chat. You always see it.
+- **Show players only Player Handouts in the Items tab.** Players' Items list shows just the Items inside a folder named Player Handouts (any capitals, spaces around it ignored) and its subfolders, with the folders above it; everything else, and empty folders, are hidden. With no such folder, players see an empty Items tab.
+- **Show players only the Players folder in the Actors tab.** The same for Actors and a folder named Players. The Ashen Gate buttons in the Actors tab stay visible and work as before.
+- All three only change what the sidebar lists. No permission changes, and journals, Items and Actors still open for players from handouts, quests, locations, character sheets, links and compendiums. They apply as soon as you save and whenever the sidebar redraws.
+- Help describes them under GM Setup. No saved data changes: three new world settings, read as off when absent, no migration. Tests are mocked: the live V14 sidebar has not been seen.
+
 ## 0.78.0 — 2026-10-29
 
 Sync warns when it holds an older GitHub pull.

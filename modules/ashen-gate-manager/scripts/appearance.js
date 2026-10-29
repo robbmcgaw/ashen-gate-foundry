@@ -16,6 +16,15 @@ export const DEFAULT_CHAT = true;
 // Compact pause (0.59.0), world scope, GM-only, off by default. html[data-ag-pause="compact"] scopes styles/pause.css.
 export const PAUSE_KEY = 'compactPause';
 export const DEFAULT_PAUSE = false;
+// Hide the Journals tab from players (0.79.0), world scope, GM-only, off by default. Purely visual; see journal-tab.js.
+export const HIDE_JOURNALS_KEY = 'hideJournalsTab';
+export const DEFAULT_HIDE_JOURNALS = false;
+// Show players only Player Handouts in the Items tab (0.79.0), world scope, GM-only, off by default; see handouts-filter.js.
+export const PLAYER_HANDOUTS_KEY = 'playerHandoutsOnly';
+export const DEFAULT_PLAYER_HANDOUTS = false;
+// Show players only the Players folder in the Actors tab (0.79.0), world scope, GM-only, off by default.
+export const PLAYERS_FOLDER_KEY = 'playersFolderOnly';
+export const DEFAULT_PLAYERS_FOLDER = false;
 const SIZE_LABELS = Object.freeze({compact:'Compact',comfortable:'Comfortable'});
 const knownSize = value => SIZES.includes(value) ? value : DEFAULT_SIZE;
 /** Size options for a picker: [{id,label,selected}]. */
@@ -144,6 +153,9 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   function readSize(){try{return knownSize(read(SIZE_KEY));}catch{return DEFAULT_SIZE;}}
   function readChat(){try{const v=read(CHAT_KEY);return v===undefined||v===null?DEFAULT_CHAT:Boolean(v);}catch{return DEFAULT_CHAT;}}
   function readPause(){try{const v=read(PAUSE_KEY);return v===undefined||v===null?DEFAULT_PAUSE:Boolean(v);}catch{return DEFAULT_PAUSE;}}
+  function readHideJournals(){try{const v=read(HIDE_JOURNALS_KEY);return v===undefined||v===null?DEFAULT_HIDE_JOURNALS:Boolean(v);}catch{return DEFAULT_HIDE_JOURNALS;}}
+  function readHandouts(){try{const v=read(PLAYER_HANDOUTS_KEY);return v===undefined||v===null?DEFAULT_PLAYER_HANDOUTS:Boolean(v);}catch{return DEFAULT_PLAYER_HANDOUTS;}}
+  function readPlayersFolder(){try{const v=read(PLAYERS_FOLDER_KEY);return v===undefined||v===null?DEFAULT_PLAYERS_FOLDER:Boolean(v);}catch{return DEFAULT_PLAYERS_FOLDER;}}
   function user(){const u=currentUser();if(!u?.id)throw new Error('Appearance requires an authenticated Foundry user');return u;}
   function listSkins(){return SKINS.map(publicSkin);}
   function getState(){
@@ -155,7 +167,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
       invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
-      size:readSize(),chat:readChat(),compactPause:readPause()};
+      size:readSize(),chat:readChat(),compactPause:readPause(),hideJournalsTab:readHideJournals(),playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder()};
   }
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
@@ -179,6 +191,24 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     const on=Boolean(value);
     await setSetting(PAUSE_KEY,on);observed.set(PAUSE_KEY,on);emit();return getState();
   }
+  /** GM only (rejected here, not just hidden): hide the Journals sidebar tab from players. No document permission changes. */
+  async function setHideJournalsTab(value){
+    if(!user().isGM)throw new Error('Only GMs may change whether players see the Journals tab');
+    const on=Boolean(value);
+    await setSetting(HIDE_JOURNALS_KEY,on);observed.set(HIDE_JOURNALS_KEY,on);emit();return getState();
+  }
+  /** GM only (rejected here, not just hidden): players see only the Player Handouts folder in the Items tab. Visual only. */
+  async function setPlayerHandoutsOnly(value){
+    if(!user().isGM)throw new Error('Only GMs may change what players see in the Items tab');
+    const on=Boolean(value);
+    await setSetting(PLAYER_HANDOUTS_KEY,on);observed.set(PLAYER_HANDOUTS_KEY,on);emit();return getState();
+  }
+  /** GM only (rejected here, not just hidden): players see only the Players folder in the Actors tab. Visual only. */
+  async function setPlayersFolderOnly(value){
+    if(!user().isGM)throw new Error('Only GMs may change what players see in the Actors tab');
+    const on=Boolean(value);
+    await setSetting(PLAYERS_FOLDER_KEY,on);observed.set(PLAYERS_FOLDER_KEY,on);emit();return getState();
+  }
   async function setSize(value){
     user();
     if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
@@ -199,7 +229,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
       emit();return;
     }
     if(key===CHAT_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
-    if(key===PAUSE_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===PAUSE_KEY||key===HIDE_JOURNALS_KEY||key===PLAYER_HANDOUTS_KEY||key===PLAYERS_FOLDER_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if([WORLD_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();
   }
   function applyTo(root){
@@ -221,7 +251,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
@@ -248,6 +278,18 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   game.settings.register(namespace,PAUSE_KEY,{
     name:'Show the pause as a small indicator',hint:'Hides the large Game Paused banner for everyone and shows a small Paused indicator at the top centre instead.',
     scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_PAUSE,onChange:value=>onSettingChange(PAUSE_KEY,value)
+  });
+  game.settings.register(namespace,HIDE_JOURNALS_KEY,{
+    name:'Hide the Journals tab from players',hint:'Players no longer see the Journals tab in the sidebar. Only the tab is hidden: journal permissions are unchanged, and handouts, quests and locations still open for players. GMs always see it.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_HIDE_JOURNALS,onChange:value=>onSettingChange(HIDE_JOURNALS_KEY,value)
+  });
+  game.settings.register(namespace,PLAYER_HANDOUTS_KEY,{
+    name:'Show players only Player Handouts in the Items tab',hint:'Players see only the Items inside a folder named Player Handouts (and its subfolders) in the Items tab. Every other Item and folder is hidden from the list. If no folder has that name, players see an empty Items tab. Only the list changes: item access is unchanged, and character sheets, compendiums and links still work. GMs always see everything.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_PLAYER_HANDOUTS,onChange:value=>onSettingChange(PLAYER_HANDOUTS_KEY,value)
+  });
+  game.settings.register(namespace,PLAYERS_FOLDER_KEY,{
+    name:'Show players only the Players folder in the Actors tab',hint:'Players see only the Actors inside a folder named Players (and its subfolders) in the Actors tab. Every other Actor and folder is hidden from the list. If no folder has that name, the list is empty. Only the list changes: Actor access is unchanged, and the Ashen Gate buttons in the Actors tab, character sheets and links still work. GMs always see everything.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_PLAYERS_FOLDER,onChange:value=>onSettingChange(PLAYERS_FOLDER_KEY,value)
   });
 }
 export function makeFoundryAppearanceController({game,namespace}){
