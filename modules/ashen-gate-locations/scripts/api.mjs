@@ -14,6 +14,7 @@ import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, ROUTES_RETIRED, notesLockHold
 import {checkMove} from './tree.mjs';
 import {travelOptions, TRAVEL_UNAVAILABLE} from './travel.mjs';
 import {planRouteConversion} from './route-convert.mjs';
+import {buildListModel, LIST_CONTRACT} from './list-model.mjs';
 import {planBulk, applyArchive, applyRestore, applyDelete, idsWithPrefix} from './bulk.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
@@ -27,7 +28,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion),
  *        pins?: {report(locs) → [{uuid, name, managed, overridden}], remove(locs) → {removed, kept: [{uuid, name, count}]}} (0.26.0: Map Notes for bulk Delete),
  *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview),
- *        resolveScene?(uuid) → Scene|null, currentUser?() → the User (0.33.0: Travel)}
+ *        resolveScene?(uuid) → Scene|null, currentUser?() → the User (0.33.0: Travel),
+ *        listContext?() → {templates, questName(id), materialName(id)} (0.34.0: GM search/group helpers for listModel)}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
@@ -163,6 +165,19 @@ export function createApi(deps) {
       const keep = archived === 'only' ? l => l.archived : archived === 'include' ? () => true : l => !l.archived;
       return clone(deps.readAll().filter(l => keep(l) && (!revealedOnly || l.revealed) && (!placeableOnly || isPlaceable(l))));
     },
+    /**
+     * 0.34.0: the Locations list as data, for a partner that draws its own markup (Character Hub). The same search, filters, sort and nested
+     * Region folders the window shows this user (see list-model.mjs and the README). GM: the GM list (records; `revealedOnly` keeps revealed ones).
+     * Player: the player list only (published views; hidden never present, unidentified by generic label with no id); filters and sort are
+     * ignored for a player because the window offers none. Plain data, nothing saved. Open a row with `openLocation(row.ref)`.
+     */
+    listModel({query = '', filters = {}, sort = 'name', sortDesc = false, revealedOnly = false} = {}) {
+      requireAccess();
+      const isGM = gm();
+      const records = isGM ? live().filter(l => !revealedOnly || l.revealed) : deps.readViews();
+      return buildListModel(clone(records), {gm: isGM, query, filters, sort, sortDesc, context: isGM ? deps.listContext?.() ?? {} : {}});
+    },
+    LIST_CONTRACT,
     /** GM: child records. Player: the revealed/unidentified children of a revealed location, as {id?, key, name}. */
     childrenOf(ref) {
       requireAccess();

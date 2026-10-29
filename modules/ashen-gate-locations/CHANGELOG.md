@@ -1,3 +1,14 @@
+## 0.34.0 — 2026-10-29
+
+New: `api.listModel(...)`, the Locations list as data for Character Hub.
+
+- **`listModel({query, filters, sort, sortDesc, revealedOnly})`** returns what the window shows this user: the nested Region folders, the search, the same filter dropdowns (with counts) and sort options. A partner draws its own markup from it and opens a place with the existing `openLocation(ref)`. It is built by the same functions the window uses (`list-filter.mjs`, `region-groups.mjs`, `tree.mjs`), and the window now reads its filter list and its quest, material and node-template helpers from the same place (`FILTER_CONTROLS`, `listContext`), so the two lists cannot drift. Details in the README (`listModel`).
+- **Permissions are the window's:** a GM gets the GM list; a player gets only published views (hidden places and every GM field are absent, unidentified places show their generic label and carry no id), search and name order only, and nothing while Player Access is off. Enforced in the API, not by the partner's buttons.
+- **New hook** `ashen-gate-locations.listChanged` (no payload): a partner redraws when the list may have changed.
+- **Embed:** the partner embed no longer draws its own **Open Locations** button (the host window already has one, so Character Hub showed it twice). Nothing else in the embed changed.
+- Nothing stored changes; no migration. The window looks and behaves as before.
+- Tests are mocked Foundry; they do not open the real window. `list-model-v0340.test.mjs` compares the model with the window's own HTML for search, filters and every sort.
+
 ## 0.33.0 — 2026-10-29
 
 New: **Travel** to a location's linked scene, from a map pin, a list row or the location's header.

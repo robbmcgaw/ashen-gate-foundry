@@ -90,6 +90,7 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `previewLocation(draft, state?)`, `hasUnpublishedChanges(id)` | the player view after Publish; whether players see an older version |
 | `STATES` | `['hidden', 'unidentified', 'revealed']` |
 | GM only (0.26.0): `previewBulk('archive'\|'restore'\|'delete', ids)` | writes nothing; `{targets: [{id, name}], unknown, skipped, blocked: [{id, name, children, childIds}], outsideChildren, archivedParents, partyNotes, active, pins: [{uuid, name, managed, overridden}], ok}` |
+| `listModel({query, filters, sort, sortDesc, revealedOnly})` (0.34.0) | the Locations list as plain data for a partner that draws its own markup (Character Hub's Ashen Gate → Locations): the same search, filters, sort and nested Region folders the window shows this user, built by the same functions. See **`listModel`** below. Contract `api.LIST_CONTRACT` (`ag-locations-list/1`) |
 | GM only (0.26.0): `archiveLocations(ids)`, `restoreLocations(ids)` | `{archived\|restored: [id], alreadyArchived, skipped: [{id, reason}]}`; `archiveLocations(ids, {source, reason})` from a source other than the window (General Manager passes `'ashen-gate-manager'`) skips a location with unlisted places inside, reason `has-children`. An archived location keeps every field and gains `archived: true`; it leaves `listLocations()` (default), `activeLocations()`, `childrenOf`, `locationsForQuest`, `locationsWithMaterial`, `nodesForMaterial` and every player view. `getLocation(id)` still reads it. Restoring never makes a place active |
 | GM only (0.26.0): `deleteLocations(ids)` | permanent. Throws, changing nothing, if any id has a child that is not in `ids` (archived children count). Removes the module-managed Map Notes first (Notes with a hand-changed image or size stay). `{deleted: [id], backup: ag-foundry-import/0.2 package, pins: {removed, kept: [{uuid, name, count}]}}`. Party Notes stay stored |
 | GM only (0.26.0): `listLocations({archived: 'exclude'\|'only'\|'include'})`, `idsWithPrefix(prefix, {archived})`, `countArchived()`, `exportPackage({ids})` | `exportPackage()` includes archived ones; `ids` limits it (the backup before Delete). `importLocations(records, {mode, unarchive})`: an archived id stays archived on `update` unless `unarchive: true` (Manager's refresh can pass it; nothing in a package can) |
@@ -111,9 +112,31 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | `ROUTES_RETIRED` | the message a skipped Route record carries |
 | `playerAccess` | `ag-player-access/1` capability |
 
+### `listModel(options)` (0.34.0)
+
+Returns the list the Locations window shows this user, as data, so a partner can draw it with its own markup and open any place in this module.
+
+```js
+const api = game.modules.get('ashen-gate-locations')?.api;
+if (typeof api?.listModel === 'function') {
+  const m = api.listModel({query: 'mill', filters: {threat: 'hot'}, sort: 'region', sortDesc: false});
+  // draw m.sections; on a click: api.openLocation(row.ref)
+}
+Hooks.on('ashen-gate-locations.listChanged', () => { /* read api.listModel again */ });
+```
+
+- **Options:** `query` (search text), `filters` (`{threat, region, profession, quest, status, placeable}`, each a string from `controls.filters[].options[].value`), `sort` (one of `controls.sorts`), `sortDesc`, `revealedOnly` (GM: keep only revealed places). Unknown filter keys and sorts are ignored.
+- **Result:** `{contract, audience: 'gm'|'player', query, filtering, total, shown, empty: ''|'no-match'|'none', controls, filters, sort, sortDesc, sections}`.
+  - `controls.search.placeholder`; `controls.filters`: `[{key, label, all, value, options: [{value, label, count}]}]` (counts follow the other active filters, as in the window); `controls.sorts`: `[{value, label}]`; `controls.sort`, `controls.sortDesc`, `controls.canReverse`.
+  - `sections` are the Region folders, outermost first: `{id, label, count, flat, container, ref, sections: [section], rows: [row]}`. `id` is stable (use it to remember a folded folder); `ref` opens the Region's own record (`null` for a free-text region group such as "No region"); `count` is every place inside at any depth. A row is `{ref, name, type?, state, active, isRegion, restricted, match, children: [row]}`; while a search or filter is on, `match` is `false` for a folder-path row that is only there to show where a match sits. A GM's rows are plain; a player's rows nest under a non-Region parent in `children`, as in the window.
+  - Searching or filtering keeps every folder on the way to a match (`filtering: true`); the caller should show those folders open.
+- **Who gets what:** same as the window. A GM gets the GM list (records, every filter and sort; archived places are not listed). A player gets the player list only: published views of revealed places and unidentified ones by their generic label (no id, `ref` is the pin key); hidden places and every GM field are absent; filters and sort are ignored (the window offers players search and name order only, so `controls.filters` is empty and `controls.sorts` has just Name). It throws "Locations is hidden from players…" while Player Access is off.
+- **Opening:** `api.openLocation(row.ref)` opens the record in the Locations window (the viewer for a player, the editor for the GM) and checks access again. Nothing in the model can be edited.
+- **Hook:** `ashen-gate-locations.listChanged` (every client, no payload) fires when Locations' journals, Player Access or a bulk write changed what the list may show. It is only a nudge: read `listModel` again.
+
 ### `embed.mount(element, options)` (1.13.0)
 
-Shows a compact, **read-only** Locations view inside another module's window, for example Character Hub's Ashen Gate → Locations: the revealed places the user can see, grouped by region, with search. Each place opens in the Locations window; **Open Locations** opens the window.
+Shows a compact, **read-only** Locations view inside another module's window, for example Character Hub's Ashen Gate → Locations: the revealed places the user can see, grouped by region, with search. Each place opens in the Locations window. (0.34.0: the embed no longer has its own **Open Locations** button; the host window has one. Character Hub 0.63.0 draws its own list from `listModel` and uses the embed only when `listModel` is missing.)
 
 ```js
 const api = game.modules.get('ashen-gate-locations')?.api;

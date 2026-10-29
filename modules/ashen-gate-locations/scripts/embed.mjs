@@ -23,7 +23,7 @@ export function embedHTML(deps, filter = '') {
     .map(([g, rows]) => `<h4>${esc(g)} <small>${rows.length}</small></h4>
     <ul class="agl-embed__list">${rows.map(v => `<li><button type="button" class="agl-embed__open" data-agl-embed="open" data-ref="${esc(v.id)}" data-tooltip="Open ${esc(v.name)} in Locations" data-tooltip-class="ag-tooltip">${esc(v.name)}</button>${v.type ? `<span class="agl-embed__muted">${esc(v.type)}</span>` : ''}</li>`).join('')}</ul>`).join('');
   return `<div class="agl-embed__body">
-    <div class="agl-embed__tools"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"></label><button type="button" class="ag-btn ag-btn--sm" data-agl-embed="open-all">Open Locations</button></div>
+    <div class="agl-embed__tools"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"></label></div>
     ${list || (q ? empty('Nothing matches', 'No places match this search.') : empty('No places yet', 'No places revealed yet.'))}</div>`;
 }
 
@@ -47,7 +47,7 @@ export function createEmbed(deps) {
       const b = e.target?.closest?.('[data-agl-embed]'); if (!b || !element.contains(b)) return;
       e.preventDefault?.(); e.stopPropagation?.();
       // The window's own open functions check Player Access again.
-      return Promise.resolve().then(() => b.dataset.aglEmbed === 'open' ? deps.api().openLocation(b.dataset.ref) : deps.api().open()).catch(deps.notifyError);
+      return Promise.resolve().then(() => b.dataset.aglEmbed === 'open' ? deps.api().openLocation(b.dataset.ref) : deps.api().open()).catch(deps.notifyError);   // 'open-all' is kept for older markup
     }, {signal: abort.signal});
     element.addEventListener('input', e => { if (e.target?.classList?.contains('agl-embed__search')) { ctrl.filter = e.target.value; ctrl.render(); } }, {signal: abort.signal});
     element.addEventListener('change', e => e.stopPropagation?.(), {signal: abort.signal});

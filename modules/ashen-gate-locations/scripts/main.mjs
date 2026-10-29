@@ -6,14 +6,14 @@ import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createActiveWatcher} from './active.mjs';
 import {createShowService} from './show.mjs';
 import {createShareService} from './sharing.mjs';
-import {LocationsApp} from './app.mjs';
+import {LocationsApp, listContext} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {registerPinTravel} from './travel-ui.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.33.0';
+const VERSION = '0.34.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -33,8 +33,10 @@ const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notificati
 
 // 1.13.0: compact read-only view for partner modules (embed.mjs).
 const embed = createEmbed({mayOpen, readViews, api: () => game.modules.get(MODULE_ID)?.api, notifyError});
+// 0.34.0: a partner that draws its own list (Character Hub) redraws on Hooks 'ashen-gate-locations.listChanged' (no payload; read api.listModel again).
+const listChanged = () => { embed.refreshAll(); try { Hooks.callAll('ashen-gate-locations.listChanged'); } catch (err) { console.warn(`${MODULE_ID} |`, err); } };
 for (const hook of ['createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage', 'updateJournalEntry'])
-  Hooks.on(hook, (doc, ...rest) => { if (rest.some(x => x && typeof x === 'object' && x.agBulk === true)) return; if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) embed.refreshAll(); });
+  Hooks.on(hook, (doc, ...rest) => { if (rest.some(x => x && typeof x === 'object' && x.agBulk === true)) return; if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) listChanged(); });
 
 function attachActorsLauncher(app, html, visible = mayOpen()) {
   return mountLauncher(launcherRoot(app, html), {moduleId: MODULE_ID, label: 'Locations', icon: 'fa-solid fa-map-location-dot',
@@ -42,7 +44,7 @@ function attachActorsLauncher(app, html, visible = mayOpen()) {
 }
 function applyPlayerAccess(enabled) {
   setTimeout(checkActive, 300);
-  embed.refreshAll();
+  listChanged();
   attachActorsLauncher(ui.actors, null, isGM() || enabled);
   if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
 }
@@ -120,6 +122,7 @@ Hooks.once('ready', () => {
   });
   mod.api = createApi({
     embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},
+    listContext,
     version: VERSION, isGM, playerAccessEnabled,
     // 0.33.0 Travel: the current user and a way to find a scene by uuid (null when this client does not hold it).
     currentUser: () => game.user,
@@ -218,6 +221,6 @@ const isBulk = (...a) => a.some(x => x && typeof x === 'object' && x.agBulk === 
 for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {
   Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
 }
-Hooks.on('ashenGate.bulkFinished', () => { refresh(); embed.refreshAll(); });
+Hooks.on('ashenGate.bulkFinished', () => { refresh(); listChanged(); });
 // 0.28.0: Utilities says a shop's presentation may have changed; redraw the Shops cards (the hook never fires without Utilities).
 Hooks.on('ashen-gate-utilities.shopsChanged', refresh);

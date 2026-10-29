@@ -7,7 +7,7 @@ import {BANNER_WIDTH} from './model.mjs';
 import {drawnSize} from './pin-proportions.mjs';
 import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
-import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
+import {GROUP_MODES, SORTS, FILTER_CONTROLS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, regionChoices, regionNames, regionAfterParentChange, VIEW} from './tree.mjs';
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
 import {buildRegionSections, arrangeFolds, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
@@ -181,6 +181,15 @@ function questName(id, choices) {
   if (hit) return hit.name;
   if (game.user.isGM) { try { return questApi()?.getGMSource?.(id)?.name ?? null; } catch { return null; } }
   try { return questApi()?.getVisibleObjective?.(id)?.name ?? null; } catch { return null; }
+}
+
+/**
+ * 0.34.0: what the GM list needs from outside Locations to search and group (Ledger node templates, quest and material names). The window and
+ * the public `listModel` both read it here, so a partner's list matches the window's.
+ */
+export function listContext() {
+  const tpl = nodeTemplates(), choices = questChoices(), mats = materialNames();
+  return {templates: tpl.ok ? tpl.list : [], questName: id => questName(id, choices) ?? 'Unknown quest', materialName: id => mats.get(id) ?? id};
 }
 
 const Base = foundry.applications.api.ApplicationV2;
@@ -368,12 +377,9 @@ export class LocationsApp extends Base {
   locationsHtml(list) {
     let rows = list, total = list.length, filters = '';
     if (this.gm) {
-      const tpl = nodeTemplates();
-      if (tpl.ok) rows = list = withNodeInfo(list, tpl.list);
-      const questChoicesList = questChoices();
-      const qName = id => questName(id, questChoicesList) ?? 'Unknown quest';
-      const mats = materialNames();
-      if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, {questName: qName, materialName: id => mats.get(id) ?? id}), this.query));
+      const ctx = listContext(), qName = ctx.questName;
+      rows = list = withNodeInfo(list, ctx.templates);
+      if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, ctx), this.query));
       const searched = rows;
       rows = applyFilters(rows, this.filters).sort(comparator(this.sort, this.sortDesc));
       // 0.26.0: "Id starts with" narrows the list by permanent id (the one place an id is typed); Select all shown then takes exactly those.
@@ -529,7 +535,7 @@ export class LocationsApp extends Base {
     const plain = (id, label, list, cur) => `<label class="ag-field ag-field--inline agl-ctl"><span>${label}</span><select id="${id}" aria-label="${label}">${list.map(m => `<option value="${m.value}" ${cur === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>`;
     const dir = this.sortDesc ? 'Descending (click for ascending)' : 'Ascending (click for descending)';
     return `<div class="ag-toolbar agl-filter-row" id="agl-filter-row"><div class="ag-toolbar__filters agl-filters" role="group" aria-label="Filter, sort and group the list">
-      ${sel('threat', 'Threat', 'All')}${sel('region', 'Region', 'All')}${sel('profession', 'Profession', 'All')}${sel('quest', 'Quest', 'Any')}${sel('status', 'Status', 'All')}${sel('placeable', 'Placeable', 'All')}
+      ${FILTER_CONTROLS.map(c => sel(c.key, c.label, c.all)).join('')}
       ${plain('agl-sort', 'Sort by', SORTS, this.sort)}<button type="button" class="ag-btn ag-btn--icon" id="agl-sortdir" aria-label="Sort direction: ${this.sortDesc ? 'descending' : 'ascending'}"${tip(dir)}><i class="fa-solid ${this.sortDesc ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide'}" aria-hidden="true"></i></button>
       ${this.treeMode ? '' : plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
       <label class="ag-field ag-field--inline agl-switch"${tip('Representative-only locations (most Regions) are not offered for placing on a map unless this is on')}><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>

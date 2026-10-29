@@ -183,6 +183,8 @@ if (globalThis.Hooks) {
   // 0.56.1: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
   const isBulk = (...a) => a.some(x => x && typeof x === 'object' && x.agBulk === true);
   Hooks.on('ashenGate.bulkFinished', () => { renderAllHubs(); renownSoon(); questsSoon(); });
+  // 0.63.0: Locations says its list may have changed (a place revealed, Player Access switched): the Ashen Gate → Locations list reads it again.
+  Hooks.on('ashen-gate-locations.listChanged', () => renderAllHubs());
   Hooks.on('updateActor', (actor, ...rest) => { if (isBulk(...rest)) return; recordLevelSoon(actor); });
   for (const hook of ['createItem', 'updateItem', 'deleteItem']) Hooks.on(hook, (item, ...rest) => { if (isBulk(...rest)) return; if (item?.type === 'class') recordLevelSoon(actorOf(item)); });
   // Renown keeps players' views and Quest Log its state in journals: any journal change re-checks (through their public APIs only).
