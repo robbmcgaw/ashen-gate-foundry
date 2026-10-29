@@ -1,3 +1,11 @@
+## 0.78.0 — 2026-10-29
+
+Sync warns when it holds an older GitHub pull.
+
+- Pulling again from GitHub (Find packs, Pull selected packs) only reads the files; Sync keeps the files of the last **Preview in Sync from package**. Pressing **Preview sync** then re-checked those old files, so it showed no changes, or errors naming a file that no longer exists on the branch.
+- Now, when a pull finishes at a different commit than the one Sync holds, Sync shows a notice at its top (with the short commit ids), the Pull section says Sync is holding older files, **Preview sync** and the run button are disabled with a reason, and the data layer refuses both until **Preview in Sync from package** loads the new pull. Files you chose by hand are never affected, and nothing in your world changes.
+- Help describes it under Pull from GitHub.
+
 ## 0.77.0 — 2026-10-28
 
 Export edited records.
