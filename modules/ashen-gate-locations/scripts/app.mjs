@@ -1,14 +1,14 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, GM_ONLY_BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, NPC_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, inheritedPin, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
+  hasUnpublishedChanges, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
 import {BANNER_WIDTH} from './model.mjs';
 import {drawnSize} from './pin-proportions.mjs';
 import {PIN_LOOKS, NAME_MODES, NAME_SIZE, WRAP, OFFSET, offsetOf, nameModeOf, pinLookOf, nameSizeOf, wrapOf, readPinLook} from './pin-look.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
-import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
+import {buildTree, withAncestors, breadcrumb, regionChoices, regionNames, regionAfterParentChange, VIEW} from './tree.mjs';
 import {idPrefix, previewHtml, BULK_VERBS} from './bulk.mjs';
 import {buildRegionSections, sectionHas, readFolds, toggleFold, GM_ACCESS, VIEW_ACCESS} from './region-groups.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
@@ -908,7 +908,7 @@ export class LocationsApp extends Base {
     const panels = {
       content: `<div class="ag-form-grid">
           ${fld('type', `<input id="agl-type" type="text" list="agl-types" data-bind="type" value="${esc(d.type)}" placeholder="e.g. Route, Town, Ruin">${this.typeListHtml(all)}`)}
-          ${fld('region', `<input id="agl-region" type="text" data-bind="region" value="${esc(d.region)}" placeholder="e.g. Northern Marches">`)}
+          ${fld('region', this.regionSelectHtml(d, all))}
           ${fld('threat', `<select id="agl-threat" data-bind="threat">${THREATS.map(t => `<option value="${t.value}" ${d.threat === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}</select>${threatBadge(d.threat)}`)}
           ${fld('img', `${d.img ? `<img class="agl-thumb" src="${esc(d.img)}" alt="">` : ''}<input id="agl-img" type="text" data-bind="img" value="${esc(d.img)}" placeholder="path/to/image.webp">${btn('browse-img', '', {icon: 'fa-solid fa-folder-open', title: 'Browse for an image'})}`)}
         </div>
@@ -1082,19 +1082,31 @@ export class LocationsApp extends Base {
     </section>`;
   }
 
+  /** 0.32.1: the Region drop-down: every Region's name once, "No region", and the record's current text kept (as "(custom)") when it names no Region. Stores the plain name. */
+  regionSelectHtml(d, all) {
+    const names = regionNames(all), cur = d.region || '';
+    const custom = cur && !names.includes(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (custom)</option>` : '';
+    return `<select id="agl-region" data-bind="region"><option value="">No region</option>${custom}${names.map(n =>
+      `<option value="${esc(n)}" ${cur === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+  }
   /** Where this location sits (parent), whether it is a Region (a folder) and whether it goes on maps. Fixed at the top. */
   placeHtml(d, all, pins = []) {
     const byId = new Map(all.map(l => [l.id, l]));
     const parents = parentMap(all.filter(l => l.id !== d.id));
-    const choices = all.filter(l => l.id !== d.id && !(d.id && wouldCycle(d.id, l.id, parents)));
-    const missing = d.parentLocationId && !byId.has(d.parentLocationId) ? `<option value="${esc(d.parentLocationId)}" selected>Deleted location (deleted)</option>` : '';
-    const parentSel = `<select id="agl-parent" data-bind="parentLocationId"><option value="">None (top level)</option>${missing}${choices.map(l =>
-      `<option value="${esc(l.id)}" ${d.parentLocationId === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>`;
+    // 0.32.1: only Regions are offered (same list as Move to…). The current parent stays listed and selected even when it is not a Region, so opening a record never changes it.
+    const choices = regionChoices(all, d.id);
+    const names = choices.reduce((m, c) => m.set(c.loc.name, (m.get(c.loc.name) ?? 0) + 1), new Map());
+    const cur = d.parentLocationId, curLoc = byId.get(cur);
+    const kept = curLoc && !choices.some(c => c.loc.id === cur) && curLoc.id !== d.id
+      ? `<option value="${esc(cur)}" selected>${esc(curLoc.name)} (not a Region)</option>` : '';
+    const missing = cur && !curLoc ? `<option value="${esc(cur)}" selected>Deleted location (deleted)</option>` : '';
+    const parentSel = `<select id="agl-parent" data-bind="parentLocationId"><option value="">None (top level)</option>${missing}${kept}${choices.map(({loc, path}) =>
+      `<option value="${esc(loc.id)}" ${cur === loc.id ? 'selected' : ''}>${esc(names.get(loc.name) > 1 ? path : loc.name)}</option>`).join('')}</select>`;
     return `<section class="ag-card agl-section">
       <header class="ag-card__head"><h3>Place</h3><span class="agl-hint">GM only</span></header>
       <div class="ag-field agl-field"><label for="agl-parent">Inside</label>${parentSel}</div>
       <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="isRegion" ${d.isRegion ? 'checked' : ''}> This is a Region (a folder)</label>
-      <p class="agl-hint">A Region is a container: in Tree view it is a folder other places can go in, to any depth. Any place can sit inside another; only Regions show as folders.</p>
+      <p class="agl-hint">A Region is a container: in Tree view it is a folder other places can go in, to any depth. The <em>Inside</em> list shows Regions. To put a place inside one that is not a Region, first tick <em>This is a Region (a folder)</em> on that container.</p>
       ${d.isRegion ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="passConditions" ${passesConditions(d) ? 'checked' : ''}> Pass conditions to places inside</label>
       <p class="agl-hint">Off by default. When on, this Region's <em>Conditions</em> apply to every place inside it, at any depth (players see them after Publish). Nothing else is inherited; a place can turn one off or change it for itself.</p>` : ''}
       <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="placeable" ${isPlaceable(d) ? 'checked' : ''}> Placeable on a map</label>
@@ -1373,6 +1385,7 @@ export class LocationsApp extends Base {
     if (!this.gm) return;
     this.showDrawnSize(root);
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+      if (el.dataset.bind === 'parentLocationId') this.draft.region = regionAfterParentChange(api().listLocations(), this.draft, el.value);   // 0.32.1
       this.setPath(el.dataset.bind, el.value);
       if (el.dataset.bind === 'pinBannerWidth') this.syncBanner(root, el);
       else if (el.dataset.bind === 'pin.size') this.showDrawnSize(root);
@@ -1882,10 +1895,9 @@ export class LocationsApp extends Base {
     const d = this.draft;
     if (!d?.id) return;
     const all = api().listLocations();
-    const targets = moveTargets(all, d.id).sort((a, b) => a.name.localeCompare(b.name));
-    const path = l => [...breadcrumb(all, l.id), l].map(x => x.name).join(' › ');
+    const targets = regionChoices(all, d.id);   // 0.32.1: the same list as the Inside select
     const r = await formDialog('Move to…', [{name: 'target', label: `Move ${d.name} into`, type: 'select', value: d.parentLocationId || '',
-      options: [{value: '', label: 'Top level'}, ...targets.map(l => ({value: l.id, label: path(l)}))],
+      options: [{value: '', label: 'Top level'}, ...targets.map(({loc, path}) => ({value: loc.id, label: path}))],
       hint: `Only Regions are listed, and never one inside ${d.name}.`}], {ok: 'Move'});
     if (!r) return;
     return this.move(d.id, r.target ?? '');
@@ -2078,7 +2090,7 @@ export class LocationsApp extends Base {
         '<strong>Group by Region</strong> (the default) nests places under their Regions: <em>Fosstryn Frontier</em> &gt; <em>Fosstryn</em> &gt; <em>The Muster</em>. Click a Region\'s name to fold or unfold it (the number is how many places are inside); the arrow beside it opens the Region itself. Places with no Region above them are grouped by their <em>Region</em> text, as before. Which headers you folded is remembered for you on this computer; a search, or the place you have open, keeps its headers unfolded.',
         '<strong>Filters</strong> opens a second toolbar row: the filters, Sort, Group by and <em>Show representative-only too</em>. The number on it counts the filters in use.',
         '<strong>Tree</strong> shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> in the editor does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.',
-        '<em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
+        '<em>Place</em>: put a location inside a Region (the <em>Inside</em> list shows Regions; to use another place as a container, tick <em>This is a Region</em> on it first). The <em>Region</em> field on the Content tab picks from your Regions too. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).']),
       topic('People and shops', [
         '<strong>People</strong> (Content sub-tab) links NPC Actors or Journals to this place. Drop one on the block, or choose one and click <strong>Link</strong>. A link is only a link: nothing is copied, and players never see anything from the Actor itself. Each person has an eye (hidden by default), the <em>Name shown to players</em> and an optional note, both written by you. Turn on the eye and <em>Show section to players</em>, then Publish: players get a <strong>People</strong> card where a name opens the Actor or Journal only if Foundry lets them.',
         'If General Manager imported your NPCs, People suggests the ones whose record names this place, each with <strong>Link &lt;name&gt;</strong>. A record that places the NPC here is listed first; one that only mentions the place (a plain <em>related</em> link) is listed after and says so. If you delete an NPC and import it again, the row offers <strong>Re-link to &lt;name&gt;</strong>; Save Changes and Publish keep it.',

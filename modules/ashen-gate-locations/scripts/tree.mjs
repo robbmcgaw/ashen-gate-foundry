@@ -71,6 +71,32 @@ export function moveTargets(all, id) {
   return all.filter(l => l.isRegion && l.id !== id && !wouldCycle(id, l.id, parents));
 }
 
+/** 0.32.1: Region path for a place, outermost first ("Fosstryn Frontier › Fosstryn › The Muster"), using the same breadcrumb as the list. */
+export function regionPath(all, l) { return [...breadcrumb(all, l.id), l].map(x => x.name).join(' › '); }
+
+/**
+ * 0.32.1: the one list of Regions a place can go inside (the "Inside" select and the "Move to…" dialog). Only isRegion places, never the place itself or
+ * anything that would loop; a new place (no id) has nothing to exclude. Sorted by path, so same-named Regions sit under their own parents.
+ * Returns [{loc, path}]. Display only: the API and the data layer still accept any parent id.
+ */
+export function regionChoices(all, id = '') {
+  const list = id ? moveTargets(all, id) : all.filter(l => l.isRegion);
+  return list.map(loc => ({loc, path: regionPath(all, loc)})).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** 0.32.1: names for the Region drop-down: every Region's name once (alphabetical). The stored value stays the plain name. */
+export function regionNames(all) {
+  return [...new Set(all.filter(l => l.isRegion && l.name).map(l => l.name))].sort((a, b) => a.localeCompare(b));
+}
+
+/** 0.32.1: when "Inside" changes to a Region, the Region text follows it, but only if it was empty or the old parent Region's name. Otherwise unchanged. */
+export function regionAfterParentChange(all, draft, newParentId) {
+  const cur = draft.region || '', byId = new Map(all.map(l => [l.id, l]));
+  const next = byId.get(newParentId), old = byId.get(draft.parentLocationId);
+  if (!next?.isRegion || !next.name) return cur;
+  return !cur || (old?.isRegion && cur === old.name) ? next.name : cur;
+}
+
 /** Checks a reparent. Returns the location's current parent id; throws a message the GM can show. */
 export function checkMove(all, id, parentId) {
   const loc = all.find(l => l.id === id);
