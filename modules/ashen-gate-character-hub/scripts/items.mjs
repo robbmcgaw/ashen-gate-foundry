@@ -201,8 +201,11 @@ const NAME_HINTS = [['head', /\b(helm|helmet|hat|hood|circlet|crown|cap|diadem|h
   ['back', /\b(cloak|cape|mantle|wings)\b/i], ['bracer', /\b(bracers?|bracelets?|vambraces?|armbands?)\b/i], ['hands', /\b(gloves|gauntlets?)\b/i], ['waist', /\b(belt|girdle|sash)\b/i], ['feet', /\b(boots|shoes|slippers|sandals)\b/i]];
 
 export const slotFlag = item => { const s = item.flags?.[MODULE_ID]?.slot; return SLOT_IDS.has(s) ? s : null; };
-/** Where an item would naturally sit: 'hand', 'ring', a slot id, or null (shown under "Other equipped"). */
+/** 0.62.3: a musical instrument is a dnd5e Item of type `tool` whose `system.type.value` is `music` (CONFIG.DND5E.toolTypes.music). */
+export const isMusicalInstrument = item => item?.type === 'tool' && item.system?.type?.value === 'music';
+/** Where an item would naturally sit: 'hand', 'ring', a slot id, or null (shown under "Other equipped"). Musical instruments count as trinkets. */
 export function naturalSlot(item) {
+  if (isMusicalInstrument(item)) return 'trinket';
   if (item.type === 'weapon') return 'hand';
   if (item.type !== 'equipment') return null;
   const t = item.system?.type?.value;
@@ -233,7 +236,7 @@ export function equipmentLayout(actor) {
 /** Carried, unequipped items that could go in an empty box. Worn boxes also offer unclassified wearables. */
 export function equipChoices(actor, slot) {
   return [...(actor.items ?? [])]
-    .filter(i => ['weapon', 'equipment'].includes(i.type) && 'equipped' in (i.system ?? {}) && !i.system.equipped)
+    .filter(i => (['weapon', 'equipment'].includes(i.type) || isMusicalInstrument(i)) && 'equipped' in (i.system ?? {}) && !i.system.equipped)
     .filter(i => { const n = naturalSlot(i); return fits(n, slot) || (WORN_SLOTS.has(slot) && n === null && i.type === 'equipment'); })
     .sort(bySortThenName).map(itemRow);
 }
