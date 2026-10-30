@@ -5,7 +5,11 @@ export const FALLBACK_IMG='icons/svg/item-bag.svg';
 const escape=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const hash=s=>{let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return h;};
 const FILLER=9;
-export const STAGGER=0.7,DURATION=2.8;
+/** 0.41.0: how long each reel spins, in milliseconds: the one number that sets the reveal's length. It was 2800 ms; the GM asked for 2 seconds more.
+ * The pause between one character's reel starting and the next one's (STAGGER) is unchanged, so the whole reveal is exactly 2 s longer.
+ * The same value reaches the stylesheet as --agl-dur on the reveal, so CSS and the "has it finished" check below cannot drift apart. */
+export const REEL_SPIN_MS=4800;
+export const STAGGER=0.7,DURATION=REEL_SPIN_MS/1000;
 
 /** The pictures that scroll past before the reel lands: filler from the pool (a fixed order per player, so a re-render never
  * changes the picture), then the real drop last. */
@@ -40,7 +44,7 @@ export function revealHtml(view,{reduced=false,elapsed=0,skipId='skip-reveal'}={
       ${strip}<div class="agl-reveal__drops">${drops}</div></li>`;
   }).join('');
   const summary=rows.map(r=>`${r.name}: ${r.result==='fail'?'nothing':r.drops?.length?r.drops.map(dropText).join(' and '):'by hand'}`).join('. ');
-  return `<section class="agl-reveal${reduced?' is-plain':''}${played?' is-played':''}" data-agl-reveal aria-label="Gather results">
+  return `<section class="agl-reveal${reduced?' is-plain':''}${played?' is-played':''}" data-agl-reveal style="--agl-dur:${DURATION}s" aria-label="Gather results">
     ${reduced||played?'':`<div class="agl-reveal__bar"><button type="button" class="ag-btn ag-btn--sm" data-action="${escape(skipId)}"><i class="fa-solid fa-forward" aria-hidden="true"></i> Skip animation</button></div>`}
     <ul class="agl-reveal__rows">${items||'<li class="agl-sub">Nobody rolled.</li>'}</ul>
     <p class="ag-sr-only" role="status" aria-live="polite">${escape(summary)}</p></section>`;
