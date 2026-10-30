@@ -217,7 +217,7 @@ test('wiring: Player screen sub-tab with five labelled groups, old switches gone
   assert.match(main,/<strong>Sidebar tabs<\/strong> is one checklist, <em>Tabs players keep<\/em>/);assert.match(main,/<em>Keep Chat only<\/em>/);assert.match(main,/<strong>Collapse<\/strong>/);
   assert.doesNotMatch(main,/<em>Hide the Journals tab from players<\/em>/);
   assert.match(main,/migrateSidebarTabs/);
-  assert.equal(man.version,'0.84.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));assert.match(log,/^## 0\.84\.0 /);
+  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/^## 0\.84\.1 /);assert.match(log,/^## 0\.84\.0 /m);
   assert.match(log,/Why the Journals and Compendiums switches seemed to do nothing/);assert.match(log,/playerSidebarTabs/);assert.match(log,/Show players only the Chat tab\* on: Chat kept/);
   const src=read('../scripts/sidebar-tabs.js').replace(/\/\*[\s\S]*?\*\//g,'')+read('../scripts/sidebar-policy.js').replace(/\/\*[\s\S]*?\*\//g,'');
   assert.doesNotMatch(src,/ownership|permission|setFlag|update\(|updateDocuments|settings\.set/);

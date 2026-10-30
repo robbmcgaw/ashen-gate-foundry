@@ -4,10 +4,10 @@
  * turns on "Show the player dock". Colours, sizes and spacing come from the shared kit tokens (styles/ag-ui.css, loaded by
  * this module, so the default theme applies without any skin; a chosen skin re-themes it).
  *
- * Layout assumptions (Foundry V14, unconfirmed in a live world; change --agm-dock-* on :root or a world stylesheet to nudge):
+ * Layout assumptions (Foundry V14, state verified against 14.367; change --agm-dock-* on :root or a world stylesheet to nudge):
  *  - top-left: the scene controls column sits at the left edge, so the dock starts a column's width in (--agm-dock-left).
  *  - top-right: the sidebar is the right-hand column; the dock stops short of it, and moves to the edge while the sidebar is
- *    collapsed (#sidebar.collapsed). Chat notifications sit at the bottom of that column, away from the top.
+ *    collapsed (#sidebar-content without .expanded: V14 has no collapsed class; a fresh sidebar starts collapsed). Chat notifications sit at the bottom of that column, away from the top.
  *  - bottom-left: sits above the players list and hotbar (--agm-dock-bottom).
  * The buttons keep visible text labels at every size (a column about 7rem wide).
  */
@@ -34,7 +34,7 @@
 }
 .agm-dock[data-corner="top-left"] { top: var(--agm-dock-top); left: var(--agm-dock-left); }
 .agm-dock[data-corner="top-right"] { top: var(--agm-dock-top); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
-body:has(#sidebar.collapsed) .agm-dock[data-corner="top-right"] { right: 4rem; }
+body:has(#sidebar-content:not(.expanded)) .agm-dock[data-corner="top-right"] { right: 4rem; }
 .agm-dock[data-corner="bottom-left"] { bottom: var(--agm-dock-bottom); left: var(--ag-space-3); }
 .agm-dock__slot { position: relative; display: block; }
 .agm-dock__slot:empty { display: none; }
@@ -101,7 +101,7 @@ body.agm-controls-docked[data-agm-dock-corner="top-right"] #scene-controls {
   right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4, 1rem)) !important;
   top: calc(var(--agm-dock-top) + var(--agm-dock-h, 0px) + var(--ag-space-2, 0.5rem)) !important;
 }
-body.agm-controls-docked:has(#sidebar.collapsed)[data-agm-dock-corner="top-right"] #scene-controls { right: 4rem !important; }
+body.agm-controls-docked:has(#sidebar-content:not(.expanded))[data-agm-dock-corner="top-right"] #scene-controls { right: 4rem !important; }
 body.agm-controls-docked[data-agm-dock-corner="bottom-left"] #scene-controls {
   left: var(--agm-dock-left) !important;
   bottom: var(--agm-dock-bottom) !important;

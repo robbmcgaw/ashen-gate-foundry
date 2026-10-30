@@ -1,3 +1,13 @@
+## 0.84.1 — 2026-10-30
+
+Fix: the player dock now follows the sidebar being collapsed or expanded. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.
+
+- **What was wrong.** Manager assumed Foundry marks a collapsed sidebar with a `collapsed` class on `#sidebar`. Foundry 14.367 has no such class: the state is the class `expanded` on `#sidebar-content`, exposed as `ui.sidebar.expanded`, and a fresh sidebar starts without it (collapsed). So the two dock rules keyed on `#sidebar.collapsed` never matched: the top-right player dock and the docked scene controls stayed at the wide "next to the sidebar" offset even with the sidebar collapsed, leaving a gap at the right edge. They now follow `#sidebar-content:not(.expanded)`, live, with no script.
+- **Auto-collapse and the dock's Combat/Settings peek** read the state through one helper, `isSidebarExpanded` (`ui.sidebar.expanded` first, the `#sidebar-content.expanded` class as fallback, never a class on `#sidebar`). Behaviour is unchanged where Foundry reports the state; when neither can say, auto-collapse now does nothing instead of assuming the sidebar is open.
+- **Start collapsed** still uses Foundry's own `ui.sidebar.collapse()`, but leaves a sidebar that is already collapsed alone (Foundry 14 starts that way) instead of firing the collapse hook for nothing.
+- Nothing was wrapped or overridden; a new chat message while collapsed still shows Foundry's own popup or pip and does not expand the sidebar.
+- Tests are mocked (a DOM mirroring `#sidebar > #sidebar-content.expanded`, the `expanded` getter, `collapse`/`expand`); names were checked against the Foundry 14.367 source, and the live Forge sidebar has not been seen.
+
 ## 0.84.0 — 2026-10-30
 
 GM Setup has a new **Player screen** sub-tab, and the sidebar tab switches are one checklist. Everything is visual only and for players: GMs always see the normal interface, and no permission, document or campaign data changes.

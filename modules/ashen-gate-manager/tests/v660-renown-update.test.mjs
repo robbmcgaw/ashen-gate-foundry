@@ -113,5 +113,5 @@ test('Sync from package: update rows are listed per record, edited ones are coun
 test('docs name the new behaviour', () => {
   const readme = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(readme, /Renown[^\n]*update/i);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.84.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.84.1');
 });

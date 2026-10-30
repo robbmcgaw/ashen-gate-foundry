@@ -7,6 +7,8 @@ import {FakeDocument,fakeStorage} from '../../../scripts/kit-tests/fake-dom.mjs'
 import {createAppearanceController,registerAppearanceSettings,PLAYER_SCREEN_FLAGS,AUTO_COLLAPSE_KEY,DEFAULT_AUTO_COLLAPSE_SECONDS,cleanAutoCollapse} from '../scripts/appearance.js';
 import {readGmSetupForm,saveGmSetup} from '../scripts/gm-setup.js';
 import {applyPlayersList,createControlsLayout,openUserConfiguration,shouldDockControls,shouldHidePlayersList,PLAYERS_LIST_CLASS,CONTROLS_DOCKED_CLASS} from '../scripts/dock-controls.js';
+import {isSidebarExpanded,startSidebarCollapsed} from '../scripts/sidebar-collapse.js';
+import {openSidebarTab,closeSidebarTab} from '../scripts/sidebar-tabs.js';
 import {createSidebarIdleCollapse,installSidebarIdleCollapse,hasTypedText} from '../scripts/sidebar-idle.js';
 import {DOCK_ID,DOCK_SLOTS,listDockExtras,toggleQuestTracker,openConditions,applyPlayerDock,readDockMinimized,writeDockMinimized,installPlayerDock} from '../scripts/player-dock.js';
 
@@ -214,15 +216,18 @@ function clock(){let now=0,seq=0,jobs=[];
     advance(ms){const end=now+ms;for(;;){const next=jobs.filter(j=>j.at<=end).sort((a,b)=>a.at-b.at)[0];if(!next)break;jobs=jobs.filter(j=>j!==next);now=next.at;next.fn();}now=end;},get pending(){return jobs.length;}};
 }
 function idleEnv({isGM=false,seconds=8,tab='chat',collapsed=false}={}){
+  // Mirrors Foundry 14.367: <aside id="sidebar"><div id="sidebar-content" class="expanded"> ; collapsed = no "expanded" class;
+  // ui.sidebar.expanded is a getter over that class. There is no "collapsed" class anywhere.
   const doc=richDoc(),ck=clock(),ap=fixed({autoCollapseSeconds:seconds});
   const sidebar=add(doc,'section',{id:'sidebar'});
-  const set=new Set(collapsed?['collapsed']:[]);sidebar.classList={contains:c=>set.has(c),set};
-  const field=add(doc,'textarea',{},sidebar);
-  const ui={sidebar:{tabGroups:{primary:tab},changeTab:(t)=>{ui.sidebar.tabGroups.primary=t;calls.push(['changeTab',t]);}}};
+  const content=add(doc,'div',{id:'sidebar-content'},sidebar);
+  const set=new Set(collapsed?[]:['expanded']);content.classList={contains:c=>set.has(c),add:c=>set.add(c),remove:c=>set.delete(c),set};
+  const field=add(doc,'textarea',{},content);
+  const ui={sidebar:{get expanded(){return set.has('expanded');},tabGroups:{primary:tab},changeTab:(t)=>{ui.sidebar.tabGroups.primary=t;calls.push(['changeTab',t]);}}};
   const calls=[];
-  const idle=createSidebarIdleCollapse({game:{user:{isGM}},doc,getUi:()=>ui,appearance:ap,collapse:()=>{calls.push(['collapse']);set.add('collapsed');return true;},setTimer:ck.setTimer,clearTimer:ck.clearTimer,onCollapsed:()=>calls.push(['reapply'])});
+  const idle=createSidebarIdleCollapse({game:{user:{isGM}},doc,getUi:()=>ui,appearance:ap,collapse:()=>{calls.push(['collapse']);set.delete('expanded');return true;},setTimer:ck.setTimer,clearTimer:ck.clearTimer,onCollapsed:()=>calls.push(['reapply'])});
   idle.bind();
-  return {doc,ck,ap,sidebar,field,ui,calls,idle,set};
+  return {doc,ck,ap,sidebar,content,field,ui,calls,idle,set};
 }
 test('auto-collapse: collapses after N seconds idle, not before',()=>{
   const e=idleEnv({seconds:8});e.idle.arm();
@@ -282,7 +287,7 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.84.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);
@@ -294,4 +299,49 @@ test('installPlayerDock hooks both renders and cleans up (controls released)',()
   const stop=installPlayerDock({game:e.game,hooks:{on:(n,f)=>{reg.push(n);return reg.length;},off:(n)=>off.push(n)},doc:e.doc,getUi:()=>e.ui,appearance:e.ap,layout:e.layout});
   assert.deepEqual(reg.slice(0,2),['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),true);
   stop();assert.deepEqual(off.slice(0,2),['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.getElementById(DOCK_ID),null);
+});
+
+// ---------- 0.84.1 verified collapsed / expanded mechanism (Foundry 14.367)
+test('sidebar state: ui.sidebar.expanded wins, #sidebar-content.expanded is the fallback, otherwise unknown',()=>{
+  const e=idleEnv();
+  assert.equal(isSidebarExpanded({ui:e.ui,doc:e.doc}),true);e.set.delete('expanded');assert.equal(isSidebarExpanded({ui:e.ui,doc:e.doc}),false);
+  const noGetter={sidebar:{}};
+  assert.equal(isSidebarExpanded({ui:noGetter,doc:e.doc}),false,'class fallback: collapsed');e.set.add('expanded');assert.equal(isSidebarExpanded({ui:noGetter,doc:e.doc}),true,'class fallback: expanded');
+  assert.equal(isSidebarExpanded({ui:{},doc:{getElementById:()=>null}}),null);assert.equal(isSidebarExpanded({ui:undefined,doc:undefined}),null);
+  // a stray "collapsed" class on #sidebar means nothing in V14
+  e.sidebar.classList={contains:c=>c==='collapsed'};assert.equal(isSidebarExpanded({ui:e.ui,doc:e.doc}),true);
+});
+test('auto-collapse: expanded means #sidebar-content.expanded, not a class on #sidebar',()=>{
+  const e=idleEnv();e.sidebar.classList={contains:c=>c==='collapsed'};   // decoy class that V14 never sets
+  assert.equal(e.idle.arm(),true,'still counts down: the real state is expanded');e.ck.advance(8000);assert.equal(e.calls[0][0],'collapse');
+  assert.equal(e.set.has('expanded'),false);assert.equal(e.idle.arm(),false,'collapsed: nothing to count');
+  const fresh=idleEnv({collapsed:true});assert.equal(fresh.idle.arm(),false);fresh.ck.advance(99999);assert.deepEqual(fresh.calls,[]);
+});
+test('auto-collapse: a new chat message while collapsed neither expands nor starts the count',()=>{
+  // Core shows a notification popup (or a pip) for it and leaves #sidebar-content alone; nothing here may react either.
+  const e=idleEnv({collapsed:true});e.idle.refresh();e.doc.getElementById('sidebar').dispatch('pointermove');
+  assert.equal(e.idle.pending,false);assert.deepEqual(e.calls,[]);assert.equal(e.set.has('expanded'),false);
+});
+test('start collapsed: a sidebar Foundry already renders collapsed is left alone; an expanded one is collapsed once',()=>{
+  const mk=expanded=>{const calls=[];const ui={sidebar:{rendered:true,expanded,collapse:()=>{calls.push('collapse');ui.sidebar.expanded=false;}}};return {ui,calls};};
+  const game={user:{isGM:false}},appearance=fixed({collapsePlayerSidebar:true});
+  const closed=mk(false);const a=startSidebarCollapsed({game,getUi:()=>closed.ui,appearance});assert.equal(a.run(),false);assert.deepEqual(closed.calls,[]);assert.equal(a.done,true);
+  const open=mk(true);const b=startSidebarCollapsed({game,getUi:()=>open.ui,appearance});assert.equal(b.run(),true);assert.deepEqual(open.calls,['collapse']);assert.equal(b.run(),false);assert.deepEqual(open.calls,['collapse']);
+  const unknown=mk(undefined);assert.equal(startSidebarCollapsed({game,getUi:()=>unknown.ui,appearance}).run(),true,'state unknown: still collapses');
+});
+test('dock CSS: offsets follow #sidebar-content:not(.expanded); no selector uses a collapsed class on #sidebar',()=>{
+  const css=read('../styles/player-dock.css');
+  assert.ok(!/#sidebar\.collapsed/.test(css));
+  assert.match(css,/body:has\(#sidebar-content:not\(\.expanded\)\) \.agm-dock\[data-corner="top-right"\] \{ right: 4rem; \}/);
+  assert.match(css,/body\.agm-controls-docked:has\(#sidebar-content:not\(\.expanded\)\)\[data-agm-dock-corner="top-right"\] #scene-controls \{ right: 4rem !important; \}/);
+  for(const f of ['sidebar-idle.js','sidebar-collapse.js','sidebar-tabs.js','player-dock.js'])assert.ok(!/classList[^;]*['"]collapsed['"]/.test(read('../scripts/'+f)),f);
+});
+test('dock peek: wasExpanded comes from the verified state, so a collapsed sidebar is collapsed again on the second press',()=>{
+  const calls=[];const set=new Set();   // collapsed
+  const ui={sidebar:{get expanded(){return set.has('expanded');},tabGroups:{primary:'chat'},changeTab:t=>{ui.sidebar.tabGroups.primary=t;},expand:()=>{set.add('expanded');calls.push('expand');},collapse:()=>{set.delete('expanded');calls.push('collapse');}}};
+  const memory={},peek={tab:null,armed:false};
+  assert.equal(openSidebarTab('settings',{ui,peek,memory}),'tab');assert.equal(ui.sidebar.expanded,true);assert.equal(memory.settings.wasExpanded,false);
+  assert.equal(closeSidebarTab('settings',{ui,peek,memory}),'tab');assert.equal(ui.sidebar.expanded,false);assert.deepEqual(calls,['expand','collapse']);
+  set.add('expanded');const m2={};openSidebarTab('settings',{ui,peek,memory:m2});assert.equal(m2.settings.wasExpanded,true);
+  closeSidebarTab('settings',{ui,peek,memory:m2});assert.equal(ui.sidebar.expanded,true,'was open before: stays open');
 });
