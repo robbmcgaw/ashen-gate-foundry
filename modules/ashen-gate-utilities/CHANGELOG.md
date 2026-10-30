@@ -1,3 +1,11 @@
+## 0.36.1 — 2026-10-30
+
+Fixed: a player the GM has hidden Utilities from could leave the Conditions overlay switched on without it opening.
+
+- `api.conditions.openOverlay()` now checks access first and refuses before changing anything. Before, it turned the saved overlay setting on and only then threw "Utilities access is hidden by the GM.", so a click on General Manager's dock Conditions button left a stale "on" that could pop the overlay open later if access came back. A refused call now leaves every setting exactly as it was. `toggleOverlay()` already checked first and is covered by tests. Return values and the message text are unchanged.
+- If a user loses access while the overlay setting is on, the overlay closes and that user's own saved flag is cleared, so it does not reopen when access is restored. Only the current user's own setting is touched.
+- Tests use mocked Foundry; they check the API and window state, not the live windows.
+
 ## 0.36.0 — 2026-10-30
 
 Added: a way for other modules to tell whether the Conditions overlay is open, and to toggle it. No window or setting changes.

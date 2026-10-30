@@ -69,3 +69,36 @@ test('isOverlayOpen is false for a user who lost access while the window was sti
 test('isOverlayOpen never throws, even when game or its settings are unavailable',()=>{
  const g=globalThis.game;try{globalThis.game=undefined;assert.equal(api.isOverlayOpen(),false);globalThis.game={user:gm,settings:{get(){throw Error('not ready');}}};assert.equal(api.isOverlayOpen(),false);}finally{globalThis.game=g;}
 });
+
+// 0.36.1: refuse before changing anything; stale overlayOpen without access counts as closed.
+test('0.36.1 hidden player: openOverlay and toggleOverlay refuse and leave overlayOpen false',async()=>{
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',false);await game.settings.set(ID,'overlayOpen',false);
+ game.user=alice;
+ await assert.rejects(()=>api.openOverlay(),/^Error: Utilities access is hidden by the GM\.$/);
+ assert.equal(game.settings.get(ID,'overlayOpen'),false);
+ await assert.rejects(()=>api.toggleOverlay(),/^Error: Utilities access is hidden by the GM\.$/);
+ assert.equal(game.settings.get(ID,'overlayOpen'),false);assert.equal(api.isOverlayOpen(),false);
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',true);await settle();
+ game.user=alice;assert.equal(game.settings.get(ID,'overlayOpen'),false);assert.equal(api.isOverlayOpen(),false,'restoring access does not reopen');
+});
+test('0.36.1 allowed player: openOverlay still sets the flag and returns the window',async()=>{
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',true);game.user=alice;
+ const w=await api.openOverlay();await settle();
+ assert.equal(w.rendered,true);assert.equal(game.settings.get(ID,'overlayOpen'),true);assert.equal(api.isOverlayOpen(),true);
+ await api.closeOverlay();await settle();assert.equal(api.isOverlayOpen(),false);
+});
+test('0.36.1 access revoked with overlayOpen true: overlay closes, own flag cleared, restore does not reopen',async()=>{
+ game.user=alice;await api.openOverlay();await settle();assert.equal(api.isOverlayOpen(),true);
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',false);
+ game.user=alice;handlers.on.get('updateUser')();await settle(); // the world setting's onChange runs on Alice's own client (the mock shares one process)
+ assert.equal(api.isOverlayOpen(),false,'not shown');
+ assert.equal(game.settings.get(ID,'overlayOpen'),false,'stale flag cleared for this user');
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',true);await settle();
+ game.user=alice;assert.equal(api.isOverlayOpen(),false,'access restored: still closed');
+});
+test('0.36.1 stale true set while hidden is treated as closed and cleared',async()=>{
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',false);
+ game.user=alice;await game.settings.set(ID,'overlayOpen',true);await settle();
+ assert.equal(api.isOverlayOpen(),false);assert.equal(game.settings.get(ID,'overlayOpen'),false);
+ game.user=gm;await game.settings.set(ID,'playerAccessEnabled',true);
+});

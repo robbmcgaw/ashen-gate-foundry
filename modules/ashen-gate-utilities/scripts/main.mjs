@@ -707,7 +707,11 @@ const liveOverlay=()=>{try{if(overlayInstance?.rendered)return overlayInstance;c
 function isOverlayOpen(){try{return permitted()&&!!liveOverlay();}catch{return false;}}
 /** 0.36.0: close the overlay if it is open, otherwise open it. Same results and permission rules as openOverlay / closeOverlay. */
 async function toggleOverlay(){if(liveOverlay()){await game.settings.set(ID,'overlayOpen',false);await closeOverlay();return false;}if(!permitted())throw Error('Utilities access is hidden by the GM.');await game.settings.set(ID,'overlayOpen',true);return openOverlay();}
-function syncOverlay(){(game.settings.get(ID,'overlayOpen')===true&&permitted()?openOverlay():closeOverlay()).catch(error);}
+/** 0.36.1: the access check comes first, so a refused call changes no setting and no window. */
+async function openOverlayAndRemember(){if(!permitted())throw Error('Utilities access is hidden by the GM.');await game.settings.set(ID,'overlayOpen',true);return openOverlay();}
+/** 0.36.1: 'overlayOpen && no access' counts as closed. The flag is a per-user (client) setting, so clearing a stale true here only touches the current user and stops it reopening if access returns. */
+function dropStaleOverlayFlag(){if(!permitted()&&game.settings.get(ID,'overlayOpen')===true)game.settings.set(ID,'overlayOpen',false).catch(error);}
+function syncOverlay(){if(!permitted()){closeOverlay().catch(error);dropStaleOverlayFlag();return;}(game.settings.get(ID,'overlayOpen')===true?openOverlay():closeOverlay()).catch(error);}
 function rerenderConditions(){if(windowInstance?.rendered&&!activeRoll)windowInstance.render().catch(error);if(overlayInstance?.rendered)overlayInstance.render().catch(error);}
 /* ---- Party stash: one Utilities-owned Actor. Players never edit it; the primary GM client moves
    items for them. Taking an item out needs every other connected player to accept. ---- */
@@ -1489,7 +1493,7 @@ async function open(){if(!permitted())throw Error('Utilities access is hidden by
 function refreshWindows(){
  refreshShopWindows();
  if(!permitted()&&!isGM()){
-  refreshEmbeds();document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close({force:true}).catch(error);closeOverlay().catch(error);
+  refreshEmbeds();document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close({force:true}).catch(error);closeOverlay().catch(error);dropStaleOverlayFlag();
  } else {rerenderStash();rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
  addLauncher(ui?.actors,ui?.actors?.element);
 }
@@ -1547,7 +1551,7 @@ Hooks.once('ready',()=>{
  installItemTips();
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
-  conditions:{contract:'ag-utilities-conditions/1',canChangeActor,icons:{get:()=>({...conditionIcons()}),set:setConditionIcon,reset:id=>setConditionIcon(id,'')},isPlayerCharacter:a=>isPlayerCharacter(a,[...game.users]),choices:()=>conditionChoices().map(c=>({...c})),isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>permitted()&&canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>permitted()&&applyDecision({user:game.user,actor:game.actors.get(actorId),statusId:resolveStatusId(statusId,nativeIds()),...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false),isOverlayOpen,toggleOverlay},
+  conditions:{contract:'ag-utilities-conditions/1',canChangeActor,icons:{get:()=>({...conditionIcons()}),set:setConditionIcon,reset:id=>setConditionIcon(id,'')},isPlayerCharacter:a=>isPlayerCharacter(a,[...game.users]),choices:()=>conditionChoices().map(c=>({...c})),isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>permitted()&&canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>permitted()&&applyDecision({user:game.user,actor:game.actors.get(actorId),statusId:resolveStatusId(statusId,nativeIds()),...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:openOverlayAndRemember,closeOverlay:()=>game.settings.set(ID,'overlayOpen',false),isOverlayOpen,toggleOverlay},
   stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,deleteItem,listItems:listStashItems},
   rolls:{contract:'ag-utilities-rolls/1',modes:[...ROLL_OPEN_MODES],skills:[...SKILL_IDS],open:openRolls},
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
