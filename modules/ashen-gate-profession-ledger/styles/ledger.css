@@ -254,3 +254,8 @@
 .agl-fav.is-on{color:var(--ag-warn-ink)}
 .agl-fav.is-on i{color:var(--ag-warn)}
 .agl-favs .ag-row__main{flex-wrap:wrap}
+/* 0.40.0: the GM Recipe Catalog filter row (same look as the Locations list controls). */
+.agl-filters{gap:var(--ag-space-2) var(--ag-space-3)}
+.agl-ctl{margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.agl-ctl select{width:auto;max-width:14rem}
+.agl-no-matches .ag-btn{margin-top:var(--ag-space-2)}

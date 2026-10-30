@@ -21,6 +21,7 @@ import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {spotRange,compareSpots,spotLabel,groupByTier,tierHeading} from './spot-order.mjs';
+import {DEFAULT_PREFS,cleanPrefs,describeRecipe,buildCatalogModel,plainModel,filterRowHtml,filtersChipHtml,emptyHtml,groupFoldersHtml} from './catalog-list.mjs';
 import {buildTree,treeHtml,treeKeys,applyTreeSearch,toggleTierGroup,setAllTree} from './catalog-tree.mjs';
 import {starterCheck,starterCheckText,planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
@@ -36,7 +37,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.39.0';
+const VERSION='0.40.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1350,7 +1351,7 @@ const recipeDetailsKey=id=>{let h=5381;for(const c of String(id??''))h=((h*33)^c
 const recipeDetailsOpen=id=>recipeDetailsState()[recipeDetailsKey(id)]!==false;
 function flushRecipeDetails(){clearTimeout(recipeDetailsTimer);recipeDetailsTimer=null;try{uiState(ID).set('recipeDetails',recipeDetailsState());}catch{}}
 function setRecipeDetails(entries){const st=recipeDetailsState();for(const [id,open] of entries){if(open)delete st[id];else st[id]=false;}if(!recipeDetailsTimer)recipeDetailsTimer=setTimeout(flushRecipeDetails,200);}
-function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true,favorite=null}={}){
+function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true,favorite=null,knownCount=false}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
   const ctx=ctxKey(recipe.id);
@@ -1365,7 +1366,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   const status=[];
   if(showStatus){
     if(gm)status.push(draftBadge(recipe.status,recipe.sourceVisibility));
-    if(knownBy.length)status.push(badge(`Known by ${nameList(knownBy)}`,'ok'));
+    if(knownBy.length)status.push(badge(`Known by ${nameList(knownBy)}${knownCount?` (${knownBy.length})`:''}`,'ok'));
     if(foundBy.length)status.push(badge(`${recipeWord(recipe)} item: ${nameList(foundBy)}`,'recipe'));
     if(gm&&!knownBy.length&&!foundBy.length)status.push(badge('Not found by the party yet','muted'));
   }
@@ -3211,6 +3212,19 @@ function draftTemplate(d,taken){
     materials:{common:rows(d.common),rare:rows(d.rare),exotic:d.exotic.filter(e=>e.materialId).map(e=>({materialId:e.materialId,mode:e.mode,...(e.mode==='designated'?{chance:n(e.chance),condition:e.condition}:{})}))}};
 }
 
+/** 0.40.0 (GM): the facts the Recipe Catalog list works from, one per recipe in the world: who knows it (the party's own knownRecipes flags), what it makes, whether players may see it. */
+function catalogFacts(lib,party){
+  if(!game.user.isGM)throw Error('Only the GM can use the recipe catalog list');
+  const {known,found}=partyRecipes(party),names=a=>({id:a.id,name:a.name});
+  return lib.recipes.map(r=>describeRecipe(r,{professionName:professionLabel(r),known:(known.get(r.id)??[]).map(names),found:(found.get(r.id)??[]).map(x=>names(x.actor)),
+    partySize:party.length,makesType:resultDocument(r)?.type??'',resultName:resultDocument(r)?.name??'',ingredientNames:r.hasStructuredIngredients?r.ingredients.map(i=>ingredientName(i,lib)):[],released:!hiddenFromPlayers(r)}));
+}
+/** 0.40.0 (GM only): the catalog list as plain data, filtered/sorted/grouped the way the window shows it. options: {query,filters,sort,sortDesc,group}. */
+function catalogList(options={}){
+  if(!game.user?.isGM)throw Error('Only the GM can use the recipe catalog list');
+  const party=partyActors(),lib=catalog();
+  return plainModel(buildCatalogModel(catalogFacts(lib,party),{gm:true,...options,party:party.map(a=>({id:a.id,name:a.name}))}));
+}
 const portrait=(a)=>a?.img?`<img class="agl-avatar" src="${esc(a.img)}" alt="">`:`<span class="agl-avatar">${esc((a?.name||'?').slice(0,1))}</span>`;
 class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1000,height:760}};
@@ -3339,18 +3353,43 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return fold({key:'catalog-import',title:'Advanced: import here, or use General Manager',body:`<p class="agl-sub">General Manager imports recipes, materials and the items recipes make; use it for new content. This import is only for older player-safe Ledger JSON catalogs, and it replaces the previous Ledger catalog. It never creates or changes Items, XP or inventories.</p>
       <div class="ag-btn-group">${fileButton({label:'Import Ledger recipe/material JSON…',accept:'application/json,.json',data:{aglFile:'catalog'}})}</div>`});
   }
+  /** 0.40.0 (GM): the recipe facts the catalog list filters, groups and sorts by. Reads Foundry; the rules are in catalog-list.mjs. */
+  _catalogFacts(lib){return catalogFacts(lib,this.actors);}
+  get _catalogPrefs(){if(!this.__catPrefs){let raw=null;try{raw=this._ui.get('catalogList',null);}catch{raw=null;}this.__catPrefs=cleanPrefs(raw);}return this.__catPrefs;}
+  _saveCatalogPrefs(patch){if(!game.user.isGM)return;this.__catPrefs=cleanPrefs({...this._catalogPrefs,...patch});try{this._ui.set('catalogList',this.__catPrefs);}catch{}}
+  _gmCatalog(lib){
+    const prefs=this._catalogPrefs,party=this.actors,{known,found}=partyRecipes(party);
+    const facts=this._catalogFacts(lib);
+    const model=buildCatalogModel(facts,{gm:true,query:this.query,filters:prefs.filters,sort:prefs.sort,sortDesc:prefs.sortDesc,group:prefs.group,party:party.map(a=>({id:a.id,name:a.name}))});
+    const hidden=lib.recipes.filter(hiddenFromPlayers).length,canOpen=this._managerReady();
+    const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
+    const rowHtml=r=>recipeRow(r.ref,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor),knownCount:true});
+    let body;
+    if(model.empty)body=emptyHtml(model);
+    else if(model.group==='profession'){
+      const tree=buildTree(model.rows.map(r=>({group:r.profession,recipe:r.ref,html:rowHtml(r)})),{keepOrder:true});this._lastTreeKeys=treeKeys(tree);
+      body=treeHtml(tree,{isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},countText:p=>`${p.rows.length}${folderWord({rows:p.rows})}`,esc});
+    }else{
+      this._lastTreeKeys={folders:model.group==='none'?[]:model.groups.map(g=>`${model.group}-${String(g.key).replace(/[^a-zA-Z0-9]+/g,'-')||'x'}`),tiers:[]};
+      body=groupFoldersHtml(model.groups,model.group,{rowHtml,isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},esc});
+    }
+    const toolbar=`<div class="ag-toolbar agl-toolbar">${this._search(model.controls.search.placeholder)}${filtersChipHtml(model,prefs.filtersOpen)}${model.group==='none'?'':this._treeButtons()}
+      <span class="ag-toolbar__count" aria-live="polite">Showing ${model.shown} of ${model.total}</span>
+      <div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button></div></div>`;
+    return `${toolbar}${prefs.filtersOpen?filterRowHtml(model,{esc}):''}
+      ${notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned; a draft stays hidden until you approve it in General Manager.${canOpen?'':' <b>General Manager is not installed or enabled.</b>'}<br>${legend}`,hidden?'warn':'info')}
+      ${body}
+      ${this._catalogAdvanced()}`;
+  }
   _catalog(lib){
     const gm=game.user.isGM,party=this.actors;
+    if(gm)return this._gmCatalog(lib);
     const {known,found}=partyRecipes(party);
-    const recipes=gm?lib.recipes:[...new Set([...known.keys(),...found.keys()])].map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
+    const recipes=[...new Set([...known.keys(),...found.keys()])].map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
     const rows=recipes.map(r=>({group:professionLabel(r),recipe:r,html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})}));
-    const hidden=gm?lib.recipes.filter(hiddenFromPlayers).length:0;
-    const canOpen=gm&&this._managerReady();
-    const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
-    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}${this._treeButtons()}${gm?`<div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button></div>`:''}</div>
-      ${gm?notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned; a draft stays hidden until you approve it in General Manager.${canOpen?'':' <b>General Manager is not installed or enabled.</b>'}<br>${legend}`,hidden?'warn':'info')
-        :'<p class="agl-sub">Recipes your party has found or learned, by profession. Craft and learn from the Individual tab.</p>'}
-      ${this._recipeTree(rows)||(gm?emptyState('No recipes in this world yet.','Import recipes with General Manager.'):emptyState('No recipes yet.','A recipe appears here once someone in the party finds its recipe item or learns it.'))}
+    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}${this._treeButtons()}</div>
+      <p class="agl-sub">Recipes your party has found or learned, by profession. Craft and learn from the Individual tab.</p>
+      ${this._recipeTree(rows)||emptyState('No recipes yet.','A recipe appears here once someone in the party finds its recipe item or learns it.')}
       <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every recipe.</p></div>
       ${this._catalogAdvanced()}`;
   }
@@ -3657,7 +3696,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Favorites:</strong> the star on a profession pins it to the top of your list; the star on a known recipe moves it to the top of its profession and adds it to <em>Favorite recipes</em> under your professions (select a name there to jump to the card). <em>Favorites only</em> above Known recipes hides every other recipe. Favorites belong to each character; only that character’s owners and the GM can change them. Nothing else changes.</p>
     <p><strong>Learn:</strong> a recipe item in your inventory has a Learn button. Learning uses up one recipe item and the recipe stays known.</p>
     <p><strong>Party:</strong> every party member’s materials and recipes, by player or by profession.</p>
-    <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked':''}.</p>
+    <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked. <b>Filters</b> opens the filters (each with counts), Sort by with its direction button and Group by; the search also finds ingredients and who knows a recipe, and your choices are remembered on this device':''}.</p>
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Request gather:</strong> when Locations tracks Active places, you can only ask to gather at places your GM has set Active; if there are none, ask your GM where the party is.</p>
     <p><strong>What a recipe makes:</strong> on a recipe you know, the Makes item and the ingredients are buttons; press one to see its picture, type, price and description. The GM keeps these previews up to date on your character, so you do not need to be able to open the item in Foundry.</p>
@@ -4127,6 +4166,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const btn=this.element.querySelector?.('[data-action="rr-apply"]');if(btn)btn.disabled=!this._recipeRefreshReady();
     },{signal});
     this.element.addEventListener('change',e=>{
+      // 0.40.0: the GM catalog list controls. Each choice is remembered on this device; GM only.
+      if(game.user.isGM&&this.view==='catalog'&&e.target?.matches?.('[data-agl-filter],[data-agl-sort],[data-agl-group]')){
+        const d=e.target.dataset,prefs=this._catalogPrefs;
+        if(d.aglFilter!==undefined)this._saveCatalogPrefs({filters:{...prefs.filters,[d.aglFilter]:e.target.value}});
+        else if(d.aglSort!==undefined)this._saveCatalogPrefs({sort:e.target.value});
+        else this._saveCatalogPrefs({group:e.target.value});
+        this.render();return;}
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['nodeRef','templateId','templateTier'].includes(f)){this.gather[f]=e.target.value;if(f!=='templateTier'){this.gather.professions=null;this.gather.dc='';}if(f==='templateId')this.gather.templateTier='';this.render();}return;}
       if(e.target?.matches?.('[data-gather-prof]')&&game.user.isGM){
@@ -4171,7 +4217,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-signature-row]')&&game.user.isGM){const id=e.target.dataset.signatureRow;if(e.target.checked)this.signatureState.selected.add(id);else this.signatureState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
-    this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
+    this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;if(this.view==='catalog'&&game.user.isGM)this._catalogSearchSoon();else this._applySearch();},{signal});
     this.element.addEventListener?.('input',e=>{if(e.target?.matches?.('[data-label-field]'))this._rememberLabelDraft(e.target);},{signal});
     this._applySearch();this._syncRosterActions();
     // Last, once the folds, search and guards have shaped the DOM.
@@ -4216,8 +4262,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _uploadNodes(f){if(!game.user.isGM||!f)return;
     try{const data=JSON.parse(await f.text());this._rememberNodeList();this.nodeImport={fileName:f.name??'',data,plan:previewNodeFile(data)};this.render();}
     catch(err){say(`Node file not read: ${err.message}`,true);}}
+  /** 0.40.0: the GM catalog re-renders once typing pauses (the list model does the search); focus and caret come back with the render. */
+  _catalogSearchSoon(){clearTimeout(this._catSearchTimer);this._catSearchTimer=setTimeout(()=>{this._catSearchTimer=null;if(this.view==='catalog'&&game.user.isGM)this.render();},200);}
   /** Client-side filter; folders open while searching and hide when empty. */
   _applySearch(){
+    if(this.view==='catalog'&&game.user.isGM)return;// 0.40.0: the GM catalog searches in the list model, not in the page.
     const query=this.query.trim().toLowerCase();
     const root=this.element;if(!root?.querySelectorAll)return;
     for(const row of root.querySelectorAll('[data-recipe-search]')){
@@ -4273,6 +4322,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const group=[...(this.element?.querySelectorAll?.('[data-tier-group]')??[])].find(g=>g.dataset.tierGroup===id);
         if(group){const open=toggleTierGroup(group);if(!this.query){group.dataset.storedOpen=open?'1':'0';this._setTree(`t:${id}`,open);}return;}
         const st=this._treeState(),key=`t:${id}`;this._setTree(key,st[key]===undefined?false:!st[key]);this.render();return;}
+      if(action==='catalog-filters'||action==='catalog-clear'||action==='catalog-sortdir'){
+        if(!game.user.isGM)throw Error('GM only');
+        if(action==='catalog-filters')this._saveCatalogPrefs({filtersOpen:!this._catalogPrefs.filtersOpen});
+        else if(action==='catalog-sortdir')this._saveCatalogPrefs({sortDesc:!this._catalogPrefs.sortDesc});
+        else if(action==='catalog-clear'){this.query='';this._saveCatalogPrefs({filters:{}});}
+        this.render();return;}
       if(action==='tree-expand'||action==='tree-collapse'){
         const on=action==='tree-expand',did=this.element?.querySelectorAll&&!this.query?setAllTree(this.element,on):null;
         const inPlace=Boolean(did&&(did.folders.length||did.tiers.length)),k=inPlace?did:(this._lastTreeKeys??{folders:[],tiers:[]});
@@ -4788,6 +4843,8 @@ Hooks.once('ready',()=>{
     getProfessionXPHistory:(actor,profId)=>{if(!game.user.isGM)throw Error('Only the GM can read XP history');return xpHistoryOf(actor,profId);},
     /** 0.39.0: a character's favorites {professions:[PROF-*],recipes:[REC-*]} (stale ids left out). OBSERVER or GM. */
     getFavorites:actor=>getFavorites(actor),
+    /** 0.40.0: GM only. The Recipe Catalog list as plain data: catalogList({query,filters:{profession,discipline,tier,known,player,starting,requirement,makes,kind,visibility},sort,sortDesc,group}). Throws for a player. */
+    catalogList:options=>catalogList(options),
     /** 0.39.0: star or un-star one recipe or profession: setFavorite(actor,{kind:'recipe'|'profession',id,on}). OWNER or GM only; resolves {kind,id,on,changed,favorites}. */
     setFavorite:(actor,change)=>setFavorite(actor,change),
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
