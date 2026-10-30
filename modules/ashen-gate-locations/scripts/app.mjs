@@ -16,6 +16,7 @@ import {travel, travelCount, onRowContextMenu} from './travel-ui.mjs';
 import {hereMarks, hereMarkHtml} from './here-marker.mjs';
 import {travelLabel} from './travel.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
+import {setDragging} from './canvas-drop.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 import {actorFacts, npcSuggestions, relinkPlan, applyRelink, shopsHere, shopsForPlayer, shopsApiState} from './people-shops.mjs';
@@ -1465,7 +1466,9 @@ export class LocationsApp extends Base {
     // AshenGateLocation places a pin when dropped on the canvas; AshenGateLocationMove (representative-only) only moves it into a folder.
     for (const row of root.querySelectorAll('.agl-row[draggable]')) row.addEventListener('dragstart', e => {
       e.dataTransfer.setData('text/plain', JSON.stringify({type: row.dataset.dragType || 'AshenGateLocation', id: row.dataset.id}));
+      setDragging(row.dataset.dragType || 'AshenGateLocation');
     });
+    for (const row of root.querySelectorAll('.agl-row[draggable]')) row.addEventListener('dragend', () => setDragging(null));
     for (const zone of root.querySelectorAll('[data-folder]')) {
       zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('agl-dragover'); });
       zone.addEventListener('dragleave', () => zone.classList.remove('agl-dragover'));
