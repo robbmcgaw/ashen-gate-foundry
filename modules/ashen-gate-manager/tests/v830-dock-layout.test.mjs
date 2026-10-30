@@ -267,7 +267,7 @@ test('auto-collapse timer is really cleared by cancel()',()=>{
 // ---------- wiring
 test('wiring: version 0.83.0, changelog, Help, no status wording, GM never affected',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.84.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
   assert.match(main,/<em>Move the scene navigation to the bottom left<\/em>/);assert.match(main,/Combat, Settings, Conditions, Quest Tracker, User Configuration, Ashen Gate/);
   const gm=dockEnv({isGM:true,state:{moveSceneNavigation:true,dockSceneControls:true}});controlsDom(gm.doc);gm.apply();
   assert.equal(gm.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),false);

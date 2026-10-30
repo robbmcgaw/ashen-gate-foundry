@@ -15,10 +15,11 @@
  * tab other than Chat or Settings (when other tabs are not hidden) it is left alone. If Settings was peeked, Chat is put back
  * before the collapse so the next expand shows Chat.
  *
- * Foundry V14 names (unconfirmed in a live world): the sidebar root `#sidebar` with class `collapsed` when collapsed (also read
- * from `ui.sidebar.expanded`), and `ui.sidebar.changeTab`. Each is feature-detected.
+ * Foundry V14 names (verified against 14.367, feature-detected): expanded means `ui.sidebar.expanded` is true, which is the class
+ * `expanded` on `#sidebar-content` (there is no `collapsed` class on `#sidebar`); tabs change with `ui.sidebar.changeTab`.
+ * A new chat message while collapsed only shows a notification popup or a pip; core does not expand the sidebar for it.
  */
-import { collapseSidebar } from './sidebar-collapse.js';
+import { collapseSidebar, isSidebarExpanded } from './sidebar-collapse.js';
 import { activeTab, FALLBACK_TAB } from './sidebar-tabs.js';
 
 export const SIDEBAR_ID = 'sidebar';
@@ -64,7 +65,7 @@ export function createSidebarIdleCollapse({
     } catch { return 0; }
   };
   const sidebarEl = () => doc?.getElementById?.(SIDEBAR_ID) ?? null;
-  const isExpanded = el => Boolean(el) && !el.classList?.contains?.('collapsed') && getUi()?.sidebar?.expanded !== false;
+  const isExpanded = el => Boolean(el) && isSidebarExpanded({ ui: getUi(), doc }) === true;
   const tabOk = () => { const tab = activeTab(getUi()); return !tab || COLLAPSIBLE_TABS.includes(tab); };
   const hovered = el => { try { return Boolean(el.matches?.(':hover')); } catch { return false; } };
   const busy = el => over || hovered(el) || focusInField(el) || hasTypedText(el) || hasOpenWindow(doc) || isDockMenuOpen();

@@ -4,9 +4,26 @@
  * is forced closed again on later renders, and the player's own expand and collapse keep working. Arriving chat messages are
  * never expanded or collapsed by this code. Turning the setting on or off mid-session does not collapse anyone live.
  *
- * Foundry V14 names (unconfirmed in a live world, each feature-detected): `ui.sidebar.collapse()`, with
- * `ui.sidebar.toggleExpanded(false)` as the second choice, and the `renderSidebar` hook for a sidebar not yet rendered.
+ * Foundry V14 names (verified against the 14.367 source, each still feature-detected): the state is the class `expanded` on
+ * `#sidebar-content` (inside the `#sidebar` aside), read as `ui.sidebar.expanded` (a boolean getter; no `collapsed` class exists
+ * anywhere). `ui.sidebar.collapse()`, `expand()` and `toggleExpanded(expanded?)` set it and fire the `collapseSidebar` hook
+ * `(sidebar, collapsed)`. `#sidebar-content` starts WITHOUT `expanded`, so a fresh V14 sidebar is collapsed until a tab is
+ * clicked or `activate()` is called. Use `isSidebarExpanded` below, never a class on `#sidebar`.
  */
+export const SIDEBAR_CONTENT_ID = 'sidebar-content';
+
+/**
+ * Is the sidebar expanded? true or false when known, null when neither Foundry's `ui.sidebar.expanded` nor the
+ * `#sidebar-content.expanded` class can say. The getter wins; the class is the fallback.
+ */
+export function isSidebarExpanded({ ui = globalThis.ui, doc = globalThis.document } = {}) {
+  try {
+    if (typeof ui?.sidebar?.expanded === 'boolean') return ui.sidebar.expanded;
+    const content = doc?.getElementById?.(SIDEBAR_CONTENT_ID);
+    if (content?.classList?.contains) return content.classList.contains('expanded');
+  } catch { /* unknown */ }
+  return null;
+}
 export const shouldCollapse = ({ isGM, setting }) => !isGM && setting === true;
 
 /** Calls Foundry's collapse. Returns true when a call was made; never throws. */
@@ -32,6 +49,8 @@ export function startSidebarCollapsed({ game, hooks, getUi = () => globalThis.ui
     if (finished) return false;
     if (!wanted()) { finished = true; return false; }
     const ui = getUi();
+    // A fresh V14 sidebar is already collapsed; leave it alone instead of firing the hook for nothing.
+    if (ui?.sidebar?.rendered !== false && ui?.sidebar?.expanded === false) { finished = true; return false; }
     if (ui?.sidebar?.rendered === false && waiting === null && typeof hooks?.once === 'function') {
       waiting = hooks.once('renderSidebar', () => { waiting = null; run(); });
       return false;

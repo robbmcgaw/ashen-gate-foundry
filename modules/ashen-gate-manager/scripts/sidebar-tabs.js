@@ -19,7 +19,7 @@
  * cards, macros, playlists, compendium, settings. Tabs re-render through the `renderAbstractSidebarTab` hook (AppV2 calls the hook
  * of every parent class), which covers tabs a module adds. Not confirmed in a live world; each call is feature-detected.
  */
-import { collapseSidebar } from './sidebar-collapse.js';
+import { collapseSidebar, isSidebarExpanded } from './sidebar-collapse.js';
 import { CORE_TAB_IDS, CHAT_TAB, tabKept, isEverything, cleanPolicy } from './sidebar-policy.js';
 
 export const FALLBACK_TAB = 'chat';
@@ -148,7 +148,7 @@ export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, p
     const sidebar = ui?.sidebar;
     if (typeof sidebar?.changeTab !== 'function') return false;
     try {
-      memory[tabId] = { via: 'tab', prev: activeTab(ui), wasExpanded: sidebar.expanded !== false };
+      memory[tabId] = { via: 'tab', prev: activeTab(ui), wasExpanded: isSidebarExpanded({ ui, doc: globalThis.document }) !== false };
       if (typeof sidebar.expand === 'function') sidebar.expand();
       peek.tab = tabId; peek.armed = false;
       sidebar.changeTab(tabId, 'primary');
@@ -163,7 +163,7 @@ export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, p
 export function isSidebarTabOpen(tabId, { ui = globalThis.ui } = {}) {
   try {
     if (ui?.[tabId]?.popout?.rendered === true) return true;
-    return activeTab(ui) === tabId && ui?.sidebar?.expanded !== false;
+    return activeTab(ui) === tabId && isSidebarExpanded({ ui, doc: globalThis.document }) !== false;
   } catch { return false; }
 }
 
