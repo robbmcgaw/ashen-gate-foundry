@@ -77,7 +77,7 @@ test('0.71.1 wiring: GM only, runs where the other folder renames run, bulk-safe
 });
 
 test('0.71.1 version, CHANGELOG, README and Help', () => {
-  assert.equal(JSON.parse(read('../module.json')).version, '0.85.4');
+  assert.equal(JSON.parse(read('../module.json')).version, '0.86.0');
   assert.match(read('../CHANGELOG.md'), /^## 0\.71\.1 /m); assert.match(read('../README.md'), /Ashen Gate\/Bestiary/);
   assert.match(read('../scripts/main.js'), /Draft Frontier Creatures/);
 });

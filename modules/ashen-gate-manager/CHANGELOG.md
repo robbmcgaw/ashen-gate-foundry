@@ -1,3 +1,14 @@
+## 0.86.0 — 2026-10-30
+
+Back up world to GitHub. GM only; nothing in your world is changed by a backup.
+
+- **Back up world now…** (Items > Export) copies the current state of your content to a branch of a private GitHub repository, as pretty JSON under `world-backup/`: `manager-edits.json` (edited records, the same bundle as Export edited records, including records made by hand), `locations.json` (Locations export), `quests.json` (Quests, Orders and Contracts with their source and play state, read through Quest Log's GM api), `factions.json` (Renown factions and deities, definitions only: Renown has no export of standings) and `shops.json` (Utilities shop export). A module that is missing, inactive or too old is skipped, and the confirmation says why.
+- **Confirmation first.** The dialog lists every file with its size, the target repository and branch, anything left out, and says the backup includes play state (reveals, notes and standings) and goes to a private repository branch. Back up on the right, Cancel on the left.
+- **Safety checks before any write.** GitHub is asked about the repository first: a repository that is not private is refused, and so is the default branch (and main or master). The GM check is in the data layer. One commit "World backup <date> <time>" holds every file; a new branch is created from the default branch, and only at the end, so a failure leaves the repository as it was. A backup with nothing changed since the last one sends nothing.
+- **Settings** (GM Setup > General > World backup, saved with Save Changes): repository (default is set), branch (default `world-backup`) and a write token. The token is a separate field from the read-only Pull token, is kept on this device only, is shown back masked, and **Clear token…** removes it. It never appears in a message or the console.
+- Plain-words messages for a rejected token, a token without Contents Read and write, a repository the token cannot see, a busy GitHub and no connection. The Help dialog explains what is sent and the three steps to make the token.
+- Tests are mocked (Foundry and GitHub); the live Forge window and real GitHub calls have not been seen.
+
 ## 0.85.4 — 2026-10-30
 
 Fix: the scene navigation bar sat far from the left edge for players whose scene controls are docked. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.

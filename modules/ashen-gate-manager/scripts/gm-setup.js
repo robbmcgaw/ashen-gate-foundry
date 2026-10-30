@@ -48,7 +48,10 @@ export function readGmSetupForm(root) {
   const playersFolder = q('[data-ag-setup-players-only]');
   const autoCollapse = q('[data-ag-setup-autocollapse]');
   const dockCorner = q('[data-ag-setup-dock-corner]:checked');
+  // 0.86.0 World backup: repository, branch and the token typed this time (an empty box means "leave the saved token").
+  const backupRepo = q('[data-ag-setup-backup-repo]');
   return {
+    ...(backupRepo ? {backup: {repo: backupRepo.value ?? '', branch: q('[data-ag-setup-backup-branch]')?.value ?? '', token: q('[data-ag-setup-backup-token]')?.value ?? ''}} : {}),
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
     ...(readTabChecklist(root) ? {playerSidebarTabs: readTabChecklist(root)} : {}),
@@ -79,7 +82,7 @@ function sameSources(next, current) {
  * Writes the GM Setup values. GM only (rejected here, not just hidden). Writes a setting only when its value changed,
  * except core sources, which are saved as one list. Returns {ok, message, saved:[labels]}.
  */
-export async function saveGmSetup(values, {game, moduleId, codexAccessKey, itemsKey = null, appearance = null, coreLinks = null}) {
+export async function saveGmSetup(values, {game, moduleId, codexAccessKey, itemsKey = null, appearance = null, coreLinks = null, backup = null}) {
   if (!game?.user?.isGM) throw new Error('Only the GM can change GM Setup.');
   const saved = [], problems = [];
   if (values.worldSkin !== undefined && appearance) {
@@ -151,6 +154,12 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
       await game.settings.set(moduleId, codexAccessKey, values.codexAccess);
       saved.push(values.codexAccess ? 'players can open the NPC Codex' : 'players can no longer open the NPC Codex');
     }
+  }
+  if (values.backup !== undefined && backup) {
+    // 0.86.0: backup repository, branch and token (the token is kept on this device only and never shown back).
+    const out = await backup.save(values.backup);
+    if (!out.ok) problems.push(out.message.replace(/\.$/, ''));
+    else if (out.saved.length) saved.push(...out.saved);
   }
   if (values.sources !== undefined && coreLinks && !sameSources(values.sources, coreLinks.describeSources?.())) {
     const out = await coreLinks.saveSources(values.sources);
