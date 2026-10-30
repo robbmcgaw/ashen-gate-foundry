@@ -1,3 +1,12 @@
+## 0.85.2 — 2026-10-30
+
+Player dock: new button labels and order. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.
+
+- **Labels.** User Configuration is now **User Settings**, Settings is now **Foundry Settings**, and Quest Tracker is now **Quest Log** (label and tooltip; it still shows or hides the tracked objectives). Every button opens on the first press and closes on the second, as before.
+- **Order, top to bottom.** Combat, Conditions, Quest Log, User Settings, Foundry Settings, Ashen Gate. Conditions, Quest Log and the Ashen Gate menu still show only while their module is active and the player may open it, and appear or disappear live.
+- Internal slot names, `data-agm-dock` values and the Character Hub portrait slot are unchanged. The Help and the Player dock hints in GM Setup use the new names.
+- Tests are mocked; the live Forge dock has not been seen.
+
 ## 0.85.1 — 2026-10-30
 
 Fix: the players' sidebar auto-collapse now actually collapses. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.

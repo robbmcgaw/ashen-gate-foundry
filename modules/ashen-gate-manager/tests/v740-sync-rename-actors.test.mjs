@@ -425,7 +425,7 @@ test('wiring: the switch is off by default, GM-gated where it is read, dropped o
   assert.match(main, /phraseRequired\(plan\)&&!phraseOk\(this\.sync\.phrase\)/);
   assert.match(view, /Also update Actors from the package/); assert.match(hbs, /phraseRequired\(plan\) && !phraseOk\(confirmation\)/);
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.85.1'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.85.2'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.74\.0 /m); assert.match(read('../README.md'), /Also update Actors from the package/);
   assert.match(main, /Also update Actors from the package/, 'Help mentions it');
 });

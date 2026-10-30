@@ -41,11 +41,11 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     hint:'When a player loads the game the sidebar starts collapsed, so the scene fills the screen. They can expand and collapse it as usual afterwards. Applied once when the game loads, not live. GMs are never collapsed.'}),
   Object.freeze({key:'playerDock',state:'playerDock',setter:'setPlayerDock',who:'whether players see the player dock',
     name:'Show the player dock',
-    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Conditions, Quest Tracker (each only while its module is on and the player may open it), User Configuration, and a button to minimize the dock. It pairs well with a short list of sidebar tabs: Combat and Settings open from the dock even when their tabs are hidden. GMs never see it.'}),
+    hint:'Players get a small group of buttons in a corner of the screen: Combat, Conditions and Quest Log (each only while its module is on and the player may open it), User Settings, Foundry Settings, an Ashen Gate menu of the windows they may open, and a button to minimize the dock. It pairs well with a short list of sidebar tabs: Combat and Foundry Settings open from the dock even when their tabs are hidden. GMs never see it.'}),
   // 0.82.0, both off by default, visual only, never for the GM (see player-dock.js, dock-controls.js).
   Object.freeze({key:'hidePlayersList',state:'hidePlayersList',setter:'setHidePlayersList',who:'whether players see the players list',
     name:'Hide the players list from players',
-    hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
+    hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Settings link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
   Object.freeze({key:'dockSceneControls',state:'dockSceneControls',setter:'setDockSceneControls',who:'where players\' scene controls sit',
     name:'Move players\' scene controls under the player dock',
     hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, in one row of Select, Select Targets, Measure and Find My Token. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'})
