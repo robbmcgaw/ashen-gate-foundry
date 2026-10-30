@@ -136,5 +136,5 @@ test('the preview and the pull name the commit (short) and the file count', () =
 
 test('0.72.2 version', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.85.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.85.1'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));
 });
