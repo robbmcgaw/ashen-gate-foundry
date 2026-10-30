@@ -43,6 +43,7 @@ const rows=[row('amber elixir alchemy','alchemy'),row('banded blade blacksmithin
 const folderEl=key=>({dataset:{folder:key},hidden:false,open:false,querySelectorAll:()=>rows.filter(r=>r.folder===key)});
 const folders=[folderEl('alchemy'),folderEl('blacksmithing')];
 app.element={querySelectorAll:s=>s==='[data-recipe-search]'?rows:s==='[data-folder]'?folders:[],querySelector:()=>null};
+app.view='party';// 0.40.0: the GM catalog searches in its list model; the page search still serves the other views
 app.query='blade';app._applySearch();
 assert.deepEqual(rows.map(r=>r.hidden),[true,false]);
 assert.deepEqual(folders.map(f=>f.hidden),[true,false]);

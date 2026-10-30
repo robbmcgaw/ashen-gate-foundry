@@ -18,8 +18,9 @@ export function recipeTierName(recipe){
   return null;
 }
 const slug=s=>norm(s).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'x';
-/** rows: [{group (profession name), recipe, html}] -> [{key, name, rows, tiers:[{key, name, rows}]}], professions by name, tiers in ladder order, "Other" last (empty tiers omitted). */
-export function buildTree(rows){
+/** keepOrder (0.40.0, the GM catalog): rows are already in the chosen sort order, so keep it inside each tier.
+ * rows: [{group (profession name), recipe, html}] -> [{key, name, rows, tiers:[{key, name, rows}]}], professions by name, tiers in ladder order, "Other" last (empty tiers omitted). */
+export function buildTree(rows,{keepOrder=false}={}){
   const profs=new Map();
   for(const row of rows){
     const key=slug(row.group)||'unassigned';
@@ -31,7 +32,7 @@ export function buildTree(rows){
   }
   const order=[...TIERS,OTHER_TIER];
   return [...profs.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({key:p.key,name:p.name,rows:p.rows,
-    tiers:order.filter(t=>p.tierMap.has(t)).map(t=>({key:`${p.key}:${slug(t)}`,name:t,rows:p.tierMap.get(t).sort((a,b)=>String(a.recipe?.name).localeCompare(String(b.recipe?.name)))}))}));
+    tiers:order.filter(t=>p.tierMap.has(t)).map(t=>({key:`${p.key}:${slug(t)}`,name:t,rows:keepOrder?p.tierMap.get(t):p.tierMap.get(t).sort((a,b)=>String(a.recipe?.name).localeCompare(String(b.recipe?.name)))}))}));
 }
 /** Every folder and tier key of a tree: what Expand all and Collapse all set. */
 export const treeKeys=tree=>({folders:tree.map(p=>p.key),tiers:tree.flatMap(p=>p.tiers.map(t=>t.key))});

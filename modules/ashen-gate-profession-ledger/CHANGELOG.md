@@ -1,3 +1,13 @@
+## 0.40.0 — 2026-10-30
+
+GM Recipe Catalog: search, filter, group and sort like the Locations list.
+
+- **Recipe Catalog (GM)** gets one toolbar row: search, **Filters (n)**, Expand all / Collapse all, a "Showing x of y" count and Open General Manager. **Filters** opens a second row: Profession, Discipline (Crafting, Gathering, Creative), Tier, Known (by someone, by nobody, by everyone in the party, recipe item held but not learned), Known by (a party character), Starting, Requires (tool, workstation, both, neither), Makes (item type), Type (crafting recipe, activity, enchantment) and Players (released or draft). Each shows counts that follow the other filters, then **Sort by** (Name, Profession then name, Tier, Characters who know it) with an ascending/descending button, **Group by** (Profession, Tier, Discipline, Known by character, None) and **Clear filters**.
+- Search matches the name, profession, tier, what it makes, ingredients, tools, workstation, description and the names of the characters who know it. Each row's "Known by" shows the names and a count. A clear empty state with **Clear filters** shows when nothing matches.
+- The choices (not the search text) are remembered per user on this device.
+- Grouping by Profession keeps the profession folders with tier groups; the other groupings are plain folders that Expand all / Collapse all also open and close.
+- Who knows a recipe is read from each party character's own known-recipes list. The Ledger has no group, workshop or HQ recipe knowledge, so there is no separate "known by the group" filter, and it does not record when or how a recipe was learned, so there is no "recently learned" sort or "how learned" filter.
+- GM only: the list is built only for the GM. API: `api.catalogList({query, filters, sort, sortDesc, group})` returns it as plain data and refuses a player. Players' Recipe Catalog is unchanged. No saved world data changes.
 ## 0.39.0 — 2026-10-28
 
 Favorite recipes and professions.
