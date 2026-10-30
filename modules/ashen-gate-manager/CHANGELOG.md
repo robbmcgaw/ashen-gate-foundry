@@ -1,3 +1,14 @@
+## 0.82.0 — 2026-10-30
+
+More for the player dock. Everything is visual only and for players: you always see the normal interface, and no permission, document or saved data changes. Three new settings in **GM Setup > General > Sidebar** (all off by default except the 8-second timer, GM only, saved with Save Changes), plus new dock buttons.
+
+- **Hide the players list from players.** The players / latency / FPS panel at the bottom left is hidden for players. The dock gets a **User Configuration** link (it opens the player's own user configuration window) so they can still reach it. Live.
+- **Move players' scene controls under the player dock.** Needs the dock. The existing tool column is re-anchored under the dock (it is not rebuilt or moved in the page), so the scene navigation takes the top left corner. Tool selection, the highlighted tool and the pop-out sub-tools work as before. If it ever lands badly, turn the setting off. Live.
+- **Auto-collapse chat and Settings after (seconds).** Default 8, 0 turns it off. When a player opens the sidebar chat or the dock's Settings, it collapses again after that long unused. It stays open while the pointer is over it, text is typed in the chat box (or the cursor is in a field), or a window or menu from it is open; any click, key press or mouse movement restarts the count. Settings gives way to Chat when it closes. You are never collapsed. Live.
+- **New dock buttons.** **Quest Tracker** shows or hides Quest Log's Tracked objectives window (the player's own choice, the same one Quest Log keeps) and **Conditions** opens Utilities' Conditions window. Each appears only if its module is active and the player may open it (Player Access on), the same check as the Ashen Gate menu. Both use those modules' existing public API; nothing was added to them.
+- **Minimize the dock.** A small button at the top of the dock folds it down to a single handle and back. It is a real button (keyboard and screen readers), and each player's choice is remembered on their device. The Character Hub's reserved portrait slot is unchanged and hides with the dock body.
+- Help describes the settings. One new world setting (auto-collapse seconds) and two new on/off ones (players list, scene controls), read as off or 8 when absent, no migration. Tests are mocked: the live V14 scene controls, players list, sidebar and dock placement have not been seen.
+
 ## 0.81.0 — 2026-10-29
 
 A clean, almost full-canvas screen for players. Four optional settings in **GM Setup > General > Sidebar** (all off by default, saved with Save Changes, GM only), plus the corner for the dock. Everything is visual only: no permission, document or saved data changes, and you always see the normal interface.

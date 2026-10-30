@@ -6,7 +6,7 @@
  */
 
 /** Reads the GM Setup form. Missing controls stay undefined, so saveGmSetup leaves those settings alone. */
-import { PLAYER_SCREEN_FLAGS, DOCK_CORNERS } from './appearance.js';
+import { PLAYER_SCREEN_FLAGS, DOCK_CORNERS, cleanAutoCollapse } from './appearance.js';
 
 export function readGmSetupForm(root) {
   const q = selector => root?.querySelector?.(selector) ?? null;
@@ -23,6 +23,7 @@ export function readGmSetupForm(root) {
   const hideCompendiums = q('[data-ag-setup-hide-compendiums]');
   const handouts = q('[data-ag-setup-handouts-only]');
   const playersFolder = q('[data-ag-setup-players-only]');
+  const autoCollapse = q('[data-ag-setup-autocollapse]');
   const dockCorner = q('[data-ag-setup-dock-corner]:checked');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
@@ -32,6 +33,7 @@ export function readGmSetupForm(root) {
     ...(playersFolder ? {playersFolderOnly: Boolean(playersFolder.checked)} : {}),
     ...(hideCompendiums ? {hideCompendiumsTab: Boolean(hideCompendiums.checked)} : {}),
     ...Object.fromEntries(PLAYER_SCREEN_FLAGS.flatMap(flag => { const box = q(`[data-ag-setup-screen="${flag.state}"]`); return box ? [[flag.state, Boolean(box.checked)]] : []; })),
+    ...(autoCollapse && String(autoCollapse.value ?? '').trim() !== '' && Number.isFinite(Number(autoCollapse.value)) ? {autoCollapseSeconds: cleanAutoCollapse(autoCollapse.value)} : {}),
     ...(dockCorner && Object.hasOwn(DOCK_CORNERS, dockCorner.value) ? {playerDockCorner: dockCorner.value} : {}),
     ...(items ? {itemsReadable: items.value === 'player' ? 'player' : 'gm'} : {}),
     worldSkin: skinValue === undefined ? undefined : String(skinValue),
@@ -108,6 +110,12 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (values.playerDockCorner !== appearance.getState().playerDockCorner) {
       await appearance.setPlayerDockCorner(values.playerDockCorner);
       saved.push('player dock corner');
+    }
+  }
+  if (values.autoCollapseSeconds !== undefined && appearance?.setAutoCollapseSeconds) {
+    if (values.autoCollapseSeconds !== appearance.getState().autoCollapseSeconds) {
+      await appearance.setAutoCollapseSeconds(values.autoCollapseSeconds);
+      saved.push(values.autoCollapseSeconds === 0 ? 'chat and Settings no longer auto-collapse for players' : `chat and Settings collapse for players after ${values.autoCollapseSeconds} seconds`);
     }
   }
   if (values.itemsReadable !== undefined && itemsKey) {

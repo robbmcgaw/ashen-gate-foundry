@@ -1,4 +1,4 @@
-// 0.81.0 clean player screen: scene control groups, chat-only sidebar, collapsed start, player dock. Mocked Foundry: proves
+// 0.82.0 clean player screen: scene control groups, chat-only sidebar, collapsed start, player dock. Mocked Foundry: proves
 // logic and wiring, not the live V14 sidebar, scene controls or dock placement.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,13 +23,13 @@ const player={user:{isGM:false}},gm={user:{isGM:true}};
 
 test('settings: hidden, restricted world values, off by default, plain wording; corner is a GM choice',()=>{
   const reg=[];registerAppearanceSettings({game:{settings:{register:(n,k,v)=>reg.push({k,v})}},namespace:'m'});
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','chatOnlySidebar','collapsePlayerSidebar','playerDock']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','chatOnlySidebar','collapsePlayerSidebar','playerDock','hidePlayersList','dockSceneControls']);
   for(const f of PLAYER_SCREEN_FLAGS){
     const s=reg.find(r=>r.k===f.key).v;
     assert.deepEqual([s.scope,s.config,s.restricted,s.type,s.default],['world',false,true,Boolean,false]);
     assert.doesNotMatch(`${s.name} ${s.hint}`,/\b(new|beta|alpha|preview)\b|[A-Z]{3,}-/i);
   }
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Show players only the Chat tab in the sidebar','Start players with the sidebar collapsed','Show the player dock']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Show players only the Chat tab in the sidebar','Start players with the sidebar collapsed','Show the player dock','Hide the players list from players',"Move players' scene controls under the player dock"]);
   const c=reg.find(r=>r.k===DOCK_CORNER_KEY).v;
   assert.deepEqual([c.scope,c.restricted,c.default],['world',true,'top-left']);assert.deepEqual(Object.keys(c.choices),['top-left','top-right','bottom-left']);
 });
@@ -55,7 +55,7 @@ test('GM Setup form reads the new controls and saves only what changed',async()=
   assert.deepEqual([v.hideSceneTools,v.chatOnlySidebar,v.collapsePlayerSidebar,v.playerDock,v.playerDockCorner],[true,true,true,false,'top-right']);
   const g=ctl();
   const out=await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});
-  assert.equal(out.ok,true);assert.equal(g.writes.length,4);
+  assert.equal(out.ok,true);assert.equal(g.writes.length,6);
   g.writes.length=0;await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});assert.deepEqual(g.writes,[],'idempotent');
   assert.equal(readGmSetupForm({querySelector:()=>null,querySelectorAll:()=>[]}).chatOnlySidebar,undefined);
   await assert.rejects(()=>saveGmSetup(v,{game:player,moduleId:'m',codexAccessKey:'k',appearance:g.c}),/Only the GM/);
@@ -213,8 +213,8 @@ test('dock: hidden for GM and when off, drawn for players, live corner change, i
 });
 test('dock: buttons are real buttons with tooltips; Combat and Settings open their tabs; failures notify',()=>{
   const e=dockEnv();const dock=e.apply();
-  const btns=dock.querySelectorAll('button');assert.equal(btns.length,3);
-  for(const b of btns){assert.equal(b.getAttribute('type'),'button');assert.ok(b.getAttribute('data-tooltip'));assert.ok(b.querySelector('span').textContent);}
+  const btns=dock.querySelectorAll('button');assert.equal(btns.length,7);
+  for(const b of btns){assert.equal(b.getAttribute('type'),'button');assert.ok(b.getAttribute('data-tooltip')||b.getAttribute('aria-label'));if(b.getAttribute('data-agm-dock')!=='minimize')assert.ok(b.querySelector('span').textContent);}
   dock.querySelector('[data-agm-dock="settings"]').click();assert.deepEqual(e.ui.calls.at(-1),['changeTab','settings','primary']);
   const pops=[];e.ui.combat={renderPopout:()=>pops.push(1)};dock.querySelector('[data-agm-dock="combat"]').click();assert.equal(pops.length,1);
   const bare=dockEnv();bare.ui.sidebar=undefined;bare.apply().querySelector('[data-agm-dock="combat"]').click();assert.equal(bare.notes.length,1);
@@ -262,7 +262,7 @@ test('wiring: settings in GM Setup > Sidebar, Help, stylesheet, no core override
   assert.match(main,/startSidebarCollapsed\(/);assert.match(main,/installPlayerDock\(\{game,hooks:Hooks/);
   assert.match(main,/<em>Show the player dock<\/em>/);
   assert.ok(man.styles.includes('styles/player-dock.css'));
-  assert.ok(man.version==='0.81.0'&&man.download.endsWith('/ashen-gate-manager-v0.81.0/ashen-gate-manager.zip'));
+  assert.ok(man.version==='0.82.0'&&man.download.endsWith('/ashen-gate-manager-v0.82.0/ashen-gate-manager.zip'));
   for(const f of ['scene-controls','sidebar-collapse','player-dock','sidebar-tabs']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set/,f);

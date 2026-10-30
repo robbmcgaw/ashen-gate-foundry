@@ -1,4 +1,4 @@
-/** 0.64.0: the Hub's Ashen Gate → Locations list draws the "Your party is here" pin from Locations' hereNow / containsHere flags. Mocked Foundry; not the live Hub. */
+/** 0.65.0: the Hub's Ashen Gate → Locations list draws the "Your party is here" pin from Locations' hereNow / containsHere flags. Mocked Foundry; not the live Hub. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users} from './foundry-mock.mjs';

@@ -1449,7 +1449,14 @@
         <fieldset class="ag-field agmanager-corner"><legend>Player dock corner</legend>
           {{#each dockCornerChoices}}<label class="ag-field--inline"><input type="radio" name="agm-dock-corner" value="{{value}}" data-ag-setup-dock-corner {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}
         </fieldset>
-        <p class="agmanager-tiny">On gives players a small group of buttons in the corner you pick: Combat, Settings and an Ashen Gate menu listing only the windows that player may open. GMs never see it. Saved with Save Changes.</p>
+        <p class="agmanager-tiny">On gives players a small group of buttons in the corner you pick: Combat, Settings, an Ashen Gate menu listing only the windows that player may open, Quest Tracker and Conditions (shown only when Quest Log or Utilities is on and the player may open it), a User Configuration link, and a button that minimizes the dock to a small handle (each player's choice is kept on their device). GMs never see it. Saved with Save Changes.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="dockSceneControls" {{#if dockSceneControls}}checked{{/if}}> Move players' scene controls under the player dock</label>
+        <p class="agmanager-tiny">On moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, so the scene navigation takes the corner. Needs the player dock. The tools work as before. You always see them in the normal place. Saved with Save Changes.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hidePlayersList" {{#if hidePlayersList}}checked{{/if}}> Hide the players list from players</label>
+        <p class="agmanager-tiny">On hides the players, latency and FPS panel at the bottom left for players. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden. You always see it. Saved with Save Changes.</p>
+        <label class="ag-field">Auto-collapse chat and Settings after (seconds)
+          <input type="number" min="0" max="600" step="1" value="{{autoCollapseSeconds}}" data-ag-setup-autocollapse></label>
+        <p class="agmanager-tiny">When a player opens the sidebar chat or the Settings panel, it closes again after this many seconds without use. It stays open while the pointer is over it, something is typed in the chat box, or a window or menu from it is open; any click, key press or mouse movement restarts the count. 0 turns it off. You are never collapsed. Saved with Save Changes.</p>
         <p class="agmanager-tiny">Hide the Journals tab: off leaves the sidebar as Foundry made it. On removes the Journals tab for players, who land on Chat if it was open. You always see it. Only the tab is hidden: nobody's access to journals changes, and handouts, quests and locations still open for players. Saved with Save Changes.</p>
       </section>
       <section class="ag-section" aria-label="NPC Codex">

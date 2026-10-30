@@ -29,7 +29,7 @@ export const modelOptions = (ui, user) => ({query: ui.query, filters: ui.filters
 
 const foldKey = id => sectionKey('loc', id);
 
-/** 0.64.0: "Your party is here" pin (Locations 0.36.0 flags). Shape + text, not colour; hidden unless it is meant to show. */
+/** 0.65.0: "Your party is here" pin (Locations 0.36.0 flags). Shape + text, not colour; hidden unless it is meant to show. */
 const HERE = 'Your party is here';
 const herePin = hidden => `<span class="agch-loc__here" role="img" aria-label="${HERE}" data-tooltip="${HERE}" data-here-pin${hidden ? ' hidden' : ''}><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span>`;
 
