@@ -1,5 +1,6 @@
 /*
- * Ashen Gate player dock (Manager 0.81.0). Presentation only; drawn by scripts/player-dock.js for players when the GM
+ * Ashen Gate player dock (Manager 0.81.0; 0.82.0 adds the minimize handle, Quest Tracker, Conditions and User Configuration,
+ * the players-list hider and the scene controls under the dock). Presentation only; drawn by scripts/player-dock.js for players when the GM
  * turns on "Show the player dock". Colours, sizes and spacing come from the shared kit tokens (styles/ag-ui.css, loaded by
  * this module, so the default theme applies without any skin; a chosen skin re-themes it).
  *
@@ -10,9 +11,12 @@
  *  - bottom-left: sits above the players list and hotbar (--agm-dock-bottom).
  * The buttons keep visible text labels at every size (a column about 7rem wide).
  */
-.agm-dock {
+:root {
   --agm-dock-left: 5rem;
   --agm-dock-bottom: 9rem;
+  --agm-dock-top: var(--ag-space-3, 0.5rem);
+}
+.agm-dock {
   position: fixed;
   z-index: 30;
   display: flex;
@@ -28,8 +32,8 @@
   font-size: var(--ag-text-md);
   box-shadow: var(--ag-shadow);
 }
-.agm-dock[data-corner="top-left"] { top: var(--ag-space-3); left: var(--agm-dock-left); }
-.agm-dock[data-corner="top-right"] { top: var(--ag-space-3); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
+.agm-dock[data-corner="top-left"] { top: var(--agm-dock-top); left: var(--agm-dock-left); }
+.agm-dock[data-corner="top-right"] { top: var(--agm-dock-top); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
 body:has(#sidebar.collapsed) .agm-dock[data-corner="top-right"] { right: 4rem; }
 .agm-dock[data-corner="bottom-left"] { bottom: var(--agm-dock-bottom); left: var(--ag-space-3); }
 .agm-dock__slot { position: relative; display: block; }
@@ -60,4 +64,46 @@ body:has(#sidebar.collapsed) .agm-dock[data-corner="top-right"] { right: 4rem; }
 .agm-dock .ag-btn { transition: background var(--ag-dur-fast) var(--ag-ease), border-color var(--ag-dur-fast) var(--ag-ease); }
 @media (prefers-reduced-motion: reduce) {
   .agm-dock .ag-btn { transition: none; }
+}
+
+/* ---- 0.82.0 ---- */
+.agm-dock [hidden] { display: none !important; }
+.agm-dock__body { display: flex; flex-direction: column; gap: var(--ag-space-2); }
+.agm-dock__bar { display: flex; justify-content: flex-end; }
+.agm-dock[data-minimized="true"] { padding: var(--ag-space-1); }
+.agm-dock__toggle:focus-visible,
+.agm-dock__link:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
+.agm-dock__link { color: var(--ag-muted); text-decoration: underline; }
+
+/* Players list: the players / latency / FPS panel is hidden (only a class; Foundry keeps updating the element).
+   #players is the V13/V14 id of that panel (unconfirmed in a live world). The dock may then sit lower. */
+body.agm-hide-players #players { display: none !important; }
+body.agm-hide-players { --agm-dock-bottom: var(--ag-space-3, 0.5rem); }
+
+/* Scene controls under the dock: the same #scene-controls element, re-anchored with position:fixed (no re-parenting), stacked
+   with the dock by the measured --agm-dock-h / --agm-controls-h (set in dock-controls.js). The scene navigation is left alone
+   and, with the tool column gone from the top left, takes that corner; the top-left dock therefore starts below it
+   (--agm-dock-top). Change the --agm-* values on :root to nudge. */
+body.agm-controls-docked { --agm-dock-left: var(--ag-space-3, 0.5rem); --agm-dock-top: 3.75rem; }
+body.agm-controls-docked #scene-controls {
+  position: fixed !important;
+  z-index: 30;
+  margin: 0 !important;
+  inset: auto !important;
+}
+body.agm-controls-docked[data-agm-dock-corner="top-left"] #scene-controls {
+  left: var(--agm-dock-left) !important;
+  top: calc(var(--agm-dock-top) + var(--agm-dock-h, 0px) + var(--ag-space-2, 0.5rem)) !important;
+}
+body.agm-controls-docked[data-agm-dock-corner="top-right"] #scene-controls {
+  right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4, 1rem)) !important;
+  top: calc(var(--agm-dock-top) + var(--agm-dock-h, 0px) + var(--ag-space-2, 0.5rem)) !important;
+}
+body.agm-controls-docked:has(#sidebar.collapsed)[data-agm-dock-corner="top-right"] #scene-controls { right: 4rem !important; }
+body.agm-controls-docked[data-agm-dock-corner="bottom-left"] #scene-controls {
+  left: var(--agm-dock-left) !important;
+  bottom: var(--agm-dock-bottom) !important;
+}
+body.agm-controls-docked .agm-dock[data-corner="bottom-left"] {
+  bottom: calc(var(--agm-dock-bottom) + var(--agm-controls-h, 0px) + var(--ag-space-2, 0.5rem));
 }
