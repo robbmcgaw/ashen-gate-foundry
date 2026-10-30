@@ -23,6 +23,12 @@
  *     the top-left corner AND the navigation's own rect would overlap the dock column (dock plus docked controls) are
  *     `body.agm-nav-offset` and `--agm-nav-shift` set, moving it right by the overlap and nothing more. Never set on the navigation element itself. Nothing is reserved above, below or for its
  *     expanded scene list, and in any other corner nothing is touched. (0.83.0's "bottom-left stack" setting was reverted.)
+ *     (0.85.4) The real cause of a bar stuck far from the left: core's #ui-left reserves `--control-columns` control-column
+ *     widths in #ui-left-column-1 (width = n*32px + (n-1)*8px) and the bar lives in #ui-left-column-2 after that block.
+ *     SceneControls#setPosition sets n = ceil(tools*40 / #scene-controls-tools.clientHeight) + 1 inline on #ui-left, so the one-row
+ *     docked controls (height about 32px) make n large (8 = 312px) while the controls themselves are position:fixed elsewhere.
+ *     player-dock.css collapses that column while body.agm-controls-docked. The bar is found with getElementById/querySelector,
+ *     never by assuming its parent; `data-agm-nav-parent` on <body> names the parent id.
  *  5. User Configuration (0.85.0 toggle): `foundry.applications.sheets.UserConfig` (ApplicationV2, `{document: user}`, confirmed in
  *     Foundry 14.367). The open window is found in the core registry `foundry.applications.instances` (instance of that class,
  *     `document === game.user`, `rendered`), so the state is the real one: the first press opens, the next press calls its
@@ -36,6 +42,8 @@ export const CONTROLS_CLEAN_CLASS = 'agm-controls-clean';
 export const NAV_OFFSET_CLASS = 'agm-nav-offset';
 /** Diagnostic on <body>: present (value in px) only while Manager is nudging the navigation. */
 export const NAV_ATTR = 'data-agm-nav-shift';
+/** Diagnostic on <body> (0.85.4): the id (else the tag name) of the scene navigation's parent element, so it shows where the bar lives. */
+export const NAV_PARENT_ATTR = 'data-agm-nav-parent';
 /** V14 (14.367) id first, the V11 to V13 id second. The one place that names the scene navigation. */
 export const NAVIGATION_SELECTORS = Object.freeze(['#scene-navigation', '#navigation']);  // Monk's Scene Navigation keeps #scene-navigation (adds .monks-navigation)
 /** Token-group tools kept for players (V14 data-tool values: select, target, ruler). */
@@ -159,13 +167,19 @@ export function createControlsLayout({ doc, win = globalThis.window ?? globalThi
    * it, travel with it. Nothing is ever set on the element itself.
    */
   function measureNav(groupRight) {
+    const nav = sceneNavigationElement(doc);
+    try {
+      const parent = nav?.parentElement ?? nav?.parentNode ?? null;
+      if (parent) doc.body?.setAttribute?.(NAV_PARENT_ATTR, String(parent.id || parent.tagName || 'unknown').toLowerCase());
+      else doc.body?.removeAttribute?.(NAV_PARENT_ATTR);
+    } catch { /* diagnostic only */ }
     const release = () => { navShift = 0; setBodyClass(doc, NAV_OFFSET_CLASS, false); try { root()?.style?.removeProperty?.('--agm-nav-shift'); doc.body?.removeAttribute?.(NAV_ATTR); } catch { /* nothing set */ } };
     if (!topLeftDock() && !pull) { release(); return; }
     setBodyClass(doc, NAV_OFFSET_CLASS, false);   // natural position: our rule off
-    const nav = sceneNavigationElement(doc), r = rect(nav);
+    const r = rect(nav);
     if (!r || !finite(r.left)) { release(); return; }
     const ow = Number(nav.offsetWidth);
-    const scale = ow > 0 && r.width > 0 ? r.width / ow : 1; // #ui-middle is scaled by the interface scale
+    const scale = ow > 0 && r.width > 0 ? r.width / ow : 1; // any ancestor scale (#ui-left / #ui-middle use the interface scale), read from the bar itself
     let shift = 0;
     const collide = topLeftDock() && finite(groupRight) ? groupRight + NAV_GAP_PX - r.left : 0;
     if (collide > 0) shift = collide / scale;
@@ -224,13 +238,13 @@ export function createControlsLayout({ doc, win = globalThis.window ?? globalThi
     },
     disable() {
       const cl = doc?.body?.classList;
-      if (!on && !pull && !cl?.contains?.(CONTROLS_DOCKED_CLASS) && !cl?.contains?.(NAV_OFFSET_CLASS) && !doc?.body?.hasAttribute?.('data-agm-dock-corner') && !doc?.body?.hasAttribute?.(NAV_ATTR)) return false;
+      if (!on && !pull && !cl?.contains?.(CONTROLS_DOCKED_CLASS) && !cl?.contains?.(NAV_OFFSET_CLASS) && !doc?.body?.hasAttribute?.('data-agm-dock-corner') && !doc?.body?.hasAttribute?.(NAV_ATTR) && !doc?.body?.hasAttribute?.(NAV_PARENT_ATTR)) return false;
       on = false; dockEl = null; controlsOn = false; navShift = 0; pull = false;
       applyControlsFilter({ doc, on: false });
       unwatch();
       setBodyClass(doc, CONTROLS_DOCKED_CLASS, false);
       setBodyClass(doc, NAV_OFFSET_CLASS, false);
-      try { doc.body?.removeAttribute?.(NAV_ATTR); doc.body?.removeAttribute?.('data-agm-dock-corner'); } catch { /* attribute already gone */ }
+      try { doc.body?.removeAttribute?.(NAV_ATTR); doc.body?.removeAttribute?.(NAV_PARENT_ATTR); doc.body?.removeAttribute?.('data-agm-dock-corner'); } catch { /* attribute already gone */ }
       clearVars();
       return true;
     },
