@@ -2,9 +2,9 @@
  * The player-portrait button in General Manager's player dock (0.64.0).
  *
  * Manager (0.81.0+) draws a small dock for players and reserves an empty `[data-agm-dock-slot="portrait"]` in it. When that
- * slot exists, this fills it with the player's own character picture. Double-click opens the Character Hub for that
- * character; a small "Open Hub" button beside it does the same for keyboard and touch users; Enter or Space on the picture
- * also opens it. A single mouse click does nothing. The Hub is opened only through its own public `api.open(actor)`, which
+ * slot exists, this fills it with the player's own character picture. Double-click (or double-tap, where the browser fires
+ * double-click on touch) opens the Character Hub for that character; Enter or Space on the focused picture also opens it.
+ * A single mouse click does nothing. The picture is the only control: there is no separate text button (0.66.0). The Hub is opened only through its own public `api.open(actor)`, which
  * refuses non-characters and (for players) characters the user cannot at least see, so nothing is bypassed here.
  *
  * Manager gives no event for "the dock was built" (it appends #agm-player-dock to <body> from its renderSidebar hook and
@@ -70,25 +70,21 @@ export function syncDockPortrait({game = globalThis.game, doc = globalThis.docum
   if (!wrap) {
     const img = el(doc, 'img', {class: 'agch-dock-portrait__img', alt: '', draggable: 'false'});
     const portrait = el(doc, 'button', {type: 'button', class: 'ag-btn agch-dock-portrait__btn', 'data-agch-dock-action': 'portrait'}, [img]);
-    const small = el(doc, 'button', {type: 'button', class: 'ag-btn ag-btn--ghost agch-dock-portrait__open', 'data-agch-dock-action': 'open'}, ['Open Hub']);
-    wrap = el(doc, 'span', {class: 'agch-dock-portrait', role: 'group', [MARK]: '1'}, [portrait, small]);
+    wrap = el(doc, 'span', {class: 'agch-dock-portrait', role: 'group', [MARK]: '1'}, [portrait]);
     // Double-click opens. A keyboard Enter/Space on a button arrives as a click with detail 0: that opens too. A mouse or touch single click (detail >= 1) does nothing.
     portrait.addEventListener('dblclick', event => { event.preventDefault?.(); void openFor(wrap, open); });
     portrait.addEventListener('click', event => { if (event.detail === 0) void openFor(wrap, open); });
-    small.addEventListener('click', () => { void openFor(wrap, open); });
     slot.append(wrap);
   }
   wrap.actorId = actor.id ?? null;
   wrap.getActor = () => dockActor(game, canvas);
-  const [portrait, small] = [wrap.querySelector('[data-agch-dock-action="portrait"]'), wrap.querySelector('[data-agch-dock-action="open"]')];
+  const portrait = wrap.querySelector('[data-agch-dock-action="portrait"]');
   const img = portrait.querySelector('img');
   if (img.getAttribute('src') !== src) img.setAttribute('src', src);
   img.setAttribute('alt', `Portrait of ${name}`);
   const label = `Open ${name}`;
-  portrait.setAttribute('aria-label', `${label} in the Character Hub (double-click, or press Enter)`);
-  portrait.setAttribute('data-tooltip', `${label}: double-click, or press Enter`);
-  small.setAttribute('aria-label', `${label} in the Character Hub`);
-  small.setAttribute('data-tooltip', `${label} in the Character Hub`);
+  portrait.setAttribute('aria-label', label);
+  portrait.setAttribute('data-tooltip', `${label} (double-click)`);
   return wrap;
 }
 

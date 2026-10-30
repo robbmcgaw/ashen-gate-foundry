@@ -1,4 +1,4 @@
-/** 0.64.0: the player-dock portrait button. A tiny fake DOM and mocked Foundry: proves the logic and the calls, not the real dock. */
+/** 0.64.0 / 0.66.0: the player-dock portrait button (0.66.0: the picture is the only button). A tiny fake DOM and mocked Foundry: proves the logic and the calls, not the real dock. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, users} from './foundry-mock.mjs';
@@ -32,9 +32,13 @@ test('slot present: one button, token picture, Open <name> labels', () => {
   assert.ok(wrap); assert.equal(slot.all('[data-agch-dock-portrait]').length, 1);
   const btn = slot.querySelector('[data-agch-dock-action="portrait"]'), img = btn.querySelector('img');
   assert.equal(img.getAttribute('src'), 'token.webp'); assert.match(img.getAttribute('alt'), /\[TEST\] Hero/);
-  assert.match(btn.getAttribute('aria-label'), /^Open \[TEST\] Hero/); assert.match(btn.getAttribute('data-tooltip'), /^Open \[TEST\] Hero/);
-  assert.equal(btn.tag, 'button'); assert.equal(slot.querySelector('[data-agch-dock-action="open"]').tag, 'button');
-  assert.equal(slot.querySelector('[data-agch-dock-action="open"]').text, 'Open Hub');
+  assert.equal(btn.getAttribute('aria-label'), 'Open [TEST] Hero'); assert.equal(btn.getAttribute('data-tooltip'), 'Open [TEST] Hero (double-click)');
+  assert.equal(btn.tag, 'button');
+  // 0.66.0: no separate "Open Hub" text button; the slot holds exactly one button
+  assert.equal(slot.all('button').length, 1); assert.equal(slot.querySelector('[data-agch-dock-action="open"]'), null);
+  assert.equal(btn.text, undefined);
+  // idempotent: a second pass updates in place
+  syncDockPortrait({game: globalThis.game, doc, canvas: null, open: () => {}}); assert.equal(slot.all('button').length, 1);
   assert.ok(user);
 });
 
@@ -60,11 +64,10 @@ test('double-click and Enter/Space open through api.open with the right actor; a
   const hero = actor(); setup({user: {...users.owner, character: hero}}); const {doc, slot} = makeDoc();
   const calls = []; const open = a => { calls.push(a); return {ok: true}; };
   syncDockPortrait({game: globalThis.game, doc, open});
-  const btn = slot.querySelector('[data-agch-dock-action="portrait"]'), small = slot.querySelector('[data-agch-dock-action="open"]');
+  const btn = slot.querySelector('[data-agch-dock-action="portrait"]');
   btn.fire('click', {detail: 1}); btn.fire('click', {detail: 2}); assert.equal(calls.length, 0);
   btn.fire('dblclick'); await Promise.resolve(); assert.deepEqual(calls, [hero]);
   btn.fire('click', {detail: 0}); await Promise.resolve(); assert.equal(calls.length, 2);
-  small.fire('click', {detail: 1}); await Promise.resolve(); assert.equal(calls.length, 3);
   assert.ok(calls.every(a => a === hero));
 });
 
@@ -112,4 +115,6 @@ test('image fallback chain: token texture, actor image, avatar, stock icon; wild
   assert.equal(SLOT_SELECTOR, '[data-agm-dock-slot="portrait"]');
 });
 
-test('Help mentions the dock portrait', () => assert.match(HELP_HTML ?? '', /Dock portrait/));
+test('Help mentions the dock portrait', () => {
+  assert.match(HELP_HTML ?? '', /Dock portrait/); assert.doesNotMatch(HELP_HTML, /Open Hub<\/strong> button/);
+});
