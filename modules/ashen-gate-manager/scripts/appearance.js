@@ -42,8 +42,20 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     hint:'When a player loads the game the sidebar starts collapsed, so the scene fills the screen. They can expand and collapse it as usual afterwards. Applied once when the game loads, not live. GMs are never collapsed.'}),
   Object.freeze({key:'playerDock',state:'playerDock',setter:'setPlayerDock',who:'whether players see the player dock',
     name:'Show the player dock',
-    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings and an Ashen Gate menu of the windows they may open. It is meant for use with Show players only the Chat tab. GMs never see it.'})
+    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Quest Tracker and Conditions (each only when its module is on and the player may open it), a User Configuration link, and a button to minimize the dock. It is meant for use with Show players only the Chat tab. GMs never see it.'}),
+  // 0.82.0, both off by default, visual only, never for the GM (see player-dock.js, dock-controls.js).
+  Object.freeze({key:'hidePlayersList',state:'hidePlayersList',setter:'setHidePlayersList',who:'whether players see the players list',
+    name:'Hide the players list from players',
+    hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
+  Object.freeze({key:'dockSceneControls',state:'dockSceneControls',setter:'setDockSceneControls',who:'where players\' scene controls sit',
+    name:'Move players\' scene controls under the player dock',
+    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, so the scene navigation takes the corner. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'})
 ]);
+// Auto-collapse of the sidebar chat and Settings for players (0.82.0), world scope, GM-only. Seconds of inactivity; 0 = off.
+export const AUTO_COLLAPSE_KEY = 'autoCollapseSeconds';
+export const DEFAULT_AUTO_COLLAPSE_SECONDS = 8;
+export const MAX_AUTO_COLLAPSE_SECONDS = 600;
+export const cleanAutoCollapse = value => { const n = Number(value); return Number.isFinite(n) ? Math.min(MAX_AUTO_COLLAPSE_SECONDS, Math.max(0, Math.round(n))) : DEFAULT_AUTO_COLLAPSE_SECONDS; };
 // Which screen corner the dock sits in (0.81.0), world scope, GM-only.
 export const DOCK_CORNER_KEY = 'playerDockCorner';
 export const DOCK_CORNERS = Object.freeze({'top-left':'Top left','top-right':'Top right','bottom-left':'Bottom left'});
@@ -181,6 +193,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   function readPlayersFolder(){try{const v=read(PLAYERS_FOLDER_KEY);return v===undefined||v===null?DEFAULT_PLAYERS_FOLDER:Boolean(v);}catch{return DEFAULT_PLAYERS_FOLDER;}}
   function readHideCompendiums(){try{const v=read(HIDE_COMPENDIUMS_KEY);return v===undefined||v===null?DEFAULT_HIDE_COMPENDIUMS:Boolean(v);}catch{return DEFAULT_HIDE_COMPENDIUMS;}}
   function readFlag(flag){try{const v=read(flag.key);return v===undefined||v===null?false:Boolean(v);}catch{return false;}}
+  function readAutoCollapse(){try{const v=read(AUTO_COLLAPSE_KEY);return v===undefined||v===null||v===''?DEFAULT_AUTO_COLLAPSE_SECONDS:cleanAutoCollapse(v);}catch{return DEFAULT_AUTO_COLLAPSE_SECONDS;}}
   function readDockCorner(){try{const v=read(DOCK_CORNER_KEY);return Object.hasOwn(DOCK_CORNERS,v)?v:DEFAULT_DOCK_CORNER;}catch{return DEFAULT_DOCK_CORNER;}}
   function user(){const u=currentUser();if(!u?.id)throw new Error('Appearance requires an authenticated Foundry user');return u;}
   function listSkins(){return SKINS.map(publicSkin);}
@@ -194,7 +207,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
       invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
       size:readSize(),chat:readChat(),compactPause:readPause(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums(),playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder(),
-      ...Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.state,readFlag(flag)])),playerDockCorner:readDockCorner()};
+      ...Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.state,readFlag(flag)])),playerDockCorner:readDockCorner(),autoCollapseSeconds:readAutoCollapse()};
   }
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
@@ -253,6 +266,13 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(!Object.hasOwn(DOCK_CORNERS,value))throw new TypeError('Unknown player dock corner');
     await setSetting(DOCK_CORNER_KEY,value);observed.set(DOCK_CORNER_KEY,value);emit();return getState();
   }
+  async function setAutoCollapseSeconds(value){
+    if(!user().isGM)throw new Error('Only GMs may change when the chat and Settings collapse for players');
+    const n=Number(value);
+    if(!Number.isFinite(n)||n<0)throw new TypeError('Auto-collapse seconds must be 0 or more');
+    const next=cleanAutoCollapse(n);
+    await setSetting(AUTO_COLLAPSE_KEY,next);observed.set(AUTO_COLLAPSE_KEY,next);emit();return getState();
+  }
   async function setSize(value){
     user();
     if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
@@ -275,6 +295,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(key===CHAT_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if(key===PAUSE_KEY||key===HIDE_JOURNALS_KEY||key===PLAYER_HANDOUTS_KEY||key===PLAYERS_FOLDER_KEY||key===HIDE_COMPENDIUMS_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if(PLAYER_SCREEN_FLAGS.some(flag=>flag.key===key)){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===AUTO_COLLAPSE_KEY){if(typeof value==='number')observed.set(key,value);else observed.delete(key);emit();return;}
     if(key===DOCK_CORNER_KEY){if(typeof value==='string')observed.set(key,value);else observed.delete(key);emit();return;}
     if([WORLD_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();
   }
@@ -297,7 +318,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setHideCompendiumsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,...flagSetters,setPlayerDockCorner,applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setHideCompendiumsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,...flagSetters,setPlayerDockCorner,setAutoCollapseSeconds,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
@@ -339,6 +360,10 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   game.settings.register(namespace,DOCK_CORNER_KEY,{
     name:'Player dock corner',hint:'Which corner of the screen the player dock sits in.',
     scope:'world',config:false,restricted:true,type:String,choices:DOCK_CORNERS,default:DEFAULT_DOCK_CORNER,onChange:value=>onSettingChange(DOCK_CORNER_KEY,value)
+  });
+  game.settings.register(namespace,AUTO_COLLAPSE_KEY,{
+    name:'Auto-collapse chat and Settings after (seconds)',hint:'When a player opens the sidebar chat or the Settings panel, it collapses again after this many seconds without use. 0 turns it off. GMs are never collapsed.',
+    scope:'world',config:false,restricted:true,type:Number,default:DEFAULT_AUTO_COLLAPSE_SECONDS,onChange:value=>onSettingChange(AUTO_COLLAPSE_KEY,value)
   });
   game.settings.register(namespace,PLAYER_HANDOUTS_KEY,{
     name:'Show players only Player Handouts in the Items tab',hint:'Players see only the Items inside a folder named Player Handouts (and its subfolders) in the Items tab. Every other Item and folder is hidden from the list. If no folder has that name, players see an empty Items tab. Only the list changes: item access is unchanged, and character sheets, compendiums and links still work. GMs always see everything.',

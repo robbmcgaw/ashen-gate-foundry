@@ -50,6 +50,6 @@ test('the pre-session recipe check still looks at the ingredients of a GM-applie
 });
 test('0.73.0 version, CHANGELOG and README', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.81.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.81.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.82.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.82.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.73\.0 /m); assert.match(read('../README.md'), /GM-applied/);
 });
