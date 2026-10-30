@@ -1,3 +1,11 @@
+## 0.88.0 — 2026-10-30
+
+New: Manager knows the `travel` modifier scope. Owner: Ashen Gate | Locations (0.37.0+).
+
+- An `ITEM-*` or `PERK-*` record may carry a `modifiers` block with scope `travel` (targets `travel.actions`, `travel.efficiency`, `scout.precision`, `explore.range`, `condition.mitigation`; ranges and rules in `docs/modifiers-schema.md`). Manager checks the shared shape as before, then asks Locations' `api.modifiers.validate` to check each entry's target, range and `applies`, in the Import preview and again just before Apply.
+- If Locations is inactive, or an older version that does not check modifiers, the import shows the existing "not checked" warning and still imports. Importing never applies a modifier; Locations reads the imported definition at play time.
+- Scope `cinder` is unchanged. No stored data changes; no migration. Tests are mocked Foundry; the live Import window has not been seen.
+
 ## 0.87.0 — 2026-10-30
 
 Back up world to GitHub: choose which types to back up, and Quests and Factions are now written in the modules' own export formats. GM only; nothing in your world is changed by a backup.

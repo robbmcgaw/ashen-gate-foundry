@@ -206,3 +206,11 @@
 .agl-ctx { position: fixed; z-index: 100000; display: flex; flex-direction: column; gap: var(--ag-space-1); padding: var(--ag-space-1);
   background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); }
 .agl-ctx__item { justify-content: flex-start; white-space: nowrap; }
+
+/* ----- Overland tab (0.37.0) ----- */
+.agl-ov-day { margin: 0; font-weight: 600; }
+.agl-ov-left { margin: var(--ag-space-1) 0 var(--ag-space-2); }
+.agl-ov-actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
+.agl-ov-log { margin: 0; padding-left: var(--ag-space-5); }
+.agl-ov-sources { margin: 0; padding-left: var(--ag-space-4); }
+.agl-ov-table th[scope="row"] { font-weight: 600; text-align: left; }

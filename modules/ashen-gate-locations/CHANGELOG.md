@@ -1,3 +1,13 @@
+## 0.37.0 — 2026-10-30
+
+New: a light overland travel utility and the `travel` modifier scope. You adjudicate at the table; this keeps a tally and adds up what the party carries.
+
+- **Overland tab (GM only, after Locations, before GM Setup).** Shows the day and **Actions left X of Y**. Y is 3 plus the party's bonus actions (capped at +2). **Travel**, **Scout** and **Explore** each spend one action and add a line to a short log; **Undo last** takes back the latest; **New day…** asks first, gives the actions back and adds one to the day. **Mounted** and **Announce to players** (off by default; one short chat line per action) apply at once. Fights, encounters and talking cost no actions. Nothing is rolled: you roll the day's conditions yourself beforehand. There are no Travel, Scout or Explore controls anywhere for players.
+- **Party modifiers (read only).** Each total with its sources (item or perk name and character), the cap, and why a source was not counted. The Scout precision ladder (0 direction only, 1 a named region or quadrant, 2 a named landmark or route) is plain help text; anything finer is your call.
+- **`travel` modifier scope (Locations owns it).** Items (`ITEM-*`) and perks (`PERK-*`) can carry `travel.actions`, `travel.efficiency`, `scout.precision`, `explore.range` and `condition.mitigation` in the shared `ag-modifiers/0.1` block. `api.modifiers` (`contract: 'ag-modifier/1'`) is the owner check General Manager 0.88.0+ calls on import and before Apply. Targets, ranges, `applies` keys, stacking and counting rules: `docs/modifiers-schema.md`. Items count while on a player's character (equipment while equipped); `when: mounted` and items on a character's mount (Character Hub's `api.companions`, when active) count only while Mounted is on. `familiar_terrain` is your call and is never added.
+- **For partners:** `api.overland.state()` and `api.overland.partyModifiers()` are read only and GM only (a player is refused in the API, not just hidden in the window). The state lives in a world setting owned by Locations.
+- Help has a new **Overland travel** entry. Nothing stored changes for existing worlds; no migration. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.36.1 — 2026-10-30
 
 Fixed: dragging a location from the list onto the map sometimes showed the drag but placed nothing.

@@ -250,5 +250,5 @@ test('the section is wired into the Import tab without startup requests', () => 
   assert.match(hbs, /\{\{\{githubHtml\}\}\}/);
   assert.match(main, /case "gh-pull"/);
   assert.doesNotMatch(fs.readFileSync(new URL('../scripts/github-pull.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../scripts/github-paths.js', import.meta.url), 'utf8'), /\beval\(|new Function|robbmcgaw|ashen-gate-supplement/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.87.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.88.0');
 });

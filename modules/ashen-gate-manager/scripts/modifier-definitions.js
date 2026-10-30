@@ -7,9 +7,10 @@
 export const MODIFIERS_SCHEMA = 'ag-modifiers/0.1';
 export const MODIFIER_CONTRACT = 'ag-modifier/1';
 export const MAX_MODIFIERS = 20;
-/** Scopes that may appear in a record-level modifiers block, and the module that interprets each (decision 3: cinder only). */
+/** Scopes that may appear in a record-level modifiers block, and the module that interprets each (cinder: Cinders; travel, 0.88.0: Locations). */
 export const MODIFIER_SCOPES = Object.freeze({
-  cinder: Object.freeze({moduleId: 'ashen-gate-cinders', title: 'Ashen Gate | Cinders', aliases: Object.freeze(['powers', 'modes'])})
+  cinder: Object.freeze({moduleId: 'ashen-gate-cinders', title: 'Ashen Gate | Cinders', aliases: Object.freeze(['powers', 'modes'])}),
+  travel: Object.freeze({moduleId: 'ashen-gate-locations', title: 'Ashen Gate | Locations', aliases: Object.freeze([])})
 });
 /** Optional, display-only. HPERK-* keeps Headquarters' own required field (which also allows hybrid). */
 export const IMPLEMENTATIONS = Object.freeze(['automatic', 'informational', 'gm_resolved']);

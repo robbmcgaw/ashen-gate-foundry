@@ -146,5 +146,5 @@ test('wiring: dialog is a form dialog with Back up as the action, choice saved o
   assert.match(main, /not written and not removed/);
   assert.match(main, /one tick box per type/);
   assert.doesNotMatch(main, /sends five files/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.87.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.88.0');
 });

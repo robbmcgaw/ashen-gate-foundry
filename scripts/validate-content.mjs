@@ -18,7 +18,7 @@
 //     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check (including a Cinder's
 //     optional default art, cinder.art, from Cinders 0.9.0; a Cinder's bearer_items and the signature power kinds from Cinders 0.10.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
-//     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
+//     (scope cinder: Cinders' exported validateModifiers; scope travel: Locations' travel-modifiers.mjs).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 //   - quest files: an item reward (outcomes.item_rewards) whose ITEM-*, REC-* or MAT-* id is not defined in the same file or folder gets a note.
 //   - Shop / Service / MerchantList records: Utilities' own import rules (shop items named by id outside the file get a note).
@@ -41,6 +41,7 @@ import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-tr
 import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
 import * as cinderEngine from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
 import { modifierDefinitionChecks, MODIFIER_SCOPES } from '../modules/ashen-gate-manager/scripts/modifier-definitions.js';
+import * as travelEngine from '../modules/ashen-gate-locations/scripts/travel-modifiers.mjs';
 import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-cinders/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planShopImport, importItemRefs, SHOP_IMPORT_TYPES } from '../modules/ashen-gate-utilities/scripts/core.mjs';
@@ -102,7 +103,7 @@ function codexChecks(rec) {
 
 /** Extra checks on a valid Manager package: what the owning modules would make of its domain records. */
 // The scope owners as Manager would find them in a world: a module whose engine exports validateModifiers counts as active.
-const ownerEngines = {[MODIFIER_SCOPES.cinder.moduleId]: cinderEngine};
+const ownerEngines = {[MODIFIER_SCOPES.cinder.moduleId]: cinderEngine, [MODIFIER_SCOPES.travel.moduleId]: travelEngine};
 const ownerGame = {modules: new Map(Object.entries(ownerEngines).map(([id, engine]) => [id,
   {active: true, api: typeof engine.validateModifiers === 'function' ? {modifiers: {validate: engine.validateModifiers}} : {}}]))};
 
