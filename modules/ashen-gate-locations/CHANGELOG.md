@@ -1,3 +1,12 @@
+## 0.35.0 — 2026-10-29
+
+Change: the **Travel** button sits directly under the location's name.
+
+- **Placement.** In the GM editor and in the player view the button is now in the title block, right under the name. The old button in the editor's header row is gone, so there is exactly one in the view. Nothing appears when you have no scene to go to (no disabled placeholder). One scene: **Travel**. Several: **Travel to scene…**, which opens the same chooser as before.
+- **Who sees it** is still the API's call (`travelScenes`): a GM for any linked scene that still exists; a player only for a Revealed location, a scene the GM ticked **Players can travel here** and published, and that the player may view. Hidden and Unidentified places show nothing. Unticked scenes are never named to players.
+- The editor's button follows the saved location: linking a scene, or ticking *Players can travel here*, then **Save Changes** redraws it (a player's follows **Publish**). The right-click menus on pins and list rows and the API are unchanged. The Character Hub embed only lists places and opens Locations, so it has no title block and no Travel button.
+- Nothing stored changes; no migration. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.34.0 — 2026-10-29
 
 New: `api.listModel(...)`, the Locations list as data for Character Hub.

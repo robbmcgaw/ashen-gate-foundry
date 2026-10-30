@@ -16,8 +16,8 @@ const opened = [];
 function boot({access = true} = {}) {
   const game = installFoundry();
   opened.length = 0;
-  const mod = {version: '0.34.0', active: true};
-  mod.api = createApi({version: '0.34.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
+  const mod = {version: '0.35.0', active: true};
+  mod.api = createApi({version: '0.35.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: ref => opened.push(ref), listContext: () => ({templates: [], questName: id => id, materialName: id => id})});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   return {game, api: mod.api};

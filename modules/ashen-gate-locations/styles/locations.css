@@ -199,7 +199,7 @@
 .agl-rgroup__body { list-style: none; margin: 0 0 var(--ag-space-1); padding: 0 0 0 var(--ag-space-3); border-left: 1px solid var(--ag-border); display: flex; flex-direction: column; gap: var(--ag-space-1); }
 .agl-rgroup .agl-rgroup .agl-group__title { margin-top: var(--ag-space-1); }
 
-/* 0.33.0 Travel: the Travel button under a player's title, and the small right-click menu (rows and map pins). */
+/* 0.33.0 Travel, under the name in the editor and the player view since 0.35.0; also the small right-click menu (rows and map pins). */
 .agl-travel { margin: var(--ag-space-2) 0; }
 .agl-ctx { position: fixed; z-index: 100000; display: flex; flex-direction: column; gap: var(--ag-space-1); padding: var(--ag-space-1);
   background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); }
