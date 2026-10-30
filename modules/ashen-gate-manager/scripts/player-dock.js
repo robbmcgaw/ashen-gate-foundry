@@ -3,15 +3,15 @@
  * Chat tab" hides. Presentation only: it writes nothing, shows nothing a player could not already open, and is never drawn
  * for the GM or while the world setting is off. Styling is styles/player-dock.css (shared-kit tokens with a default fallback).
  *
- * Slots, top to bottom in a corner column, by `order` (0.83.0 order: Combat, Settings, Conditions, Quest Tracker, User
- * Configuration, Ashen Gate last):
+ * Slots, top to bottom in a corner column, by `order` (0.85.2 order: Combat, Conditions, Quest Log, User Settings,
+ * Foundry Settings, Ashen Gate last; ids and attributes are unchanged, only the labels and order):
  *   10 portrait       RESERVED and empty. The Character Hub puts its player-portrait button in `[data-agm-dock-slot="portrait"]`.
  *   20 combat         toggles the combat tracker (pop-out if this Foundry has one, else the sidebar tab); a second press closes it
- *   30 settings       toggles the sidebar Settings tab (Configure Settings, Manage Modules, Players, Log Out)
- *   40 conditions     (0.82.0) toggles Utilities' Conditions overlay (`conditions.toggleOverlay`, else `openOverlay`)
- *   50 quest-tracker  (0.82.0) shows or hides Quest Log's "Tracked objectives" overlay, through its public `tracking` API
- *   60 user-config    (0.82.0) the player's own User Configuration window (always shown; 0.83.0: a pill like the others;
+ *   30 conditions     (0.82.0) toggles Utilities' Conditions overlay (`conditions.toggleOverlay`, else `openOverlay`)
+ *   40 quest-tracker  (0.82.0; labelled Quest Log since 0.85.2) shows or hides Quest Log's "Tracked objectives" overlay, through its public `tracking` API
+ *   50 user-config    (0.82.0; labelled User Settings since 0.85.2) the player's own User Configuration window (always shown; 0.83.0: a pill like the others;
  *                     0.85.0: a real toggle, the second press closes it)
+ *   60 settings       (labelled Foundry Settings since 0.85.2) toggles the sidebar Settings tab (Configure Settings, Manage Modules, Players, Log Out)
  *   70 ashen-gate     a menu of the Ashen Gate windows this player may open
  *
  * SLOT CONTRACT (stable; the Character Hub adds its portrait button here): `[data-agm-dock-slot="portrait"]` is a <span>. Since
@@ -23,7 +23,7 @@
  * Minimize (0.82.0): a small icon button in `.agm-dock__head` hides the body and portrait, leaving only that handle; pressing it
  * again restores. The choice is kept per user in localStorage (try/catch; the dock works without it).
  *
- * Toggles (0.83.0; User Configuration joined in 0.85.0): Combat, Settings, Conditions, Quest Tracker and User Configuration are real toggles: the first press opens, the second closes,
+ * Toggles (0.83.0; User Configuration joined in 0.85.0): Combat, Conditions, Quest Log, User Settings and Foundry Settings are real toggles: the first press opens, the second closes,
  * and `aria-pressed` follows the real open state (re-read after each press and on every refresh).
  *
  * Live (0.83.0): module buttons and the Ashen Gate menu are re-checked against the CURRENT module state (nothing is cached)
@@ -47,10 +47,10 @@ export const ACCESS_CONTRACT = 'ag-player-access/1';
 export const DOCK_SLOTS = Object.freeze([
   Object.freeze({ id: 'portrait', order: 10, reserved: true }),
   Object.freeze({ id: 'combat', order: 20 }),
-  Object.freeze({ id: 'settings', order: 30 }),
-  Object.freeze({ id: 'conditions', order: 40 }),
-  Object.freeze({ id: 'quest-tracker', order: 50 }),
-  Object.freeze({ id: 'user-config', order: 60 }),
+  Object.freeze({ id: 'conditions', order: 30 }),
+  Object.freeze({ id: 'quest-tracker', order: 40 }),
+  Object.freeze({ id: 'user-config', order: 50 }),
+  Object.freeze({ id: 'settings', order: 60 }),
   Object.freeze({ id: 'ashen-gate', order: 70 })
 ]);
 /**
@@ -204,14 +204,14 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
     if (slot.id === 'portrait') head.append(slots[slot.id], toggle); else body.append(slots[slot.id]);
   }
   const combat = iconButton(doc, { action: 'combat', icon: 'fa-solid fa-swords', label: 'Combat', tooltip: 'Show or hide the combat tracker', extra: { 'aria-pressed': 'false' } });
-  const settings = iconButton(doc, { action: 'settings', icon: 'fa-solid fa-gears', label: 'Settings', tooltip: 'Show or hide settings, modules, players and log out', extra: { 'aria-pressed': 'false' } });
+  const settings = iconButton(doc, { action: 'settings', icon: 'fa-solid fa-gears', label: 'Foundry Settings', tooltip: 'Show or hide Foundry settings, modules, players and log out', extra: { 'aria-pressed': 'false' } });
   const ashen = iconButton(doc, { action: 'ashen-gate', icon: 'fa-solid fa-book-skull', label: 'Ashen Gate', tooltip: 'Open an Ashen Gate window',
     extra: { 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': `${DOCK_ID}-menu` } });
   const menu = make(doc, 'div', { id: `${DOCK_ID}-menu`, class: 'agm-dock__menu', role: 'menu', 'aria-label': 'Ashen Gate windows' });
   menu.hidden = true;
-  const quest = iconButton(doc, { action: 'quest-tracker', icon: 'fa-solid fa-bullseye', label: 'Quest Tracker', tooltip: 'Show or hide the tracked quest objectives', extra: { 'aria-pressed': 'false' } });
+  const quest = iconButton(doc, { action: 'quest-tracker', icon: 'fa-solid fa-bullseye', label: 'Quest Log', tooltip: 'Show or hide the tracked quest objectives', extra: { 'aria-pressed': 'false' } });
   const conditions = iconButton(doc, { action: 'conditions', icon: 'fa-solid fa-heart-pulse', label: 'Conditions', tooltip: 'Show or hide the conditions window', extra: { 'aria-pressed': 'false' } });
-  const userConfig = iconButton(doc, { action: 'user-config', icon: 'fa-solid fa-user-gear', label: 'User Configuration', tooltip: 'Show or hide your user configuration', extra: { 'aria-pressed': 'false' } });
+  const userConfig = iconButton(doc, { action: 'user-config', icon: 'fa-solid fa-user-gear', label: 'User Settings', tooltip: 'Show or hide your user settings', extra: { 'aria-pressed': 'false' } });
   for (const extra of [quest, conditions]) extra.hidden = true; // shown only once the owning module is confirmed
   slots.combat.append(combat); slots.settings.append(settings); slots['ashen-gate'].append(ashen, menu);
   slots['quest-tracker'].append(quest); slots.conditions.append(conditions); slots['user-config'].append(userConfig);

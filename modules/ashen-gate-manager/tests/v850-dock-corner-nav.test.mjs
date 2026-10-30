@@ -190,11 +190,11 @@ test('CSS: the navigation rule exists only under body.agm-nav-offset and uses th
   assert.match(css,/\.agm-dock\[data-corner="bottom-right"\]/);
   assert.doesNotMatch(css,/--agm-dock-top: 3\.75rem/);
 });
-test('wiring: version 0.85.1, changelog, Help, wording, 0.x',()=>{
+test('wiring: version 0.85.2, changelog, Help, wording, 0.x',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.85.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.0 /m);assert.doesNotMatch(log.split('## 0.84.1')[0],/\b(Alpha|Beta|Preview)\b/);
-  assert.match(main,/User Configuration open on the first press and close on the second/);
+  assert.match(main,/Quest Log, User Settings and Foundry Settings open on the first press and close on the second/);
   assert.match(main,/bottom right/);assert.match(main,/slid to the right of the dock/);
   const doc=read('../scripts/dock-controls.js').replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
   assert.doesNotMatch(doc,/libWrapper|Object\.defineProperty|setFlag|settings\.set|new Proxy|appendChild|insertBefore|replaceWith/);

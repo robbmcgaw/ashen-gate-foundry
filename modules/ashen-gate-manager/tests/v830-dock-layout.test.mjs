@@ -97,16 +97,18 @@ test('dock: minimize shares the top row with the portrait slot; alone and right-
   toggle.click();assert.equal(slot.hidden,false);
   assert.match(read('../styles/player-dock.css'),/\.agm-dock__toggle \{[^}]*margin-left: auto/);
 });
-test('dock: User Configuration uses the shared pill component; button order is Combat, Settings, Conditions, Quest Tracker, User Configuration, Ashen Gate',async()=>{
+test('dock: User Configuration uses the shared pill component; button order is Combat, Conditions, Quest Log, User Settings, Foundry Settings, Ashen Gate',async()=>{
   const mods=new Map([['ashen-gate-quest-manager',{active:true,api:{tracking:{getState:async()=>({visible:false}),set:async()=>{}},playerAccess:access(true)}}],
     ['ashen-gate-utilities',{active:true,api:{conditions:{openOverlay:async()=>{}},playerAccess:access(true)}}]]);
   const e=dockEnv({modules:mods});const dock=e.apply();await settle();
   const btns=dock.querySelectorAll('button').filter(b=>b.getAttribute('data-agm-dock')&&b.getAttribute('data-agm-dock')!=='minimize').map(b=>b.getAttribute('data-agm-dock'));
-  assert.deepEqual(btns,['combat','settings','conditions','quest-tracker','user-config','ashen-gate']);
-  assert.deepEqual(DOCK_SLOTS.map(s=>s.id),['portrait','combat','settings','conditions','quest-tracker','user-config','ashen-gate']);
+  assert.deepEqual(btns,['combat','conditions','quest-tracker','user-config','settings','ashen-gate']);
+  assert.deepEqual(DOCK_SLOTS.map(s=>s.id),['portrait','combat','conditions','quest-tracker','user-config','settings','ashen-gate']);
   const classes=Object.fromEntries(['combat','settings','user-config','ashen-gate'].map(a=>[a,dock.querySelector(`[data-agm-dock="${a}"]`).className]));
   assert.equal(classes['user-config'],classes.combat);assert.equal(classes.combat,classes.settings);assert.match(classes['user-config'],/ag-btn agm-dock__btn/);
-  const uc=dock.querySelector('[data-agm-dock="user-config"]');assert.equal(uc.tagName,'BUTTON');assert.ok(uc.querySelector('i'));assert.match(uc.querySelector('span').textContent,/^User Configuration$/);
+  const uc=dock.querySelector('[data-agm-dock="user-config"]');assert.equal(uc.tagName,'BUTTON');assert.ok(uc.querySelector('i'));assert.match(uc.querySelector('span').textContent,/^User Settings$/);
+  const labels=dock.querySelectorAll('button').filter(b=>b.getAttribute('data-agm-dock')&&b.getAttribute('data-agm-dock')!=='minimize').map(b=>b.querySelector('span').textContent);
+  assert.deepEqual(labels,['Combat','Conditions','Quest Log','User Settings','Foundry Settings','Ashen Gate']);
   // modules unavailable: their buttons stay hidden
   const none=dockEnv();const d2=none.apply();await settle();
   assert.equal(d2.querySelector('[data-agm-dock="quest-tracker"]').hidden,true);assert.equal(d2.querySelector('[data-agm-dock="conditions"]').hidden,true);
@@ -231,10 +233,10 @@ test('auto-collapse timer is really cleared by cancel()',()=>{
 });
 
 // ---------- wiring
-test('wiring: version 0.85.1, changelog, Help, no status wording, GM never affected',()=>{
+test('wiring: version 0.85.2, changelog, Help, no status wording, GM never affected',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.85.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
-  assert.match(main,/Combat, Settings, Conditions, Quest Tracker, User Configuration, Ashen Gate/);
+  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
+  assert.match(main,/Combat, Conditions, Quest Log, User Settings, Foundry Settings, Ashen Gate/);
   const gm=dockEnv({isGM:true,state:{dockSceneControls:true}});controlsDom(gm.doc);gm.apply();
   assert.equal(gm.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),false);
   for(const f of ['dock-controls','player-dock','sidebar-tabs']){

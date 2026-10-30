@@ -110,11 +110,11 @@ function dockEnv({isGM=false,state={},modules=new Map(),storage=fakeStorage(),to
 test('dock: User Configuration link is always there, is a button, and calls the toggle; slot contract is stable',()=>{
   const opened=[];const e=dockEnv({toggleConfig:a=>{opened.push(a.game.user.id);return true;}});
   const dock=e.apply();const link=dock.querySelector('[data-agm-dock="user-config"]');
-  assert.equal(link.tagName,'BUTTON');assert.match(link.querySelector('span').textContent,/User Configuration/);link.click();assert.deepEqual(opened,['p1']);
+  assert.equal(link.tagName,'BUTTON');assert.match(link.querySelector('span').textContent,/^User Settings$/);link.click();assert.deepEqual(opened,['p1']);
   const bad=dockEnv({toggleConfig:()=>false});const d2=bad.apply();d2.querySelector('[data-agm-dock="user-config"]').click();
   return tick().then(()=>{assert.equal(bad.notes.length,1);
     const slots=dock.querySelectorAll('[data-agm-dock-slot]').map(s=>s.dataset.agmDockSlot);
-    assert.deepEqual(slots,['portrait','combat','settings','conditions','quest-tracker','user-config','ashen-gate']);
+    assert.deepEqual(slots,['portrait','combat','conditions','quest-tracker','user-config','settings','ashen-gate']);
     assert.deepEqual(DOCK_SLOTS.map(s=>s.id),slots);
     const portrait=dock.querySelector('[data-agm-dock-slot="portrait"]');assert.equal(portrait.tagName,'SPAN');assert.equal(portrait.children.length,0);
     assert.equal(portrait.parentElement.className,'agm-dock__head');assert.equal(portrait.parentElement.parentElement,dock);
@@ -286,8 +286,8 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
   assert.match(tpl,/aria-label="Scene controls and navigation"[\s\S]*data-ag-setup-screen="dockSceneControls"[\s\S]*data-ag-setup-screen="hidePlayersList"[\s\S]*data-ag-setup-autocollapse/);
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
-  assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.85.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Log<\/em>/);
+  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);

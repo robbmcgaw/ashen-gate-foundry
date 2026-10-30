@@ -74,7 +74,7 @@ body:has(#sidebar-content:not(.expanded)) .agm-dock[data-corner="top-right"] { r
 .agm-dock__toggle { flex: none; margin-left: auto; }
 .agm-dock[data-minimized="true"] { padding: var(--ag-space-1); }
 .agm-dock__toggle:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
-/* 0.83.0: a pressed toggle (Combat, Settings, Conditions, Quest Tracker) is marked by more than colour: a heavier border. */
+/* 0.83.0: a pressed toggle (Combat, Conditions, Quest Log, User Settings, Foundry Settings) is marked by more than colour: a heavier border. */
 .agm-dock__btn[aria-pressed="true"] { border-color: var(--ag-focus); border-width: 2px; font-weight: 600; }
 
 /* Players list: the players / latency / FPS panel is hidden (only a class; Foundry keeps updating the element).
