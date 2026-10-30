@@ -202,7 +202,7 @@ test('without the partner deps (an older host) the API simply offers no Travel',
 
 // ---------- the window ----------
 const detailOf = html => html.slice(html.indexOf('<section class="agl-detail'));
-test('GM editor: Travel / Travel to scene… in the header, per-scene "Players can travel here" switches (default off, checked when set)', async () => {
+test('GM editor: Travel / Travel to scene… (0.35.0: under the name), per-scene "Players can travel here" switches (default off, checked when set)', async () => {
   const {api} = boot(); await seed(api);
   const app = new LocationsApp(); app.select('LOC-TEST-HALL');
   let html = detailOf(await app._renderHTML());
