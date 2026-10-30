@@ -186,5 +186,5 @@ test('creatures: approved ones are Will create; drafts are left out unless the p
 
 test('0.72.2 version', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.85.2'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.85.3'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.3/ashen-gate-manager.zip'));
 });

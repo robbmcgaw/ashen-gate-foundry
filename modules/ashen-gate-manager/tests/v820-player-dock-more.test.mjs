@@ -47,7 +47,7 @@ test('settings: players list and scene controls are off by default, GM only, wor
   const a=reg.find(r=>r.k===AUTO_COLLAPSE_KEY).v;
   assert.deepEqual([a.scope,a.config,a.restricted,a.type,a.default],['world',false,true,Number,8]);
   assert.equal(DEFAULT_AUTO_COLLAPSE_SECONDS,8);assert.match(a.name,/Auto-collapse chat and Settings after \(seconds\)/);
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-2).map(f=>f.state),['hidePlayersList','dockSceneControls']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-3,-1).map(f=>f.state),['hidePlayersList','dockSceneControls']);
   const g=ctl();const st=g.c.getState();
   assert.deepEqual([st.hidePlayersList,st.dockSceneControls,st.autoCollapseSeconds],[false,false,8]);
   await g.c.setHidePlayersList(true);await g.c.setDockSceneControls(true);await g.c.setAutoCollapseSeconds(0);
@@ -287,7 +287,7 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Log<\/em>/);
-  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.equal(man.version,'0.85.3');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.3/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);

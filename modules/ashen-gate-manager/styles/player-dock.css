@@ -123,12 +123,12 @@ body.agm-controls-clean #scene-controls-tools > li:has(> button.tool:not([data-t
 body.agm-controls-clean #scene-controls-tools [data-agm-tool-hidden] { display: none !important; }
 
 /* ---- 0.85.0 ---- */
-/* Scene navigation: left where Foundry puts it. Only when the dock sits in the top-left corner (body.agm-nav-offset, set by
-   dock-controls.js) is it slid right, clear of the dock column, by --agm-nav-shift (measured: the dock's, or the docked controls',
-   right edge plus a small gap, minus the navigation's natural left). Relative offset on the existing element: no reserved space,
-   nothing above or below it moves, and its scene list opens exactly as in core. Nothing applies in any other corner. */
+/* Scene navigation (0.85.3): left where Foundry (or Monk's Scene Navigation) puts it. Only when the dock is top left AND the bar's own
+   position would overlap the dock column does dock-controls.js set body.agm-nav-offset and --agm-nav-shift (the overlap, plus a
+   small gap). `translate` moves it visually without changing layout or the position the next measurement reads. Nothing else
+   applies, and the class and variable are removed in every other case. */
 body.agm-nav-offset #scene-navigation,
-body.agm-nav-offset #navigation { left: var(--agm-nav-shift, 0px); }
+body.agm-nav-offset #navigation { translate: var(--agm-nav-shift, 0px) 0; }
 /* Bottom-right corner (0.85.0): beside the sidebar, like the top-right dock, from the bottom. */
 .agm-dock[data-corner="bottom-right"] { bottom: var(--agm-dock-bottom); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
 body:has(#sidebar-content:not(.expanded)) .agm-dock[data-corner="bottom-right"] { right: 4rem; }

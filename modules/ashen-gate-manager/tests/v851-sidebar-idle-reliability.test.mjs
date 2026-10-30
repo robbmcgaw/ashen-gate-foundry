@@ -51,7 +51,7 @@ test('real cause 1: an empty chat box that Foundry focused no longer holds the s
 test('typed text keeps it open (V14 chat is a contenteditable, not a textarea); it collapses once the box is empty',()=>{
   const e=env();e.focusChat();e.idle.arm();e.editor.textContent='half a mess';
   assert.equal(hasTypedText(e.sidebar),true);
-  e.ck.advance(80000);assert.deepEqual(e.calls,[]);assert.equal(e.body('data-agm-idle-busy'),'text');
+  e.ck.advance(80000);assert.deepEqual(e.calls,[]);assert.equal(e.body('data-agm-idle-busy'),'text:prose-mirror#chat-message');
   e.editor.textContent='';assert.equal(hasTypedText(e.sidebar),false);
   e.ck.advance(8000);assert.equal(e.calls[0][0],'collapse');assert.equal(e.body('data-agm-idle-busy'),null);
   const blank=env();blank.editor.textContent=' ​ ';assert.equal(hasTypedText(blank.sidebar),false);
@@ -118,7 +118,7 @@ test('busy reasons are recorded on the body and cleared; the armed delay is show
   const select=add(e.doc,'select',{},e.sidebar);e.doc.activeElement=select;e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'focus');assert.equal(e.body('data-agm-idle-armed'),'8','re-armed');
   e.doc.activeElement=null;dock=true;e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'dock-menu');
   dock=false;const w=add(e.doc,'dialog',{open:''});e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'window');w.remove();
-  e.editor.textContent='typing';e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'text');
+  e.editor.textContent='typing';e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'text:prose-mirror#chat-message');
   const real=e.sidebar.matches.bind(e.sidebar);let hov=false;e.sidebar.matches=sel=>sel===':hover'?hov:real(sel);
   e.editor.textContent='';hov=true;e.ck.advance(8000);assert.equal(e.body('data-agm-idle-busy'),'pointer');
   hov=false;assert.deepEqual(e.calls,[]);e.ck.advance(8000);
@@ -133,7 +133,7 @@ test('other early exits: unknown expanded state, a tab other than Chat/Settings,
 });
 test('wiring: 0.85.1, changelog names the cause, 0.x, no core wrapping, no status labels',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
-  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.85.3');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.3/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.1 /m);assert.match(log.split('## 0.85.0')[0],/prose-mirror/);assert.doesNotMatch(log.split('## 0.85.0')[0],/\b(Alpha|Beta|Preview)\b/);
   const src=read('../scripts/sidebar-idle.js').replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
   assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|setFlag|updateDocuments|settings\.set|new Proxy|\.blur\(/);

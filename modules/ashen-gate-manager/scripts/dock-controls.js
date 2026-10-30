@@ -19,9 +19,9 @@
  *     tool is hidden and its name is listed in `data-agm-tools-hidden` on <body> so it can be reported. If the open group is not
  *     the token group nothing is hidden. Only a marker attribute is set on the core buttons; handlers, the active-tool
  *     highlight and flyouts stay Foundry's own.
- *  4. (0.85.0) Scene navigation: left where Foundry puts it (top left) unless the dock occupies the top-left corner. Then
- *     `body.agm-nav-offset` and `--agm-nav-shift` slide the existing `#scene-navigation` to the right of the dock column (the dock,
- *     and the token controls under it when docked), measured as `--agm-dock-w`. Nothing is reserved above, below or for its
+ *  4. (0.85.0, 0.85.3) Scene navigation: left exactly where Foundry (or Monk's Scene Navigation) puts it. Only when the dock is in
+ *     the top-left corner AND the navigation's own rect would overlap the dock column (dock plus docked controls) are
+ *     `body.agm-nav-offset` and `--agm-nav-shift` set, moving it right by the overlap and nothing more. Never set on the navigation element itself. Nothing is reserved above, below or for its
  *     expanded scene list, and in any other corner nothing is touched. (0.83.0's "bottom-left stack" setting was reverted.)
  *  5. User Configuration (0.85.0 toggle): `foundry.applications.sheets.UserConfig` (ApplicationV2, `{document: user}`, confirmed in
  *     Foundry 14.367). The open window is found in the core registry `foundry.applications.instances` (instance of that class,
@@ -34,8 +34,10 @@ export const CONTROLS_DOCKED_CLASS = 'agm-controls-docked';
 export const CONTROLS_SELECTOR = '#scene-controls';
 export const CONTROLS_CLEAN_CLASS = 'agm-controls-clean';
 export const NAV_OFFSET_CLASS = 'agm-nav-offset';
+/** Diagnostic on <body>: present (value in px) only while Manager is nudging the navigation. */
+export const NAV_ATTR = 'data-agm-nav-shift';
 /** V14 (14.367) id first, the V11 to V13 id second. The one place that names the scene navigation. */
-export const NAVIGATION_SELECTORS = Object.freeze(['#scene-navigation', '#navigation']);
+export const NAVIGATION_SELECTORS = Object.freeze(['#scene-navigation', '#navigation']);  // Monk's Scene Navigation keeps #scene-navigation (adds .monks-navigation)
 /** Token-group tools kept for players (V14 data-tool values: select, target, ruler). */
 export const KEEP_TOOLS = Object.freeze(['select', 'target', 'ruler']);
 /** Another module's "find my token" tool: its data-tool, label or icon. Core 14.367 has none, so this is a best guess. */
@@ -49,6 +51,7 @@ export const shouldDockControls = ({ isGM, setting, dockShown }) => !isGM && set
 /** 0.85.0: the scene navigation is nudged only for a player whose dock is showing in the top-left corner. */
 export const shouldOffsetNavigation = ({ isGM, corner, dockShown }) => !isGM && dockShown === true && corner === 'top-left';
 export const NAV_GAP_PX = 8;
+export const NAV_EDGE_PX = 8;
 
 /** The scene navigation element (the only place that knows its selector), or null. */
 export function sceneNavigationElement(doc) {
@@ -123,65 +126,111 @@ export function applyPlayersList({ game, doc, state }) {
  * slides the scene navigation to its right.
  */
 export function createControlsLayout({ doc, win = globalThis.window ?? globalThis }) {
-  let observer = null, on = false, dockEl = null, corner = 'top-left', controlsOn = false, navShift = 0;
+  let observer = null, on = false, dockEl = null, corner = 'top-left', controlsOn = false, navShift = 0, pull = false, resizeBound = false;
   const root = () => doc?.documentElement ?? null;
   const setVar = (name, value) => { try { root()?.style?.setProperty?.(name, value); } catch { /* the stylesheet falls back to 0 */ } };
   const clearVars = () => { try { for (const name of ['--agm-dock-h', '--agm-controls-h', '--agm-dock-w', '--agm-nav-shift']) root()?.style?.removeProperty?.(name); } catch { /* nothing to clear */ } };
   const controls = () => { try { return doc?.querySelector?.(CONTROLS_SELECTOR) ?? null; } catch { return null; } };
   const rect = el => { try { return el?.getBoundingClientRect?.() ?? null; } catch { return null; } };
   const px = el => { const h = rect(el)?.height; return Number.isFinite(h) ? Math.round(h) : 0; };
-  const offsetNav = () => shouldOffsetNavigation({ isGM: false, corner, dockShown: on });
+  const topLeftDock = () => shouldOffsetNavigation({ isGM: false, corner, dockShown: on });
+  const finite = n => Number.isFinite(n);
   function measure() {
-    if (!on) return false;
-    const d = rect(dockEl), c = controlsOn ? rect(controls()) : null;
-    setVar('--agm-dock-h', `${px(dockEl)}px`);
-    setVar('--agm-controls-h', `${px(controls())}px`);
-    const left = Number.isFinite(d?.left) ? d.left : 0;
-    const right = Math.max(Number.isFinite(d?.right) ? d.right : 0, Number.isFinite(c?.right) ? c.right : 0);
-    setVar('--agm-dock-w', `${Math.max(0, Math.round(right - left))}px`);
-    measureNav(right);
+    if (!on && !pull) return false;
+    let groupRight = null;
+    if (on) {
+      const d = rect(dockEl), c = controlsOn ? rect(controls()) : null;
+      setVar('--agm-dock-h', `${px(dockEl)}px`);
+      setVar('--agm-controls-h', `${px(controls())}px`);
+      const left = finite(d?.left) ? d.left : 0;
+      groupRight = Math.max(finite(d?.right) ? d.right : 0, finite(c?.right) ? c.right : 0);
+      setVar('--agm-dock-w', `${Math.max(0, Math.round(groupRight - left))}px`);
+    }
+    measureNav(groupRight);
     return true;
   }
-  /** Slides the navigation so its left edge is NAV_GAP_PX right of `groupRight`. Its natural left is read with our own shift taken off. */
+  /**
+   * Scene navigation (0.85.3). Its natural position is read with our class off (never from its own shifted position), then:
+   *  - always (collision rule): a top-left dock whose column would overlap it pushes it right by the overlap plus NAV_GAP_PX;
+   *  - when "Pull the scene navigation to the left" is on: its left edge goes to the right edge of the dock column (top-left
+   *    dock), else just right of core's scene-controls column, else NAV_EDGE_PX from the screen edge (controls docked elsewhere
+   *    or hidden). Pulling only moves it left, except that overlapping the dock or the controls still pushes it right.
+   * The shift is a `translate` in the navigation's own (interface-scaled) pixels, so its folder menus, positioned relative to
+   * it, travel with it. Nothing is ever set on the element itself.
+   */
   function measureNav(groupRight) {
-    if (!offsetNav()) { navShift = 0; try { root()?.style?.removeProperty?.('--agm-nav-shift'); } catch { /* nothing set */ } return; }
+    const release = () => { navShift = 0; setBodyClass(doc, NAV_OFFSET_CLASS, false); try { root()?.style?.removeProperty?.('--agm-nav-shift'); doc.body?.removeAttribute?.(NAV_ATTR); } catch { /* nothing set */ } };
+    if (!topLeftDock() && !pull) { release(); return; }
+    setBodyClass(doc, NAV_OFFSET_CLASS, false);   // natural position: our rule off
     const nav = sceneNavigationElement(doc), r = rect(nav);
-    if (!r || !Number.isFinite(r.left)) { navShift = 0; setVar('--agm-nav-shift', '0px'); return; }
+    if (!r || !finite(r.left)) { release(); return; }
     const ow = Number(nav.offsetWidth);
-    const scale = ow > 0 && r.width > 0 ? r.width / ow : 1; // #ui-left is scaled by the interface scale
-    const natural = r.left - navShift * scale;
-    navShift = Math.max(0, Math.round((groupRight + NAV_GAP_PX - natural) / scale));
+    const scale = ow > 0 && r.width > 0 ? r.width / ow : 1; // #ui-middle is scaled by the interface scale
+    let shift = 0;
+    const collide = topLeftDock() && finite(groupRight) ? groupRight + NAV_GAP_PX - r.left : 0;
+    if (collide > 0) shift = collide / scale;
+    if (pull) {
+      let target = null, edge = false;
+      if (topLeftDock() && finite(groupRight)) target = groupRight + NAV_GAP_PX;
+      else {
+        const c = !controlsOn ? rect(controls()) : null;
+        if (c && finite(c.right) && c.width > 0 && c.left < r.left) target = c.right + NAV_GAP_PX;
+        else { target = NAV_EDGE_PX; edge = true; }
+      }
+      const delta = (target - r.left) / scale;
+      shift = edge ? Math.min(0, delta) : delta;   // at the bare screen edge it is never pushed right
+    }
+    shift = shift > 0 ? Math.ceil(shift) : Math.round(shift);
+    if (shift === 0) { release(); return; }
+    navShift = shift;
     setVar('--agm-nav-shift', `${navShift}px`);
+    setBodyClass(doc, NAV_OFFSET_CLASS, true);
+    try { doc.body?.setAttribute?.(NAV_ATTR, String(navShift)); } catch { /* diagnostic only */ }
   }
   function watch() {
-    if (typeof win?.ResizeObserver !== 'function') return;
-    try {
-      observer ??= new win.ResizeObserver(() => measure());
-      for (const el of [dockEl, controls()]) if (el) observer.observe(el);
-    } catch { observer = null; }
+    if (typeof win?.ResizeObserver === 'function') {
+      try {
+        observer ??= new win.ResizeObserver(() => measure());
+        for (const el of [dockEl, controls(), sceneNavigationElement(doc)]) if (el) observer.observe(el);
+      } catch { observer = null; }
+    }
+    if (!resizeBound && typeof win?.addEventListener === 'function') { try { win.addEventListener('resize', measure); resizeBound = true; } catch { /* the observer still covers it */ } }
+  }
+  function unwatch() {
+    try { observer?.disconnect?.(); } catch { /* nothing observed */ }
+    observer = null;
+    if (resizeBound) { try { win.removeEventListener?.('resize', measure); } catch { /* gone */ } resizeBound = false; }
   }
   return {
     get active() { return on; },
-    enable({ dock, corner: where = 'top-left', controls: dockControls = false }) {
-      dockEl = dock; corner = where; on = true; controlsOn = Boolean(dockControls);
+    get pulling() { return pull; },
+    enable({ dock, corner: where = 'top-left', controls: dockControls = false, pullNav = false }) {
+      dockEl = dock; corner = where; on = true; controlsOn = Boolean(dockControls); pull = Boolean(pullNav);
       setBodyClass(doc, CONTROLS_DOCKED_CLASS, controlsOn);
-      setBodyClass(doc, NAV_OFFSET_CLASS, offsetNav());
       applyControlsFilter({ doc, on: controlsOn });
       try { doc.body?.setAttribute?.('data-agm-dock-corner', corner); } catch { /* the default corner rules apply */ }
       watch();
       measure();
       return true;
     },
+    /** No dock, but "Pull the scene navigation to the left" is on: the bar goes beside core's scene controls. */
+    enableNavOnly() {
+      const was = on;
+      if (was) this.disable();
+      pull = true;
+      watch();
+      measure();
+      return true;
+    },
     disable() {
       const cl = doc?.body?.classList;
-      if (!on && !cl?.contains?.(CONTROLS_DOCKED_CLASS) && !cl?.contains?.(NAV_OFFSET_CLASS) && !doc?.body?.hasAttribute?.('data-agm-dock-corner')) return false;
-      on = false; dockEl = null; controlsOn = false; navShift = 0;
+      if (!on && !pull && !cl?.contains?.(CONTROLS_DOCKED_CLASS) && !cl?.contains?.(NAV_OFFSET_CLASS) && !doc?.body?.hasAttribute?.('data-agm-dock-corner') && !doc?.body?.hasAttribute?.(NAV_ATTR)) return false;
+      on = false; dockEl = null; controlsOn = false; navShift = 0; pull = false;
       applyControlsFilter({ doc, on: false });
-      try { observer?.disconnect?.(); } catch { /* nothing observed */ }
-      observer = null;
+      unwatch();
       setBodyClass(doc, CONTROLS_DOCKED_CLASS, false);
       setBodyClass(doc, NAV_OFFSET_CLASS, false);
-      try { doc.body?.removeAttribute?.('data-agm-dock-corner'); } catch { /* attribute already gone */ }
+      try { doc.body?.removeAttribute?.(NAV_ATTR); doc.body?.removeAttribute?.('data-agm-dock-corner'); } catch { /* attribute already gone */ }
       clearVars();
       return true;
     },

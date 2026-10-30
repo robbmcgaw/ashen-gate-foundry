@@ -48,7 +48,11 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Settings link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
   Object.freeze({key:'dockSceneControls',state:'dockSceneControls',setter:'setDockSceneControls',who:'where players\' scene controls sit',
     name:'Move players\' scene controls under the player dock',
-    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, in one row of Select, Select Targets, Measure and Find My Token. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'})
+    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, in one row of Select, Select Targets, Measure and Find My Token. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'}),
+  // 0.85.3, off by default, visual only, never for the GM (see dock-controls.js).
+  Object.freeze({key:'pullSceneNavigationLeft',state:'pullSceneNavigationLeft',setter:'setPullSceneNavigationLeft',who:'where players\' scene navigation sits',
+    name:'Pull the scene navigation to the left',
+    hint:'Foundry centres the scene navigation bar, so it sits a long way in from the left. With this on, players\' bar moves left to sit beside the player dock (dock in the top left corner) or beside the scene controls, with a small gap. Works with or without the dock. The bar and its scene list work as before. GMs always see the normal place.'})
 ]);
 // REVERTED (0.85.0): 0.83.0's "Move the scene navigation to the bottom left". The key stays registered (hidden, never shown in GM Setup)
 // so old worlds that stored it load without error; nothing reads or writes it any more.
