@@ -48,13 +48,11 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
   Object.freeze({key:'dockSceneControls',state:'dockSceneControls',setter:'setDockSceneControls',who:'where players\' scene controls sit',
     name:'Move players\' scene controls under the player dock',
-    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, so the scene navigation takes the corner. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'}),
-  // 0.83.0, off by default, visual only, never for the GM. A sibling of dockSceneControls rather than a change to it: the 0.82.0 setting
-  // keeps its meaning (controls under the dock), and this one is the separate, opt-in bottom-left stack.
-  Object.freeze({key:'moveSceneNavigation',state:'moveSceneNavigation',setter:'setMoveSceneNavigation',who:'where players\' scene navigation sits',
-    name:'Move the scene navigation to the bottom left',
-    hint:'Players\' scene navigation (the scene name and its list) moves from the top left to the bottom left, with their token controls in one row above it and the player dock above that. The token controls then show only Select, Select Targets, Measure and Find My Token. Needs Show the player dock. Scenes still open and switch as before. GMs always see the normal layout.'})
+    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, in one row of Select, Select Targets, Measure and Find My Token. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'})
 ]);
+// REVERTED (0.85.0): 0.83.0's "Move the scene navigation to the bottom left". The key stays registered (hidden, never shown in GM Setup)
+// so old worlds that stored it load without error; nothing reads or writes it any more.
+export const MOVE_SCENE_NAV_KEY = 'moveSceneNavigation';
 // OLD (0.81.0) Show players only the Chat tab. Replaced in 0.84.0 by the checklist; read as a fallback only (see above).
 export const CHAT_ONLY_KEY = 'chatOnlySidebar';
 export const LEGACY_TAB_KEYS = Object.freeze({hideJournalsTab:HIDE_JOURNALS_KEY,hideCompendiumsTab:HIDE_COMPENDIUMS_KEY,chatOnlySidebar:CHAT_ONLY_KEY});
@@ -67,7 +65,7 @@ export const MAX_AUTO_COLLAPSE_SECONDS = 600;
 export const cleanAutoCollapse = value => { const n = Number(value); return Number.isFinite(n) ? Math.min(MAX_AUTO_COLLAPSE_SECONDS, Math.max(0, Math.round(n))) : DEFAULT_AUTO_COLLAPSE_SECONDS; };
 // Which screen corner the dock sits in (0.81.0), world scope, GM-only.
 export const DOCK_CORNER_KEY = 'playerDockCorner';
-export const DOCK_CORNERS = Object.freeze({'top-left':'Top left','top-right':'Top right','bottom-left':'Bottom left'});
+export const DOCK_CORNERS = Object.freeze({'top-left':'Top left','top-right':'Top right','bottom-left':'Bottom left','bottom-right':'Bottom right'});
 export const DEFAULT_DOCK_CORNER = 'top-left';
 const SIZE_LABELS = Object.freeze({compact:'Compact',comfortable:'Comfortable'});
 const knownSize = value => SIZES.includes(value) ? value : DEFAULT_SIZE;
@@ -384,6 +382,10 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   game.settings.register(namespace,CHAT_ONLY_KEY,{
     name:'Show players only the Chat tab (replaced)',hint:'Replaced by the sidebar tabs checklist in GM Setup. Read only until that checklist is first saved.',
     scope:'world',config:false,restricted:true,type:Boolean,default:false,onChange:value=>onSettingChange(CHAT_ONLY_KEY,value)
+  });
+  game.settings.register(namespace,MOVE_SCENE_NAV_KEY,{
+    name:'Scene navigation placement (removed)',hint:'Removed in 0.85.0 and ignored. Kept registered so older worlds load.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:false
   });
   for(const flag of PLAYER_SCREEN_FLAGS)game.settings.register(namespace,flag.key,{
     name:flag.name,hint:flag.hint,scope:'world',config:false,restricted:true,type:Boolean,default:false,onChange:value=>onSettingChange(flag.key,value)

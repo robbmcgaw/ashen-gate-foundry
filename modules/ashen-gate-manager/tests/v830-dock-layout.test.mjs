@@ -1,11 +1,11 @@
-// 0.83.0 player dock layout: bottom-left stack, token controls row, minimize beside the portrait, pill buttons, button order,
+// 0.83.0 player dock layout (the bottom-left stack was reverted in 0.85.0, see v850-dock-corner-nav.test.mjs): token controls row, minimize beside the portrait, pill buttons, button order,
 // Quest Tracker / Conditions gates (live, both directions), toggles. Mocked Foundry and DOM: proves logic and wiring, not the live V14 layout.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {FakeDocument,fakeStorage} from '../../../scripts/kit-tests/fake-dom.mjs';
 import {registerAppearanceSettings,PLAYER_SCREEN_FLAGS} from '../scripts/appearance.js';
-import {createControlsLayout,applyControlsFilter,classifyTool,sceneNavigationElement,shouldStackBottom,CONTROLS_CLEAN_CLASS,NAV_BOTTOM_CLASS,CONTROLS_DOCKED_CLASS} from '../scripts/dock-controls.js';
+import {createControlsLayout,applyControlsFilter,classifyTool,sceneNavigationElement,CONTROLS_CLEAN_CLASS,CONTROLS_DOCKED_CLASS} from '../scripts/dock-controls.js';
 import {DOCK_ID,DOCK_SLOTS,applyPlayerDock,installPlayerDock,evaluateDockExtras,listDockExtras,listDockLaunchers,toggleConditions,conditionsOpen} from '../scripts/player-dock.js';
 import {openSidebarTab,closeSidebarTab,isSidebarTabOpen} from '../scripts/sidebar-tabs.js';
 import {createSidebarIdleCollapse} from '../scripts/sidebar-idle.js';
@@ -38,19 +38,6 @@ function controlsDom(doc,{tools=['select','target','ruler','unconstrainedMovemen
 }
 
 // ---------- settings
-test('setting: moveSceneNavigation is a sibling of dockSceneControls, off by default, GM only, world, plain wording',()=>{
-  const reg=[];registerAppearanceSettings({game:{settings:{register:(n,k,v)=>reg.push({k,v})}},namespace:'m'});
-  const flag=PLAYER_SCREEN_FLAGS.find(f=>f.key==='moveSceneNavigation');assert.ok(flag);assert.ok(PLAYER_SCREEN_FLAGS.some(f=>f.key==='dockSceneControls'));
-  const s=reg.find(r=>r.k==='moveSceneNavigation').v;
-  assert.deepEqual([s.scope,s.config,s.restricted,s.type,s.default],['world',false,true,Boolean,false]);
-  assert.equal(s.name,'Move the scene navigation to the bottom left');
-  assert.doesNotMatch(`${s.name} ${s.hint}`,/\b(new|beta|alpha|preview)\b/i);
-  assert.match(read('../templates/manager.hbs'),/data-ag-setup-screen="moveSceneNavigation"/);
-  assert.equal(shouldStackBottom({isGM:true,setting:true,dockShown:true}),false);assert.equal(shouldStackBottom({isGM:false,setting:true,dockShown:false}),false);
-  assert.equal(shouldStackBottom({isGM:false,setting:true,dockShown:true}),true);
-});
-
-// ---------- controls filter
 test('controls filter: group buttons hidden, only the four tools stay, unknown tools hidden and reported, restored when off',()=>{
   const doc=richDoc(),c=controlsDom(doc);
   const r=applyControlsFilter({doc,on:true});
@@ -87,32 +74,11 @@ function dockEnv({isGM=false,state={},modules=new Map(),storage=fakeStorage(),ui
   const layout=createControlsLayout({doc,win:{}});
   const timers=[];
   return {doc,ap,ui,game,notes,storage,layout,timers,
-    apply:(extra={})=>applyPlayerDock({game,doc,appearance:ap,getUi:()=>ui,peek:{tab:null,armed:false},memory:{},storage,layout,openConfig:()=>true,setTimer:(fn,ms)=>{timers.push([fn,ms]);return timers.length;},clearTimer:()=>{},...extra})};
+    apply:(extra={})=>applyPlayerDock({game,doc,appearance:ap,getUi:()=>ui,peek:{tab:null,armed:false},memory:{},storage,layout,toggleConfig:()=>true,setTimer:(fn,ms)=>{timers.push([fn,ms]);return timers.length;},clearTimer:()=>{},...extra})};
 }
-test('scene navigation relocation: stack class, forced bottom-left, measured variables; off, GM and no-dock do nothing',()=>{
-  const e=dockEnv({state:{moveSceneNavigation:true,playerDockCorner:'top-right'}});
-  const nav=add(e.doc,'nav',{id:'scene-navigation'});controlsDom(e.doc);
-  assert.equal(sceneNavigationElement(e.doc),nav);
-  const dock=e.apply();
-  assert.equal(e.doc.body.classList.contains(NAV_BOTTOM_CLASS),true);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),true);
-  assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),'bottom-left','stack is always bottom-left, whatever the corner setting');
-  for(const v of ['--agm-dock-h','--agm-controls-h','--agm-nav-h'])assert.ok(e.doc.vars.has(v),v);
-  assert.equal(e.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),true,'controls are tidied in the stack');
-  assert.equal(nav.parentElement,e.doc.body,'navigation is not re-parented');
-  assert.equal(e.apply(),dock,'idempotent');
-  e.ap.set({moveSceneNavigation:false});e.apply();
-  assert.equal(e.doc.body.classList.contains(NAV_BOTTOM_CLASS),false);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.vars.size,0);assert.equal(e.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),false);
-  e.ap.set({moveSceneNavigation:true});e.apply();e.ap.set({playerDock:false});e.apply();assert.equal(e.doc.body.classList.contains(NAV_BOTTOM_CLASS),false,'no dock, no stack');
-  const gm=dockEnv({isGM:true,state:{moveSceneNavigation:true}});gm.apply();assert.equal(gm.doc.body.classList.contains(NAV_BOTTOM_CLASS),false);assert.equal(gm.doc.getElementById(DOCK_ID),null);
-  // the 0.82.0 controls setting alone does not move the navigation, but does tidy the controls
-  const c=dockEnv({state:{dockSceneControls:true}});controlsDom(c.doc);c.apply();
-  assert.equal(c.doc.body.classList.contains(NAV_BOTTOM_CLASS),false);assert.equal(c.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),true);assert.equal(c.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),true);
-  // legacy id
-  const d=richDoc();const old=add(d,'nav',{id:'navigation'});assert.equal(sceneNavigationElement(d),old);assert.equal(sceneNavigationElement(richDoc()),null);
-});
-test('CSS: stack order, row layout, upward list, offsets are variables, reduced motion, no re-parenting code',()=>{
+test('CSS: row layout, offsets are variables, reduced motion, no re-parenting code',()=>{
   const css=read('../styles/player-dock.css');
-  assert.match(css,/body\.agm-nav-bottom #scene-navigation/);assert.match(css,/--agm-nav-h/);assert.match(css,/--agm-controls-h/);assert.match(css,/--agm-stack-left/);
+  assert.match(css,/--agm-controls-h/);
   assert.match(css,/body\.agm-controls-clean #scene-controls-controls[\s\S]*display: none/);assert.match(css,/#scene-controls-tools[\s\S]*flex-direction: row/);
   assert.match(css,/prefers-reduced-motion/);assert.match(css,/\.agm-dock__head/);assert.doesNotMatch(css,/agm-dock__link/);
   const src=read('../scripts/dock-controls.js').replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
@@ -265,11 +231,11 @@ test('auto-collapse timer is really cleared by cancel()',()=>{
 });
 
 // ---------- wiring
-test('wiring: version 0.83.0, changelog, Help, no status wording, GM never affected',()=>{
+test('wiring: version 0.85.0, changelog, Help, no status wording, GM never affected',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
-  assert.match(main,/<em>Move the scene navigation to the bottom left<\/em>/);assert.match(main,/Combat, Settings, Conditions, Quest Tracker, User Configuration, Ashen Gate/);
-  const gm=dockEnv({isGM:true,state:{moveSceneNavigation:true,dockSceneControls:true}});controlsDom(gm.doc);gm.apply();
+  assert.equal(man.version,'0.85.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);assert.match(man.version,/^0\./);
+  assert.match(main,/Combat, Settings, Conditions, Quest Tracker, User Configuration, Ashen Gate/);
+  const gm=dockEnv({isGM:true,state:{dockSceneControls:true}});controlsDom(gm.doc);gm.apply();
   assert.equal(gm.doc.body.classList.contains(CONTROLS_CLEAN_CLASS),false);
   for(const f of ['dock-controls','player-dock','sidebar-tabs']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');

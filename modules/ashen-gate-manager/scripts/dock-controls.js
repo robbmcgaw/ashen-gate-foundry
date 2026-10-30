@@ -19,17 +19,21 @@
  *     tool is hidden and its name is listed in `data-agm-tools-hidden` on <body> so it can be reported. If the open group is not
  *     the token group nothing is hidden. Only a marker attribute is set on the core buttons; handlers, the active-tool
  *     highlight and flyouts stay Foundry's own.
- *  4. (0.83.0) Scene navigation at the bottom left: `body.agm-nav-bottom` re-anchors the existing `#scene-navigation` with
- *     CSS (position, bottom, left) from measured `--agm-nav-h` / `--agm-controls-h` / `--agm-dock-h`, giving the stack
- *     dock / controls row / navigation. Nothing is moved in the page.
- *  5. User Configuration: one opener, `openUserConfiguration`, tries the V13/V14 ApplicationV2 sheet first and the older global
- *     class second. Both names are unconfirmed in a live world; it never throws and reports whether anything opened.
+ *  4. (0.85.0) Scene navigation: left where Foundry puts it (top left) unless the dock occupies the top-left corner. Then
+ *     `body.agm-nav-offset` and `--agm-nav-shift` slide the existing `#scene-navigation` to the right of the dock column (the dock,
+ *     and the token controls under it when docked), measured as `--agm-dock-w`. Nothing is reserved above, below or for its
+ *     expanded scene list, and in any other corner nothing is touched. (0.83.0's "bottom-left stack" setting was reverted.)
+ *  5. User Configuration (0.85.0 toggle): `foundry.applications.sheets.UserConfig` (ApplicationV2, `{document: user}`, confirmed in
+ *     Foundry 14.367). The open window is found in the core registry `foundry.applications.instances` (instance of that class,
+ *     `document === game.user`, `rendered`), so the state is the real one: the first press opens, the next press calls its
+ *     `close()`, and closing it any other way (its own X) simply makes it not found. The older global `UserConfig` is the fallback
+ *     for opening only. It never throws.
  */
 export const PLAYERS_LIST_CLASS = 'agm-hide-players';
 export const CONTROLS_DOCKED_CLASS = 'agm-controls-docked';
 export const CONTROLS_SELECTOR = '#scene-controls';
 export const CONTROLS_CLEAN_CLASS = 'agm-controls-clean';
-export const NAV_BOTTOM_CLASS = 'agm-nav-bottom';
+export const NAV_OFFSET_CLASS = 'agm-nav-offset';
 /** V14 (14.367) id first, the V11 to V13 id second. The one place that names the scene navigation. */
 export const NAVIGATION_SELECTORS = Object.freeze(['#scene-navigation', '#navigation']);
 /** Token-group tools kept for players (V14 data-tool values: select, target, ruler). */
@@ -42,8 +46,9 @@ const HIDE_MARK = 'agmToolHidden';
 
 export const shouldHidePlayersList = ({ isGM, setting }) => !isGM && setting === true;
 export const shouldDockControls = ({ isGM, setting, dockShown }) => !isGM && setting === true && dockShown === true;
-/** 0.83.0: the bottom-left stack (dock, controls row, scene navigation). Needs the dock, like the controls setting. */
-export const shouldStackBottom = ({ isGM, setting, dockShown }) => !isGM && setting === true && dockShown === true;
+/** 0.85.0: the scene navigation is nudged only for a player whose dock is showing in the top-left corner. */
+export const shouldOffsetNavigation = ({ isGM, corner, dockShown }) => !isGM && dockShown === true && corner === 'top-left';
+export const NAV_GAP_PX = 8;
 
 /** The scene navigation element (the only place that knows its selector), or null. */
 export function sceneNavigationElement(doc) {
@@ -112,54 +117,70 @@ export function applyPlayersList({ game, doc, state }) {
 }
 
 /**
- * Keeps the layout numbers for the docked scene controls. `enable({dock, corner})` / `disable()` are idempotent; `measure()`
- * re-reads the sizes (call it after a render of the dock or the controls).
+ * Keeps the layout numbers for the dock group. `enable({dock, corner, controls})` / `disable()` are idempotent; `measure()`
+ * re-reads the sizes (call it after a render of the dock or the controls). `enable` always records the corner on <body>
+ * (`data-agm-dock-corner`), whatever else is on; `controls` also docks and tidies the token controls; a top-left dock also
+ * slides the scene navigation to its right.
  */
 export function createControlsLayout({ doc, win = globalThis.window ?? globalThis }) {
-  let observer = null, on = false, dockEl = null;
+  let observer = null, on = false, dockEl = null, corner = 'top-left', controlsOn = false, navShift = 0;
   const root = () => doc?.documentElement ?? null;
   const setVar = (name, value) => { try { root()?.style?.setProperty?.(name, value); } catch { /* the stylesheet falls back to 0 */ } };
-  const clearVars = () => { try { for (const name of ['--agm-dock-h', '--agm-controls-h', '--agm-nav-h']) root()?.style?.removeProperty?.(name); } catch { /* nothing to clear */ } };
-  const nav = () => sceneNavigationElement(doc);
-  let stackOn = false, controlsOn = false;
+  const clearVars = () => { try { for (const name of ['--agm-dock-h', '--agm-controls-h', '--agm-dock-w', '--agm-nav-shift']) root()?.style?.removeProperty?.(name); } catch { /* nothing to clear */ } };
   const controls = () => { try { return doc?.querySelector?.(CONTROLS_SELECTOR) ?? null; } catch { return null; } };
-  const px = el => { try { const h = el?.getBoundingClientRect?.().height; return Number.isFinite(h) ? Math.round(h) : 0; } catch { return 0; } };
+  const rect = el => { try { return el?.getBoundingClientRect?.() ?? null; } catch { return null; } };
+  const px = el => { const h = rect(el)?.height; return Number.isFinite(h) ? Math.round(h) : 0; };
+  const offsetNav = () => shouldOffsetNavigation({ isGM: false, corner, dockShown: on });
   function measure() {
     if (!on) return false;
+    const d = rect(dockEl), c = controlsOn ? rect(controls()) : null;
     setVar('--agm-dock-h', `${px(dockEl)}px`);
     setVar('--agm-controls-h', `${px(controls())}px`);
-    setVar('--agm-nav-h', stackOn ? `${px(nav())}px` : '0px');
+    const left = Number.isFinite(d?.left) ? d.left : 0;
+    const right = Math.max(Number.isFinite(d?.right) ? d.right : 0, Number.isFinite(c?.right) ? c.right : 0);
+    setVar('--agm-dock-w', `${Math.max(0, Math.round(right - left))}px`);
+    measureNav(right);
     return true;
+  }
+  /** Slides the navigation so its left edge is NAV_GAP_PX right of `groupRight`. Its natural left is read with our own shift taken off. */
+  function measureNav(groupRight) {
+    if (!offsetNav()) { navShift = 0; try { root()?.style?.removeProperty?.('--agm-nav-shift'); } catch { /* nothing set */ } return; }
+    const nav = sceneNavigationElement(doc), r = rect(nav);
+    if (!r || !Number.isFinite(r.left)) { navShift = 0; setVar('--agm-nav-shift', '0px'); return; }
+    const ow = Number(nav.offsetWidth);
+    const scale = ow > 0 && r.width > 0 ? r.width / ow : 1; // #ui-left is scaled by the interface scale
+    const natural = r.left - navShift * scale;
+    navShift = Math.max(0, Math.round((groupRight + NAV_GAP_PX - natural) / scale));
+    setVar('--agm-nav-shift', `${navShift}px`);
   }
   function watch() {
     if (typeof win?.ResizeObserver !== 'function') return;
     try {
       observer ??= new win.ResizeObserver(() => measure());
-      for (const el of [dockEl, controls(), stackOn ? nav() : null]) if (el) observer.observe(el);
+      for (const el of [dockEl, controls()]) if (el) observer.observe(el);
     } catch { observer = null; }
   }
   return {
     get active() { return on; },
-    /** controls: stack the (cleaned) controls under the dock; stack: also the bottom-left stack with the scene navigation. */
-    enable({ dock, corner = 'top-left', controls: dockControls = true, stack = false }) {
-      dockEl = dock;
-      on = true; stackOn = Boolean(stack); controlsOn = Boolean(dockControls || stack);
+    enable({ dock, corner: where = 'top-left', controls: dockControls = false }) {
+      dockEl = dock; corner = where; on = true; controlsOn = Boolean(dockControls);
       setBodyClass(doc, CONTROLS_DOCKED_CLASS, controlsOn);
-      setBodyClass(doc, NAV_BOTTOM_CLASS, stackOn);
+      setBodyClass(doc, NAV_OFFSET_CLASS, offsetNav());
       applyControlsFilter({ doc, on: controlsOn });
-      try { doc.body?.setAttribute?.('data-agm-dock-corner', stackOn ? 'bottom-left' : corner); } catch { /* the default corner rules apply */ }
+      try { doc.body?.setAttribute?.('data-agm-dock-corner', corner); } catch { /* the default corner rules apply */ }
       watch();
       measure();
       return true;
     },
     disable() {
-      if (!on && !doc?.body?.classList?.contains?.(CONTROLS_DOCKED_CLASS) && !doc?.body?.classList?.contains?.(NAV_BOTTOM_CLASS)) return false;
-      on = false; dockEl = null; stackOn = false; controlsOn = false;
+      const cl = doc?.body?.classList;
+      if (!on && !cl?.contains?.(CONTROLS_DOCKED_CLASS) && !cl?.contains?.(NAV_OFFSET_CLASS) && !doc?.body?.hasAttribute?.('data-agm-dock-corner')) return false;
+      on = false; dockEl = null; controlsOn = false; navShift = 0;
       applyControlsFilter({ doc, on: false });
-      setBodyClass(doc, NAV_BOTTOM_CLASS, false);
       try { observer?.disconnect?.(); } catch { /* nothing observed */ }
       observer = null;
       setBodyClass(doc, CONTROLS_DOCKED_CLASS, false);
+      setBodyClass(doc, NAV_OFFSET_CLASS, false);
       try { doc.body?.removeAttribute?.('data-agm-dock-corner'); } catch { /* attribute already gone */ }
       clearVars();
       return true;
@@ -168,19 +189,42 @@ export function createControlsLayout({ doc, win = globalThis.window ?? globalThi
   };
 }
 
+/** The user configuration class (ApplicationV2 sheet in V13/V14), or null. */
+const userConfigClass = foundryNs => { const V2 = foundryNs?.applications?.sheets?.UserConfig; return typeof V2 === 'function' ? V2 : null; };
+
 /**
- * Opens the player's own User Configuration window. The one place that knows the class: V13/V14
- * `foundry.applications.sheets.UserConfig` (ApplicationV2, `{document: user}`), then the older global `UserConfig`
- * (`new UserConfig(user)`). Returns true when a window was asked to open; never throws.
+ * The player's own User Configuration window if it is open right now, else null. Looked up in the core registry of rendered
+ * ApplicationV2 windows (`foundry.applications.instances`, a Map): an instance of `foundry.applications.sheets.UserConfig` whose
+ * `document` is this user and that is `rendered` (not closing or closed). This is the real state, so closing the window with its
+ * own X needs no bookkeeping here.
  */
-export function openUserConfiguration({ foundryNs = globalThis.foundry, game = globalThis.game, globals = globalThis } = {}) {
+export function findUserConfiguration({ foundryNs = globalThis.foundry, game = globalThis.game } = {}) {
+  try {
+    const V2 = userConfigClass(foundryNs), user = game?.user;
+    const registry = foundryNs?.applications?.instances;
+    if (!V2 || !user || typeof registry?.values !== 'function') return null;
+    for (const app of registry.values()) if (app instanceof V2 && app.document === user && app.rendered === true) return app;
+  } catch { /* treated as not open */ }
+  return null;
+}
+/** Is the User Configuration window open? */
+export const userConfigurationOpen = args => findUserConfiguration(args) !== null;
+
+/**
+ * Opens the player's own User Configuration window, or closes it if it is already open (a true toggle). Opening: V13/V14
+ * `foundry.applications.sheets.UserConfig` (`{document: user}`, `render({force: true})`), else the older global `UserConfig`
+ * (`new UserConfig(user)`). Closing: the window's own `close()`. Resolves to true when it opened or closed something; never throws.
+ */
+export async function toggleUserConfiguration({ foundryNs = globalThis.foundry, game = globalThis.game, globals = globalThis } = {}) {
   const user = game?.user;
   if (!user) return false;
   try {
-    const V2 = foundryNs?.applications?.sheets?.UserConfig;
-    if (typeof V2 === 'function') { new V2({ document: user }).render({ force: true }); return true; }
+    const open = findUserConfiguration({ foundryNs, game });
+    if (open) { await open.close(); return true; }
+    const V2 = userConfigClass(foundryNs);
+    if (V2) { await new V2({ document: user }).render({ force: true }); return true; }
     const legacy = globals?.UserConfig;
     if (typeof legacy === 'function') { new legacy(user).render(true); return true; }
-  } catch (error) { console.warn('[ashen-gate-manager] User Configuration not opened', error); }
+  } catch (error) { console.warn('[ashen-gate-manager] User Configuration not toggled', error); }
   return false;
 }

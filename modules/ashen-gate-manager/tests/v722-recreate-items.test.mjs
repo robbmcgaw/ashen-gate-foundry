@@ -186,5 +186,5 @@ test('version and wiring', () => {
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   assert.match(main, /data-ag-sync-recreate/); assert.match(main, /recreateTypeChange:Boolean\(this\.sync\.recreateTypeChange/);
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.84.1'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.85.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));
 });

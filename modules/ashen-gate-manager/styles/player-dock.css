@@ -83,10 +83,9 @@ body.agm-hide-players #players { display: none !important; }
 body.agm-hide-players { --agm-dock-bottom: var(--ag-space-3, 0.5rem); }
 
 /* Scene controls under the dock: the same #scene-controls element, re-anchored with position:fixed (no re-parenting), stacked
-   with the dock by the measured --agm-dock-h / --agm-controls-h (set in dock-controls.js). The scene navigation is left alone
-   and, with the tool column gone from the top left, takes that corner; the top-left dock therefore starts below it
-   (--agm-dock-top). Change the --agm-* values on :root to nudge. */
-body.agm-controls-docked { --agm-dock-left: var(--ag-space-3, 0.5rem); --agm-dock-top: 3.75rem; }
+   with the dock by the measured --agm-dock-h / --agm-controls-h (set in dock-controls.js). The corner rules below follow
+   body[data-agm-dock-corner], which is set whenever the dock shows. Change the --agm-* values on :root to nudge. */
+body.agm-controls-docked { --agm-dock-left: var(--ag-space-3, 0.5rem); }
 body.agm-controls-docked #scene-controls {
   position: fixed !important;
   z-index: 30;
@@ -123,38 +122,22 @@ body.agm-controls-clean #scene-controls-tools > li[data-agm-tool-hidden],
 body.agm-controls-clean #scene-controls-tools > li:has(> button.tool:not([data-tool="select"]):not([data-tool="target"]):not([data-tool="ruler"]):not([data-agm-keep])) { display: none !important; }
 body.agm-controls-clean #scene-controls-tools [data-agm-tool-hidden] { display: none !important; }
 
-/* Bottom-left stack (Move the scene navigation to the bottom left). Top to bottom: dock, controls row, scene navigation.
-   Assumptions (V14, unconfirmed live): #scene-navigation sits in #ui-left (left: 0, transformed, so position: fixed is relative to
-   it and equals the screen at interface scale 100%); the hotbar is in the centre column and does not reach the left edge; the
-   players list is hidden (else --agm-dock-bottom clears it). Offsets, all on :root or body, are:
-     --agm-stack-left    left edge of all three            (default 0.5rem)
-     --agm-dock-bottom   gap under the whole stack         (0.5rem with the players list hidden, else 9rem)
-     --agm-nav-width     width of the scene navigation     (12.5rem)
-     --agm-stack-gap     space between the three           (0.5rem)
-   Measured by dock-controls.js: --agm-dock-h, --agm-controls-h, --agm-nav-h. The navigation grows UPWARD from its bottom edge, so
-   its scene list (the expand caret) opens upward over the stack instead of off the bottom of the screen; it sits above the other two. */
-body.agm-nav-bottom { --agm-stack-left: var(--ag-space-3, 0.5rem); --agm-stack-gap: var(--ag-space-2, 0.5rem); --agm-nav-width: 12.5rem; }
-body.agm-nav-bottom #scene-navigation,
-body.agm-nav-bottom #navigation {
-  position: fixed !important;
-  inset: auto !important;
-  left: var(--agm-stack-left) !important;
+/* ---- 0.85.0 ---- */
+/* Scene navigation: left where Foundry puts it. Only when the dock sits in the top-left corner (body.agm-nav-offset, set by
+   dock-controls.js) is it slid right, clear of the dock column, by --agm-nav-shift (measured: the dock's, or the docked controls',
+   right edge plus a small gap, minus the navigation's natural left). Relative offset on the existing element: no reserved space,
+   nothing above or below it moves, and its scene list opens exactly as in core. Nothing applies in any other corner. */
+body.agm-nav-offset #scene-navigation,
+body.agm-nav-offset #navigation { left: var(--agm-nav-shift, 0px); }
+/* Bottom-right corner (0.85.0): beside the sidebar, like the top-right dock, from the bottom. */
+.agm-dock[data-corner="bottom-right"] { bottom: var(--agm-dock-bottom); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
+body:has(#sidebar-content:not(.expanded)) .agm-dock[data-corner="bottom-right"] { right: 4rem; }
+.agm-dock[data-corner="bottom-right"] .agm-dock__menu { top: auto; bottom: 0; left: auto; right: calc(100% + var(--ag-space-3)); }
+body.agm-controls-docked[data-agm-dock-corner="bottom-right"] #scene-controls {
+  right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4, 1rem)) !important;
   bottom: var(--agm-dock-bottom) !important;
-  width: var(--agm-nav-width) !important;
-  max-height: calc(100vh - var(--agm-dock-bottom) - 1rem) !important;
-  margin: 0 !important;
-  overflow-y: auto;
-  z-index: 32;
 }
-body.agm-nav-bottom.agm-controls-docked[data-agm-dock-corner] #scene-controls {
-  left: var(--agm-stack-left) !important;
-  bottom: calc(var(--agm-dock-bottom) + var(--agm-nav-h, 0px) + var(--agm-stack-gap)) !important;
-  top: auto !important;
-  right: auto !important;
-}
-body.agm-nav-bottom .agm-dock {
-  top: auto !important;
-  right: auto !important;
-  left: var(--agm-stack-left) !important;
-  bottom: calc(var(--agm-dock-bottom) + var(--agm-nav-h, 0px) + var(--agm-controls-h, 0px) + var(--agm-stack-gap) * 2) !important;
+body.agm-controls-docked:has(#sidebar-content:not(.expanded))[data-agm-dock-corner="bottom-right"] #scene-controls { right: 4rem !important; }
+body.agm-controls-docked .agm-dock[data-corner="bottom-right"] {
+  bottom: calc(var(--agm-dock-bottom) + var(--agm-controls-h, 0px) + var(--ag-space-2, 0.5rem));
 }

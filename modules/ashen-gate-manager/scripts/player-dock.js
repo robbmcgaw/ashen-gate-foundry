@@ -10,7 +10,8 @@
  *   30 settings       toggles the sidebar Settings tab (Configure Settings, Manage Modules, Players, Log Out)
  *   40 conditions     (0.82.0) toggles Utilities' Conditions overlay (`conditions.toggleOverlay`, else `openOverlay`)
  *   50 quest-tracker  (0.82.0) shows or hides Quest Log's "Tracked objectives" overlay, through its public `tracking` API
- *   60 user-config    (0.82.0) opens the player's own User Configuration window (always shown; 0.83.0: a pill like the others)
+ *   60 user-config    (0.82.0) the player's own User Configuration window (always shown; 0.83.0: a pill like the others;
+ *                     0.85.0: a real toggle, the second press closes it)
  *   70 ashen-gate     a menu of the Ashen Gate windows this player may open
  *
  * SLOT CONTRACT (stable; the Character Hub adds its portrait button here): `[data-agm-dock-slot="portrait"]` is a <span>. Since
@@ -22,7 +23,7 @@
  * Minimize (0.82.0): a small icon button in `.agm-dock__head` hides the body and portrait, leaving only that handle; pressing it
  * again restores. The choice is kept per user in localStorage (try/catch; the dock works without it).
  *
- * Toggles (0.83.0): Combat, Settings, Conditions and Quest Tracker are real toggles: the first press opens, the second closes,
+ * Toggles (0.83.0; User Configuration joined in 0.85.0): Combat, Settings, Conditions, Quest Tracker and User Configuration are real toggles: the first press opens, the second closes,
  * and `aria-pressed` follows the real open state (re-read after each press and on every refresh).
  *
  * Live (0.83.0): module buttons and the Ashen Gate menu are re-checked against the CURRENT module state (nothing is cached)
@@ -39,7 +40,7 @@
  * and returns focus to the Ashen Gate button; Tab or a click outside closes. Escape is only swallowed while a menu is open.
  */
 import { openSidebarTab, closeSidebarTab, isSidebarTabOpen, sharedPeek } from './sidebar-tabs.js';
-import { applyPlayersList, createControlsLayout, shouldDockControls, shouldStackBottom, openUserConfiguration } from './dock-controls.js';
+import { applyPlayersList, createControlsLayout, shouldDockControls, toggleUserConfiguration, userConfigurationOpen } from './dock-controls.js';
 
 export const DOCK_ID = 'agm-player-dock';
 export const ACCESS_CONTRACT = 'ag-player-access/1';
@@ -210,7 +211,7 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
   menu.hidden = true;
   const quest = iconButton(doc, { action: 'quest-tracker', icon: 'fa-solid fa-bullseye', label: 'Quest Tracker', tooltip: 'Show or hide the tracked quest objectives', extra: { 'aria-pressed': 'false' } });
   const conditions = iconButton(doc, { action: 'conditions', icon: 'fa-solid fa-heart-pulse', label: 'Conditions', tooltip: 'Show or hide the conditions window', extra: { 'aria-pressed': 'false' } });
-  const userConfig = iconButton(doc, { action: 'user-config', icon: 'fa-solid fa-user-gear', label: 'User Configuration', tooltip: 'Open your user configuration' });
+  const userConfig = iconButton(doc, { action: 'user-config', icon: 'fa-solid fa-user-gear', label: 'User Configuration', tooltip: 'Show or hide your user configuration', extra: { 'aria-pressed': 'false' } });
   for (const extra of [quest, conditions]) extra.hidden = true; // shown only once the owning module is confirmed
   slots.combat.append(combat); slots.settings.append(settings); slots['ashen-gate'].append(ashen, menu);
   slots['quest-tracker'].append(quest); slots.conditions.append(conditions); slots['user-config'].append(userConfig);
@@ -249,7 +250,7 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
     if (focus) items()[0]?.focus();
   };
   ashen.addEventListener('click', event => { event.preventDefault?.(); if (open) close({ refocus: true }); else void show(); });
-  const toggles = { combat, settings, 'quest-tracker': quest, conditions };
+  const toggles = { combat, settings, 'quest-tracker': quest, conditions, 'user-config': userConfig };
   /** Sets aria-pressed on each toggle from the real open state (actions.isOpen(id), sync or async). Never throws. */
   let pressedToken = 0;
   async function syncPressed() {
@@ -264,7 +265,7 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
   const run = (work, sync = false) => { try { Promise.resolve(work()).then(ok => { if (ok === false) actions.notify('That window is not available right now.'); }).catch(error => actions.notify(error?.message ?? String(error))).finally(() => { if (sync) void syncPressed(); }); } catch (error) { actions.notify(error?.message ?? String(error)); } };
   quest.addEventListener('click', event => { event.preventDefault?.(); close(); run(actions.questTracker, true); });
   conditions.addEventListener('click', event => { event.preventDefault?.(); close(); run(actions.conditions, true); });
-  userConfig.addEventListener('click', event => { event.preventDefault?.(); close(); run(actions.userConfig); });
+  userConfig.addEventListener('click', event => { event.preventDefault?.(); close(); run(actions.userConfig, true); });
   combat.addEventListener('click', event => { event.preventDefault?.(); close(); actions.combat(); syncPressed(); });
   settings.addEventListener('click', event => { event.preventDefault?.(); close(); actions.settings(); syncPressed(); });
   menu.addEventListener('keydown', event => {
@@ -333,7 +334,7 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
  * players list, the scene controls under the dock). Idempotent: running it again changes nothing. Returns the element when
  * the dock is showing, else null.
  */
-export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThis.ui, tabs = null, peek = sharedPeek, storage = localStore(), layout = null, idle = null, openConfig = openUserConfiguration, setTimer = null, clearTimer = null, memory }) {
+export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThis.ui, tabs = null, peek = sharedPeek, storage = localStore(), layout = null, idle = null, toggleConfig = toggleUserConfiguration, configOpen = userConfigurationOpen, setTimer = null, clearTimer = null, memory }) {
   const state = appearance?.getState?.() ?? {};
   const isGM = Boolean(game?.user?.isGM);
   try { applyPlayersList({ game, doc, state }); } catch (error) { console.warn('[ashen-gate-manager] Players list not updated', error); }
@@ -342,9 +343,9 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
   const corner = state.playerDockCorner ?? 'top-left';
   const place = dock => {
     try {
-      const stack = Boolean(dock) && shouldStackBottom({ isGM, setting: state.moveSceneNavigation === true, dockShown: true });
+      // 0.85.0: the corner always applies, with or without docked controls. (The removed 0.83.0 stack used to override it.)
       const controls = Boolean(dock) && shouldDockControls({ isGM, setting: state.dockSceneControls === true, dockShown: true });
-      if (dock && (stack || controls)) layout?.enable({ dock, corner, controls, stack });
+      if (dock) layout?.enable({ dock, corner, controls });
       else layout?.disable();
     } catch (error) { console.warn('[ashen-gate-manager] Scene controls not moved', error); }
   };
@@ -374,11 +375,12 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
     settings: () => toggleTab('settings', 'tab', 'Settings'),
     questTracker: () => toggleQuestTracker({ modules: game.modules }),
     conditions: () => toggleConditions({ modules: game.modules }),
-    userConfig: () => openConfig({ game }),
+    userConfig: () => toggleConfig({ game }),
     isOpen: id => {
       if (id === 'combat' || id === 'settings') return isSidebarTabOpen(id, { ui: getUi() });
       if (id === 'quest-tracker') return questTrackerOpen({ modules: game.modules });
       if (id === 'conditions') return conditionsOpen({ modules: game.modules });
+      if (id === 'user-config') return configOpen({ game });
       return false;
     },
     listLaunchers: () => listDockLaunchers({ modules: game.modules, isGM }),
@@ -393,7 +395,7 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
 }
 
 /** Hooks that re-check the module gates and pressed states without rebuilding the dock. */
-export const LIVE_HOOKS = Object.freeze(['ready', 'updateSetting', 'createSetting', 'deleteSetting', 'collapseSidebar', 'changeSidebarTab', 'renderCombatTracker', 'closeCombatTracker']);
+export const LIVE_HOOKS = Object.freeze(['ready', 'updateSetting', 'createSetting', 'deleteSetting', 'collapseSidebar', 'changeSidebarTab', 'renderCombatTracker', 'closeCombatTracker', 'renderUserConfig', 'closeUserConfig']);
 const isModuleSetting = setting => String(setting?.key ?? '').startsWith(ACCESS_KEY_PREFIX);
 
 /**

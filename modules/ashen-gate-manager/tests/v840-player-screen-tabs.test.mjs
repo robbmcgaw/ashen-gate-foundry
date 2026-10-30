@@ -208,7 +208,7 @@ test('wiring: Player screen sub-tab with five labelled groups, old switches gone
   const tpl=read('../templates/manager.hbs'),main=read('../scripts/main.js'),man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
   assert.match(main,/const SETUP_TABS=\[\{id:'general',label:'General'\},\{id:'screen',label:'Player screen'\},/);
   const panel=tpl.slice(tpl.indexOf('{{{setupPanels.screen}}}'),tpl.indexOf('{{{setupPanels.sources}}}'));
-  const order=['aria-label="Sidebar tabs"','data-ag-setup-tab="{{id}}"','data-ag-tab-preset="everything"','data-ag-tab-preset="chat"','aria-label="Directory filters"','data-ag-setup-handouts-only','data-ag-setup-players-only','aria-label="Scene controls and navigation"','data-ag-setup-screen="hideSceneTools"','data-ag-setup-screen="dockSceneControls"','data-ag-setup-screen="moveSceneNavigation"','aria-label="Player dock"','data-ag-setup-screen="playerDock"','data-ag-setup-dock-corner','data-ag-setup-screen="hidePlayersList"','aria-label="Collapse"','data-ag-setup-screen="collapsePlayerSidebar"','data-ag-setup-autocollapse'].map(x=>panel.indexOf(x));
+  const order=['aria-label="Sidebar tabs"','data-ag-setup-tab="{{id}}"','data-ag-tab-preset="everything"','data-ag-tab-preset="chat"','aria-label="Directory filters"','data-ag-setup-handouts-only','data-ag-setup-players-only','aria-label="Scene controls and navigation"','data-ag-setup-screen="hideSceneTools"','data-ag-setup-screen="dockSceneControls"','aria-label="Player dock"','data-ag-setup-screen="playerDock"','data-ag-setup-dock-corner','data-ag-setup-screen="hidePlayersList"','aria-label="Collapse"','data-ag-setup-screen="collapsePlayerSidebar"','data-ag-setup-autocollapse'].map(x=>panel.indexOf(x));
   assert.ok(order.every(i=>i>=0),'every control is in the Player screen panel');assert.deepEqual([...order].sort((a,b)=>a-b),order,'in the five groups, in order');
   assert.doesNotMatch(tpl,/data-ag-setup-hide-journals|data-ag-setup-hide-compendiums|data-ag-setup-screen="chatOnlySidebar"|aria-label="Sidebar"/);
   assert.doesNotMatch(panel,/<details/,'no folds: nothing nested');
@@ -217,7 +217,7 @@ test('wiring: Player screen sub-tab with five labelled groups, old switches gone
   assert.match(main,/<strong>Sidebar tabs<\/strong> is one checklist, <em>Tabs players keep<\/em>/);assert.match(main,/<em>Keep Chat only<\/em>/);assert.match(main,/<strong>Collapse<\/strong>/);
   assert.doesNotMatch(main,/<em>Hide the Journals tab from players<\/em>/);
   assert.match(main,/migrateSidebarTabs/);
-  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/^## 0\.84\.1 /);assert.match(log,/^## 0\.84\.0 /m);
+  assert.equal(man.version,'0.85.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));assert.match(log,/^## 0\.85\.0 /);assert.match(log,/^## 0\.84\.1 /m);assert.match(log,/^## 0\.84\.0 /m);
   assert.match(log,/Why the Journals and Compendiums switches seemed to do nothing/);assert.match(log,/playerSidebarTabs/);assert.match(log,/Show players only the Chat tab\* on: Chat kept/);
   const src=read('../scripts/sidebar-tabs.js').replace(/\/\*[\s\S]*?\*\//g,'')+read('../scripts/sidebar-policy.js').replace(/\/\*[\s\S]*?\*\//g,'');
   assert.doesNotMatch(src,/ownership|permission|setFlag|update\(|updateDocuments|settings\.set/);

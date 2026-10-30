@@ -1470,9 +1470,7 @@
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hideSceneTools" {{#if hideSceneTools}}checked{{/if}}> Hide Region Controls and Journal Notes from players' scene controls</label>
         <p class="agmanager-tiny">Removes those two tool groups for players. Only the buttons go: permissions, notes and regions are unchanged.</p>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="dockSceneControls" {{#if dockSceneControls}}checked{{/if}}> Move players' scene controls under the player dock</label>
-        <p class="agmanager-tiny">Moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, so the scene navigation takes the corner. Needs the player dock. The tools work as before.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="moveSceneNavigation" {{#if moveSceneNavigation}}checked{{/if}}> Move the scene navigation to the bottom left</label>
-        <p class="agmanager-tiny">Stacks, at the bottom left for players: the player dock, then their token controls in one row (only Select, Select Targets, Measure and Find My Token), then the scene navigation. The scene list opens upward. Needs the player dock; takes the place of the setting above for players while it is on. Scenes work as before.</p>
+        <p class="agmanager-tiny">Moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, as one row of Select, Select Targets, Measure and Find My Token. Needs the player dock. The tools work as before. The scene navigation always stays top left; with the dock in the top left corner it slides to the right of the dock.</p>
       </section>
       <section class="ag-section" aria-label="Player dock">
         <div class="ag-section__head"><h3 class="ag-section__title">Player dock</h3></div>
