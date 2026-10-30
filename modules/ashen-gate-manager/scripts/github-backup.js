@@ -11,6 +11,11 @@
  *    target branch must not be the repository's default branch.
  *  - One commit holds every file (Git Data API: tree on top of the branch's tree, commit, move the branch). A failure at any
  *    step leaves the branch as it was; a new branch is only created at the very end, pointing at the finished commit.
+ *  - Which types are backed up is the GM's choice (0.87.0). A type left out is not written and is not removed from the branch:
+ *    the commit is a tree on top of the branch's tree that replaces only the files that were written, so earlier files stay.
+ *  - Each file is in the format the content pack's reconcile script reads: Quests are Quest Log's own Export JSON
+ *    (`ag-quest-source/0.1`), Factions and deities are Renown's own Export (`ag-factions-source-export/0.4`), Locations and
+ *    Shops are their modules' export packages, and edited records are Manager's `ag-world-edits/0.1` bundle.
  *  - Each module's data comes from its public api (`game.modules.get(id)?.api`), feature-detected. A module that is missing,
  *    inactive or has no such api is skipped with a reason; nothing reaches into another module's internals.
  *
@@ -23,11 +28,10 @@ export const GITHUB_API = 'https://api.github.com';
 export const API_VERSION = '2022-11-28';
 export const JSON_ACCEPT = 'application/vnd.github+json';
 /** Settings (all client scope), registered by main.js. */
-export const BACKUP_SETTINGS = Object.freeze({token: 'backupToken', config: 'backupConfig', last: 'backupLast'});
+export const BACKUP_SETTINGS = Object.freeze({token: 'backupToken', config: 'backupConfig', last: 'backupLast', types: 'backupTypes'});
 export const DEFAULT_REPO = 'robbmcgaw/ashen-gate-supplement';
 export const DEFAULT_BRANCH = 'world-backup';
 export const FOLDER = 'world-backup';
-export const SCHEMA = 'ag-world-backup/0.1';
 /** Branches that are never a backup target, whatever the repository calls its default. */
 export const PROTECTED_BRANCHES = Object.freeze(['main', 'master']);
 export const GM_ONLY = 'Only a GM can back up the world to GitHub.';
@@ -99,6 +103,36 @@ export async function clearBackupToken(user, {store} = {}) {
   return {ok: true, message: 'Backup token removed from this device.', saved: false, masked: ''};
 }
 
+// ---------- What to back up (this device) ----------
+/** The types the GM can tick. The first five come from Manager's edits bundle (one file); the rest are one file each. */
+export const BACKUP_TYPES = Object.freeze([
+  {id: 'Item', label: 'Edited Items', source: 'manager'},
+  {id: 'JournalEntry', label: 'Edited Journals', source: 'manager'},
+  {id: 'Actor', label: 'Edited Actors', source: 'manager'},
+  {id: 'RollTable', label: 'Edited Roll Tables', source: 'manager'},
+  {id: 'Macro', label: 'Edited Macros', source: 'manager'},
+  {id: 'locations', label: 'Locations', source: 'locations'},
+  {id: 'quests', label: 'Quests, Orders and Contracts', source: 'quests'},
+  {id: 'factions', label: 'Factions and deities', source: 'factions'},
+  {id: 'shops', label: 'Shops', source: 'shops'}
+]);
+export const ALL_TYPE_IDS = Object.freeze(BACKUP_TYPES.map(t => t.id));
+const cleanSelection = list => ALL_TYPE_IDS.filter(id => Array.isArray(list) && list.includes(id));
+
+/** The types ticked last time on this device; every type when nothing was remembered. */
+export function loadBackupSelection(user, {store} = {}) {
+  if (!isGM(user)) return denied({selection: [...ALL_TYPE_IDS]});
+  const stored = readStore(store, 'types', {}) ?? {};
+  return {ok: true, selection: Array.isArray(stored.types) ? cleanSelection(stored.types) : [...ALL_TYPE_IDS]};
+}
+/** Remembers the selection on this device only (a client setting). Unknown ids are dropped. */
+export async function saveBackupSelection(user, {store, selection} = {}) {
+  if (!isGM(user)) return denied();
+  const types = cleanSelection(selection);
+  try { await store.set(BACKUP_SETTINGS.types, {types}); } catch { return {ok: false, message: 'Your choice could not be remembered on this device.'}; }
+  return {ok: true, selection: types};
+}
+
 // ---------- Last backed up (this device) ----------
 export function lastBackup(user, {store} = {}) {
   if (!isGM(user)) return null;
@@ -123,68 +157,85 @@ const pretty = data => `${JSON.stringify(data, null, 2)}\n`;
 const activeApi = (game, id) => { const mod = game?.modules?.get?.(id); return {mod, api: mod?.active ? (mod.api ?? null) : null}; };
 const fn = (api, ...path) => { let at = api; for (const key of path) at = at?.[key]; return typeof at === 'function' ? at : null; };
 
-/** The files of a backup, in order. `build(game, now)` returns the data or throws `Skip(reason)`. */
+/**
+ * The files of a backup, in order. `ids` are the type ids a file serves. `build(game, now, found, picked)` returns
+ * {data, counts?} or throws `Skip(reason)`.
+ */
 class Skip extends Error {}
 const SOURCES = [
-  {id: 'manager', path: 'manager-edits.json', label: 'Edited records (General Manager)',
-    build: (game, now) => {
-      const scan = scanWorldEdits(game, {types: EDIT_TYPES, includeUnchanged: false, includeWorldOnly: true});
-      return buildEditsFile(game, scan, {now}).file;
+  {id: 'manager', ids: EDIT_TYPES, path: 'manager-edits.json', label: 'Edited records (General Manager)',
+    build: (game, now, found, picked) => {
+      const scan = scanWorldEdits(game, {types: picked, includeUnchanged: false, includeWorldOnly: true});
+      return {data: buildEditsFile(game, scan, {now}).file, counts: scan.counts};
     }},
-  {id: 'locations', path: 'locations.json', label: 'Locations', module: 'ashen-gate-locations',
+  {id: 'locations', ids: ['locations'], path: 'locations.json', label: 'Locations', module: 'ashen-gate-locations',
     build: (game, now, {api}) => {
       const exportPackage = fn(api, 'exportPackage');
       if (!exportPackage) throw new Skip('this version of Locations has no export');
-      return exportPackage.call(api);
+      return {data: exportPackage.call(api)};
     }},
-  {id: 'quests', path: 'quests.json', label: 'Quests, Orders and Contracts (Quest Log)', module: 'ashen-gate-quest-manager',
+  // Quest Log's Export JSON (ag-quest-source/0.1): every quest, order and contract, definitions only.
+  {id: 'quests', ids: ['quests'], path: 'quests.json', label: 'Quests, Orders and Contracts (Quest Log)', module: 'ashen-gate-quest-manager',
     build: (game, now, {api}) => {
-      const list = fn(api, 'listQuests'), source = fn(api, 'getGMSource'), state = fn(api, 'getGMState');
-      if (!list || !source || !state) throw new Skip('this version of Quest Log has no export');
-      const quests = list.call(api, {includeArchived: true}).map(q => ({id: q.id, name: q.name, kind: q.kind ?? null, definitionStatus: q.definitionStatus ?? null,
-        archived: q.archived === true, source: source.call(api, q.id), state: state.call(api, q.id)}));
-      return {schema: SCHEMA, kind: 'quests', quests};
+      const exportSource = fn(api, 'exportSource');
+      if (!exportSource) throw new Skip('this version of Quest Log has no source export; update Quest Log');
+      return {data: exportSource.call(api)};
     }},
-  {id: 'factions', path: 'factions.json', label: 'Factions and deities (Renown), definitions only',
+  // Renown's Export (ag-factions-source-export/0.4): faction and deity definitions, no standings.
+  {id: 'factions', ids: ['factions'], path: 'factions.json', label: 'Factions and deities (Renown), definitions only',
     module: 'ashen-gate-factions',
-    note: 'Renown has no export of standings, so standings are not included.',
+    note: 'Renown standings are not included.',
     build: (game, now, {api}) => {
-      const factions = fn(api, 'getFactions'), deities = fn(api, 'getDeities');
-      if (!factions) throw new Skip('this version of Renown has no export');
-      return {schema: SCHEMA, kind: 'factions', factions: factions.call(api), deities: deities ? deities.call(api) : []};
+      const exportDefinitions = fn(api, 'exportDefinitions');
+      if (!exportDefinitions) throw new Skip('this version of Renown has no definitions export; update Renown');
+      return {data: exportDefinitions.call(api)};
     }},
-  {id: 'shops', path: 'shops.json', label: 'Shops (Utilities)', module: 'ashen-gate-utilities',
+  {id: 'shops', ids: ['shops'], path: 'shops.json', label: 'Shops (Utilities)', module: 'ashen-gate-utilities',
     build: (game, now, {api}) => {
       const exportShops = fn(api, 'shops', 'exportShops');
       if (!exportShops) throw new Skip('this version of Utilities has no shop export');
-      return exportShops.call(api.shops);
+      return {data: exportShops.call(api.shops)};
     }}
 ];
+const labelOf = id => BACKUP_TYPES.find(t => t.id === id)?.label ?? id;
 
 /**
- * Gathers the files a backup would send. Read-only. GM only. Returns
- * {ok, files:[{path, label, bytes, text, note}], skipped:[{label, reason}], bytes} or {ok:false, message}.
+ * Gathers the files a backup would send for the ticked types (`selection`: type ids; every type when omitted). Read-only. GM only.
+ * A type that is not ticked is not read and not listed. Returns
+ * {ok, files:[{path, label, bytes, text, note, types}], skipped:[{label, reason}], types:[{id, label, path, available, reason?, bytes?, edited?, notFromPack?}], bytes}
+ * or {ok:false, message}.
  */
-export function collectBackup(game, {now = new Date()} = {}) {
-  if (!isGM(game?.user)) return denied({files: [], skipped: []});
-  const files = [], skipped = [];
+export function collectBackup(game, {now = new Date(), selection} = {}) {
+  if (!isGM(game?.user)) return denied({files: [], skipped: [], types: []});
+  const chosen = new Set(selection === undefined ? ALL_TYPE_IDS : cleanSelection(selection));
+  const files = [], skipped = [], types = [];
   for (const source of SOURCES) {
+    const picked = source.ids.filter(id => chosen.has(id));
+    if (!picked.length) continue;
+    const rows = reason => picked.map(id => ({id, label: labelOf(id), path: `${FOLDER}/${source.path}`, available: false, reason}));
     const found = source.module ? activeApi(game, source.module) : {api: null};
-    if (source.module && !found.mod) { skipped.push({label: source.label, reason: 'the module is not installed'}); continue; }
-    if (source.module && !found.mod.active) { skipped.push({label: source.label, reason: 'the module is not active in this world'}); continue; }
-    if (source.module && !found.api) { skipped.push({label: source.label, reason: 'this version of the module has no export'}); continue; }
+    if (source.module && !found.mod) { skipped.push({label: source.label, reason: 'the module is not installed'}); types.push(...rows('the module is not installed')); continue; }
+    if (source.module && !found.mod.active) { skipped.push({label: source.label, reason: 'the module is not active in this world'}); types.push(...rows('the module is not active in this world')); continue; }
+    if (source.module && !found.api) { skipped.push({label: source.label, reason: 'this version of the module has no export'}); types.push(...rows('this version of the module has no export')); continue; }
     try {
-      const data = source.build(game, now, found);
-      const text = pretty(data);
-      files.push({path: `${FOLDER}/${source.path}`, label: source.label, bytes: encoder.encode(text).length, text, ...(source.note ? {note: source.note} : {})});
+      const out = source.build(game, now, found, picked);
+      const text = pretty(out.data);
+      const bytes = encoder.encode(text).length, path = `${FOLDER}/${source.path}`;
+      files.push({path, label: source.label, bytes, text, types: picked, ...(source.note ? {note: source.note} : {})});
+      for (const id of picked) {
+        const c = out.counts?.[id];
+        types.push({id, label: labelOf(id), path, available: true, ...(c ? {edited: c.edited, notFromPack: c.worldOnly} : {bytes})});
+      }
     } catch (error) {
-      skipped.push({label: source.label, reason: error instanceof Skip ? error.message : 'it could not be read just now'});
+      const reason = error instanceof Skip ? error.message : 'it could not be read just now';
+      skipped.push({label: source.label, reason});
+      types.push(...rows(reason));
     }
   }
   const bytes = files.reduce((n, f) => n + f.bytes, 0);
-  if (!files.length) return {ok: false, files, skipped, bytes, message: 'There is nothing to back up: no module gave any data.'};
-  if (bytes > MAX_TOTAL_BYTES) return {ok: false, files, skipped, bytes, message: 'The backup is too large to send in one commit.'};
-  return {ok: true, files, skipped, bytes};
+  if (!files.length) return {ok: false, files, skipped, types, bytes, message: chosen.size ? 'There is nothing to back up: no ticked type gave any data.' : 'Tick at least one type to back up.'};
+  if (bytes > MAX_TOTAL_BYTES) return {ok: false, files, skipped, types, bytes, message: 'The backup is too large to send in one commit.'};
+  return {ok: true, files, skipped, types, bytes};
 }
 
 // ---------- GitHub requests ----------

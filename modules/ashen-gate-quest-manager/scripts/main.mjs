@@ -23,7 +23,7 @@ import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 import {createShowToPlayers,showQuestFlow,revealFlow,hideFlow,SHOW_SOCKET_TYPE} from './show-to-players.mjs';
 
-const VERSION='0.30.0';
+const VERSION='0.31.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -271,6 +271,7 @@ function rowContext(){
  return {actorName:safe(id=>game.actors.get(id)?.name),locationName:safe(id=>getLoc?.(id)?.name),locationRegion:safe(id=>getLoc?.(id)?.region),itemName:safe(id=>worldItemById(id)?.name)};
 }
 // 0.29.0: the GM-only bulk Archive / Restore / Delete API (bulk-api.mjs); the Quests tab calls the same store functions.
+function exportSource(){assertGM(game.user);return exportPackage(allPrivate().map(x=>x.source));}
 const bulkApi=createBulkApi({assertGM:()=>assertGM(game.user),entries:()=>stateForGM(),updateState,removeRecord,assignmentCount:id=>listAssignments({objectiveId:id}).length});
 function gmList(view){return listQuestsTab(stateForGM(),view,rowContext());}
 // 0.17.0 Toolbar (Filters (n) opens a second row), then the bulk row once quests are ticked, then list and editor (QL-05).
@@ -726,7 +727,7 @@ class QuestLogApplication extends Base {
    if(action==='remove-assignment'){if(!await confirmDanger(`This cannot be undone.`,{title:'Delete this assignment?',yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
    if(action==='delete'){const name=getPrivate(this.gmId)?.getFlag(MOD,'source')?.name||'this quest';if(!await confirmDanger(`This removes its published Quest Log view. Character-owned notes are kept.`,{title:`Delete ${name}?`,yes:'Delete quest'}))return;await removeRecord(this.gmId);this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='show-to-players'){assertGM(game.user);if(!this.gmId)return;await showQuestFlow(this.gmId,showFlowDeps(this));return;}
-   if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportPackage(allPrivate().map(x=>x.source)),null,2));}
+   if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportSource(),null,2));}
   }catch(err){notifyError(err);}
  }
 }
@@ -984,6 +985,8 @@ Hooks.once('ready',()=>{
   // 0.29.0, GM only (refused for players in bulk-api.mjs): bulk Archive / Restore / Delete. See the README.
   previewBulk:(action,ids)=>bulkApi.previewBulk(action,ids),archiveQuests:(ids,options)=>bulkApi.archiveQuests(ids,options),restoreQuests:(ids,options)=>bulkApi.restoreQuests(ids,options),deleteQuests:ids=>bulkApi.deleteQuests(ids),
   idsWithPrefix:(prefix,options)=>bulkApi.idsWithPrefix(prefix,options),countArchived:()=>bulkApi.countArchived(),
+  // 0.31.0, GM only: the package the Export JSON button downloads (`ag-quest-source/0.1`, every quest, order and contract, definitions only, no play state). One function serves the button and the API.
+  exportSource:()=>exportSource(),
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},

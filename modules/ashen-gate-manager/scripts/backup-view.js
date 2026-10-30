@@ -1,6 +1,6 @@
 /**
  * Back up world to GitHub (0.86.0): the HTML text of the GM Setup settings section, the Export-tab action section and the
- * confirmation dialog, so the Node suite can check what the GM is told. The token field never carries a value, and a saved
+ * confirmation dialog's fields (0.87.0: one tick box per type), so the Node suite can check what the GM is told. The token field never carries a value, and a saved
  * token is only ever shown masked.
  */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -46,7 +46,7 @@ export function exportView(state) {
   const m = state.message;
   return `<section class="ag-section" aria-label="Back up world to GitHub">
     <div class="ag-section__head"><h3 class="ag-section__title">Back up world to GitHub</h3></div>
-    <p class="agmanager-tiny">Sends your edited records and the data of Locations, Quest Log, Renown and Utilities, including play state (reveals, notes and standings), to the ${esc(state.target?.branch ?? '')} branch of a private repository. Nothing in your world changes. The repository, branch and token are set in GM Setup, World backup.</p>
+    <p class="agmanager-tiny">Sends the types you tick (edited Items, Journals, Actors, Roll Tables and Macros, Locations, Quests, Orders and Contracts, Factions and deities, and Shops) to the ${esc(state.target?.branch ?? '')} branch of a private repository, in the same files each module’s own Export writes. A type you leave unticked is not written and its earlier file stays on the branch. Your last choice is remembered on this device. Nothing in your world changes. The repository, branch and token are set in GM Setup, World backup.</p>
     <div class="ag-cluster">
       <button type="button" class="ag-btn" data-ag-action="backup-run" ${state.busy ? 'disabled' : ''}><i class="fa-brands fa-github" aria-hidden="true"></i> Back up world now…</button>
       ${state.lastLabel ? `<span class="agmanager-tiny">Last backed up on this device: ${esc(state.lastLabel)}</span>` : ''}</div>
@@ -54,13 +54,24 @@ export function exportView(state) {
   </section>`;
 }
 
-/** plan: collectBackup result; target: {repo, branch} */
-export function confirmHtml(plan, target) {
-  const files = plan.files ?? [], skipped = plan.skipped ?? [];
-  return `<div class="ag-dialog__body">
-    <p>This sends ${plural(files.length, 'file')} (${esc(formatBytes(plan.bytes ?? 0))}) to the <strong>${esc(target.branch)}</strong> branch of <strong>${esc(target.repo)}</strong>. The backup includes play state (reveals, notes and standings) and goes to a private repository branch. Nothing in your world changes.</p>
-    <ul>${files.map(f => `<li><code>${esc(f.path)}</code>, ${esc(formatBytes(f.bytes))}: ${esc(f.label)}${f.note ? ` <em>${esc(f.note)}</em>` : ''}</li>`).join('')}</ul>
-    ${skipped.length ? `<p>Left out:</p><ul>${skipped.map(s => `<li>${esc(s.label)}: ${esc(s.reason)}</li>`).join('')}</ul>` : ''}
-    <p>Before anything is written, GitHub is asked whether the repository is private. A public repository, or the default branch, is refused.</p>
-  </div>`;
+/** The words under the tick boxes. */
+export function confirmHint(plan, target) {
+  const gone = (plan.types ?? []).filter(t => !t.available);
+  return `This writes the ticked types to the ${target.branch} branch of ${target.repo}. A type you leave unticked is not written, and its earlier file on the branch stays as it is. Quest progress and Renown standings are not included, and nothing in your world changes. Before anything is written, GitHub is asked whether the repository is private. A public repository, or the default branch, is refused.${gone.length ? ` Not available now: ${gone.map(t => `${t.label} (${t.reason})`).join('; ')}.` : ''}`;
+}
+
+/** One line per tick box: what it is and what it will write. */
+export function typeLabel(t) {
+  const file = t.path.split('/').pop();
+  if (t.edited !== undefined) return `${t.label}: ${plural(t.edited, 'edited record')}, ${plural(t.notFromPack, 'record', 'records')} not from a pack (${file})`;
+  return `${t.label}: ${formatBytes(t.bytes ?? 0)} (${file})`;
+}
+
+/**
+ * The fields of the "Back up world to GitHub" confirmation (a form dialog: Cancel on the left, Back up on the right).
+ * plan: collectBackup result for every type; target: {repo, branch}; selection: ticked type ids (the remembered choice).
+ */
+export function confirmFields(plan, target, selection = []) {
+  const options = (plan.types ?? []).filter(t => t.available).map(t => ({value: t.id, label: typeLabel(t), checked: selection.includes(t.id)}));
+  return [{name: 'types', label: 'What to back up', type: 'checklist', options, hint: confirmHint(plan, target)}];
 }

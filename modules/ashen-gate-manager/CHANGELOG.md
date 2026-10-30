@@ -1,10 +1,20 @@
-## 0.87.0 — 2026-10-30
+## 0.88.0 — 2026-10-30
 
 New: Manager knows the `travel` modifier scope. Owner: Ashen Gate | Locations (0.37.0+).
 
 - An `ITEM-*` or `PERK-*` record may carry a `modifiers` block with scope `travel` (targets `travel.actions`, `travel.efficiency`, `scout.precision`, `explore.range`, `condition.mitigation`; ranges and rules in `docs/modifiers-schema.md`). Manager checks the shared shape as before, then asks Locations' `api.modifiers.validate` to check each entry's target, range and `applies`, in the Import preview and again just before Apply.
 - If Locations is inactive, or an older version that does not check modifiers, the import shows the existing "not checked" warning and still imports. Importing never applies a modifier; Locations reads the imported definition at play time.
 - Scope `cinder` is unchanged. No stored data changes; no migration. Tests are mocked Foundry; the live Import window has not been seen.
+
+## 0.87.0 — 2026-10-30
+
+Back up world to GitHub: choose which types to back up, and Quests and Factions are now written in the modules' own export formats. GM only; nothing in your world is changed by a backup.
+
+- **Choose the types.** The *Back up world now…* confirmation has one tick box per type: Edited Items, Edited Journals, Edited Actors, Edited Roll Tables, Edited Macros (together `manager-edits.json`, using the edits bundle's own record-type choice), Locations, Quests, Orders and Contracts, Factions and deities, and Shops. All are ticked the first time; your last choice is remembered on this device (a client setting) and is saved when you press **Back up**, not when you cancel. Back up is on the right, Cancel on the left; nothing ticked is refused before anything is sent.
+- **Unticked means untouched.** A type left unticked is not read, not written and not removed from the branch: the commit is built on top of the branch's tree and only replaces the files that were written, so the previous file stays.
+- **`quests.json` is Quest Log's Export JSON** (`schema_version` `ag-quest-source/0.1`) and **`factions.json` is Renown's Export** (`schema_version` `ag-factions-source-export/0.4`), read through the new Quest Log `api.exportSource()` and Renown `api.exportDefinitions()`. The custom `ag-world-backup/0.1` wrapper is gone, and Quest progress and Renown standings are no longer part of the backup. `manager-edits.json` stays `ag-world-edits/0.1`; Locations and Shops are unchanged. A Quest Log or Renown too old to have those methods is skipped, and the dialog says to update it.
+- Every 0.86.0 safety rule is unchanged: a public repository and the default branch (and main or master) are refused before any write, the GM check is in the data layer, and the token is never put in a message.
+- Help updated for the per-type choice. Needs Quest Log 0.31.0 and Renown 0.26.0 for their types.
 
 ## 0.86.0 — 2026-10-30
 
