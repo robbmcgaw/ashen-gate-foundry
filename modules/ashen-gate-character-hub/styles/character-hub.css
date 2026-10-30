@@ -1119,10 +1119,8 @@
 /* 0.64.0: the player-portrait button in General Manager's player dock (scripts/dock-portrait.mjs). Manager owns the dock and its
    slot; these rules only shape what the Hub puts inside. Kit tokens, with fallbacks for when the kit is not on the page. */
 .agch-dock-portrait { display: inline-flex; align-items: center; gap: var(--ag-space-2, .5rem); }
-.agch-dock-portrait .agch-dock-portrait__btn { flex: none; width: 2.5rem; height: 2.5rem; min-height: 0; padding: 0; border-radius: 50%; overflow: hidden; line-height: 0; cursor: pointer; }
+.agch-dock-portrait .agch-dock-portrait__btn { flex: none; width: 2.5rem; height: 2.5rem; min-height: 0; padding: 0; border-radius: 50%; overflow: hidden; line-height: 0; cursor: pointer; touch-action: manipulation; }
 .agch-dock-portrait .agch-dock-portrait__img { display: block; width: 100%; height: 100%; object-fit: cover; border: 0; pointer-events: none; }
-.agch-dock-portrait .agch-dock-portrait__open { flex: none; width: auto; min-height: 0; padding: var(--ag-space-1, .25rem) var(--ag-space-2, .5rem); font-size: var(--ag-text-sm, .8rem); white-space: nowrap; }
-.agch-dock-portrait .agch-dock-portrait__btn:focus-visible,
-.agch-dock-portrait .agch-dock-portrait__open:focus-visible { outline: .125rem solid var(--ag-focus, var(--ag-accent, currentColor)); outline-offset: .125rem; }
+.agch-dock-portrait .agch-dock-portrait__btn:focus-visible { outline: .125rem solid var(--ag-focus, var(--ag-accent, currentColor)); outline-offset: .125rem; }
 .agch-dock-portrait .agch-dock-portrait__btn { transition: border-color var(--ag-dur-fast, .12s) var(--ag-ease, ease), box-shadow var(--ag-dur-fast, .12s) var(--ag-ease, ease); }
 @media (prefers-reduced-motion: reduce) { .agch-dock-portrait .agch-dock-portrait__btn { transition: none; } }

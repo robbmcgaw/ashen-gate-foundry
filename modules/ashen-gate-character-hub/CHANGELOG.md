@@ -1,3 +1,11 @@
+## 0.66.0 — 2026-10-30
+
+The dock portrait is just the picture.
+
+- The small **Open Hub** text button beside your character's picture in General Manager's player dock is gone. **Double-click** the round picture to open the Hub; **Tab** to it and press **Enter** or **Space** to open it from the keyboard. A single click still does nothing. The tooltip reads "Open <name> (double-click)".
+- On a touch screen, double-tap the picture (it relies on the browser sending a double-click for a double-tap; there is no long-press and no text button).
+- Display only: nothing stored changes, no migration. Tests are mocked Foundry; they do not open the real Hub or the real dock.
+
 ## 0.65.0 — 2026-10-30
 
 Ashen Gate → Locations shows where the party is.

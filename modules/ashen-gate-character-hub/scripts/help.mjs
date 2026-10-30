@@ -69,7 +69,7 @@ export const HELP_SECTIONS = [
     'To switch back for good: the window\'s sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet. If you only observe a character, you can look but not change or roll.'
   ]],
   ['Dock portrait', [
-    'With General Manager\'s player dock on, your character\'s picture sits at its left. <strong>Double-click</strong> it to open your Character Hub. With the keyboard, Tab to the picture and press <strong>Enter</strong> or <strong>Space</strong>; on a touch screen use the small <strong>Open Hub</strong> button beside it. One click does nothing. It shows your assigned character, else the first character you own, else the token you have selected; with none, there is no button.'
+    'With General Manager\'s player dock on, your character\'s picture sits at its left. <strong>Double-click</strong> it to open your Character Hub. With the keyboard, Tab to the picture and press <strong>Enter</strong> or <strong>Space</strong>; on a touch screen double-tap it. The picture is the only control (there is no text button), and one click does nothing. It shows your assigned character, else the first character you own, else the token you have selected; with none, there is no button.'
   ]],
   ['For the GM', [
     '<strong>GM Setup → Player visibility</strong> chooses which parts players see. Parts that are off, or whose module is inactive or has Player Access off, disappear for players; you still see them with a <em>Hidden from players</em> badge saying why. Players can\'t use a hidden part\'s Hub actions either. <strong>Quick set</strong> asks before it changes every switch.',
