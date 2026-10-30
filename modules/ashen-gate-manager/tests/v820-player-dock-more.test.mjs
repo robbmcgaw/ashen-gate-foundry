@@ -242,21 +242,20 @@ test('auto-collapse: any activity resets the timer',()=>{
 });
 test('auto-collapse: paused while the pointer is over it; counts again after it leaves',()=>{
   const e=idleEnv();e.idle.arm();e.sidebar.dispatch('pointerenter');
-  e.ck.advance(60000);assert.deepEqual(e.calls,[]);assert.equal(e.idle.pending,false);
+  e.ck.advance(60000);assert.deepEqual(e.calls,[],'0.85.1: still counting, but the check at the end finds the pointer over it');assert.equal(e.doc.body.getAttribute('data-agm-idle-busy'),'pointer');
   e.sidebar.dispatch('pointerleave');e.ck.advance(7999);assert.deepEqual(e.calls,[]);e.ck.advance(1);assert.equal(e.calls[0][0],'collapse');
 });
 test('auto-collapse: never while text is typed, the cursor is in a field, or a dialog / menu is open',()=>{
   const e=idleEnv();e.idle.arm();e.field.value='half a message';
   e.ck.advance(80000);assert.deepEqual(e.calls,[],'text in the chat box');assert.equal(hasTypedText(e.sidebar),true);
-  e.field.value='  ';e.doc.activeElement=e.field;e.ck.advance(80000);assert.deepEqual(e.calls,[],'focus in the empty chat box');
-  e.doc.activeElement=null;
+  e.field.value='  ';e.doc.activeElement=e.field;
   const dialog=add(e.doc,'dialog',{open:''});e.ck.advance(80000);assert.deepEqual(e.calls,[],'dialog open');dialog.remove();
-  const menu=add(e.doc,'div',{class:'context-menu'});e.ck.advance(80000);assert.deepEqual(e.calls,[],'context menu open');menu.remove();
+  const menu=add(e.doc,'div',{class:'context-menu'});add(e.doc,'div',{class:'context-item'},menu);e.ck.advance(80000);assert.deepEqual(e.calls,[],'context menu open');menu.remove();
   let dockMenu=true;const e2=idleEnv();
   const idle2=createSidebarIdleCollapse({game:{user:{isGM:false}},doc:e2.doc,getUi:()=>e2.ui,appearance:e2.ap,collapse:()=>{e2.calls.push(['collapse']);return true;},isDockMenuOpen:()=>dockMenu,setTimer:e2.ck.setTimer,clearTimer:e2.ck.clearTimer});
   idle2.arm();e2.ck.advance(30000);assert.deepEqual(e2.calls,[],'dock menu open');dockMenu=false;e2.ck.advance(8000);assert.equal(e2.calls[0][0],'collapse','collapses once it is closed');
-  // after the blockers go, the original collapses on its next wait
-  e.ck.advance(8000);assert.equal(e.calls[0][0],'collapse');
+  // after the blockers go, the original collapses on its next wait, although the empty chat box still has focus (0.85.1)
+  e.ck.advance(8000);assert.equal(e.calls[0][0],'collapse');assert.equal(e.doc.activeElement,e.field,'nothing is blurred');
 });
 test('auto-collapse: a focused button does not hold the sidebar open',()=>{
   const e=idleEnv();const button=add(e.doc,'button',{},e.sidebar);e.doc.activeElement=button;e.idle.arm();e.ck.advance(8000);assert.equal(e.calls[0][0],'collapse');
@@ -282,13 +281,13 @@ test('auto-collapse: installs on the render hook and setting changes; dispose cl
 });
 
 // ---------- wiring
-test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, version 0.83.0, no status labels',()=>{
+test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, version, no status labels',()=>{
   const tpl=read('../templates/manager.hbs'),main=read('../scripts/main.js'),man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
   assert.match(tpl,/aria-label="Scene controls and navigation"[\s\S]*data-ag-setup-screen="dockSceneControls"[\s\S]*data-ag-setup-screen="hidePlayersList"[\s\S]*data-ag-setup-autocollapse/);
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.85.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.equal(man.version,'0.85.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);
