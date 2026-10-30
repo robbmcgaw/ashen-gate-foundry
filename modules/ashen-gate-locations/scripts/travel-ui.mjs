@@ -9,10 +9,11 @@
  */
 import {MODULE_ID} from './model.mjs';
 import {choiceDialog, esc} from './ag-dialogs.mjs';
-import {travelLabel} from './travel.mjs';
+import {travelLabel, TRAVEL_UNAVAILABLE} from './travel.mjs';
 
 const apiOf = () => globalThis.game?.modules?.get?.(MODULE_ID)?.api;
 const warn = text => globalThis.ui?.notifications?.warn?.(text);
+const info = text => globalThis.ui?.notifications?.info?.(text);
 
 /** Asks which of several scenes. Resolves a scene uuid, or null on Cancel. Names are the ones this user may already see. */
 export async function chooseScene(scenes) {
@@ -22,19 +23,29 @@ export async function chooseScene(scenes) {
   return scenes.some(s => s.uuid === picked) ? picked : null;
 }
 
-/** The one Travel flow: no choice -> says so; one -> goes; several -> asks first. Resolves the API result ({ok, ...}) or {ok: false, reason}. */
-export async function travel(ref, {api = apiOf(), choose = chooseScene, notify = warn} = {}) {
-  let scenes = [];
-  try { scenes = api?.travelScenes?.(ref) ?? []; } catch { scenes = []; }
-  if (!scenes.length) { const r = await api?.travelToLocation?.(ref) ?? {ok: false, reason: "Travel isn't available for that location."}; notify(r.reason); return r; }
-  let sceneUuid = scenes[0].uuid;
-  if (scenes.length > 1) {
-    sceneUuid = await choose(scenes);
-    if (!sceneUuid) return {ok: false, reason: 'cancelled'};
+/**
+ * The one Travel flow: no choice -> says so; one -> goes; several -> asks first. Resolves the API result ({ok, ...}) or {ok: false, reason}.
+ * Never silent (0.36.0): a refusal or a failure is shown as a warning with a short reason, and "already there" as a note.
+ */
+export async function travel(ref, {api = apiOf(), choose = chooseScene, notify = warn, inform = info} = {}) {
+  const fail = reason => { notify(reason || TRAVEL_UNAVAILABLE); return {ok: false, reason: reason || TRAVEL_UNAVAILABLE}; };
+  try {
+    let scenes = [];
+    try { scenes = api?.travelScenes?.(ref) ?? []; } catch { scenes = []; }
+    if (!scenes.length) { const r = await api?.travelToLocation?.(ref) ?? {ok: false, reason: TRAVEL_UNAVAILABLE}; if (!r.ok) notify(r.reason || TRAVEL_UNAVAILABLE); return r; }
+    let sceneUuid = scenes[0].uuid;
+    if (scenes.length > 1) {
+      sceneUuid = await choose(scenes);
+      if (!sceneUuid) return {ok: false, reason: 'cancelled'};
+    }
+    const r = await api.travelToLocation(ref, {sceneUuid});
+    if (!r?.ok) return fail(r?.reason);
+    if (r.already) inform("You're already viewing that scene.");
+    return r;
+  } catch (err) {
+    console.warn(`${MODULE_ID} | Travel failed`, err);
+    return fail('That scene could not be opened right now.');
   }
-  const r = await api.travelToLocation(ref, {sceneUuid});
-  if (!r.ok) notify(r.reason);
-  return r;
 }
 
 /** Number of scenes `ref` offers this user (0 hides every Travel control). */

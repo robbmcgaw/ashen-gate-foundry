@@ -1113,6 +1113,8 @@
 .agch-app .agch-rowmenu__item.is-danger { color: var(--ag-danger-ink, var(--ag-danger, inherit)); }
 .agch-app .agch-rowmenu__item[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .agch-app .agch-rowmenu__why { margin: 0; padding: var(--ag-space-1) var(--ag-space-2); font-size: var(--ag-text-sm); overflow-wrap: break-word; }
+.agch-app .agch-loc__here { display: inline-flex; align-items: center; flex: none; padding: 0 var(--ag-space-1); color: var(--ag-accent, currentColor); }
+.agch-app .agch-loc__here[hidden] { display: none; }
 
 /* 0.64.0: the player-portrait button in General Manager's player dock (scripts/dock-portrait.mjs). Manager owns the dock and its
    slot; these rules only shape what the Hub puts inside. Kit tokens, with fallbacks for when the kit is not on the page. */

@@ -200,11 +200,11 @@ function domainChecks(pkg, knownIds = new Set()) {
         if (node.exotics !== undefined && JSON.stringify(locationExotics(node.exotics)) !== JSON.stringify(node.exotics))
           errors.push(`${loc.id}: resources[${i}].exotics normalised differently: ${JSON.stringify(locationExotics(node.exotics))}.`);
       }
-      // Locations 0.32.0: GM-only Beasts (creature Actor links). An entry needs an Actor link or a permanent NPC-* id, or Locations drops it.
+      // Locations 0.32.0: GM-only Beasts (creature Actor links). An entry needs an Actor link or a permanent NPC-* or CRE-* id, or Locations drops it.
       for (const [i, b] of (Array.isArray(src.beasts) ? src.beasts : []).entries()) {
         const kept = loc.beasts.find(x => x.key === String(b?.key ?? b?.id ?? ''));
-        if (!(b && typeof b === 'object') || (!kept && !loc.beasts[i])) errors.push(`${loc.id}: beasts[${i}] dropped (needs a uuid or a sourceId like NPC-*).`);
-        else if (b.sourceId !== undefined && b.sourceId !== '' && (kept ?? loc.beasts[i]).sourceId !== b.sourceId) errors.push(`${loc.id}: beasts[${i}].sourceId ${JSON.stringify(b.sourceId)} is not an NPC-* id.`);
+        if (!(b && typeof b === 'object') || (!kept && !loc.beasts[i])) errors.push(`${loc.id}: beasts[${i}] dropped (needs a uuid or a sourceId like NPC-* or CRE-*).`);
+        else if (b.sourceId !== undefined && b.sourceId !== '' && (kept ?? loc.beasts[i]).sourceId !== b.sourceId) errors.push(`${loc.id}: beasts[${i}].sourceId ${JSON.stringify(b.sourceId)} is not an NPC-* or CRE-* id.`);
       }
       for (const k of ['threat', 'state', 'parentLocationId', 'placeable', 'passConditions'])
         if (src[k] !== undefined && src[k] !== loc[k]) errors.push(`${loc.id}: location.${k} ${JSON.stringify(src[k])} was changed to ${JSON.stringify(loc[k])}.`);

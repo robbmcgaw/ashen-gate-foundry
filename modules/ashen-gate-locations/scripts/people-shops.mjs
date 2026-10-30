@@ -8,7 +8,7 @@
  *
  * Shops: Ashen Gate | Utilities owns shops and who they are shown to. Locations only asks its API, and works without it.
  */
-import {NPC_ID, LOCATION_ID} from './model.mjs';
+import {NPC_ID, BEAST_ID, LOCATION_ID} from './model.mjs';
 
 export const MANAGER_MODULE = 'ashen-gate-manager';
 export const UTILITIES_MODULE = 'ashen-gate-utilities';
@@ -52,11 +52,11 @@ export function placesOfSource(source) {
  * What the matcher needs from a world Actor (or a Journal), read defensively. Works on a live document or a plain object.
  * `lifecycle.archived` is General Manager's archive flag; a player's character or a Hub level-up backup is never a person here.
  */
-export function actorFacts(doc) {
+export function actorFacts(doc, {ids = NPC_ID} = {}) {
   const flags = doc?.flags ?? {};
   const read = (scope, key) => { try { return doc?.getFlag?.(scope, key) ?? flags?.[scope]?.[key]; } catch { return flags?.[scope]?.[key]; } };
   const source = read(MANAGER_MODULE, 'source');
-  const sourceId = typeof source?.sourceId === 'string' && NPC_ID.test(source.sourceId) ? source.sourceId : '';
+  const sourceId = typeof source?.sourceId === 'string' && ids.test(source.sourceId) ? source.sourceId : '';
   const lifecycle = read(MANAGER_MODULE, 'lifecycle');
   const type = doc?.documentName ?? doc?.docType ?? 'Actor';
   const levelBackup = !!flags?.['ashen-gate-character-hub']?.levelBackup;

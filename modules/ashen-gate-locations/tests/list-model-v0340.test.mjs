@@ -16,8 +16,8 @@ const opened = [];
 function boot({access = true} = {}) {
   const game = installFoundry();
   opened.length = 0;
-  const mod = {version: '0.35.0', active: true};
-  mod.api = createApi({version: '0.35.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
+  const mod = {version: '0.36.0', active: true};
+  mod.api = createApi({version: '0.36.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: ref => opened.push(ref), listContext: () => ({templates: [], questName: id => id, materialName: id => id})});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   return {game, api: mod.api};
@@ -135,7 +135,7 @@ test('player model never leaks: no hidden place, no GM text, unidentified by its
   assert.ok(dark, 'the unidentified place is listed by its generic label');
   assert.equal(dark.state, 'unidentified');
   assert.ok(!dark.ref.startsWith('LOC-'), 'its ref is the pin key, never a LOC id');
-  for (const r of all) assert.deepEqual(Object.keys(r).filter(k => !['ref', 'name', 'state', 'active', 'isRegion', 'restricted', 'match', 'children', 'type'].includes(k)), [], 'only list fields');
+  for (const r of all) assert.deepEqual(Object.keys(r).filter(k => !['ref', 'name', 'state', 'active', 'isRegion', 'restricted', 'match', 'children', 'type', 'hereNow', 'containsHere'].includes(k)), [], 'only list fields');
 });
 
 test('a player cannot read the model while Player Access is off; a GM can; an archived place is not listed', async () => {

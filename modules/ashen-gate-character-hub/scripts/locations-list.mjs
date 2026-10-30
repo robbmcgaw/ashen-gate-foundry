@@ -29,6 +29,10 @@ export const modelOptions = (ui, user) => ({query: ui.query, filters: ui.filters
 
 const foldKey = id => sectionKey('loc', id);
 
+/** 0.65.0: "Your party is here" pin (Locations 0.36.0 flags). Shape + text, not colour; hidden unless it is meant to show. */
+const HERE = 'Your party is here';
+const herePin = hidden => `<span class="agch-loc__here" role="img" aria-label="${HERE}" data-tooltip="${HERE}" data-here-pin${hidden ? ' hidden' : ''}><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span>`;
+
 function rowHtml(r) {
   const kids = r.children?.length ? `<ul class="agch-loc__rows">${r.children.map(rowHtml).join('')}</ul>` : '';
   return `<li class="agch-loc__row${r.match === false ? ' agch-loc__row--path' : ''}">${linkButton(r.name, {data: {action: 'partner-open', partner: LOCATIONS_ID, ref: r.ref, agAlways: true}})}`
@@ -39,10 +43,13 @@ function rowHtml(r) {
 /** One folder: a header button that folds it, the places directly inside, then the folders inside it. While a search or filter is on, folders show open. */
 function sectionHtml(s, filtering) {
   const key = foldKey(s.id), folded = !filtering && isCollapsed(key);
+  // The pin shows on a folder that is itself the active place, or while it is folded around the active place (open folders show the place's own "Here now").
+  const pin = s.hereNow ? herePin(false) : s.containsHere ? herePin(!folded) : '';
+  const pinAttr = s.hereNow ? ' data-here-always' : '';
   const open = s.ref ? btn('partner-open', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-up-right-from-square', data: {partner: LOCATIONS_ID, ref: s.ref}, title: `Open ${s.label}`, always: true, aria: `Open ${s.label}`}) : '';
   return `<li class="agch-loc__group">
     <h4 class="agch-loc__head"><button type="button" class="agch-loc__toggle" data-action="loc-fold" data-key="${esc(key)}" data-ag-always aria-expanded="${!folded}">`
-    + `<i class="fa-solid fa-chevron-down agch-sec__chev" aria-hidden="true"></i><span class="agch-loc__name">${esc(s.label)}</span><span class="ag-badge agch-loc__count">${s.count}<span class="ag-sr-only"> places</span></span></button>${open}</h4>
+    + `<i class="fa-solid fa-chevron-down agch-sec__chev" aria-hidden="true"></i><span class="agch-loc__name">${esc(s.label)}</span><span class="ag-badge agch-loc__count">${s.count}<span class="ag-sr-only"> places</span></span></button>${pin.replace('data-here-pin', `data-here-pin${pinAttr}`)}${open}</h4>
     <div class="agch-loc__body" data-sec-body="${esc(key)}"${folded ? ' hidden' : ''}>${s.rows.length ? `<ul class="agch-loc__rows">${s.rows.map(rowHtml).join('')}</ul>` : ''}`
     + `${s.sections.length ? `<ul class="agch-loc__groups">${s.sections.map(c => sectionHtml(c, filtering)).join('')}</ul>` : ''}</div></li>`;
 }
@@ -111,5 +118,7 @@ export function foldFolder(sheet, target, root = sheet.element ?? target.closest
   const key = target.dataset.key, folded = target.getAttribute('aria-expanded') !== 'false';
   target.setAttribute('aria-expanded', String(!folded));
   for (const el of root?.querySelectorAll?.(`[data-sec-body="${key}"]`) ?? []) el.hidden = folded;
+  const pin = target.closest?.('h4')?.querySelector?.('[data-here-pin]:not([data-here-always])');
+  if (pin) pin.hidden = !folded;
   return locUi(sheet).filtering ? {ok: true} : setCollapsed(key, folded);
 }

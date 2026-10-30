@@ -151,7 +151,14 @@ export function createApi(deps) {
       if (sceneUuid === undefined && options.length > 1) return {ok: false, reason: 'Choose which scene to travel to.'};
       const pick = sceneUuid === undefined ? options[0] : options.find(o => o.uuid === sceneUuid);
       if (!pick) return {ok: false, reason: TRAVEL_UNAVAILABLE};
-      try { await pick.scene.view(); } catch (err) { return {ok: false, reason: err?.message || 'The scene could not be opened.'}; }
+      // 0.36.0: never a silent no-op. Foundry's Scene#view() returns without switching while the canvas is still loading, and does nothing visible when
+      // the scene is already the one on screen, so both are answered here; after the call the canvas must really show the scene (when there is a canvas).
+      const before = deps.sceneState?.() ?? null;
+      if (before?.loading) return {ok: false, reason: 'Wait for the current scene to finish loading, then try again.'};
+      if (before?.viewingId && before.viewingId === pick.scene.id) return {ok: true, sceneUuid: pick.uuid, already: true};
+      try { await pick.scene.view(); } catch (err) { console.warn('ashen-gate-locations | Travel could not view the scene', err); return {ok: false, reason: err?.message || 'That scene could not be opened right now.'}; }
+      const after = deps.sceneState?.() ?? null;
+      if (before?.ready && after && after.viewingId !== pick.scene.id) return {ok: false, reason: 'That scene could not be opened right now.'};
       return {ok: true, sceneUuid: pick.uuid};
     },
     /**

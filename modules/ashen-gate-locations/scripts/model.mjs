@@ -122,6 +122,8 @@ export const FACTION_DOC_TYPES = Object.freeze(['Actor', 'JournalEntry']);
 export const NPC_DOC_TYPES = FACTION_DOC_TYPES;
 /** 0.30.0: a General Manager NPC record id; the permanent id a People link keeps beside the world-local uuid. */
 export const NPC_ID = /^NPC-[A-Z0-9]+(?:-[A-Z0-9_]+)*$/;
+/** 0.36.0: a Beasts link may keep an NPC-* id or a permanent creature id (CRE-*). People stay NPC-* only. */
+export const BEAST_ID = /^(?:NPC|CRE)-[A-Z0-9]+(?:-[A-Z0-9_]+)*$/;
 
 export const clone = value => structuredClone(value);
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -191,6 +193,8 @@ const ENTRY_SHAPES = {
   // 0.30.0: a person here. `label` and `note` are what players read (the GM's words, never read from the Actor); `uuid` is the world-local binding and
   // `sourceId` the permanent NPC-* id, so the link can find the Actor again when it is re-imported. Players are never sent the sourceId.
   npcs: e => ({label: line(e.label), ...linked(e), sourceId: NPC_ID.test(e.sourceId ?? '') ? e.sourceId : '', note: line(e.note, 200)}),
+  // 0.36.0: Beasts only: the permanent id may also be a CRE-* creature id. GM only; never published.
+  beasts: e => ({...ENTRY_SHAPES.npcs(e), sourceId: BEAST_ID.test(e.sourceId ?? '') ? e.sourceId : ''}),
   quests: e => ({questId: QUEST_ID.test(e.questId ?? '') ? e.questId : ''}),
   related: e => ({locationId: LOCATION_ID.test(e.locationId ?? '') ? e.locationId : ''}),
   // A loot entry is a plain-text reward (no uuid) or a link to a native Item. `label`, `text` and `img` are what
@@ -201,7 +205,7 @@ const ENTRY_SHAPES = {
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };
 /** 0.32.0: creatures that may roam here. Same entry shape as `npcs`, but GM only: `visible` defaults to false and has no effect (nothing here is ever published). */
-export const normalizeBeasts = list => (Array.isArray(list) ? list : []).map(e => entry(e, ENTRY_SHAPES.npcs, false)).filter(KEEP_ENTRY.beasts)
+export const normalizeBeasts = list => (Array.isArray(list) ? list : []).map(e => entry(e, ENTRY_SHAPES.beasts, false)).filter(KEEP_ENTRY.beasts)
   .filter((e, i, all) => all.findIndex(x => x.key === e.key) === i).slice(0, MAX_LIST);
 const DETAIL_SHAPE = e => ({title: line(e.title), text: text(e.text), ...linked(e)});
 /**

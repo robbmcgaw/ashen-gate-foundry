@@ -1,3 +1,14 @@
+## 0.36.0 — 2026-10-30
+
+New: a pin in the Locations list shows where the party is. Fixed: Travel did nothing for players. Fixed: Beasts with `CRE-*` ids were dropped on import.
+
+- **Your party is here.** A pin icon (tooltip and screen-reader text "Your party is here") now sits in a folder's header right after the count, before the arrow, when the place the GM marked Active is inside that folder. It is drawn on the nearest folder you can actually see: if the folder is folded it is on that folder, if an outer folder is folded it moves up to the outer one; a non-Region place with places nested under it shows it on its row when that row is closed. A place that is showing keeps its **Here now** badge. Players get it only for a place they can already see (a hidden place never shows a marker; an unidentified one is the generic row). The GM's Group by Region list has it too.
+- **For partners (additive; `LIST_CONTRACT` unchanged):** `api.listModel` rows and folders carry `hereNow` and `containsHere` booleans so Character Hub's list can draw the same pin.
+- **Travel works for players.** The Travel button under the name was wired inside the window's GM-only action handler, so a player's click was swallowed with no message. It now runs for everyone; the API still decides who may go where.
+- **Travel never fails silently.** A refusal or failure shows a short warning ("That scene isn't available to you right now." / "That scene could not be opened right now." / "Wait for the current scene to finish loading, then try again."), and clicking Travel for the scene you are already viewing says so. After the switch, Travel checks the canvas really shows the scene. A scene Foundry's uuid lookup misses is found through the Scenes collection.
+- **Fix: Beasts import.** A Beasts entry whose `sourceId` is a permanent creature id (`CRE-*`) is kept (as is `NPC-*`) instead of being dropped, so GM Beasts lists no longer come out empty. The unlinked-Actor picker matches Beasts by `CRE-*`/`NPC-*` too. Beasts stay GM only (never in a player view); People stay `NPC-*` only; any other id is still dropped. The content validator says "NPC-* or CRE-*".
+- Nothing stored changes; no migration. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.35.0 — 2026-10-29
 
 Change: the **Travel** button sits directly under the location's name.

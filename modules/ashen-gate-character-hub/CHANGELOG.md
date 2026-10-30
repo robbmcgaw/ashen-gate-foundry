@@ -1,3 +1,11 @@
+## 0.65.0 — 2026-10-30
+
+Ashen Gate → Locations shows where the party is.
+
+- **A pin on the folder.** When the place the GM marked Active is inside a folder that is folded, that folder's header shows a location pin after its number ("Your party is here", also read aloud). Fold it open and the pin goes (the place itself has its **Here now** badge). A folder that is itself the active place always shows it.
+- It draws the flags Locations 0.36.0 adds to `api.listModel` (`hereNow`, `containsHere`); players only ever get them for places they can see. With an older Locations there is simply no pin. Needs Locations 0.36.0 for the pin; install it with this version.
+- Display only: nothing stored changes, no migration. Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.64.0 — 2026-10-30
 
 A portrait button for your character in General Manager's player dock.
