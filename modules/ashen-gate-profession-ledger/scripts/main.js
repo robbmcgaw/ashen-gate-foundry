@@ -22,7 +22,7 @@ import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLe
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
 import {spotRange,compareSpots,spotLabel,groupByTier,tierHeading} from './spot-order.mjs';
 import {DEFAULT_PREFS,cleanPrefs,describeRecipe,buildCatalogModel,plainModel,filterRowHtml,filtersChipHtml,emptyHtml,groupFoldersHtml} from './catalog-list.mjs';
-import {buildTree,treeHtml,treeKeys,applyTreeSearch,toggleTierGroup,setAllTree} from './catalog-tree.mjs';
+import {buildTree,treeHtml,treeKeys,applyTreeSearch,toggleTierGroup,setAllTree,compareText} from './catalog-tree.mjs';
 import {starterCheck,starterCheckText,planRecipeRefresh,missingRecipeCount,RECIPE_GROUPS} from './recipe-refresh.mjs';
 import {qualifications,PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
@@ -37,7 +37,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.40.0';
+const VERSION='0.41.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -322,6 +322,19 @@ function myCharacters(){
   if(assigned?.type==='character'&&!isLevelBackup(assigned)&&owned(assigned)&&!mine.some(a=>a.id===assigned.id))mine.push(assigned);
   return mine;
 }
+/* ---- 0.41.0: render-pass memo ---------------------------------------------------------------------------------------
+ * A window render is one synchronous pass; nothing in the world can change inside it. The same facts were being worked out again for every
+ * recipe row (a profession's name, a result Item, a Material's name, whether an Item can be opened, the check mapping), which made opening the
+ * Recipe Catalog freeze the browser. Inside `inRenderPass` the first answer is kept for the rest of the pass; outside it nothing is kept, so
+ * a call from a click handler or a hook always reads the world as it is now. */
+let renderPass=null;
+function inRenderPass(fn){if(renderPass)return fn();renderPass=new Map();try{return fn();}finally{renderPass=null;}}
+function passMemo(ns,key,make){
+  if(!renderPass)return make();
+  let m=renderPass.get(ns);if(!m)renderPass.set(ns,m=new Map());
+  if(m.has(key))return m.get(key);
+  const v=make();m.set(key,v);return v;
+}
 /** Known and found recipes for the given party. Never mutates Actors. */
 function partyRecipes(actors){
   const known=new Map(),found=new Map(),unreleased=[];
@@ -341,8 +354,16 @@ function partyRecipeDefinition(id,lib){
   const doc=full.document;
   return normalizeRecipe({...doc.toObject(),uuid:doc.uuid,id,status:'approved',sourceDefinition:full.definition});
 }
-function ingredientName(ing,lib){
-  const mat=lib.materials.find(m=>m.id===ing.materialId);if(mat?.name)return mat.name;
+const materialIndexes=new WeakMap();
+/** Materials by id, built once per catalog snapshot (the first one wins, as `find` did). */
+function materialIndex(lib){
+  let index=materialIndexes.get(lib);
+  if(!index){index=new Map();for(const m of lib.materials)if(!index.has(m.id))index.set(m.id,m);materialIndexes.set(lib,index);}
+  return index;
+}
+function ingredientName(ing,lib){return passMemo('ingredient',`${ing.materialId??''}|${ing.name??''}`,()=>ingredientNameOf(ing,lib));}
+function ingredientNameOf(ing,lib){
+  const mat=materialIndex(lib).get(ing.materialId);if(mat?.name)return mat.name;
   if(ing.name&&ing.name!==ing.materialId)return ing.name;
   // Ingredient of a party-known recipe: its approved player-visible Material name may be shown.
   const hit=ing.materialId?lookupWorldDefinition(game,ing.materialId,{entityType:'Material',partyKnown:!game.user.isGM}):null;
@@ -350,7 +371,8 @@ function ingredientName(ing,lib){
   return looksLikeId(ing.name||ing.materialId)?humanizeId(ing.name||ing.materialId):(ing.name||'Unknown material');
 }
 /** Readable profession for a recipe, from the PROF-* definition; never a raw ID. */
-function professionLabel(recipe){
+function professionLabel(recipe){return passMemo('profession',`${recipe?.professionId??''}|${recipe?.profession??''}`,()=>professionLabelOf(recipe));}
+function professionLabelOf(recipe){
   const id=recipe?.professionId;
   if(id&&looksLikeId(id)){
     const hit=lookupWorldDefinition(game,id,{entityType:'Profession',partyKnown:!game.user.isGM});
@@ -384,9 +406,10 @@ function importedRecipeLabels(){
   queueMicrotask(()=>{importedLabelCache=null;});
   return out;
 }
-const gmRecipeLabels=()=>cleanLabelStore(game.settings.get(ID,RECIPE_LABEL_SETTING));
+const gmRecipeLabels=()=>passMemo('gmLabels','gm',()=>cleanLabelStore(game.settings.get(ID,RECIPE_LABEL_SETTING)));
 /** The profession key for a PROF-* id or a profession name, or null. */
-function labelKeyOf(ref){
+function labelKeyOf(ref){return passMemo('labelKey',String(ref??''),()=>labelKeyUncached(ref));}
+function labelKeyUncached(ref){
   const text=String(ref??'').trim();
   if(!text)return null;
   if(/^PROF-[A-Z0-9-]+$/.test(text))return definitionProfessionKey(text,'');
@@ -421,7 +444,8 @@ const recipeTextHtml=(recipe,{gmNote=false}={})=>{
   return `${summary?`<p class="agl-recipe-summary">${esc(summary)}</p>`:''}${effect?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(effect)}${gmNote?' <small class="agl-sub">(the GM decides at the table)</small>':''}</p>`:''}`;};
 
 /** The world ITEM-* document a recipe produces (Manager import), or null. */
-function resultDocument(recipe,{forPlayer=!game.user.isGM}={}){
+function resultDocument(recipe,{forPlayer=!game.user.isGM}={}){return passMemo('result',`${forPlayer}|${recipe?.resultItemId??''}`,()=>resultDocumentOf(recipe,{forPlayer}));}
+function resultDocumentOf(recipe,{forPlayer}){
   const id=recipe?.resultItemId;
   if(!id||!/^ITEM-[A-Z0-9-]+$/.test(id))return null;
   const hit=lookupWorldDefinition(game,id,{entityType:'Item',partyKnown:forPlayer});
@@ -489,7 +513,7 @@ function catalog(){
         sourceVisibility:src.visibility,sourceUuid:doc.uuid}:{id:agId,name:doc.name,sourceVisibility:src.visibility});
     }
   }
-  return {recipes:recipes.sort((a,b)=>a.name.localeCompare(b.name)),materials,source:stored?.source??'Foundry Items'};
+  return {recipes:recipes.sort((a,b)=>compareText(a.name,b.name)),materials,source:stored?.source??'Foundry Items'};
 }
 
 /** Profession rows for a character. Untracked progress is shown as its real state: level 1, 0 XP. */
@@ -530,7 +554,7 @@ function craftContext(actor,recipe,lib){
 const extraCost=recipe=>{const gp=Number(recipe?.sourceDefinition?.additional_gp);return Number.isFinite(gp)&&gp>0?gp:null;};
 
 /** GM Setup: profession → tool, and gathering profession → check skill (defaults filled in). */
-const checkMapping=()=>effectiveMapping(game.settings.get(ID,'checkMapping'),{baseline:baselineLayer()});
+const checkMapping=()=>passMemo('checkMapping','m',()=>effectiveMapping(game.settings.get(ID,'checkMapping'),{baseline:baselineLayer()}));
 /** 0.27.0: the mapping the checks use for advantage tools, with the imported Profession content (catalog layer, GM-read:
  * gathering is run by the GM). Same check tools and skills as checkMapping. */
 const rollMapping=()=>crosswalkInfo().map;
@@ -1211,7 +1235,8 @@ const ctxKey=text=>{let h=0;for(const c of String(text??''))h=(h*31+c.charCodeAt
 /** 0.32.0: can this user open this definition's world Item? Players only get an approved, player-visible Item they have at
  * least Observer permission on; the GM gets any active one. Returns {state:'ok',doc} | {state:'hidden'} (player, not allowed)
  * | {state:'missing'|'blocked'} (GM: not imported, or duplicate/wrong type). Never exposes a document the user may not open. */
-function itemAccess(sourceId,entityType){
+function itemAccess(sourceId,entityType){return passMemo('access',`${entityType}|${sourceId}`,()=>itemAccessOf(sourceId,entityType));}
+function itemAccessOf(sourceId,entityType){
   const gm=Boolean(game.user?.isGM);
   const hit=lookupWorldDefinition(game,sourceId,{entityType,partyKnown:!gm});
   if(hit?.status!=='ok'||!hit.document)return {state:gm?(hit?.status==='not_found'||hit?.status==='invalid'?'missing':'blocked'):'hidden'};
@@ -1453,6 +1478,9 @@ function learnControl(actor,item,{available=true}={}){
 const folderWord=g=>{const recipe=g.rows.find(r=>r.recipe)?.recipe;return recipe?` ${recipeWord(recipe,{plural:g.rows.length!==1,capitalize:false})}`:'';};
 /** Folders grouped by profession; native <details> so they work without the app (sheet tab). Rows: {group, html, recipe?}. */
 const BIG_FOLDER_ROWS=40;
+const lazyKeyOf=el=>el?.dataset?.lazy??el?.dataset?.tree??'';
+/** 0.41.0: the GM Recipe Catalog builds its recipe cards after the window shows when more than this many recipes are listed (a shorter list is built at once: it is quick, and nothing flashes in). */
+const LAZY_MIN_RECIPES=120;
 function folders(rows,closed=new Set()){
   if(!rows.length)return '';
   const groups=new Map();
@@ -1665,7 +1693,7 @@ async function onSocket(message,senderId){
       case 'gather-rolled': if(game.user.isGM&&activeGM()?.id===game.user.id)await receiveGatherRoll(message,from);return;
       case 'gather-round-progress': if(!game.user.isGM&&userById(from)?.isGM){const r=incomingRounds.get(message.roundId);if(r){for(const p of r.rollers)if(Array.isArray(message.rolledIds)&&message.rolledIds.includes(p.actorId)&&p.rolled==null)p.rolled='';refreshLedger();}}return;
       case 'gather-round-reveal': if(!game.user.isGM&&userById(from)?.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)&&incomingRounds.has(message.roundId)){
-        playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');if(!showPlayerGathering())refreshLedger();}return;
+        playerResults.set(message.roundId,{...message.view,seenAt:Date.now()});closeGatherDialogs(`roll:${message.roundId}`);say('The GM revealed the gather results.');let shown=null;try{shown=showPlayerGathering();}catch(err){console.warn(`[${ID}] Could not show the results`,err);}if(!shown)refreshLedger();}return;
       case 'gather-round-withdraw': if(!game.user.isGM&&userById(from)?.isGM&&Array.isArray(message.toUserIds)&&message.toUserIds.includes(game.user.id)){
         const r=incomingRounds.get(message.roundId),p=r?.rollers.find(x=>x.actorId===message.actorId);
         if(p&&p.rolled==null){p.excluded=true;rollPopup(message.roundId);refreshLedger();say(`The GM took ${p.actorName} out of this gather.`);}}return;
@@ -2218,7 +2246,16 @@ const requireGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can read Exoti
 /** Test seam: a scripted d100 for the Node suite. Production uses Foundry's dice RNG. */
 let exoticRoll=defaultRoll;
 const materialName=id=>worldMaterial(id)?.name??humanizeId(id);
-const refreshLedger=()=>{if(current?.rendered)current.render();};
+const refreshLedger=()=>{try{if(current?.rendered)void Promise.resolve(current.render()).catch(err=>console.warn(`[${ID}] Could not refresh the Ledger window`,err));}catch(err){console.warn(`[${ID}] Could not refresh the Ledger window`,err);}};
+/** 0.41.0: Actor and Item hooks arrive in bursts (a craft deletes an item, updates the Actor, creates another; a GM edit touches several
+ * documents). Each one re-rendered the whole window, and on the Recipe Catalog that is the slow part. A burst now renders once, shortly after
+ * its last hook. */
+const REFRESH_COALESCE_MS=75;
+let refreshTimer=null;
+function refreshSoon(){
+  if(refreshTimer)clearTimeout(refreshTimer);
+  refreshTimer=setTimeout(()=>{refreshTimer=null;try{if(current?.rendered)current.render();refreshEmbeds();}catch(err){console.warn(`[${ID}] refresh`,err);}},REFRESH_COALESCE_MS);
+}
 const nodeBusy=key=>[...gatherRounds.values()].some(s=>s.node.key===key)||[...gatherRequests.values()].some(r=>r.node.key===key);
 const closeGatherDialogs=prefix=>{for(const [key,dialog] of gatherDialogs)if(key.startsWith(prefix)){gatherDialogs.delete(key);dialog?.close?.();}};
 
@@ -2628,10 +2665,36 @@ function clearGatherHistory({alsoLast=true}={}){
   refreshLedger();
   return {removed:had,lastCleared:Boolean(alsoLast)};
 }
+/* ---- 0.41.0 GM: the Last gather the Gather tab shows ----------------------------------------------------------------
+ * Players keep their last revealed gather (lastPlayerResult) on their own client until the GM clears it. The GM's copy (lastGather) was kept
+ * only in memory, so a reload lost it. It is now this session's gather, or else the newest gather in History (the existing store; nothing new is
+ * saved for it). "Clear" hides it from the GM's own view at once and remembers that on this device; it sends nothing to players and removes nothing
+ * from History. "Clear for everyone…" is the older global clear (players' panels too, History on request). */
+let lastDismissed;
+const dismissedLastId=()=>{if(lastDismissed===undefined){try{lastDismissed=uiState(ID).get('lastGatherDismissed',null);}catch{lastDismissed=null;}if(typeof lastDismissed!=='string')lastDismissed=null;}return lastDismissed;};
+function setDismissedLast(id){lastDismissed=id??null;try{uiState(ID).set('lastGatherDismissed',lastDismissed);}catch{}}
+function gmLastGather(){
+  if(!game.user?.isGM)return null;
+  const dismissed=dismissedLastId();
+  if(lastGather)return lastGather.historyId&&lastGather.historyId===dismissed?null:lastGather;
+  const e=getHistory().find(x=>!gatherRounds.has(x.id));// a gather still open is not "last"
+  if(!e||e.id===dismissed)return null;
+  return {title:e.title,tiers:e.tiers,dc:e.dc,historyId:e.id,exhausted:null,usedDraft:false,notes:[],
+    rows:e.rows.map(r=>({name:r.name,total:r.total,result:r.result,got:r.drops.map(d=>`${d.quantity} × ${d.name}`)}))};
+}
+/** GM: hide the Last gather from this GM's view only (see above). Applies at once. */
+function dismissLastGather(){
+  requireHistoryGM();
+  const shown=gmLastGather();
+  if(shown?.historyId)setDismissedLast(shown.historyId);
+  refreshLedger();
+  return {dismissed:Boolean(shown)};
+}
 /** GM: dismiss the Last gather banner (and players' copy). The history entry stays unless `alsoHistory`. Loot, XP, materials, crafted items and Actors are untouched. */
 function clearLastGather({alsoHistory=false}={}){
   requireHistoryGM();
-  const id=lastGather?.historyId??null,had=Boolean(lastGather);
+  const shown=gmLastGather(),id=shown?.historyId??null,had=Boolean(shown);
+  if(id)setDismissedLast(id);// so the newest History entry is not offered again in its place
   lastGather=null;
   if(alsoHistory&&id&&getHistory().some(e=>e.id===id))commitHistory(removeEntry(getHistory(),id));
   sendSocket({type:'gather-last-cleared'});
@@ -2702,10 +2765,25 @@ async function rollForGather(actor,proj,{choice,mode}){
 function showPlayerGathering(){
   if(game.user.isGM)return null;
   try{checkPlayerLedger();}catch{return null;}
-  current??=new LedgerApp();
-  current.view='gathering';current.gatherTab=null;current.demo=false;
-  current.render({force:true});current.bringToFront?.();
-  return current;
+  let app;
+  try{
+    current??=new LedgerApp();
+    app=current;
+    app.view='gathering';app.gatherTab=null;app.demo=false;
+  }catch(err){console.warn(`[${ID}] Could not open the Ledger on Gathering`,err);return null;}
+  void presentLedger(app);
+  return app;
+}
+/** 0.41.0: showing the window is presentation: it never throws and never fails the roll or the reveal that asked for it. Before 0.41.0
+ * this called `bringToFront()` straight after an un-awaited `render()`; ApplicationV2 has no element until that render has finished, so
+ * for a player whose Ledger was closed it threw "Cannot read properties of undefined (reading 'style')" right after the roll was sent, and the
+ * pop-up's Roll button reported the failure as a roll error. */
+async function presentLedger(app){
+  try{await app.render({force:true});}
+  catch(err){console.warn(`[${ID}] Could not show the Ledger window`,err);return false;}
+  try{if(app.element)app.bringToFront?.();}
+  catch(err){console.warn(`[${ID}] Could not bring the Ledger window to the front`,err);}
+  return true;
 }
 /** Player popup: the GM opened a gather and one or more of your characters can roll. Closing it leaves the round open in the Gathering tab. */
 async function showGatherRound(message){
@@ -2725,7 +2803,12 @@ function rollPopup(roundId){
   if(!mine.length)return;
   try{
     const buttons=mine.map((r,i)=>({action:`roll:${r.actorId}`,label:`Roll as ${r.actorName}`,icon:'fa-solid fa-dice-d20',default:i===0,
-      callback:()=>{void rollForRound(message.roundId,r.actorId,{}).then(out=>{say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`);showPlayerGathering();}).catch(err=>say(`Profession Ledger: ${err.message}`,true));}}));
+      callback:()=>{
+        // The roll and its notice are the data step; showing the window is separate (presentation), so a failure there is logged, not shown.
+        void rollForRound(message.roundId,r.actorId,{}).then(out=>{
+          say(`${r.actorName} rolled ${out.total}. The GM reveals the results.`);
+          try{showPlayerGathering();}catch(err){console.warn(`[${ID}] Could not show Gathering after the roll`,err);}
+        },err=>say(`Profession Ledger: ${err.message}`,true));}}));
     const dialog=new DialogV2({id:`agl-gather-${message.roundId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:'Gather — roll your check'},modal:false,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
       content:`<p>The GM opened a gather at ${esc(message.title)}${message.summary?` (${esc(message.summary)})`:''}.</p><p>${esc(mine.map(r=>{const a=game.actors.get(r.actorId),adv=a?advantageText(presetOfProjection(a,r)):null;return `${r.actorName} (${r.professionName}${adv?`; ${adv.text}`:''})`;}).join(', '))} can roll. Open Profession Ledger → Gathering to pick a different check.</p>`,
       buttons:[...buttons,{action:'later',label:'Later',icon:'fa-solid fa-clock'}]});
@@ -3213,17 +3296,17 @@ function draftTemplate(d,taken){
 }
 
 /** 0.40.0 (GM): the facts the Recipe Catalog list works from, one per recipe in the world: who knows it (the party's own knownRecipes flags), what it makes, whether players may see it. */
-function catalogFacts(lib,party){
+function catalogFacts(lib,party,pr=null){
   if(!game.user.isGM)throw Error('Only the GM can use the recipe catalog list');
-  const {known,found}=partyRecipes(party),names=a=>({id:a.id,name:a.name});
-  return lib.recipes.map(r=>describeRecipe(r,{professionName:professionLabel(r),known:(known.get(r.id)??[]).map(names),found:(found.get(r.id)??[]).map(x=>names(x.actor)),
-    partySize:party.length,makesType:resultDocument(r)?.type??'',resultName:resultDocument(r)?.name??'',ingredientNames:r.hasStructuredIngredients?r.ingredients.map(i=>ingredientName(i,lib)):[],released:!hiddenFromPlayers(r)}));
+  const {known,found}=pr??partyRecipes(party),names=a=>({id:a.id,name:a.name});
+  return lib.recipes.map(r=>{const result=resultDocument(r);return describeRecipe(r,{professionName:professionLabel(r),known:(known.get(r.id)??[]).map(names),found:(found.get(r.id)??[]).map(x=>names(x.actor)),
+    partySize:party.length,makesType:result?.type??'',resultName:result?.name??'',ingredientNames:r.hasStructuredIngredients?r.ingredients.map(i=>ingredientName(i,lib)):[],released:!hiddenFromPlayers(r)});});
 }
 /** 0.40.0 (GM only): the catalog list as plain data, filtered/sorted/grouped the way the window shows it. options: {query,filters,sort,sortDesc,group}. */
 function catalogList(options={}){
   if(!game.user?.isGM)throw Error('Only the GM can use the recipe catalog list');
-  const party=partyActors(),lib=catalog();
-  return plainModel(buildCatalogModel(catalogFacts(lib,party),{gm:true,...options,party:party.map(a=>({id:a.id,name:a.name}))}));
+  return inRenderPass(()=>{const party=partyActors(),lib=catalog();
+  return plainModel(buildCatalogModel(catalogFacts(lib,party),{gm:true,...options,party:party.map(a=>({id:a.id,name:a.name}))}));});
 }
 const portrait=(a)=>a?.img?`<img class="agl-avatar" src="${esc(a.img)}" alt="">`:`<span class="agl-avatar">${esc((a?.name||'?').slice(0,1))}</span>`;
 class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
@@ -3354,24 +3437,83 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="ag-btn-group">${fileButton({label:'Import Ledger recipe/material JSON…',accept:'application/json,.json',data:{aglFile:'catalog'}})}</div>`});
   }
   /** 0.40.0 (GM): the recipe facts the catalog list filters, groups and sorts by. Reads Foundry; the rules are in catalog-list.mjs. */
-  _catalogFacts(lib){return catalogFacts(lib,this.actors);}
+  _catalogFacts(lib,pr=null){return catalogFacts(lib,this.actors,pr);}
   get _catalogPrefs(){if(!this.__catPrefs){let raw=null;try{raw=this._ui.get('catalogList',null);}catch{raw=null;}this.__catPrefs=cleanPrefs(raw);}return this.__catPrefs;}
   _saveCatalogPrefs(patch){if(!game.user.isGM)return;this.__catPrefs=cleanPrefs({...this._catalogPrefs,...patch});try{this._ui.set('catalogList',this.__catPrefs);}catch{}}
+  /* ---- 0.41.0: lazy catalog folders ---------------------------------------------------------------------------------
+   * `this._lazy` maps a folder key to a builder returning markup chunks (functions). Open folders fill one chunk per animation frame after
+   * the window shows; a shut folder fills when the GM opens it. Nothing here changes what a card says. */
+  _queueLazy(el,{front=false}={}){// el: a folder (<details data-tree>) or the ungrouped list (data-lazy="list")
+    const key=lazyKeyOf(el);
+    if(!key||!this._lazy?.has(key)||el.dataset.lazyState)return;
+    el.dataset.lazyState='queued';
+    const q=this._lazyQueue??=[];
+    if(front)q.unshift(el);else q.push(el);
+    this._runLazy();
+  }
+  /** Queue every folder that is open now (page order). Called after each render. */
+  _pumpLazy(){
+    if(!this._lazy?.size)return;
+    for(const el of this.element?.querySelectorAll?.('[data-tree],[data-lazy]')??[])if(el.tagName!=='DETAILS'||el.open)this._queueLazy(el);
+  }
+  _runLazy(){
+    if(this._lazyBusy)return;
+    this._lazyBusy=true;
+    const token=this._lazyToken??=0;
+    const raf=globalThis.requestAnimationFrame?.bind(globalThis)??(fn=>setTimeout(fn,16));
+    const step=()=>{
+      if(token!==this._lazyToken){return;}
+      const el=this._lazyQueue?.[0];
+      if(!el){this._lazyBusy=false;return;}
+      try{
+        if(!this._fillLazyChunk(el))this._lazyQueue.shift();
+      }catch(err){console.warn(`[${ID}] recipe list could not be filled in`,err);this._lazyQueue.shift();el.dataset.lazyState='failed';}
+      raf(step);
+    };
+    raf(step);
+  }
+  /** Builds the next chunk of one lazy folder. Returns true while more chunks remain. */
+  _fillLazyChunk(el){
+    const key=lazyKeyOf(el),build=this._lazy?.get(key);
+    if(!build||el.isConnected===false)return false;
+    const st=el._lazyJob??={parts:build(),i:0};
+    const html=inRenderPass(()=>st.parts[st.i]());
+    const body=el.classList?.contains('agl-lazy-list')?el:el.querySelector('.agl-folder-body');
+    if(body){if(st.i===0)body.innerHTML=html;else body.insertAdjacentHTML('beforeend',html);}
+    st.i++;
+    this._holdLazyScroll();
+    if(st.i<st.parts.length)return true;
+    this._lazy.delete(key);el.dataset.lazyState='done';el._lazyJob=null;
+    return false;
+  }
+  /** The window re-rendered at a scroll position that the not-yet-filled list was too short to hold: put it back as the list grows, until the GM scrolls. */
+  _holdLazyScroll(){
+    const want=this._lazyTop;if(want==null)return;
+    const main=this.element?.querySelector?.('.agl-main');if(!main)return;
+    if(main.scrollTop>=want-1){this._lazyTop=null;return;}
+    main.scrollTop=want;
+  }
+  _cancelLazy(){this._lazyToken=(this._lazyToken??0)+1;this._lazyQueue=[];this._lazyBusy=false;this._lazyTop=null;}
   _gmCatalog(lib){
-    const prefs=this._catalogPrefs,party=this.actors,{known,found}=partyRecipes(party);
-    const facts=this._catalogFacts(lib);
+    const prefs=this._catalogPrefs,party=this.actors,pr=partyRecipes(party),{known,found}=pr;
+    const facts=this._catalogFacts(lib,pr);
     const model=buildCatalogModel(facts,{gm:true,query:this.query,filters:prefs.filters,sort:prefs.sort,sortDesc:prefs.sortDesc,group:prefs.group,party:party.map(a=>({id:a.id,name:a.name}))});
     const hidden=lib.recipes.filter(hiddenFromPlayers).length,canOpen=this._managerReady();
     const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
     const rowHtml=r=>recipeRow(r.ref,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor),knownCount:true});
+    // 0.41.0: a long list builds no recipe card here. Each folder is emitted empty and filled after the window shows (open folders, one per
+    // frame) or when it is opened. A short list is built at once, as before. The cards are the same markup either way.
+    const lazyOn=model.rows.length>LAZY_MIN_RECIPES;
+    this._lazy=new Map();
+    const lazy=lazyOn?(key,build)=>this._lazy.set(key,build):null;
     let body;
     if(model.empty)body=emptyHtml(model);
     else if(model.group==='profession'){
-      const tree=buildTree(model.rows.map(r=>({group:r.profession,recipe:r.ref,html:rowHtml(r)})),{keepOrder:true});this._lastTreeKeys=treeKeys(tree);
-      body=treeHtml(tree,{isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},countText:p=>`${p.rows.length}${folderWord({rows:p.rows})}`,esc});
+      const tree=buildTree(model.rows.map(r=>({group:r.profession,recipe:r.ref,html:lazyOn?()=>rowHtml(r):rowHtml(r)})),{keepOrder:true});this._lastTreeKeys=treeKeys(tree);
+      body=treeHtml(tree,{isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},countText:p=>`${p.rows.length}${folderWord({rows:p.rows})}`,esc,lazy});
     }else{
       this._lastTreeKeys={folders:model.group==='none'?[]:model.groups.map(g=>`${model.group}-${String(g.key).replace(/[^a-zA-Z0-9]+/g,'-')||'x'}`),tiers:[]};
-      body=groupFoldersHtml(model.groups,model.group,{rowHtml,isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},esc});
+      body=groupFoldersHtml(model.groups,model.group,{rowHtml,isOpen:(k,d)=>{const v=this._treeState()[k];return v===undefined?d:Boolean(v);},esc,lazy});
     }
     const toolbar=`<div class="ag-toolbar agl-toolbar">${this._search(model.controls.search.placeholder)}${filtersChipHtml(model,prefs.filtersOpen)}${model.group==='none'?'':this._treeButtons()}
       <span class="ag-toolbar__count" aria-live="polite">Showing ${model.shown} of ${model.total}</span>
@@ -3983,7 +4125,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const g=this.gather;
     if(!where.ok&&g.source==='location')g.source=templates.length?'template':'adhoc';
     const round=openRound();
-    const lastCard=lastGather?notice(`Last gather, ${esc(lastGather.title)} (${esc(tiersText(lastGather.tiers))}, DC ${lastGather.dc}): ${lastGather.rows.map(r=>`${esc(r.name)} ${r.total} — ${r.got.length?esc(r.got.join(' and ')):r.result==='fail'?'nothing':'by hand'}`).join('; ')}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.notes?.length?` · ${esc(lastGather.notes.join(' · '))}`:''}${lastGather.exhausted==='recorded'?' · spot marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the spot exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable spot: blocked until you reload':''}. Award XP from the chat cards. <button type="button" class="ag-btn ag-btn--sm" data-action="gather-clear-last"><i class="fa-solid fa-eraser" aria-hidden="true"></i> Clear last gather…</button>`):'';
+    const last=gmLastGather();
+    const lastCard=last?notice(`Last gather, ${esc(last.title)} (${esc(tiersText(last.tiers))}${last.dc!=null?`, DC ${last.dc}`:''}): ${last.rows.map(r=>`${esc(r.name)} ${r.total} — ${r.got.length?esc(r.got.join(' and ')):r.result==='fail'?'nothing':'by hand'}`).join('; ')}${last.usedDraft?' · draft materials allowed':''}${last.notes?.length?` · ${esc(last.notes.join(' · '))}`:''}${last.exhausted==='recorded'?' · spot marked exhausted in Locations':last.exhausted==='manual'?' · <b>mark the spot exhausted in Locations</b>':last.exhausted==='session'?' · renewable spot: blocked until you reload':''}. Award XP from the chat cards. <span class="ag-btn-group"><button type="button" class="ag-btn ag-btn--sm" data-action="gather-dismiss-last" data-tooltip="Hide this from your view only. Players and History are not touched."><i class="fa-solid fa-xmark" aria-hidden="true"></i> Clear</button><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="gather-clear-last"><i class="fa-solid fa-eraser" aria-hidden="true"></i> Clear for everyone…</button></span>`):'';
     let start='';
     if(round)start=this._roundPanel(round);
     else{
@@ -4060,12 +4203,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!=='nodes'})}>${t.id==='nodes'?content:''}</div>`).join('')}`;
   }
   async _prepareContext(options){checkPlayerLedger();const ctx=await super._prepareContext(options);
+    this._cancelLazy();this._lazy=null;
     this.demo=false;
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
-    const lib=this.library;
     const inRR=game.user.isGM&&Boolean(this.recipeRefresh)&&['individual','party','assign'].includes(this.view);
-    const content=inRR?this._recipeRefreshView():({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodesInGathering(this._nodes()),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
+    // 0.41.0: one memoised pass (see inRenderPass): the catalog and every row read the same facts once.
+    const content=inRenderPass(()=>{const lib=this.library;return inRR?this._recipeRefreshView():({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodesInGathering(this._nodes()),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);});
     const inGm=game.user.isGM&&this.view==='gm',inNodes=game.user.isGM&&this.view==='nodes';
     const plan=this.nodeImport?.plan;
     const footer=inRR?`<button type="button" class="ag-btn ag-btn--ghost" data-action="rr-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="rr-apply" ${this._recipeRefreshReady()?'':'disabled'}><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh recipes</button>`
@@ -4114,6 +4258,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
    * _onRender) moved it before the GM could scroll. */
   _holdScroll(main,top){
     main.scrollTop=top;
+    if(top&&this._lazy?.size&&main.scrollTop<top-1){this._lazyTop=top;for(const ev of ['wheel','touchstart','keydown','pointerdown'])main.addEventListener?.(ev,()=>{this._lazyTop=null;},{once:true,passive:true});}
     const raf=globalThis.requestAnimationFrame;if(typeof raf!=='function'||!top)return;
     raf(()=>{if(main.isConnected!==false&&main.scrollTop!==top)main.scrollTop=top;});
   }
@@ -4159,7 +4304,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui),bindRadioGroups(this.element)];
     signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
     if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
-    this.element.addEventListener('toggle',e=>{if(e.target?.dataset?.recipeDetails!==undefined){if(!this.query){setRecipeDetails([[e.target.dataset.recipeDetails,e.target.open]]);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}if(e.target?.dataset?.tree!==undefined){if(!this.query){this._setTree(e.target.dataset.tree,e.target.open);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
+    this.element.addEventListener('toggle',e=>{if(e.target?.open&&this._lazy?.size)this._queueLazy(e.target,{front:true});if(e.target?.dataset?.recipeDetails!==undefined){if(!this.query){setRecipeDetails([[e.target.dataset.recipeDetails,e.target.open]]);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}if(e.target?.dataset?.tree!==undefined){if(!this.query){this._setTree(e.target.dataset.tree,e.target.open);e.target.dataset.storedOpen=e.target.open?'1':'0';}return;}const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.dataset.big!==undefined){if(e.target.open)this.closedFolders.add(`open:${key}`);else this.closedFolders.delete(`open:${key}`);return;}if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('input',e=>{
       if(!e.target?.matches?.('[data-rr-confirm]')||!game.user.isGM||!this.recipeRefresh)return;
       this.recipeRefresh.confirm=e.target.value;
@@ -4220,6 +4365,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;if(this.view==='catalog'&&game.user.isGM)this._catalogSearchSoon();else this._applySearch();},{signal});
     this.element.addEventListener?.('input',e=>{if(e.target?.matches?.('[data-label-field]'))this._rememberLabelDraft(e.target);},{signal});
     this._applySearch();this._syncRosterActions();
+    this._pumpLazy();
     // Last, once the folds, search and guards have shaped the DOM.
     this._restoreScroll();}
   /** Sub-tab switch inside GM Setup or Gathering (GM): panels are already rendered, so nothing re-renders and no draft is touched. */
@@ -4330,7 +4476,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.render();return;}
       if(action==='tree-expand'||action==='tree-collapse'){
         const on=action==='tree-expand',did=this.element?.querySelectorAll&&!this.query?setAllTree(this.element,on):null;
-        const inPlace=Boolean(did&&(did.folders.length||did.tiers.length)),k=inPlace?did:(this._lastTreeKeys??{folders:[],tiers:[]});
+        const inPlace=Boolean(did&&(did.folders.length||did.tiers.length)),last=this._lastTreeKeys??{folders:[],tiers:[]},
+          k=inPlace?{folders:[...new Set([...did.folders,...(this._lazy?.size?last.folders:[])])],tiers:[...new Set([...did.tiers,...(this._lazy?.size?last.tiers:[])])]}:last; // folders not filled in yet have no tier groups on the page: their remembered state comes from the tree
         for(const f of k.folders)this._treeState()[`p:${f}`]=on;for(const t of k.tiers)this._treeState()[`t:${t}`]=on;this._saveTreeSoon();
         if(!inPlace)this.render();return;}
       if(action==='gather-clear-history'){
@@ -4339,6 +4486,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           checkbox:{name:'last',label:'Also clear the last gather result',checked:true},yes:'Clear history'});
         if(!answer)return;
         const out=clearGatherHistory({alsoLast:answer.last});say(`Gather history cleared (${out.removed} ${out.removed===1?'entry':'entries'}).`);return;}
+      if(action==='gather-dismiss-last'){dismissLastGather();return;}
       if(action==='gather-clear-last'){
         requireHistoryGM();
         const answer=await dangerChoice({title:'Clear the last gather?',text:'This removes the Last gather result from the Gather tab and from the players’ screens. Loot already given, XP, materials and characters are not touched.',
@@ -4959,7 +5107,7 @@ Hooks.once('ready',()=>{
   if(game.user?.isGM&&activeGM()?.id===game.user.id)setTimeout(()=>void autoMigrateNodes(),0);
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
-  const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
+  const refresh=refreshSoon;
   // 0.33.2: a Manager bulk write (options.agBulk) wakes nothing; one refresh follows ashenGate.bulkFinished.
   const isBulk=(...a)=>a.some(x=>x&&typeof x==='object'&&x.agBulk===true);
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,(doc,...rest)=>{if(isBulk(...rest))return;refresh();if(game.user?.isGM&&((doc?.documentName==='Item'&&!doc.parent)||(hook==='updateActor'&&!(rest[0]?.flags?.[ID]&&Object.keys(rest[0].flags[ID]).every(k=>k===PREVIEW_FLAG||k===FAVORITES_FLAG)))))publishPreviewsSoon();});
@@ -5007,6 +5155,6 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(messag
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
-  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
+  setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,presentLedger,resetLastGather:()=>{lastGather=null;lastDismissed=undefined;},getHistory,clearGatherHistory,clearLastGather,gmLastGather,dismissLastGather,refreshSoon,inRenderPass,passMemo,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
   readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

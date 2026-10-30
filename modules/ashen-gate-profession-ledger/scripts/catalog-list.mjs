@@ -13,7 +13,7 @@
  * GM only: buildCatalogModel refuses a non-GM caller, so catalog facts (drafts, GM-only recipes) never reach a player view.
  */
 import {TIERS} from './progression.mjs';
-import {recipeTierName} from './catalog-tree.mjs';
+import {recipeTierName,compareText,lazyNote} from './catalog-tree.mjs';
 import {categoryOfKey} from './professions.mjs';
 import {recipeProfessionKey} from './assign.mjs';
 
@@ -86,13 +86,13 @@ export function applyFilters(rows,filters,except=null){
   return active.length?rows.filter(r=>active.every(([k,v])=>test[k](r,v))):rows;
 }
 const countBy=(rows,keysOf)=>{const m=new Map();for(const r of rows)for(const k of new Set(keysOf(r)))m.set(k,(m.get(k)??0)+1);return m;};
-const byLabel=(a,b)=>a.label.localeCompare(b.label);
+const byLabel=(a,b)=>compareText(a.label,b.label);
 /** Options for each dropdown with counts: {key: [{value,label,count}]}. Counts follow the other active filters. `party` is [{id,name}]. */
 export function filterOptions(rows,filters,{party=[]}={}){
   const base=k=>applyFilters(rows,filters,k),opts={};
   const fixed=(key,list)=>{const b=base(key);return list.map(o=>({...o,count:b.filter(r=>test[key](r,o.value)).length}));};
   const profs=countBy(base('profession'),r=>[r.profession]);// every profession in the list stays offered, with a count of 0 when the other filters leave none
-  opts.profession=[...new Set(rows.map(r=>r.profession))].sort((a,b)=>a.localeCompare(b)).map(k=>({value:k,label:k,count:profs.get(k)??0}));
+  opts.profession=[...new Set(rows.map(r=>r.profession))].sort(compareText).map(k=>({value:k,label:k,count:profs.get(k)??0}));
   opts.discipline=fixed('discipline',DISCIPLINES);
   const noDisc=base('discipline').filter(r=>!r.discipline).length;if(noDisc)opts.discipline.push({value:NONE,label:'No discipline',count:noDisc});
   const tiers=base('tier');
@@ -100,23 +100,23 @@ export function filterOptions(rows,filters,{party=[]}={}){
   const noTier=tiers.filter(r=>!r.tier).length;if(noTier)opts.tier.push({value:NONE,label:'No tier',count:noTier});
   opts.known=fixed('known',KNOWN_FILTERS);
   const players=countBy(base('player'),r=>r.known.map(k=>k.id));
-  opts.player=[...party].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({value:p.id,label:p.name,count:players.get(p.id)??0}));
+  opts.player=[...party].sort((a,b)=>compareText(a.name,b.name)).map(p=>({value:p.id,label:p.name,count:players.get(p.id)??0}));
   opts.starting=fixed('starting',STARTING);
   opts.requirement=fixed('requirement',REQUIREMENTS);
   const makes=countBy(base('makes'),r=>[r.makes||NONE]);
-  opts.makes=[...makes].filter(([k])=>k!==NONE).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,n])=>({value:k,label:k,count:n}));
+  opts.makes=[...makes].filter(([k])=>k!==NONE).sort((a,b)=>compareText(a[0],b[0])).map(([k,n])=>({value:k,label:k,count:n}));
   if(makes.has(NONE))opts.makes.push({value:NONE,label:'Makes nothing',count:makes.get(NONE)});
   opts.kind=fixed('kind',KINDS);
   opts.visibility=fixed('visibility',VISIBILITY);
   return opts;
 }
 
-const byName=(a,b)=>a.name.localeCompare(b.name);
+const byName=(a,b)=>compareText(a.name,b.name);
 /** Row comparator. `desc` flips the main key only; ties always fall back to name A-Z. */
 export function comparator(sort='name',desc=false){
   const dir=desc?-1:1;
   if(sort==='name')return (a,b)=>dir*byName(a,b);
-  if(sort==='profession')return (a,b)=>dir*a.profession.localeCompare(b.profession)||byName(a,b);
+  if(sort==='profession')return (a,b)=>dir*compareText(a.profession,b.profession)||byName(a,b);
   if(sort==='tier')return (a,b)=>dir*(a.tierRank-b.tierRank)||byName(a,b);
   if(sort==='known')return (a,b)=>dir*(a.knownCount-b.knownCount)||byName(a,b);
   return (a,b)=>dir*byName(a,b);
@@ -133,7 +133,7 @@ export function groupRows(rows,mode,{party=[]}={}){
     else put(r.profession,r.profession,r);
   }
   const rank=mode==='tier'?k=>k===NONE?99:TIERS.indexOf(k):mode==='discipline'?k=>k===NONE?99:DISCIPLINES.findIndex(d=>d.value===k):null;
-  return [...groups.values()].sort((a,b)=>(a.key===NONE)-(b.key===NONE)||(rank?rank(a.key)-rank(b.key):0)||a.label.localeCompare(b.label));
+  return [...groups.values()].sort((a,b)=>(a.key===NONE)-(b.key===NONE)||(rank?rank(a.key)-rank(b.key):0)||compareText(a.label,b.label));
 }
 
 /** Saved choices read back safely: unknown values fall back to the defaults, filter values must be strings. */
@@ -200,16 +200,26 @@ export function emptyHtml(model){
   return `<div class="ag-empty agl-no-matches"><p class="ag-empty__title">No recipes match.</p><p class="ag-empty__text">Change the search or the filters to see more.</p>
     <button type="button" class="ag-btn ag-btn--sm" data-action="catalog-clear"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Clear filters</button></div>`;
 }
+/** Recipes per chunk when a long list fills in after the window opens. */
+export const LAZY_CHUNK=30;
+const chunksOf=(rows,make)=>{const out=[];for(let i=0;i<rows.length;i+=LAZY_CHUNK){const part=rows.slice(i,i+LAZY_CHUNK);out.push(()=>part.map(make).join(''));}return out.length?out:[()=>''];};
 /**
  * Groups other than Profession as plain folders (Profession keeps the profession folders with tier groups from catalog-tree.mjs).
  * rowHtml(row, group) gives one recipe's markup. isOpen(key, fallback) is the remembered open state.
+ * 0.41.0 lazy(key, build): when given, no recipe markup is built here. Each folder (and the ungrouped list, key "list") is emitted empty and
+ * `build()` gives its markup as a list of functions (one per chunk of recipes), to be filled when the folder is open (after the window shows) or when it is opened. A folder is found by its data-tree key.
  */
-export function groupFoldersHtml(groups,mode,{rowHtml,isOpen=(k,d)=>d,esc=defaultEsc}={}){
-  if(mode==='none')return groups.map(g=>g.rows.map(r=>rowHtml(r,g)).join('')).join('');
+export function groupFoldersHtml(groups,mode,{rowHtml,isOpen=(k,d)=>d,esc=defaultEsc,lazy=null}={}){
+  if(mode==='none'){
+    if(!lazy)return groups.map(g=>g.rows.map(r=>rowHtml(r,g)).join('')).join('');
+    return groups.map(g=>{lazy('list',()=>chunksOf(g.rows,r=>rowHtml(r,g)));return `<div class="agl-lazy-list" data-lazy="list">${lazyNote(true)}</div>`;}).join('');
+  }
   return groups.map(g=>{
     const slug=String(g.key).replace(/[^a-zA-Z0-9]+/g,'-')||'x',name=`${mode}-${slug}`,k=`p:${name}`,open=isOpen(k,true);
+    let body;
+    if(lazy){lazy(k,()=>chunksOf(g.rows,r=>rowHtml(r,g)));body=lazyNote(open);}else body=g.rows.map(r=>rowHtml(r,g)).join('');
     return `<details class="agl-folder agl-tree-folder agl-group-folder" data-folder="${esc(name)}" data-tree="${esc(k)}" data-stored-open="${open?1:0}" data-total="${g.rows.length}" ${open?'open':''}>
     <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.label)}</strong> <span class="ag-badge" data-folder-count>${g.rows.length}</span></summary>
-    <div class="agl-folder-body">${g.rows.map(r=>rowHtml(r,g)).join('')}</div></details>`;
+    <div class="agl-folder-body">${body}</div></details>`;
   }).join('');
 }

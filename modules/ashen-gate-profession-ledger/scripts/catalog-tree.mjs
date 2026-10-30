@@ -6,6 +6,10 @@ import {TIERS,ACCESS_LEVELS} from './progression.mjs';
 import {norm} from './core.mjs';
 
 export const OTHER_TIER='Other';
+/** 0.41.0: one shared collator. `a.localeCompare(b)` builds a new one every call, which dominated sorting a few hundred recipes. Same order. */
+export const compareText=new Intl.Collator().compare;
+/** A row's markup. `html` is a string, or (0.41.0) a function that builds it only when the row is shown. */
+export const rowHtmlOf=r=>typeof r.html==='function'?r.html():r.html;
 /** The tier of a recipe, as the recipe card's chip reads it: its tier name; else the highest tier whose level it asks for (minimum_profession_level); else null. */
 export function recipeTierName(recipe){
   const t=String(recipe?.tier??'').trim();
@@ -31,8 +35,8 @@ export function buildTree(rows,{keepOrder=false}={}){
     p.tierMap.get(tier).push(row);
   }
   const order=[...TIERS,OTHER_TIER];
-  return [...profs.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>({key:p.key,name:p.name,rows:p.rows,
-    tiers:order.filter(t=>p.tierMap.has(t)).map(t=>({key:`${p.key}:${slug(t)}`,name:t,rows:keepOrder?p.tierMap.get(t):p.tierMap.get(t).sort((a,b)=>String(a.recipe?.name).localeCompare(String(b.recipe?.name)))}))}));
+  return [...profs.values()].sort((a,b)=>compareText(a.name,b.name)).map(p=>({key:p.key,name:p.name,rows:p.rows,
+    tiers:order.filter(t=>p.tierMap.has(t)).map(t=>({key:`${p.key}:${slug(t)}`,name:t,rows:keepOrder?p.tierMap.get(t):p.tierMap.get(t).sort((a,b)=>compareText(String(a.recipe?.name),String(b.recipe?.name)))}))}));
 }
 /** Every folder and tier key of a tree: what Expand all and Collapse all set. */
 export const treeKeys=tree=>({folders:tree.map(p=>p.key),tiers:tree.flatMap(p=>p.tiers.map(t=>t.key))});
@@ -40,17 +44,26 @@ export const treeKeys=tree=>({folders:tree.map(p=>p.key),tiers:tree.flatMap(p=>p
  * The tree as HTML. `isOpen(key, fallback)` gives the remembered state (profession folders default closed, tiers open); `countText(profession)` is the
  * badge text of a profession ("12 recipes"); `esc` escapes. Data attributes let the search show matches: data-tree (folder), data-tier-group, data-total.
  */
-export function treeHtml(tree,{isOpen=(k,d)=>d,countText=p=>String(p.rows.length),esc=s=>String(s??'')}={}){
+export function treeHtml(tree,{isOpen=(k,d)=>d,countText=p=>String(p.rows.length),esc=s=>String(s??''),lazy=null}={}){
   return tree.map(p=>{
     const open=isOpen(`p:${p.key}`,false);
+    // 0.41.0 lazy: the folder is emitted empty and `lazy(key, build)` is told how to build its body, so a world with hundreds of recipes
+    // does not build every recipe card (most of them inside shut folders) before the window can open. `build()` returns the body's markup as a list of functions, each giving one chunk.
+    const body=lazy?(lazy(`p:${p.key}`,()=>[()=>folderBodyHtml(p,{isOpen,esc})]),lazyNote(open)):folderBodyHtml(p,{isOpen,esc});
     return `<details class="agl-folder agl-tree-folder" data-folder="${esc(p.key)}" data-tree="p:${esc(p.key)}" data-stored-open="${open?1:0}" data-total="${p.rows.length}" ${open?'open':''}>
     <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(p.name)}</strong> <span class="ag-badge" data-folder-count>${esc(countText(p))}</span></summary>
-    <div class="agl-folder-body">${p.tiers.map(t=>{
+    <div class="agl-folder-body">${body}</div></details>`;
+  }).join('');
+}
+/** The placeholder inside a lazy folder: only an open one shows it (a shut folder fills when it is opened). */
+export const lazyNote=open=>open?'<p class="agl-sub agl-lazy-note" role="status">Loading recipes…</p>':'';
+/** The inside of one profession folder: its tier groups and their rows. */
+export function folderBodyHtml(p,{isOpen=(k,d)=>d,esc=s=>String(s??'')}={}){
+  return p.tiers.map(t=>{
       const tOpen=isOpen(`t:${t.key}`,true),id=`agl-tier-${esc(t.key.replace(/:/g,'-'))}`;
       return `<section class="agl-tier-group" data-tier-group="${esc(t.key)}" data-stored-open="${tOpen?1:0}" data-total="${t.rows.length}">
         <h4 class="agl-tier-head"><button type="button" class="agl-tier-toggle" data-action="tier-toggle" data-id="${esc(t.key)}" aria-expanded="${tOpen}" aria-controls="${id}"><i class="fa-solid fa-chevron-down agl-tier-chev" aria-hidden="true"></i> <span>${esc(t.name)}</span> <span class="ag-badge" data-tier-count>${t.rows.length}</span></button></h4>
-        <div class="agl-tier-body" id="${id}" ${tOpen?'':'hidden'}>${t.rows.map(r=>r.html).join('')}</div></section>`;}).join('')}</div></details>`;
-  }).join('');
+        <div class="agl-tier-body" id="${id}" ${tOpen?'':'hidden'}>${t.rows.map(rowHtmlOf).join('')}</div></section>`;}).join('');
 }
 
 /**

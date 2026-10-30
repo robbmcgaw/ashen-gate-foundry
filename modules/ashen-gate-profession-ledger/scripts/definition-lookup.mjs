@@ -23,19 +23,34 @@ function visibleToEveryPlayer(doc, game) {
  * is always dropped at the next microtask, and every hit is re-checked, so a document edited since is never read stale.
  */
 let bindingIndex=null;
+const COLLECTIONS=['items','journal','actors','tables','macros'];
+/** A real Foundry Collection is a Map: `size` is free, but `contents` copies the whole collection on every read. */
+const hasSize=c=>c==null||typeof c.size==='number';
 function activeBindings(game,sourceId){
-  // Compared by document identity, not by collection: a Collection's `contents` may be a fresh array on every read.
-  const docs=[game?.items?.contents,game?.journal?.contents,game?.actors?.contents,game?.tables?.contents,game?.macros?.contents].flatMap(l=>l??[]);
-  const same=bindingIndex&&bindingIndex.game===game&&bindingIndex.docs.length===docs.length&&bindingIndex.docs.every((d,i)=>d===docs[i]);
+  const cols=COLLECTIONS.map(k=>game?.[k]);
+  // 0.41.0: with real Collections, a lookup used to copy all five (`contents`) and compare every document, once per lookup: a catalog
+  // render made thousands of lookups, each touching every world document (quadratic). The index lives for one synchronous pass
+  // (dropped at the next microtask), and nothing can add or remove a document inside it, so the sizes are enough to notice a change.
+  // Anything that is not a Collection (the test doubles) still gets the full identity comparison.
+  const sizes=cols.every(hasSize)?cols.map(c=>c?.size??0):null;
+  let same=false;
+  if(bindingIndex&&bindingIndex.game===game){
+    if(sizes&&bindingIndex.sizes)same=sizes.every((n,i)=>n===bindingIndex.sizes[i]);
+    else if(!sizes&&!bindingIndex.sizes){
+      // Compared by document identity, not by collection: a Collection's `contents` may be a fresh array on every read.
+      const docs=cols.flatMap(c=>c?.contents??[]);
+      same=bindingIndex.docs.length===docs.length&&bindingIndex.docs.every((d,i)=>d===docs[i]);
+    }
+  }
   if(!same){
-    const map=new Map();
+    const docs=cols.flatMap(c=>c?.contents??[]),map=new Map();
     for(const doc of docs){
       if(!isActiveDefinition(doc))continue;
       const id=definitionSource(doc)?.sourceId;
       if(typeof id!=='string')continue;
       if(map.has(id))map.get(id).push(doc);else map.set(id,[doc]);
     }
-    bindingIndex={game,docs,map};
+    bindingIndex={game,docs:sizes?[]:docs,sizes,map};
     queueMicrotask(()=>{bindingIndex=null;});
   }
   return (bindingIndex.map.get(sourceId)??[]).filter(doc=>isActiveDefinition(doc)&&definitionSource(doc)?.sourceId===sourceId);

@@ -42,7 +42,7 @@ const actor={id:'bard',name:'[TEST] Bard',type:'character',hasPlayerOwner:true,i
   testUserPermission:()=>true,setFlag:async()=>{},system:{skills:{},tools:{},abilities:{}}};
 const nodeTemplate={id:'NODE-TEST-REEDS',name:'[TEST] River Reeds',activity:'herbalism',tier:{min:1,max:2},materials:{common:[{materialId:'MAT-TEST-HERB',quantity:1}],rare:[],exotic:[{materialId:'MAT-TEST-MOSS',mode:'discovery'}]}};
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(u){for(const [k,v] of Object.entries(u)){const [,m,key]=k.split('.');this.flags[m]??={};this.flags[m][key]=v;}}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.40.0'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.41.0'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[actor],get:id=>id==='bard'?actor:undefined},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};

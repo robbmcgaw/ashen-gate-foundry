@@ -1,3 +1,12 @@
+## 0.41.0 — 2026-10-30
+
+Roll fix, faster Recipe Catalog, longer reveal, GM Last gather.
+
+- **Fixed: error after Roll in the gather pop-up.** The roll was sent and the chat line appeared, but the player then saw "Profession Ledger: Cannot read properties of undefined (reading 'style')". The Ledger asked the window to come to the front straight after starting to draw it; a window that was closed has no element until the draw finishes (Foundry itself already raises it on first draw). Showing the window is now its own step: it waits for the draw, only raises an existing window, and any failure there is a `console.warn`, never an error and never part of the roll. The same guard covers the "results revealed" screen, and background refreshes no longer leave unhandled errors.
+- **Recipe Catalog opens much faster (GM).** The slow part was repeated work per recipe: every card re-found the same profession, result Item, Materials and access checks, and each of those lookups walked every document in the world (a copy of every collection each time). Now the document index is reused within a render, those facts are remembered for the duration of a render, Materials are looked up by id, sorting uses one shared collator, and the catalog list reads who-knows-what once. With more than 40 recipes listed the cards themselves are built after the window shows (open folders one chunk per frame with "Loading recipes…", shut folders when opened); Expand all, Collapse all, search, filters, grouping and sorting behave as before. A burst of Actor or Item hooks now causes one re-render instead of one each.
+- **Longer reveal.** The slot-machine reel spins for 4.8 s instead of 2.8 s (one constant, `REEL_SPIN_MS`; the stagger between characters is unchanged, so the whole reveal is 2 s longer). Reduced motion and Skip animation work as before.
+- **GM Last gather.** The GM's Gather tab keeps showing the last gather with each character's name, total and what they found, from this session or else the newest entry in History (so a reload no longer loses it). New **Clear** button: applies at once and hides it from the GM's own view only (remembered on this device); players' panels and History are untouched. The earlier global clear is now labelled **Clear for everyone…**.
+- No saved world data changes.
 ## 0.40.0 — 2026-10-30
 
 GM Recipe Catalog: search, filter, group and sort like the Locations list.

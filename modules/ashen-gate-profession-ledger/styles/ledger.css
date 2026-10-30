@@ -198,7 +198,7 @@
 /* Gather round (0.34.0): profession and tier choices, the roll rows and the slot-machine reveal. Kit tokens only. */
 .agl-chip-row{display:flex;flex-wrap:wrap;gap:var(--ag-space-2) var(--ag-space-4)}
 .agl-roll-row .agl-roll-options{margin-top:var(--ag-space-1)}
-.agl-reveal{display:flex;flex-direction:column;gap:var(--ag-space-2);--agl-cell:2.75rem;--agl-dur:2.8s}
+.agl-reveal{display:flex;flex-direction:column;gap:var(--ag-space-2);--agl-cell:2.75rem;--agl-dur:4.8s}
 .agl-reveal__bar{display:flex;justify-content:flex-end}
 .agl-reveal__rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--ag-space-2)}
 .agl-reveal__row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--ag-space-2) var(--ag-space-4);align-items:center;padding:var(--ag-space-2) var(--ag-space-3);
