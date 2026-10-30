@@ -11,9 +11,11 @@ import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {registerPinTravel} from './travel-ui.mjs';
+import {confirmPlacement} from './pin-verify.mjs';
+import {createCanvasDrop} from './canvas-drop.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.36.0';
+const VERSION = '0.36.1';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -191,11 +193,16 @@ for (const hook of ['createNote', 'updateNote', 'deleteNote']) {
 }
 // Dragging a location from the GM list onto the canvas places a Map Note there. (The list only offers this for
 // locations marked Placeable on a map, unless the GM shows representative-only ones too.)
-Hooks.on('dropCanvasData', (canvas, data) => {
-  if (data?.type !== 'AshenGateLocation' || !isGM()) return;
-  game.modules.get(MODULE_ID).api.placeOnScene(data.id, {scene: canvas.scene, x: data.x, y: data.y}).catch(notifyError);
-  return false;
+// 0.36.1: a capture-phase drop on the canvas element does the placing (another module's dropCanvasData handler can no longer swallow it);
+// the hook stays as a fallback and the two never place twice. See canvas-drop.mjs.
+const canvasDrop = createCanvasDrop({
+  isGM, api: () => game.modules.get(MODULE_ID).api, canvas: () => globalThis.canvas,
+  notify: {info: t => ui.notifications?.info(t), warn: t => ui.notifications?.warn(t), error: notifyError},
+  confirm: a => confirmPlacement({...a, canvas: globalThis.canvas, game, notify: {info: t => ui.notifications?.info(t), warn: t => ui.notifications?.warn(t)}})
 });
+Hooks.on('dropCanvasData', canvasDrop.onHook);
+// The canvas element is recreated, so bind on every canvasReady.
+Hooks.on('canvasReady', () => canvasDrop.attach(globalThis.canvas?.app?.view ?? document.getElementById('board')));
 
 // 1.7.0: the primary GM reconciles shared Party Notes on ready (this also creates the shared Journal and copies
 // existing notes in) and whenever another user writes a shared page (players saving with no GM connected, or just
