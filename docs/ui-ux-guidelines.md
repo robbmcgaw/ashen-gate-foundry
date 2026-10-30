@@ -60,7 +60,7 @@ Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortabl
 
 1. **Top-level tabs: 6 at most** per role. More than that means two tabs belong together (make them sub-tabs) or the module
    needs a labelled side list. [Apple Tab views] [MS NavigationView] [Carbon Tabs]
-   **Recorded exception (decision CH-01):** Character Hub keeps its side rail of section tabs, 9 top-level tabs for a GM and 8 for
+   **Recorded exception (decision CH-01):** Character Hub keeps its side rail of section tabs, 10 top-level tabs for a GM and 9 for
    a player, because the rail suits the Compact size and the pop-out. Visible text labels show when the window is wide enough;
    `aria-label` and tooltips are always kept. Hub does not move to a labelled tab strip. No other module gets this exception.
 2. **Tab labels**: one or two words, nouns, with visible text. An icon may lead the text but never replaces it. Icon-only

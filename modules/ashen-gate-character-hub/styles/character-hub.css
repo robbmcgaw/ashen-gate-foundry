@@ -1126,3 +1126,27 @@
 @media (prefers-reduced-motion: reduce) { .agch-dock-portrait .agch-dock-portrait__btn { transition: none; } }
 /* 0.67.0: the dock portrait is a toggle. Open = a heavier border, the same treatment as Manager's pressed dock buttons (not colour alone). */
 .agch-dock-portrait .agch-dock-portrait__btn[aria-pressed="true"] { border-style: solid; border-color: var(--ag-focus, var(--ag-accent, currentColor)); border-width: .125rem; }
+
+/* 0.68.0: Effects tab. One line per effect: icon, name (and note), source, duration, controls. */
+.agch-app .agch-fxlist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-fxhead, .agch-app .agch-fxrow { display: grid; grid-template-columns: 1.75rem minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: var(--ag-space-2); align-items: center; }
+.agch-app .agch-fxhead { padding: 0 var(--ag-space-2); color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.agch-app .agch-fxrow { padding: var(--ag-space-1) var(--ag-space-2); border: .0625rem solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--agch-bg-raised); }
+.agch-app .agch-fxrow.is-off .agch-fxrow__name { color: var(--ag-muted); }
+.agch-app .agch-fxrow__main { display: grid; min-width: 0; }
+.agch-app .agch-fxrow__name { font-weight: 600; overflow-wrap: anywhere; }
+.agch-app .agch-fxrow__note { font-size: var(--ag-text-sm); }
+.agch-app .agch-fxrow__source, .agch-app .agch-fxrow__dur { overflow-wrap: anywhere; }
+.agch-app .agch-fxrow__ctl { display: flex; align-items: center; gap: var(--ag-space-1); justify-content: flex-end; }
+.agch-app .agch-fxswitch { position: relative; flex: none; width: 2.6rem; height: 1.4rem; padding: 0; border: .0625rem solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); cursor: pointer; }
+.agch-app .agch-fxswitch.is-on { background: var(--ag-accent); border-color: var(--ag-accent); }
+.agch-app .agch-fxswitch__knob { position: absolute; top: .125rem; left: .125rem; width: 1rem; height: 1rem; border-radius: 50%; background: var(--ag-surface-raised); border: .0625rem solid var(--ag-border); transition: transform .15s; }
+.agch-app .agch-fxswitch.is-on .agch-fxswitch__knob { transform: translateX(1.2rem); }
+.agch-app .agch-fxswitch:disabled { opacity: .55; cursor: not-allowed; }
+.agch-app .agch-fxswitch:focus-visible { outline: .125rem solid var(--ag-accent); outline-offset: .125rem; }
+@media (prefers-reduced-motion: reduce) { .agch-app .agch-fxswitch__knob { transition: none; } }
+@container (max-width: 44rem) {
+  .agch-app .agch-fxhead { display: none; }
+  .agch-app .agch-fxrow { grid-template-columns: 1.75rem minmax(0, 1fr) auto; }
+  .agch-app .agch-fxrow__source, .agch-app .agch-fxrow__dur { grid-column: 2; }
+}
