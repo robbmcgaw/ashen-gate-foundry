@@ -1,3 +1,18 @@
+## 0.84.0 — 2026-10-30
+
+GM Setup has a new **Player screen** sub-tab, and the sidebar tab switches are one checklist. Everything is visual only and for players: GMs always see the normal interface, and no permission, document or campaign data changes.
+
+- **GM Setup > Player screen** (next to General) gathers every setting about what players see, in five labelled groups: **Sidebar tabs**, **Directory filters** (Player Handouts in Items, the Players folder in Actors), **Scene controls and navigation**, **Player dock** (show, corner, hide the players list) and **Collapse** (start collapsed, auto-collapse seconds). Every setting that existed still exists and behaves as before; they moved out of General > Sidebar and are saved with Save Changes like the rest.
+- **One checklist, "Tabs players keep"**, replaces *Hide the Journals tab*, *Hide the Compendiums tab* and *Show players only the Chat tab*. Chat is always kept; Combat, Scenes, Placeables, Actors, Items, Journals, Tables, Cards, Macros, Playlists, Compendiums and Settings can each be ticked or unticked, and tabs other modules add are listed too. **Keep everything** and **Keep Chat only** tick or untick the whole list in the form (nothing is saved until Save Changes); *Keep Chat only* also hides tabs added later, as the old switch did. An unticked tab disappears for players and the rest close up with no gap; a player who had it open lands on Chat; the dock still opens Combat and Settings.
+- **Why the Journals and Compendiums switches seemed to do nothing.** The tab ids and page elements they used are the right ones for Foundry 14.367 (`journal`, `compendium`, `#sidebar-tabs`, `li > button[data-tab]`, `section#<id>`), so this was not a name mismatch. They only ever changed what *players* see: you are exempt, so on the GM screen nothing moved. And with *Show players only the Chat tab* on, they were fully overridden, because that switch already hides both. One checklist makes the state visible in one place.
+- **Fix: a tab Foundry itself had hidden for a player could be shown again** when the Ashen Gate setting was switched off (a hidden tab was always un-hidden on restore). A tab is now put back exactly as it was. Tabs also re-apply after any sidebar tab redraws (`renderAbstractSidebarTab`), not only the Journal and Compendium directories, and Placeables and Macros (new in V14) are known tabs.
+- **Migration (automatic, safe to repeat).** One new world setting, `playerSidebarTabs`. The first time a GM loads the world, the old settings are copied into it; the old three settings are never changed or deleted, and nothing else is written. Until it is copied (and for players meanwhile) the old settings are read as a fallback, so nobody sees a change. The mapping:
+  - *Show players only the Chat tab* on: Chat kept, every other tab unticked, tabs added later hidden (Journals and Compendiums switches then did not matter, as before).
+  - otherwise *Hide the Journals tab* on: Journals unticked; *Hide the Compendiums tab* on: Compendiums unticked; every other tab ticked.
+  - none on: nothing is written (an empty checklist already means every tab is kept).
+  Once the checklist has a saved value the old settings are ignored for good, and running the migration again changes nothing.
+- Help describes the new layout. Tests are mocked: the live V14 sidebar, tab column and GM Setup layout have not been seen; ids and DOM were checked against the Foundry 14.367 source.
+
 ## 0.83.0 — 2026-10-30
 
 The player dock, tidied, and the missing Quest Tracker button fixed. Everything is visual only and for players: GMs always see the normal interface, and no permission, document or saved data changes.

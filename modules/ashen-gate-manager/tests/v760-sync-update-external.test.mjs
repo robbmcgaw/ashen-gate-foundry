@@ -177,7 +177,7 @@ test('wiring, Help, README, CHANGELOG, version', () => {
   assert.match(main, /Where the update switches live/);
   assert.match(main, /Quest Log and Renown/);
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.83.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.83.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.84.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.76\.0 /m);
   assert.match(read('../README.md'), /Also update existing locations, routes and shops/);
 });

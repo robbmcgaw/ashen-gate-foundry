@@ -3,6 +3,7 @@
  * ag-appearance/0.1-beta is a provisional implementation-level interface,
  * NOT an approved common SDK. Only UI tokens are changed.
  */
+import { parseStoredPolicy, serializePolicy, policyFromLegacy, isEverything } from './sidebar-policy.js';
 export const APPEARANCE_CONTRACT = 'ag-appearance/0.1-beta';
 export const WORLD_SKIN_KEY = 'worldSkin';
 export const USER_SKIN_KEY = 'userSkin';
@@ -16,7 +17,8 @@ export const DEFAULT_CHAT = true;
 // Compact pause (0.59.0), world scope, GM-only, off by default. html[data-ag-pause="compact"] scopes styles/pause.css.
 export const PAUSE_KEY = 'compactPause';
 export const DEFAULT_PAUSE = false;
-// Hide the Journals tab from players (0.79.0), world scope, GM-only, off by default. Purely visual; see sidebar-tabs.js.
+// OLD (0.79.0) Hide the Journals tab from players. Replaced in 0.84.0 by the playerSidebarTabs checklist; still registered and read
+// as a fallback until the checklist is first saved or migrated (migrateSidebarTabs), never changed or removed by this module.
 export const HIDE_JOURNALS_KEY = 'hideJournalsTab';
 export const DEFAULT_HIDE_JOURNALS = false;
 // Show players only Player Handouts in the Items tab (0.79.0), world scope, GM-only, off by default; see handouts-filter.js.
@@ -25,7 +27,7 @@ export const DEFAULT_PLAYER_HANDOUTS = false;
 // Show players only the Players folder in the Actors tab (0.79.0), world scope, GM-only, off by default.
 export const PLAYERS_FOLDER_KEY = 'playersFolderOnly';
 export const DEFAULT_PLAYERS_FOLDER = false;
-// Hide the Compendiums tab from players (0.80.0), world scope, GM-only, off by default; see sidebar-tabs.js.
+// OLD (0.80.0) Hide the Compendiums tab from players. Same fallback as above.
 export const HIDE_COMPENDIUMS_KEY = 'hideCompendiumsTab';
 export const DEFAULT_HIDE_COMPENDIUMS = false;
 // Player screen settings (0.81.0), all world scope, GM-only, off by default, purely visual (see scene-controls.js, sidebar-tabs.js,
@@ -34,15 +36,12 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
   Object.freeze({key:'hidePlayerSceneTools',state:'hideSceneTools',setter:'setHideSceneTools',who:'which scene controls players see',
     name:'Hide Region Controls and Journal Notes from players\' scene controls',
     hint:'Players no longer see the Region Controls and Journal Notes tool groups in the scene controls. Only the buttons are hidden: nobody\'s permissions change, and notes and regions work as before. GMs always see them.'}),
-  Object.freeze({key:'chatOnlySidebar',state:'chatOnlySidebar',setter:'setChatOnlySidebar',who:'which sidebar tabs players see',
-    name:'Show players only the Chat tab in the sidebar',
-    hint:'Players see only the Chat tab in the sidebar; every other tab is hidden. Only the tabs are hidden: nothing is removed or locked, and the player dock (if on) opens Combat and Settings. GMs always see every tab.'}),
   Object.freeze({key:'collapsePlayerSidebar',state:'collapsePlayerSidebar',setter:'setCollapsePlayerSidebar',who:'whether the sidebar starts collapsed for players',
     name:'Start players with the sidebar collapsed',
     hint:'When a player loads the game the sidebar starts collapsed, so the scene fills the screen. They can expand and collapse it as usual afterwards. Applied once when the game loads, not live. GMs are never collapsed.'}),
   Object.freeze({key:'playerDock',state:'playerDock',setter:'setPlayerDock',who:'whether players see the player dock',
     name:'Show the player dock',
-    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Conditions, Quest Tracker (each only while its module is on and the player may open it), User Configuration, and a button to minimize the dock. It is meant for use with Show players only the Chat tab. GMs never see it.'}),
+    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Conditions, Quest Tracker (each only while its module is on and the player may open it), User Configuration, and a button to minimize the dock. It pairs well with a short list of sidebar tabs: Combat and Settings open from the dock even when their tabs are hidden. GMs never see it.'}),
   // 0.82.0, both off by default, visual only, never for the GM (see player-dock.js, dock-controls.js).
   Object.freeze({key:'hidePlayersList',state:'hidePlayersList',setter:'setHidePlayersList',who:'whether players see the players list',
     name:'Hide the players list from players',
@@ -56,6 +55,11 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     name:'Move the scene navigation to the bottom left',
     hint:'Players\' scene navigation (the scene name and its list) moves from the top left to the bottom left, with their token controls in one row above it and the player dock above that. The token controls then show only Select, Select Targets, Measure and Find My Token. Needs Show the player dock. Scenes still open and switch as before. GMs always see the normal layout.'})
 ]);
+// OLD (0.81.0) Show players only the Chat tab. Replaced in 0.84.0 by the checklist; read as a fallback only (see above).
+export const CHAT_ONLY_KEY = 'chatOnlySidebar';
+export const LEGACY_TAB_KEYS = Object.freeze({hideJournalsTab:HIDE_JOURNALS_KEY,hideCompendiumsTab:HIDE_COMPENDIUMS_KEY,chatOnlySidebar:CHAT_ONLY_KEY});
+// Which sidebar tabs players keep (0.84.0), world scope, GM-only, JSON text (see sidebar-policy.js). Empty = not set yet.
+export const PLAYER_TABS_KEY = 'playerSidebarTabs';
 // Auto-collapse of the sidebar chat and Settings for players (0.82.0), world scope, GM-only. Seconds of inactivity; 0 = off.
 export const AUTO_COLLAPSE_KEY = 'autoCollapseSeconds';
 export const DEFAULT_AUTO_COLLAPSE_SECONDS = 8;
@@ -194,6 +198,11 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   function readChat(){try{const v=read(CHAT_KEY);return v===undefined||v===null?DEFAULT_CHAT:Boolean(v);}catch{return DEFAULT_CHAT;}}
   function readPause(){try{const v=read(PAUSE_KEY);return v===undefined||v===null?DEFAULT_PAUSE:Boolean(v);}catch{return DEFAULT_PAUSE;}}
   function readHideJournals(){try{const v=read(HIDE_JOURNALS_KEY);return v===undefined||v===null?DEFAULT_HIDE_JOURNALS:Boolean(v);}catch{return DEFAULT_HIDE_JOURNALS;}}
+  function readChatOnly(){try{return read(CHAT_ONLY_KEY)===true;}catch{return false;}}
+  /** The checklist as stored, or null when it has not been set (or saved) yet. */
+  function readStoredTabs(){try{return parseStoredPolicy(read(PLAYER_TABS_KEY));}catch{return null;}}
+  /** What players keep: the stored checklist, else the old three settings read as one (until migrated). */
+  function readTabs(){return readStoredTabs()??policyFromLegacy({chatOnlySidebar:readChatOnly(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums()});}
   function readHandouts(){try{const v=read(PLAYER_HANDOUTS_KEY);return v===undefined||v===null?DEFAULT_PLAYER_HANDOUTS:Boolean(v);}catch{return DEFAULT_PLAYER_HANDOUTS;}}
   function readPlayersFolder(){try{const v=read(PLAYERS_FOLDER_KEY);return v===undefined||v===null?DEFAULT_PLAYERS_FOLDER:Boolean(v);}catch{return DEFAULT_PLAYERS_FOLDER;}}
   function readHideCompendiums(){try{const v=read(HIDE_COMPENDIUMS_KEY);return v===undefined||v===null?DEFAULT_HIDE_COMPENDIUMS:Boolean(v);}catch{return DEFAULT_HIDE_COMPENDIUMS;}}
@@ -211,7 +220,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
       invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
-      size:readSize(),chat:readChat(),compactPause:readPause(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums(),playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder(),
+      size:readSize(),chat:readChat(),compactPause:readPause(),playerSidebarTabs:readTabs(),playerSidebarTabsSaved:readStoredTabs()!==null,playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder(),
       ...Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.state,readFlag(flag)])),playerDockCorner:readDockCorner(),autoCollapseSeconds:readAutoCollapse()};
   }
   async function setWorldDefault(id){
@@ -236,11 +245,24 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     const on=Boolean(value);
     await setSetting(PAUSE_KEY,on);observed.set(PAUSE_KEY,on);emit();return getState();
   }
-  /** GM only (rejected here, not just hidden): hide the Journals sidebar tab from players. No document permission changes. */
-  async function setHideJournalsTab(value){
-    if(!user().isGM)throw new Error('Only GMs may change whether players see the Journals tab');
-    const on=Boolean(value);
-    await setSetting(HIDE_JOURNALS_KEY,on);observed.set(HIDE_JOURNALS_KEY,on);emit();return getState();
+  /** GM only (rejected here, not just hidden): which sidebar tabs players keep (Chat always). Visual only. */
+  async function setPlayerSidebarTabs(value){
+    if(!user().isGM)throw new Error('Only GMs may change which sidebar tabs players see');
+    const text=serializePolicy(value);
+    await setSetting(PLAYER_TABS_KEY,text);observed.set(PLAYER_TABS_KEY,text);emit();return getState();
+  }
+  /**
+   * 0.84.0, GM only, safe to run on every load: copies the old Journals / Compendiums / Chat-only settings into the checklist once.
+   * Writes only the checklist; the old keys stay as they are. Does nothing when the checklist is already saved, or when the old
+   * settings were all off (Everything is what an unset checklist already means). Returns {migrated:boolean, reason}.
+   */
+  async function migrateSidebarTabs(){
+    if(!user().isGM)return {migrated:false,reason:'not-gm'};
+    if(readStoredTabs()!==null)return {migrated:false,reason:'already-saved'};
+    const policy=policyFromLegacy({chatOnlySidebar:readChatOnly(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums()});
+    if(isEverything(policy))return {migrated:false,reason:'nothing-to-migrate'};
+    await setPlayerSidebarTabs(policy);
+    return {migrated:true,reason:'copied-from-old-settings',policy};
   }
   /** GM only (rejected here, not just hidden): players see only the Player Handouts folder in the Items tab. Visual only. */
   async function setPlayerHandoutsOnly(value){
@@ -253,12 +275,6 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(!user().isGM)throw new Error('Only GMs may change what players see in the Actors tab');
     const on=Boolean(value);
     await setSetting(PLAYERS_FOLDER_KEY,on);observed.set(PLAYERS_FOLDER_KEY,on);emit();return getState();
-  }
-  /** GM only (rejected here, not just hidden): hide the Compendiums sidebar tab from players. No document permission changes. */
-  async function setHideCompendiumsTab(value){
-    if(!user().isGM)throw new Error('Only GMs may change whether players see the Compendiums tab');
-    const on=Boolean(value);
-    await setSetting(HIDE_COMPENDIUMS_KEY,on);observed.set(HIDE_COMPENDIUMS_KEY,on);emit();return getState();
   }
   /** GM only (rejected here, not just hidden): the 0.81.0 player screen settings. Visual only; no document or permission changes. */
   const flagSetters=Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.setter,async value=>{
@@ -298,7 +314,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
       emit();return;
     }
     if(key===CHAT_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
-    if(key===PAUSE_KEY||key===HIDE_JOURNALS_KEY||key===PLAYER_HANDOUTS_KEY||key===PLAYERS_FOLDER_KEY||key===HIDE_COMPENDIUMS_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===PLAYER_TABS_KEY){if(typeof value==='string')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===PAUSE_KEY||key===HIDE_JOURNALS_KEY||key===CHAT_ONLY_KEY||key===PLAYER_HANDOUTS_KEY||key===PLAYERS_FOLDER_KEY||key===HIDE_COMPENDIUMS_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if(PLAYER_SCREEN_FLAGS.some(flag=>flag.key===key)){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if(key===AUTO_COLLAPSE_KEY){if(typeof value==='number')observed.set(key,value);else observed.delete(key);emit();return;}
     if(key===DOCK_CORNER_KEY){if(typeof value==='string')observed.set(key,value);else observed.delete(key);emit();return;}
@@ -323,7 +340,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setHideCompendiumsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,...flagSetters,setPlayerDockCorner,setAutoCollapseSeconds,applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setPlayerSidebarTabs,migrateSidebarTabs,setPlayerHandoutsOnly,setPlayersFolderOnly,...flagSetters,setPlayerDockCorner,setAutoCollapseSeconds,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
@@ -351,13 +368,22 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
     name:'Show the pause as a small indicator',hint:'Hides the large Game Paused banner for everyone and shows a small Paused indicator at the top centre instead.',
     scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_PAUSE,onChange:value=>onSettingChange(PAUSE_KEY,value)
   });
+  game.settings.register(namespace,PLAYER_TABS_KEY,{
+    name:'Sidebar tabs players keep',hint:'Which sidebar tabs players see. Chat is always kept. Only the tabs are hidden: nothing is removed or locked, and journals, compendium entries and Ashen Gate windows still open for players. GMs always see every tab.',
+    scope:'world',config:false,restricted:true,type:String,default:'',onChange:value=>onSettingChange(PLAYER_TABS_KEY,value)
+  });
+  // The three settings the checklist replaced. Kept registered (hidden from Configure Settings) so worlds can still be read and upgraded.
   game.settings.register(namespace,HIDE_JOURNALS_KEY,{
-    name:'Hide the Journals tab from players',hint:'Players no longer see the Journals tab in the sidebar. Only the tab is hidden: journal permissions are unchanged, and handouts, quests and locations still open for players. GMs always see it.',
+    name:'Hide the Journals tab from players (replaced)',hint:'Replaced by the sidebar tabs checklist in GM Setup. Read only until that checklist is first saved.',
     scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_HIDE_JOURNALS,onChange:value=>onSettingChange(HIDE_JOURNALS_KEY,value)
   });
   game.settings.register(namespace,HIDE_COMPENDIUMS_KEY,{
-    name:'Hide the Compendiums tab from players',hint:'Players no longer see the Compendiums tab in the sidebar. Only the tab is hidden: compendium permissions are unchanged, and links and Ashen Gate windows that open compendium entries still work for players. GMs always see it.',
+    name:'Hide the Compendiums tab from players (replaced)',hint:'Replaced by the sidebar tabs checklist in GM Setup. Read only until that checklist is first saved.',
     scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_HIDE_COMPENDIUMS,onChange:value=>onSettingChange(HIDE_COMPENDIUMS_KEY,value)
+  });
+  game.settings.register(namespace,CHAT_ONLY_KEY,{
+    name:'Show players only the Chat tab (replaced)',hint:'Replaced by the sidebar tabs checklist in GM Setup. Read only until that checklist is first saved.',
+    scope:'world',config:false,restricted:true,type:Boolean,default:false,onChange:value=>onSettingChange(CHAT_ONLY_KEY,value)
   });
   for(const flag of PLAYER_SCREEN_FLAGS)game.settings.register(namespace,flag.key,{
     name:flag.name,hint:flag.hint,scope:'world',config:false,restricted:true,type:Boolean,default:false,onChange:value=>onSettingChange(flag.key,value)

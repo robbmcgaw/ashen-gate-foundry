@@ -7,6 +7,31 @@
 
 /** Reads the GM Setup form. Missing controls stay undefined, so saveGmSetup leaves those settings alone. */
 import { PLAYER_SCREEN_FLAGS, DOCK_CORNERS, cleanAutoCollapse } from './appearance.js';
+import { policyFromChecklist, presetOf, samePolicy, isEverything, summarizeRows, CHAT_TAB } from './sidebar-policy.js';
+
+/** Tab checklist (0.84.0): every box carries data-ag-setup-tab="<tab id>"; ticked = players keep that tab. Chat is locked on. */
+export const TAB_BOX = '[data-ag-setup-tab]';
+const tabBoxes = root => [...(root?.querySelectorAll?.(TAB_BOX) ?? [])];
+/** The ticked / listed tab ids of a form, Chat always kept. Null when the form has no checklist. */
+export function readTabChecklist(root) {
+  const boxes = tabBoxes(root);
+  if (!boxes.length) return null;
+  const listed = boxes.map(b => b.dataset?.agSetupTab).filter(Boolean);
+  const kept = boxes.filter(b => b.checked || b.dataset?.agSetupTab === CHAT_TAB).map(b => b.dataset.agSetupTab);
+  return policyFromChecklist(listed, kept);
+}
+/** Ticks every tab (preset 'everything') or only Chat (preset 'chat') in the form. Changes the form only; nothing is saved. Returns the policy. */
+export function applyTabPreset(root, preset) {
+  const boxes = tabBoxes(root);
+  for (const box of boxes) if (box.dataset?.agSetupTab !== CHAT_TAB) box.checked = preset !== 'chat';
+  return readTabChecklist(root);
+}
+/** The line under the checklist, from the boxes as they are now. */
+export function describeTabChoice(root) {
+  const boxes = tabBoxes(root);
+  if (!boxes.length) return '';
+  return summarizeRows(boxes.map(b => ({ id: b.dataset?.agSetupTab, kept: b.checked || b.dataset?.agSetupTab === CHAT_TAB })));
+}
 
 export function readGmSetupForm(root) {
   const q = selector => root?.querySelector?.(selector) ?? null;
@@ -19,8 +44,6 @@ export function readGmSetupForm(root) {
   const auto = q('[data-ag-setup-auto]');
   const pause = q('[data-ag-setup-pause]');
   const items = q('[data-ag-setup-items]');
-  const hideJournals = q('[data-ag-setup-hide-journals]');
-  const hideCompendiums = q('[data-ag-setup-hide-compendiums]');
   const handouts = q('[data-ag-setup-handouts-only]');
   const playersFolder = q('[data-ag-setup-players-only]');
   const autoCollapse = q('[data-ag-setup-autocollapse]');
@@ -28,10 +51,9 @@ export function readGmSetupForm(root) {
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
-    ...(hideJournals ? {hideJournalsTab: Boolean(hideJournals.checked)} : {}),
+    ...(readTabChecklist(root) ? {playerSidebarTabs: readTabChecklist(root)} : {}),
     ...(handouts ? {playerHandoutsOnly: Boolean(handouts.checked)} : {}),
     ...(playersFolder ? {playersFolderOnly: Boolean(playersFolder.checked)} : {}),
-    ...(hideCompendiums ? {hideCompendiumsTab: Boolean(hideCompendiums.checked)} : {}),
     ...Object.fromEntries(PLAYER_SCREEN_FLAGS.flatMap(flag => { const box = q(`[data-ag-setup-screen="${flag.state}"]`); return box ? [[flag.state, Boolean(box.checked)]] : []; })),
     ...(autoCollapse && String(autoCollapse.value ?? '').trim() !== '' && Number.isFinite(Number(autoCollapse.value)) ? {autoCollapseSeconds: cleanAutoCollapse(autoCollapse.value)} : {}),
     ...(dockCorner && Object.hasOwn(DOCK_CORNERS, dockCorner.value) ? {playerDockCorner: dockCorner.value} : {}),
@@ -74,10 +96,13 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
       saved.push(values.compactPause ? 'pause shown as a small indicator' : 'pause shown as the large banner');
     }
   }
-  if (values.hideJournalsTab !== undefined && appearance?.setHideJournalsTab) {
-    if (Boolean(values.hideJournalsTab) !== Boolean(appearance.getState().hideJournalsTab)) {
-      await appearance.setHideJournalsTab(values.hideJournalsTab);
-      saved.push(values.hideJournalsTab ? 'Journals tab hidden from players' : 'Journals tab shown to players');
+  if (values.playerSidebarTabs !== undefined && appearance?.setPlayerSidebarTabs) {
+    const current = appearance.getState();
+    // Written only when the choice differs from what players get now. With no checklist saved yet, "everything" over "everything" is no change.
+    if (!samePolicy(values.playerSidebarTabs, current.playerSidebarTabs) || (!current.playerSidebarTabsSaved && !isEverything(values.playerSidebarTabs))) {
+      await appearance.setPlayerSidebarTabs(values.playerSidebarTabs);
+      const preset = presetOf(values.playerSidebarTabs);
+      saved.push(preset === 'everything' ? 'players keep every sidebar tab' : preset === 'chat' ? 'players keep only the Chat tab' : 'sidebar tabs players keep');
     }
   }
   if (values.playerHandoutsOnly !== undefined && appearance?.setPlayerHandoutsOnly) {
@@ -90,12 +115,6 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (Boolean(values.playersFolderOnly) !== Boolean(appearance.getState().playersFolderOnly)) {
       await appearance.setPlayersFolderOnly(values.playersFolderOnly);
       saved.push(values.playersFolderOnly ? 'players see only the Players folder in the Actors tab' : 'players see the Actors tab as before');
-    }
-  }
-  if (values.hideCompendiumsTab !== undefined && appearance?.setHideCompendiumsTab) {
-    if (Boolean(values.hideCompendiumsTab) !== Boolean(appearance.getState().hideCompendiumsTab)) {
-      await appearance.setHideCompendiumsTab(values.hideCompendiumsTab);
-      saved.push(values.hideCompendiumsTab ? 'Compendiums tab hidden from players' : 'Compendiums tab shown to players');
     }
   }
   for (const flag of PLAYER_SCREEN_FLAGS) {

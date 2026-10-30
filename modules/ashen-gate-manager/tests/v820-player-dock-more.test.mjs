@@ -278,11 +278,11 @@ test('auto-collapse: installs on the render hook and setting changes; dispose cl
 // ---------- wiring
 test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, version 0.83.0, no status labels',()=>{
   const tpl=read('../templates/manager.hbs'),main=read('../scripts/main.js'),man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
-  assert.match(tpl,/aria-label="Sidebar"[\s\S]*data-ag-setup-screen="dockSceneControls"[\s\S]*data-ag-setup-screen="hidePlayersList"[\s\S]*data-ag-setup-autocollapse/);
+  assert.match(tpl,/aria-label="Scene controls and navigation"[\s\S]*data-ag-setup-screen="dockSceneControls"[\s\S]*data-ag-setup-screen="hidePlayersList"[\s\S]*data-ag-setup-autocollapse/);
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.83.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.83.0/ashen-gate-manager.zip'));assert.match(log,/^## 0\.83\.0/);
+  assert.equal(man.version,'0.84.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);

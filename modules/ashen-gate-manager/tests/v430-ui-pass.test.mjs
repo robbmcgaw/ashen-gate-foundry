@@ -75,12 +75,12 @@ test('D4: turning access off saves false; a player is rejected in the data layer
   assert.match(bad.message, /"not-a-skin" is not an Ashen Gate skin/);
 });
 
-test('GM Setup: sub-tabs General · Core sources · Developer Tools, Developer Tools last, Cancel left and Save Changes right', () => {
+test('GM Setup: sub-tabs General · Player screen · Core sources · Developer Tools, Developer Tools last, Cancel left and Save Changes right', () => {
   const setup = tpl.slice(tpl.indexOf('{{#if setupActive}}\n  <div class="agm-setup">'), tpl.lastIndexOf('{{/if}}'));
-  const order = ['{{{setupTabsHtml}}}', '{{{setupPanels.general}}}', 'World appearance', 'NPC Codex', '{{{setupPanels.sources}}}', 'Core sources', '{{{setupPanels.developer}}}', 'class="ag-devtools', 'data-ag-action="demo"'].map(s => setup.indexOf(s));
+  const order = ['{{{setupTabsHtml}}}', '{{{setupPanels.general}}}', 'World appearance', 'NPC Codex', '{{{setupPanels.screen}}}', 'Sidebar tabs', '{{{setupPanels.sources}}}', 'Core sources', '{{{setupPanels.developer}}}', 'class="ag-devtools', 'data-ag-action="demo"'].map(s => setup.indexOf(s));
   assert.ok(order.every(i => i > 0), 'all parts present');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in order, Developer Tools at the end');
-  assert.match(main, /const SETUP_TABS=\[\{id:'general',label:'General'\},\{id:'sources',label:'Core sources'\},\{id:'developer',label:'Developer Tools'\}\];/);
+  assert.match(main, /const SETUP_TABS=\[\{id:'general',label:'General'\},\{id:'screen',label:'Player screen'\},\{id:'sources',label:'Core sources'\},\{id:'developer',label:'Developer Tools'\}\];/);
   assert.doesNotMatch(setup, /presession|player-access-toggle/, 'GM Setup holds settings, not tools');
   // The Developer Tools panel sits outside the draft, so its tools never mark GM Setup as changed.
   assert.ok(setup.indexOf('{{{setupPanels.developer}}}') > setup.indexOf('data-ag-setup-form') && setup.lastIndexOf('</div>', setup.indexOf('{{{setupPanels.developer}}}')) > setup.indexOf('{{{setupPanels.sources}}}'));
