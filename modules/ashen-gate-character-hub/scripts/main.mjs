@@ -15,6 +15,7 @@ import {registerListSortSetting} from './organize.mjs';
 import {registerBrowserSortSetting} from './browser-sort.mjs';
 import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
+import {installDockPortrait} from './dock-portrait.mjs';
 import {registerMarksSocket, registerMarkHooks} from './marks.mjs';
 import {registerSpellViewSetting} from './spell-rows.mjs';
 import {registerItemViewSetting} from './item-rows.mjs';
@@ -191,6 +192,8 @@ if (globalThis.Hooks) {
   for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, (doc, ...rest) => { if (isBulk(...rest)) return; renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
+  // 0.64.0: fills General Manager's player-dock portrait slot, when there is one (dock-portrait.mjs; never throws, does nothing without the slot).
+  Hooks.once('ready', () => { try { installDockPortrait(); } catch (err) { console.warn(`${MODULE_ID} | dock portrait`, err); } });
   Hooks.once('ready', () => { void migrateFolders().catch(err => console.warn(`${MODULE_ID} | could not file documents under Ashen Gate`, err)); });
   // 0.51.0: a player preparing a spell past their class's limit from any sheet is stopped (spell-prep.mjs; never throws).
   Hooks.on('preUpdateItem', (item, changes, options, userId) => guardPrepareUpdate(item, changes, options, userId));

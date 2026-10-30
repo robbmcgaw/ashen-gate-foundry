@@ -68,6 +68,9 @@ export const HELP_SECTIONS = [
     '<strong>Appearance…</strong> changes how the Hub looks for you only: with General Manager, its skins and the size on this device; without it, Dark or Light and the size (Compact or Comfortable). <strong>GM default</strong> follows the GM\'s choice. In Compact view it also has the see-through background: down to 60 % so the map shows through.',
     'To switch back for good: the window\'s sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet. If you only observe a character, you can look but not change or roll.'
   ]],
+  ['Dock portrait', [
+    'With General Manager\'s player dock on, your character\'s picture sits at its left. <strong>Double-click</strong> it to open your Character Hub. With the keyboard, Tab to the picture and press <strong>Enter</strong> or <strong>Space</strong>; on a touch screen use the small <strong>Open Hub</strong> button beside it. One click does nothing. It shows your assigned character, else the first character you own, else the token you have selected; with none, there is no button.'
+  ]],
   ['For the GM', [
     '<strong>GM Setup → Player visibility</strong> chooses which parts players see. Parts that are off, or whose module is inactive or has Player Access off, disappear for players; you still see them with a <em>Hidden from players</em> badge saying why. Players can\'t use a hidden part\'s Hub actions either. <strong>Quick set</strong> asks before it changes every switch.',
     '<strong>GM Setup → Hub appearance</strong> is the look every user starts from while General Manager\'s appearance is not active.'

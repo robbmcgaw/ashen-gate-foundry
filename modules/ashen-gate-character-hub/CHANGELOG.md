@@ -1,3 +1,15 @@
+## 0.64.0 — 2026-10-30
+
+A portrait button for your character in General Manager's player dock.
+
+- With General Manager's **Show the player dock** on, players get a round picture of their own character at the left of the dock (General Manager reserves the spot; its 0.82.0 look is the intended one). **Double-click** it to open that character's Character Hub. Keyboard and touch: **Tab** to the picture and press **Enter** or **Space**, or use the small **Open Hub** button beside it. A single mouse click does nothing (and there is no long-press: the visible button covers touch).
+- Which character: your assigned character, else the first character you own, else the character of the token you have selected. The picture is that character's token picture, else its portrait, else your user avatar, else a stock icon. No eligible character means no button.
+- Opening goes through the Hub's own open function, so the usual rules apply: only characters, and only ones you can at least see. A refusal shows as a notice. The GM never gets the button. The Hub has no Player Access switch of its own; what a player sees inside the Hub is still the GM's **Player visibility** choices.
+- Older General Manager (no portrait spot) or the dock switched off: nothing is added and nothing breaks. The button is put back whenever the dock is redrawn and never appears twice.
+- Tooltip and accessible name read "Open <character name>"; the picture has alt text; focus shows a ring; the hover change stops under reduced motion.
+- Display only: nothing stored changes, no migration.
+- Tests are mocked Foundry; they do not open the real Hub or the real dock.
+
 ## 0.63.0 — 2026-10-29
 
 Ashen Gate → Locations shows Locations' own folders, filters and sorting.
