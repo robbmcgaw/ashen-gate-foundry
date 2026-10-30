@@ -1,3 +1,7 @@
+## 0.31.0 — 2026-10-30
+
+- **`api.exportSource()`** (GM only, refused for players): returns the package the **Export JSON** button downloads (`schema_version` `ag-quest-source/0.1`, every quest, order and contract, definitions only, no play state). The button now calls the same function, so there is one code path. General Manager's *Back up world now…* uses it for `quests.json`. Feature-detect it (`typeof api.exportSource === 'function'`). Nothing saved is changed.
+
 ## 0.30.0 — 2026-10-29
 
 A quest reveal now pops the small tracker on players' screens, not the whole Quest Log, and the GM can hide a quest again with one click.
