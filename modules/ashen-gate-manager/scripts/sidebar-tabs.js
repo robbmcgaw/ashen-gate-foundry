@@ -17,6 +17,8 @@
  * `data-tab="<id>"`, and the active tab is `ui.sidebar.tabGroups.primary` (changed with `ui.sidebar.changeTab(tab, "primary")`).
  * Also unconfirmed: `ui.sidebar.expand()`, and `ui.<tab>.renderPopout()` for the pop-out route. Each is feature-detected.
  */
+import { collapseSidebar } from './sidebar-collapse.js';
+
 export const FALLBACK_TAB = 'chat';
 const MARK = 'agmTabHidden';
 
@@ -31,6 +33,8 @@ export const KNOWN_TABS = Object.freeze(['chat', 'combat', 'scenes', 'actors', '
 export const CHAT_ONLY_CLASS = 'agm-chat-only-sidebar';
 /** Tab whose panel the player dock is showing although its button is hidden. Cleared once the player moves to another tab. */
 export const sharedPeek = { tab: null, armed: false };
+/** What the dock did to open each tab, so a second press can undo it: {via:'popout'} or {via:'tab', prev, wasExpanded}. */
+export const sharedDockOpen = {};
 
 /** Tab ids to consider: the known core ids plus every tab button in the tab column. The second place that reads the sidebar DOM. */
 export function listTabIds(doc) {
@@ -123,16 +127,17 @@ export function applySidebarTabs({ game, doc, ui, appearance, peek = sharedPeek 
  * window, so a collapsed sidebar stays collapsed); otherwise it expands the sidebar, marks the tab as peeked and switches to
  * it. Every Foundry name is feature-detected. Returns 'popout', 'tab' or false (nothing could be opened); never throws.
  */
-export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, prefer = 'tab', reapply = null } = {}) {
+export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, prefer = 'tab', reapply = null, memory = sharedDockOpen } = {}) {
   const popout = () => {
     const app = ui?.[tabId];
     if (typeof app?.renderPopout !== 'function') return false;
-    try { app.renderPopout(); return 'popout'; } catch (error) { console.warn('[ashen-gate-manager] Pop-out failed', error); return false; }
+    try { app.renderPopout(); memory[tabId] = { via: 'popout' }; return 'popout'; } catch (error) { console.warn('[ashen-gate-manager] Pop-out failed', error); return false; }
   };
   const inline = () => {
     const sidebar = ui?.sidebar;
     if (typeof sidebar?.changeTab !== 'function') return false;
     try {
+      memory[tabId] = { via: 'tab', prev: activeTab(ui), wasExpanded: sidebar.expanded !== false };
       if (typeof sidebar.expand === 'function') sidebar.expand();
       peek.tab = tabId; peek.armed = false;
       sidebar.changeTab(tabId, 'primary');
@@ -141,6 +146,38 @@ export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, p
     } catch (error) { console.warn('[ashen-gate-manager] Sidebar tab not opened', error); peek.tab = null; return false; }
   };
   return (prefer === 'popout' ? popout() || inline() : inline() || popout()) || false;
+}
+
+/** Is the tab showing right now, as a rendered pop-out (`ui.<tab>.popout`, V14 AbstractSidebarTab) or as the open tab of an expanded sidebar? */
+export function isSidebarTabOpen(tabId, { ui = globalThis.ui } = {}) {
+  try {
+    if (ui?.[tabId]?.popout?.rendered === true) return true;
+    return activeTab(ui) === tabId && ui?.sidebar?.expanded !== false;
+  } catch { return false; }
+}
+
+/**
+ * Undoes openSidebarTab for the dock's second press. A pop-out is closed with its own `close()`. A tab opened inside the
+ * sidebar goes back to the tab that was open before (Chat if unknown) and the sidebar is collapsed again if the dock had
+ * expanded it. Returns 'popout', 'tab' or false (it was not open); never throws.
+ */
+export function closeSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, reapply = null, memory = sharedDockOpen } = {}) {
+  const rec = memory[tabId];
+  delete memory[tabId];
+  try {
+    const pop = ui?.[tabId]?.popout;
+    if (pop?.rendered === true && typeof pop.close === 'function') {
+      Promise.resolve(pop.close()).catch(error => console.warn('[ashen-gate-manager] Pop-out not closed', error));
+      return 'popout';
+    }
+    if (activeTab(ui) !== tabId || typeof ui?.sidebar?.changeTab !== 'function') return false;
+    if (peek.tab === tabId) { peek.tab = null; peek.armed = false; }
+    const back = rec?.via === 'tab' && rec.prev && rec.prev !== tabId ? rec.prev : FALLBACK_TAB;
+    ui.sidebar.changeTab(back, 'primary');
+    if (rec?.via === 'tab' && rec.wasExpanded === false) collapseSidebar(ui);
+    if (typeof reapply === 'function') reapply();
+    return 'tab';
+  } catch (error) { console.warn('[ashen-gate-manager] Sidebar tab not closed', error); return false; }
 }
 
 /**

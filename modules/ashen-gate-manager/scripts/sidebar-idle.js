@@ -116,6 +116,8 @@ export function createSidebarIdleCollapse({
   }
   return {
     arm, bind, fire,
+    /** Stops the pending count (the dock closed Settings by hand). */
+    cancel() { stop(); },
     refresh() { bind(); return arm(); },
     get pending() { return timer !== null; },
     dispose() { stop(); unbind?.(); unbind = null; bound = null; }
