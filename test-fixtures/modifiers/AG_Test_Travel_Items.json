@@ -1,0 +1,160 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-TRAVEL-MODIFIERS",
+    "version": "1.0.0",
+    "description": "Synthetic travel modifiers for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "ITEM-TEST-TRAIL-BOOTS",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Trail Boots",
+      "implementation": "automatic",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Items",
+        "data": {
+          "name": "[TEST] Trail Boots",
+          "type": "equipment",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      },
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "scope": "travel",
+        "list": [
+          {
+            "target": "travel.efficiency",
+            "value": 1,
+            "label": "[TEST] Trail Boots",
+            "applies": {
+              "terrain": [
+                "forest",
+                "hills"
+              ]
+            }
+          },
+          {
+            "target": "condition.mitigation",
+            "value": 2,
+            "label": "[TEST] Trail Boots (damp)",
+            "applies": {
+              "condition": "mist-and-soft-ground"
+            },
+            "stack": "footwear"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ITEM-TEST-SADDLE-FLASK",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Saddle Flask",
+      "implementation": "automatic",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Items",
+        "data": {
+          "name": "[TEST] Saddle Flask",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      },
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "scope": "travel",
+        "list": [
+          {
+            "target": "travel.actions",
+            "value": 1,
+            "label": "[TEST] Saddle Flask",
+            "applies": {
+              "when": [
+                "mounted"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "PERK-TEST-SHARP-EYES",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Sharp Eyes",
+      "implementation": "automatic",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Perks",
+        "data": {
+          "name": "[TEST] Sharp Eyes",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      },
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "scope": "travel",
+        "list": [
+          {
+            "target": "scout.precision",
+            "value": 1,
+            "label": "[TEST] Sharp Eyes"
+          },
+          {
+            "target": "explore.range",
+            "value": 1,
+            "label": "[TEST] Sharp Eyes (wide view)",
+            "applies": {
+              "when": [
+                "familiar_terrain"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

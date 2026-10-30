@@ -36,15 +36,15 @@ const setupForm = ({access, label = 'Unknown place', image = '', leg = '5'}) => 
 const gmApp = () => { const app = new LocationsApp(); app.element = null; app.renders = 0; app.render = async () => { app.renders++; }; return app; };
 const footerOf = html => html.slice(html.lastIndexOf('<footer class="ag-footer'), html.indexOf('</footer>', html.lastIndexOf('<footer class="ag-footer')));
 
-test('header: brand span, version from module.json, Help last; tabs are role="tab" with GM Setup last and marked GM', async () => {
+test('header: brand span, version from module.json, Help last; tabs are role="tab" with the GM-only tabs (Overland, GM Setup) last and marked GM', async () => {
   await world();
   const html = await gmApp()._renderHTML();
   assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v0\.19\.0<\/span><button[^>]*data-action="help"/);
   assert.match(html, /<nav class="ag-tabs ag-tabs--scroll agl-maintabs" role="tablist"/);
   const tabs = [...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)"/g)].map(m => [m[1], m[2], m[3]]);
-  assert.deepEqual(tabs.map(t => t[0]), ['locations', 'setup']);
+  assert.deepEqual(tabs.map(t => t[0]), ['locations', 'overland', 'setup']);
   assert.deepEqual(tabs[0].slice(1), ['true', 'active']);
-  assert.match(tabs[1][2], /ag-tab--gm/);
+  assert.match(tabs[1][2], /ag-tab--gm/); assert.match(tabs[2][2], /ag-tab--gm/);
   assert.match(html, /<i class="fa-solid fa-gears" aria-hidden="true"><\/i> GM Setup/);
 });
 

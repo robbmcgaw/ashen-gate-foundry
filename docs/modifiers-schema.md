@@ -30,7 +30,7 @@ An optional block at record level (beside `foundry`, not inside it), allowed on 
 | `target` | string | yes | A key from the scope's published list (below), e.g. `push.cost`. |
 | `value` | whole number | yes | Not 0. The scope sets the range. |
 | `label` | string | yes | 1–80 characters, shown to players wherever the modifier is used. |
-| `scope` | string | yes, unless the block has one | Which module interprets it. Today only `cinder`. |
+| `scope` | string | yes, unless the block has one | Which module interprets it: `cinder` or `travel`. |
 | `op` | string | no | `"add"`, the only operation (and the default). |
 | `applies` | object | no | Narrows the target. Its keys are defined by the scope. |
 | `stack` | string | no | A short lower-case group name. What a group does is set by the scope. |
@@ -43,12 +43,40 @@ Any other field is refused. A scope may allow a few aliases (Cinders: `powers`, 
 | Scope | Owner | Targets | `applies` / aliases | `requires` | Stacking |
 |---|---|---|---|---|---|
 | `cinder` | Ashen Gate \| Cinders | `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`, `sockets.count` (0.3.0+) (see [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers); value −100 to 100 | `applies.powers` (`POWER-*` ids), `applies.modes` (Push mode ids); `powers` / `modes` at the top level mean the same | `powers` | Same `stack` name: only the largest size counts. No `stack`: always adds. |
+| `travel` | Ashen Gate \| Locations (0.37.0+) | `travel.actions`, `travel.efficiency`, `scout.precision`, `explore.range`, `condition.mitigation` ([below](#the-travel-scope)); whole numbers, all positive | `applies.terrain`, `applies.condition`, `applies.when` | none (`requires` is refused) | Same `stack` name: only the highest value counts. No `stack`: the same target and `applies` form one group. Different groups add, up to a per-target cap |
 
 A new scope, or a new target in a scope, is added by the owning module's own release and then listed here. Don't write one before it is listed.
 
 For reference, the other rules already in the suite (these are not `modifiers` scopes yet): Headquarters hireling perks use "first eligible perk per `overlap_group` wins, unless `allow_overlap`"; Character Hub adds up companion item Active Effects for display.
 
 **When a modifier counts** is the scope owner's call, documented in its own schema. For `cinder` (Cinders 0.2.0+): a `PERK-*`'s modifiers count while the character has the perk Item, for every Cinder they bear; an `ITEM-*`'s count only while it is in an active socket of a Cinder (Cinders 0.3.0+; an `ITEM-*` with cinder modifiers is what fits a socket). Details: [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers.
+
+## The `travel` scope
+
+Light overland travel, owned by Ashen Gate | Locations (0.37.0+). The GM adjudicates at the table; Locations only adds up what the party carries and shows it in the GM-only **Overland** tab. The party shares 3 overland actions a day (Travel, Scout, Explore).
+
+| Target | Value (one entry) | Total cap | Meaning | `applies` |
+|---|---|---|---|---|
+| `travel.actions` | 1 or 2 | +2 | Bonus daily overland actions | `when` |
+| `travel.efficiency` | 1 | +2 per terrain | Steps of terrain cost removed for Travel | `terrain` (optional): a list from `difficult-terrain`, `marsh`, `forest`, `hills`, `grassland`, `road`. Left out: every terrain |
+| `scout.precision` | 1 or 2 | +2 | Precision steps for Scout. A guide, not a rule: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is the GM's call | `when` |
+| `explore.range` | 1 | +2 | Extra rings of tiles surveyed by Explore | `when` |
+| `condition.mitigation` | 1 to 3 | no cap is set | Steps a **named** environmental penalty is reduced. No blanket immunity | `condition` (**required**, one id): `cold`, `heat`, `rain-and-wind`, `dust-and-ash`, `darkness`, `difficult-terrain`, or a region condition `mist-and-soft-ground`, `thin-air-quick-weather`, `hissing-grass`, `green-dimness`, `open-haze`, `rising-water` |
+
+Every entry is a whole number, not 0, and positive; a value outside its range is refused. `applies.when` is optional on every target and is a list from a closed set: `mounted`, `familiar_terrain` (all listed must hold). Any other `applies` key or value, `applies.terrain` on a target other than `travel.efficiency`, `applies.condition` on a target other than `condition.mitigation`, a missing `applies.condition`, `requires`, or an unknown target is an error. `op` is `add`; `stack` is a short lower-case group name; `label` is 1 to 80 characters.
+
+**Stacking.** A *stacking group* is the entry's `stack` name (within its target) or, with none, its target plus its `applies`. Within one group only the **highest** value counts, and that includes the whole party: if three characters carry the same group, the best source counts once. Different groups add. Then the per-target cap above is applied (for `travel.efficiency`, per terrain: an entry with no `applies.terrain` counts toward every terrain).
+
+**When an entry counts.** The module reads the imported definition. An `ITEM-*` or `PERK-*` counts while it is on a party character (a player-owned `character` Actor); wearable equipment (an `equipment` Item) also has to be equipped. An entry with `when: mounted` counts only while the GM's **Mounted** switch is on. If Character Hub is active and shows an item assigned to a character's mount (its `api.companions`), that item counts only while Mounted is on; without the Hub every item simply counts when it is on the character. `familiar_terrain` is the GM's call: the entry is listed but never added to the totals. Nothing is applied to a roll or a speed; the numbers inform the GM.
+
+```json
+"modifiers": {"schema": "ag-modifiers/0.1", "scope": "travel", "list": [
+  {"target": "travel.efficiency", "value": 1, "label": "[TEST] Trail Boots", "applies": {"terrain": ["forest", "hills"]}},
+  {"target": "condition.mitigation", "value": 2, "label": "[TEST] Trail Boots (damp)", "applies": {"condition": "mist-and-soft-ground"}, "stack": "footwear"},
+  {"target": "travel.actions", "value": 1, "label": "[TEST] Saddle Flask", "applies": {"when": ["mounted"]}}]}
+```
+
+A complete package: [`test-fixtures/modifiers/AG_Test_Travel_Items.json`](../test-fixtures/modifiers/AG_Test_Travel_Items.json); mistakes in `invalid/travel-*.json`. Locations' owner check is `api.modifiers` (same contract as below) and is exported as `validateModifiers` from `modules/ashen-gate-locations/scripts/travel-modifiers.mjs`.
 
 ## The `implementation` field
 
@@ -69,7 +97,7 @@ An optional, **display-only** field on any perk-like record (`PERK-*`, `POWER-*`
 - **Asks the scope owner** to check each entry's target, range, `applies` and `requires`, through the owner's public API, in the Import preview and again just before Apply. If the owner is not active, or is a version that does not check modifiers yet, the records **still import** with one warning ("not checked").
 - **Never touches live play state**: no Cinder, socket, bearer or Strain changes. A re-import updates the definition only.
 
-Ashen Gate | Cinders 0.2.0+ checks `cinder` modifiers (with 0.1.0 they import with the "not checked" warning). An `ITEM-*` with cinder modifiers gets a preview note that it counts only while attached to a Cinder socket.
+Ashen Gate | Cinders 0.2.0+ checks `cinder` modifiers (with 0.1.0 they import with the "not checked" warning). Ashen Gate | Locations 0.37.0+ checks `travel` modifiers (General Manager 0.88.0+ asks it; without Locations, or with an older one, they import with the same warning). An `ITEM-*` with cinder modifiers gets a preview note that it counts only while attached to a Cinder socket.
 
 ### For module builders: the owner check
 
