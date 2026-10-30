@@ -52,8 +52,11 @@ export function buildListModel(records, {gm = false, query = '', filters = {}, s
   const items = show ? list.filter(i => show.has(access.idOf(i))) : list;
   const matched = filtering ? new Set(rows.map(access.idOf)) : null;
   const refOf = gm ? l => l.id : l => l.id || l.key;
+  // 0.36.0 (additive): `hereNow` = this place is where the party is (same as `active`); `containsHere` = something inside this row/folder is. Both are
+  // plain booleans from places this user already sees, so a partner can draw a pin on the nearest collapsed folder.
   const node = (item, children = []) => {
-    const out = {ref: refOf(item), name: item.name, state: item.state ?? '', active: item.active === true, isRegion: item.isRegion === true,
+    const out = {ref: refOf(item), name: item.name, state: item.state ?? '', active: item.active === true, hereNow: item.active === true,
+      containsHere: children.some(c => c.hereNow || c.containsHere), isRegion: item.isRegion === true,
       restricted: gm ? item.audience?.mode === 'selected' : !!item.share, match: !matched || matched.has(access.idOf(item)), children};
     if (item.type) out.type = item.type;
     return out;
@@ -61,8 +64,11 @@ export function buildListModel(records, {gm = false, query = '', filters = {}, s
   // The window shows the GM plain rows under a header, and a player the places nested under a non-Region parent.
   const rowNodes = s => gm ? s.rows.map(l => node(l))
     : buildTree(s.rows, {...access, sort: cmp}).map(function make(n) { return node(n.item, n.children.map(make)); });
-  const section = s => ({id: s.id, label: s.label, count: s.count, flat: s.flat, container: s.container, ref: s.item ? refOf(s.item) : null,
-    rows: rowNodes(s), sections: s.sections.map(section)});
+  const section = s => {
+    const rows = rowNodes(s), sections = s.sections.map(section), hereNow = s.item?.active === true;
+    return {id: s.id, label: s.label, count: s.count, flat: s.flat, container: s.container, ref: s.item ? refOf(s.item) : null, hereNow,
+      containsHere: hereNow || rows.some(r => r.hereNow || r.containsHere) || sections.some(c => c.containsHere), rows, sections};
+  };
   const sections = buildRegionSections(items, access, {sortRows: cmp}).map(section);
   return {
     contract: LIST_CONTRACT, audience: gm ? 'gm' : 'player', query: q, filtering,

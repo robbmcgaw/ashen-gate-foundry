@@ -13,7 +13,7 @@ import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} fr
 import {registerPinTravel} from './travel-ui.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.35.0';
+const VERSION = '0.36.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -126,7 +126,13 @@ Hooks.once('ready', () => {
     version: VERSION, isGM, playerAccessEnabled,
     // 0.33.0 Travel: the current user and a way to find a scene by uuid (null when this client does not hold it).
     currentUser: () => game.user,
-    resolveScene: uuid => { try { const d = fromUuidSync(uuid); return d?.documentName === 'Scene' ? d : null; } catch { return null; } },
+    // fromUuidSync can miss a world Scene this client holds (or return an index entry); fall back to the Scenes collection by id.
+    resolveScene: uuid => {
+      try { const d = fromUuidSync(uuid); if (d?.documentName === 'Scene' && typeof d.view === 'function') return d; } catch { /* try the collection */ }
+      try { const m = /^Scene\.([A-Za-z0-9]+)$/.exec(String(uuid)); const s = m ? game.scenes?.get(m[1]) : null; return s?.documentName === 'Scene' ? s : null; } catch { return null; }
+    },
+    // 0.36.0: what this client's canvas shows, so Travel can tell "already here" and "still loading" from a real failure.
+    sceneState: () => ({viewingId: globalThis.canvas?.scene?.id ?? null, loading: !!globalThis.canvas?.loading, ready: !!globalThis.canvas?.initialized}),
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
     sharing: {request: sharing.request}, show: {send: show.send},

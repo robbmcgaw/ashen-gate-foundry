@@ -1113,3 +1113,5 @@
 .agch-app .agch-rowmenu__item.is-danger { color: var(--ag-danger-ink, var(--ag-danger, inherit)); }
 .agch-app .agch-rowmenu__item[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .agch-app .agch-rowmenu__why { margin: 0; padding: var(--ag-space-1) var(--ag-space-2); font-size: var(--ag-text-sm); overflow-wrap: break-word; }
+.agch-app .agch-loc__here { display: inline-flex; align-items: center; flex: none; padding: 0 var(--ag-space-1); color: var(--ag-accent, currentColor); }
+.agch-app .agch-loc__here[hidden] { display: none; }
