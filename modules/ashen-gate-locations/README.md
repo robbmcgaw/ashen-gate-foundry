@@ -47,6 +47,16 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Select, Archive and Delete (0.26.0, GM):** **Select** in the toolbar puts a tick box on every row. Narrow the list with *Region*, the other Filters, the search box or **Id starts with** (e.g. `LOC-FRONTIER-`), then **Select all N shown**. **Archive…** previews exactly what it will do, then takes the locations off the list and out of players' sight (as if Hidden) while keeping everything: content, state, audience, Party Notes and map pins (the pins stay on the scene for you, closed to players). **Undo** shows for 30 seconds; **Archived (n)** lists them and **Restore…** brings them back. **Delete…** removes for good: preview, a one-click JSON backup of exactly those locations, then the labelled **Delete N locations** confirm (Cancel is the default). A location with places inside it can only be deleted together with them (the window offers to add them). Map Notes this module placed are removed; Notes you changed by hand in Foundry (image or size) stay and are listed. Party Notes stay stored and return if the same id is imported again. Archived locations are skipped by a re-import and stay archived; a deleted one is created again if a pack Manager imports still contains it, so archive what you want kept out of the world.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup; it saves with GM Setup's **Save Changes**, like the other settings there). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
+## Overland travel (0.37.0)
+
+A light way to keep overland days, for the GM only. **Overland** is a tab before *GM Setup*. You adjudicate; the tab is a tally, not a tracker, and it never rolls (roll the day's conditions yourself beforehand).
+
+- **Actions.** The party shares 3 actions a day: **Travel** (one neighbouring map tile, normally no check), **Scout** (roughly which way a known goal lies; Navigation checks may sharpen it) and **Explore** (survey this tile and the ones next to it). Fights, encounters and talking cost none. The tab shows *Day N* and *Actions left X of Y*; each button spends one action and adds a line to a short log. **Undo last** takes back the latest. **New day…** (asks first) restores the actions and adds one to the day.
+- **Switches.** **Mounted** counts modifiers that need a mount, and gear on a character's mount (Character Hub's `api.companions`, when it is active). **Announce to players** (off by default) posts one short chat line per action. Both apply at once.
+- **Party modifiers (read only).** Items and perks with `travel` modifiers on a player's character, adding to the bonus actions (up to +2), Explore range (up to +2), Scout precision (up to +2), terrain efficiency (up to +2 per terrain) and condition mitigation (per named condition). Each total shows its sources and why a source was not counted. Within a stacking group only the best source counts, across the whole party; different groups add. Equipment counts while equipped. Scout precision is a guide: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is the GM's call.
+- **Storage.** One world setting owned by Locations (`overland`: day, actions used, the two switches, the last 20 log lines). Only the GM can change it, and the API refuses players. Nothing else is stored.
+- **Authoring.** The `travel` modifier scope (targets, ranges, `applies`, stacking, counting) is in `docs/modifiers-schema.md`.
+
 ## Storage
 
 - **Locations (GM Data)** Journal (no player permission) holds every record.
@@ -111,6 +121,8 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `rollTable(uuid)` (0.20.0) | draws from a RollTable to chat (Foundry's own draw and roll mode); `{results: [text]}` |
 | GM only: `convertRoutes({apply})` (0.20.0) | Developer Tools conversion. Without `apply` a preview: `{total, convert: [{routeId, name, locationId, parentId, notes}], done: [{routeId, name, locationId}], skipped: [{routeId, name, reason}], applied}` |
 | `ROUTES_RETIRED` | the message a skipped Route record carries |
+| `modifiers` (0.37.0) | `{contract: 'ag-modifier/1', scope: 'travel', targets, validate(entries, {recordId, record}) -> {errors, warnings}}`: the owner check for `travel` modifiers (General Manager calls it on import). See `docs/modifiers-schema.md` |
+| GM only: `overland.state()`, `overland.partyModifiers()` (0.37.0) | read only. `state()` is `{contract: 'ag-overland/1', day, used, base, bonus, total, left, mounted, announce, log: [{kind, day, text}]}`; `partyModifiers()` is `{contract, scope, mounted, bonus: {actions, explore, scout}, ladder, rows: [{key, target, terrain, condition, label, unit, total, cap, capped, sources: [{name, character, label, value, counted, note}]}]}`. A player is refused |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ### `listModel(options)` (0.34.0)

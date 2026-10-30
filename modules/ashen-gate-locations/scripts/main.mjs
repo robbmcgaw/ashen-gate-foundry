@@ -13,9 +13,10 @@ import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} fr
 import {registerPinTravel} from './travel-ui.mjs';
 import {confirmPlacement} from './pin-verify.mjs';
 import {createCanvasDrop} from './canvas-drop.mjs';
+import {createOverland, useOverland} from './overland.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.36.1';
+const VERSION = '0.37.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -98,6 +99,11 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'showOpensWindow', {
     name: 'Locations — Open the window when the GM shows a location', scope: 'world', config: false, type: Boolean, default: true, restricted: true
   });
+  // 0.37.0: the GM's overland travel state (day, actions spent, switches, a short log). GM write; the api refuses players.
+  game.settings.register(MODULE_ID, 'overland', {
+    name: 'Locations — Overland travel state', scope: 'world', config: false, type: Object, default: {}, restricted: true,
+    onChange: () => { const app = LocationsApp.instance; if (app?.rendered && app.tab === 'overland') app.render().catch(notifyError); }
+  });
   registerPinLook();
   registerPinTravel(); // 0.33.0: right-click > Travel on a pin
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
@@ -122,7 +128,18 @@ Hooks.once('ready', () => {
     if (typeof msg?.type === 'string' && msg.type.startsWith('share-')) sharing.onSocket(msg, senderId).catch(notifyError);
     else notes.onSocket(msg, senderId).catch(notifyError);
   });
+  // 0.37.0: overland travel. Mount items come from Character Hub's public api.companions when it is there (feature-detected); otherwise every item is "on the character".
+  const hubCompanions = () => { const hub = game.modules.get('ashen-gate-character-hub'); return hub?.active && typeof hub.api?.companions === 'function' ? hub.api.companions : null; };
+  const overland = createOverland({
+    isGM, read: () => game.settings.get(MODULE_ID, 'overland'), write: state => game.settings.set(MODULE_ID, 'overland', state),
+    actors: () => [...(game.actors ?? [])].filter(a => a?.type === 'character' && a.hasPlayerOwner === true),
+    mountItems: actor => { const companions = hubCompanions(); if (!companions) return null; const m = companions(actor)?.mount;
+      return m ? new Set([...(m.perkItemIds ?? []), ...(m.gearItemIds ?? [])]) : new Set(); },
+    announce: text => ChatMessage.create({content: `<p>${String(text).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]))}</p>`, speaker: {alias: 'Overland travel'}})
+  });
+  useOverland(overland);
   mod.api = createApi({
+    overland,
     embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},
     listContext,
     version: VERSION, isGM, playerAccessEnabled,

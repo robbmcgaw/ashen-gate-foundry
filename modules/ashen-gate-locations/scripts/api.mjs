@@ -15,6 +15,8 @@ import {checkMove} from './tree.mjs';
 import {travelOptions, TRAVEL_UNAVAILABLE} from './travel.mjs';
 import {planRouteConversion} from './route-convert.mjs';
 import {buildListModel, LIST_CONTRACT} from './list-model.mjs';
+import {OVERLAND_CONTRACT} from './overland.mjs';
+import {MODIFIER_CONTRACT, MODIFIER_SCOPE, TARGET_IDS, validateModifiers} from './travel-modifiers.mjs';
 import {planBulk, applyArchive, applyRestore, applyDelete, idsWithPrefix} from './bulk.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
@@ -29,7 +31,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        pins?: {report(locs) → [{uuid, name, managed, overridden}], remove(locs) → {removed, kept: [{uuid, name, count}]}} (0.26.0: Map Notes for bulk Delete),
  *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview),
  *        resolveScene?(uuid) → Scene|null, currentUser?() → the User (0.33.0: Travel),
- *        listContext?() → {templates, questName(id), materialName(id)} (0.34.0: GM search/group helpers for listModel)}
+ *        listContext?() → {templates, questName(id), materialName(id)} (0.34.0: GM search/group helpers for listModel),
+ *        overland?: the overland service (overland.mjs, 0.37.0: api.overland reads it, GM only)}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
@@ -561,6 +564,22 @@ export function createApi(deps) {
     releasePartyNotes: ref => notesOp(ref, {op: 'release'}),
     /** GM: empty a location's notes. */
     async clearPartyNotes(ref) { requireGM(); return notesOp(ref, {op: 'clear'}); },
+
+    /**
+     * The scope owner for `travel` modifiers (0.37.0; contract ag-modifier/1). General Manager calls validate(entries, {recordId, record})
+     * on import; docs/modifiers-schema.md has the targets, ranges and rules.
+     */
+    modifiers: Object.freeze({contract: MODIFIER_CONTRACT, scope: MODIFIER_SCOPE, targets: [...TARGET_IDS], validate: validateModifiers}),
+    /**
+     * Light overland travel (0.37.0), GM only, read only. state() -> {contract, day, used, base, bonus, total, left, mounted, announce, log: [{kind, day, text}]};
+     * partyModifiers() -> {contract, scope, mounted, bonus: {actions, explore, scout}, ladder, rows: [{key, target, terrain, condition, label, unit, total, cap, capped,
+     * sources: [{name, character, label, value, counted, note}]}]}. Players are refused here, not just in the window.
+     */
+    overland: Object.freeze({
+      contract: OVERLAND_CONTRACT,
+      state() { requireGM(); if (!deps.overland) throw new Error('Overland travel is unavailable.'); return deps.overland.state(); },
+      partyModifiers() { requireGM(); if (!deps.overland) throw new Error('Overland travel is unavailable.'); return deps.overland.partyModifiers(); }
+    }),
 
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,
