@@ -141,3 +141,13 @@ body.agm-controls-docked:has(#sidebar-content:not(.expanded))[data-agm-dock-corn
 body.agm-controls-docked .agm-dock[data-corner="bottom-right"] {
   bottom: calc(var(--agm-dock-bottom) + var(--agm-controls-h, 0px) + var(--ag-space-2, 0.5rem));
 }
+
+/* ---- 0.85.4 ---- */
+/* Reserved scene-controls column. Core's #ui-left sets --control-columns inline (SceneControls#setPosition: ceil(tools*40/toolsHeight)+1,
+   foundry.mjs 14.367) and #ui-left-column-1 is (n*32px + (n-1)*8px) wide; the scene navigation sits in #ui-left-column-2 after it.
+   A one-row docked control strip is only ~32px tall, so n comes out large (8 columns = 312px) and the bar starts hundreds of px in.
+   The controls are position:fixed while docked, so nothing needs that column: collapse its width and remove the flex column gap (16px) so the
+   bar starts at #ui-left's own padding edge. !important is needed because core sets the variable inline. The column keeps its
+   children (the players panel stays in it, overflowing visibly). Removed with body.agm-controls-docked (undocked, GM, setting off). */
+body.agm-controls-docked #ui-left { --control-columns: 0 !important; column-gap: 0 !important; }
+body.agm-controls-docked #ui-left #ui-left-column-1 { width: 0 !important; min-width: 0 !important; }

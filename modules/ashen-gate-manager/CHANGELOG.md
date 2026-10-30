@@ -1,3 +1,13 @@
+## 0.85.4 — 2026-10-30
+
+Fix: the scene navigation bar sat far from the left edge for players whose scene controls are docked. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.
+
+- **The real cause.** The bar does not live in the middle interface column; in V14 it is inside `#ui-left-column-2`, which starts after `#ui-left-column-1`, and core reserves that first column for the scene controls: its width is `--control-columns` x 32px plus 8px gaps. Core sets `--control-columns` itself (inline on `#ui-left`) to the tool count x 40px divided by the tool strip's height, plus one. Docking turns the controls into a one-row strip about 32px tall, so core reserved 8 columns (312px, plus the 16px padding and 16px gap, so the bar started 344px in) for controls that Manager had already moved out to sit under the dock. The 0.85.0 and 0.85.3 nudges looked at the wrong container and never moved it.
+- **Fix.** While the scene controls are docked, a stylesheet rule collapses that reserved column (`--control-columns: 0` and a zero-width first column) so the bar starts at the real left edge of the interface. Nothing is set on core elements by script. The controls, their tools and flyouts, and the expanded scene list are untouched. Undocking, switching the dock off, or being the GM restores core's layout.
+- **Pull the scene navigation to the left** now finds the bar wherever it is (by its id, not by assuming its parent) and measures through the interface scale.
+- **Diagnostics.** `<body>` carries `data-agm-nav-parent="<id of the bar's parent>"` while Manager is active (for example `ui-left-column-2`), and `data-agm-nav-shift="<px>"` while the bar is being moved.
+- Tests are mocked; the live Forge layout has not been seen.
+
 ## 0.85.3 — 2026-10-30
 
 Fix: the scene navigation bar no longer gets pushed away from the dock. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.
