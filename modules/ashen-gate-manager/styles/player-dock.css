@@ -69,11 +69,13 @@ body:has(#sidebar.collapsed) .agm-dock[data-corner="top-right"] { right: 4rem; }
 /* ---- 0.82.0 ---- */
 .agm-dock [hidden] { display: none !important; }
 .agm-dock__body { display: flex; flex-direction: column; gap: var(--ag-space-2); }
-.agm-dock__bar { display: flex; justify-content: flex-end; }
+.agm-dock__head { display: flex; align-items: center; gap: var(--ag-space-2); }
+.agm-dock__head .agm-dock__slot[data-agm-dock-slot="portrait"] { flex: 1 1 auto; min-width: 0; }
+.agm-dock__toggle { flex: none; margin-left: auto; }
 .agm-dock[data-minimized="true"] { padding: var(--ag-space-1); }
-.agm-dock__toggle:focus-visible,
-.agm-dock__link:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
-.agm-dock__link { color: var(--ag-muted); text-decoration: underline; }
+.agm-dock__toggle:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
+/* 0.83.0: a pressed toggle (Combat, Settings, Conditions, Quest Tracker) is marked by more than colour: a heavier border. */
+.agm-dock__btn[aria-pressed="true"] { border-color: var(--ag-focus); border-width: 2px; font-weight: 600; }
 
 /* Players list: the players / latency / FPS panel is hidden (only a class; Foundry keeps updating the element).
    #players is the V13/V14 id of that panel (unconfirmed in a live world). The dock may then sit lower. */
@@ -106,4 +108,53 @@ body.agm-controls-docked[data-agm-dock-corner="bottom-left"] #scene-controls {
 }
 body.agm-controls-docked .agm-dock[data-corner="bottom-left"] {
   bottom: calc(var(--agm-dock-bottom) + var(--agm-controls-h, 0px) + var(--ag-space-2, 0.5rem));
+}
+
+/* ---- 0.83.0 ---- */
+/* Token controls as one horizontal row (JS sets body.agm-controls-clean only when the token group is open and marks hidden tools
+   with [data-agm-tool-hidden]). V14 ids from foundry.mjs 14.367: #scene-controls-controls = the group buttons, #scene-controls-tools
+   = the tools. The :has() rule is a fallback that hides unknown tools before the script has run; [data-agm-keep] is set by the script
+   for a Find My Token tool from another module. Flyouts and the active-tool highlight are Foundry's own and untouched. */
+body.agm-controls-clean #scene-controls-controls,
+body.agm-controls-clean #scene-controls-layers { display: none !important; }
+body.agm-controls-clean #scene-controls { flex-direction: row !important; width: max-content !important; height: auto !important; overflow: visible !important; }
+body.agm-controls-clean #scene-controls > menu { flex-direction: row !important; flex-wrap: nowrap !important; height: auto !important; }
+body.agm-controls-clean #scene-controls-tools > li[data-agm-tool-hidden],
+body.agm-controls-clean #scene-controls-tools > li:has(> button.tool:not([data-tool="select"]):not([data-tool="target"]):not([data-tool="ruler"]):not([data-agm-keep])) { display: none !important; }
+body.agm-controls-clean #scene-controls-tools [data-agm-tool-hidden] { display: none !important; }
+
+/* Bottom-left stack (Move the scene navigation to the bottom left). Top to bottom: dock, controls row, scene navigation.
+   Assumptions (V14, unconfirmed live): #scene-navigation sits in #ui-left (left: 0, transformed, so position: fixed is relative to
+   it and equals the screen at interface scale 100%); the hotbar is in the centre column and does not reach the left edge; the
+   players list is hidden (else --agm-dock-bottom clears it). Offsets, all on :root or body, are:
+     --agm-stack-left    left edge of all three            (default 0.5rem)
+     --agm-dock-bottom   gap under the whole stack         (0.5rem with the players list hidden, else 9rem)
+     --agm-nav-width     width of the scene navigation     (12.5rem)
+     --agm-stack-gap     space between the three           (0.5rem)
+   Measured by dock-controls.js: --agm-dock-h, --agm-controls-h, --agm-nav-h. The navigation grows UPWARD from its bottom edge, so
+   its scene list (the expand caret) opens upward over the stack instead of off the bottom of the screen; it sits above the other two. */
+body.agm-nav-bottom { --agm-stack-left: var(--ag-space-3, 0.5rem); --agm-stack-gap: var(--ag-space-2, 0.5rem); --agm-nav-width: 12.5rem; }
+body.agm-nav-bottom #scene-navigation,
+body.agm-nav-bottom #navigation {
+  position: fixed !important;
+  inset: auto !important;
+  left: var(--agm-stack-left) !important;
+  bottom: var(--agm-dock-bottom) !important;
+  width: var(--agm-nav-width) !important;
+  max-height: calc(100vh - var(--agm-dock-bottom) - 1rem) !important;
+  margin: 0 !important;
+  overflow-y: auto;
+  z-index: 32;
+}
+body.agm-nav-bottom.agm-controls-docked[data-agm-dock-corner] #scene-controls {
+  left: var(--agm-stack-left) !important;
+  bottom: calc(var(--agm-dock-bottom) + var(--agm-nav-h, 0px) + var(--agm-stack-gap)) !important;
+  top: auto !important;
+  right: auto !important;
+}
+body.agm-nav-bottom .agm-dock {
+  top: auto !important;
+  right: auto !important;
+  left: var(--agm-stack-left) !important;
+  bottom: calc(var(--agm-dock-bottom) + var(--agm-nav-h, 0px) + var(--agm-controls-h, 0px) + var(--agm-stack-gap) * 2) !important;
 }

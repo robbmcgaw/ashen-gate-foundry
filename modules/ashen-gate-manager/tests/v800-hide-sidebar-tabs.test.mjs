@@ -144,5 +144,5 @@ test('wiring, placement, Help, visual only, version',()=>{
   assert.match(main,/hideCompendiumsTab: this\.tab === "setup" \? Boolean\(this\.setupDraft\?\.hideCompendiumsTab \?\? /);
   assert.match(main,/<em>Hide the Compendiums tab from players<\/em>/);
   assert.doesNotMatch(src,/ownership|permission|setFlag|update\(|updateDocuments|settings\.set/);
-  const m=JSON.parse(read('../module.json'));assert.equal(m.version,'0.82.0');assert.ok(m.download.endsWith('/ashen-gate-manager-v0.82.0/ashen-gate-manager.zip'));
+  const m=JSON.parse(read('../module.json'));assert.equal(m.version,'0.83.0');assert.ok(m.download.endsWith('/ashen-gate-manager-v0.83.0/ashen-gate-manager.zip'));
 });

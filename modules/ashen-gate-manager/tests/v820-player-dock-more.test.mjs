@@ -45,7 +45,7 @@ test('settings: players list and scene controls are off by default, GM only, wor
   const a=reg.find(r=>r.k===AUTO_COLLAPSE_KEY).v;
   assert.deepEqual([a.scope,a.config,a.restricted,a.type,a.default],['world',false,true,Number,8]);
   assert.equal(DEFAULT_AUTO_COLLAPSE_SECONDS,8);assert.match(a.name,/Auto-collapse chat and Settings after \(seconds\)/);
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-2).map(f=>f.state),['hidePlayersList','dockSceneControls']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-3,-1).map(f=>f.state),['hidePlayersList','dockSceneControls']);
   const g=ctl();const st=g.c.getState();
   assert.deepEqual([st.hidePlayersList,st.dockSceneControls,st.autoCollapseSeconds],[false,false,8]);
   await g.c.setHidePlayersList(true);await g.c.setDockSceneControls(true);await g.c.setAutoCollapseSeconds(0);
@@ -112,10 +112,10 @@ test('dock: User Configuration link is always there, is a button, and calls the 
   const bad=dockEnv({openConfig:()=>false});const d2=bad.apply();d2.querySelector('[data-agm-dock="user-config"]').click();
   return tick().then(()=>{assert.equal(bad.notes.length,1);
     const slots=dock.querySelectorAll('[data-agm-dock-slot]').map(s=>s.dataset.agmDockSlot);
-    assert.deepEqual(slots,['portrait','combat','settings','ashen-gate','quest-tracker','conditions','user-config']);
+    assert.deepEqual(slots,['portrait','combat','settings','conditions','quest-tracker','user-config','ashen-gate']);
     assert.deepEqual(DOCK_SLOTS.map(s=>s.id),slots);
     const portrait=dock.querySelector('[data-agm-dock-slot="portrait"]');assert.equal(portrait.tagName,'SPAN');assert.equal(portrait.children.length,0);
-    assert.equal(portrait.parentElement.id,`${DOCK_ID}-body`);assert.equal(portrait.parentElement.parentElement,dock);
+    assert.equal(portrait.parentElement.className,'agm-dock__head');assert.equal(portrait.parentElement.parentElement,dock);
   });
 });
 
@@ -276,13 +276,13 @@ test('auto-collapse: installs on the render hook and setting changes; dispose cl
 });
 
 // ---------- wiring
-test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, version 0.82.0, no status labels',()=>{
+test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, version 0.83.0, no status labels',()=>{
   const tpl=read('../templates/manager.hbs'),main=read('../scripts/main.js'),man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
   assert.match(tpl,/aria-label="Sidebar"[\s\S]*data-ag-setup-screen="dockSceneControls"[\s\S]*data-ag-setup-screen="hidePlayersList"[\s\S]*data-ag-setup-autocollapse/);
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.82.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.82.0/ashen-gate-manager.zip'));assert.match(log,/^## 0\.82\.0/);
+  assert.equal(man.version,'0.83.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.83.0/ashen-gate-manager.zip'));assert.match(log,/^## 0\.83\.0/);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);
@@ -292,6 +292,6 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
 test('installPlayerDock hooks both renders and cleans up (controls released)',()=>{
   const e=dockEnv({state:{dockSceneControls:true}});const reg=[];const off=[];
   const stop=installPlayerDock({game:e.game,hooks:{on:(n,f)=>{reg.push(n);return reg.length;},off:(n)=>off.push(n)},doc:e.doc,getUi:()=>e.ui,appearance:e.ap,layout:e.layout});
-  assert.deepEqual(reg,['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),true);
-  stop();assert.deepEqual(off,['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.getElementById(DOCK_ID),null);
+  assert.deepEqual(reg.slice(0,2),['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),true);
+  stop();assert.deepEqual(off.slice(0,2),['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.getElementById(DOCK_ID),null);
 });

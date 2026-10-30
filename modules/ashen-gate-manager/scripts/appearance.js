@@ -42,14 +42,19 @@ export const PLAYER_SCREEN_FLAGS = Object.freeze([
     hint:'When a player loads the game the sidebar starts collapsed, so the scene fills the screen. They can expand and collapse it as usual afterwards. Applied once when the game loads, not live. GMs are never collapsed.'}),
   Object.freeze({key:'playerDock',state:'playerDock',setter:'setPlayerDock',who:'whether players see the player dock',
     name:'Show the player dock',
-    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Quest Tracker and Conditions (each only when its module is on and the player may open it), a User Configuration link, and a button to minimize the dock. It is meant for use with Show players only the Chat tab. GMs never see it.'}),
+    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings, an Ashen Gate menu of the windows they may open, Conditions, Quest Tracker (each only while its module is on and the player may open it), User Configuration, and a button to minimize the dock. It is meant for use with Show players only the Chat tab. GMs never see it.'}),
   // 0.82.0, both off by default, visual only, never for the GM (see player-dock.js, dock-controls.js).
   Object.freeze({key:'hidePlayersList',state:'hidePlayersList',setter:'setHidePlayersList',who:'whether players see the players list',
     name:'Hide the players list from players',
     hint:'Players no longer see the players, latency and FPS panel at the bottom left of the screen. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden: nobody\'s permissions change. GMs always see it.'}),
   Object.freeze({key:'dockSceneControls',state:'dockSceneControls',setter:'setDockSceneControls',who:'where players\' scene controls sit',
     name:'Move players\' scene controls under the player dock',
-    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, so the scene navigation takes the corner. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'})
+    hint:'Players\' scene tools (select, target, measure and so on) sit under the player dock instead of the top left corner, so the scene navigation takes the corner. Needs Show the player dock. The tools work as before. GMs always see them in the normal place.'}),
+  // 0.83.0, off by default, visual only, never for the GM. A sibling of dockSceneControls rather than a change to it: the 0.82.0 setting
+  // keeps its meaning (controls under the dock), and this one is the separate, opt-in bottom-left stack.
+  Object.freeze({key:'moveSceneNavigation',state:'moveSceneNavigation',setter:'setMoveSceneNavigation',who:'where players\' scene navigation sits',
+    name:'Move the scene navigation to the bottom left',
+    hint:'Players\' scene navigation (the scene name and its list) moves from the top left to the bottom left, with their token controls in one row above it and the player dock above that. The token controls then show only Select, Select Targets, Measure and Find My Token. Needs Show the player dock. Scenes still open and switch as before. GMs always see the normal layout.'})
 ]);
 // Auto-collapse of the sidebar chat and Settings for players (0.82.0), world scope, GM-only. Seconds of inactivity; 0 = off.
 export const AUTO_COLLAPSE_KEY = 'autoCollapseSeconds';
