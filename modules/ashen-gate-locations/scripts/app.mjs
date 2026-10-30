@@ -16,6 +16,7 @@ import {travel, travelCount, onRowContextMenu} from './travel-ui.mjs';
 import {hereMarks, hereMarkHtml} from './here-marker.mjs';
 import {travelLabel} from './travel.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
+import {confirmPlacement} from './pin-verify.mjs';
 import {setDragging} from './canvas-drop.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
@@ -1820,8 +1821,8 @@ export class LocationsApp extends Base {
         if (!id) return;
         const {x, y} = canvas?.stage?.pivot ?? {};
         this.select(id);
-        await api().placeOnScene(id, {scene: canvas?.scene, x: x ?? 0, y: y ?? 0});
-        ui.notifications.info(`Placed ${this.draft.name} on ${canvas.scene.name}.`);
+        const note = await api().placeOnScene(id, {scene: canvas?.scene, x: x ?? 0, y: y ?? 0});
+        await confirmPlacement({note, name: this.draft.name, scene: canvas.scene, x: x ?? 0, y: y ?? 0, canvas, game, notify: ui.notifications});
         return this.render();
       }
       case 'exotic-add': case 'exotic-remove': {

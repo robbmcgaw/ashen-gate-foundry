@@ -11,6 +11,7 @@ import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {registerPinLook, refreshPins, DEFAULT_PIN_LOOK, PIN_LOOKS, NAME_SIZE} from './pin-look.mjs';
 import {registerPinTravel} from './travel-ui.mjs';
+import {confirmPlacement} from './pin-verify.mjs';
 import {createCanvasDrop} from './canvas-drop.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
@@ -196,7 +197,8 @@ for (const hook of ['createNote', 'updateNote', 'deleteNote']) {
 // the hook stays as a fallback and the two never place twice. See canvas-drop.mjs.
 const canvasDrop = createCanvasDrop({
   isGM, api: () => game.modules.get(MODULE_ID).api, canvas: () => globalThis.canvas,
-  notify: {info: t => ui.notifications?.info(t), warn: t => ui.notifications?.warn(t), error: notifyError}
+  notify: {info: t => ui.notifications?.info(t), warn: t => ui.notifications?.warn(t), error: notifyError},
+  confirm: a => confirmPlacement({...a, canvas: globalThis.canvas, game, notify: {info: t => ui.notifications?.info(t), warn: t => ui.notifications?.warn(t)}})
 });
 Hooks.on('dropCanvasData', canvasDrop.onHook);
 // The canvas element is recreated, so bind on every canvasReady.

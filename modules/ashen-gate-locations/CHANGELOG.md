@@ -4,6 +4,7 @@ Fixed: dragging a location from the list onto the map sometimes showed the drag 
 
 - **Drop is caught on the map itself.** The drop is now handled by a listener on the map canvas that runs before Foundry's own drop handling, so another module's drop handler can no longer swallow it. The old `dropCanvasData` hook stays as a fallback; whichever fires first places the pin and the other does nothing, so one drop is one pin. GM only; other drags are left alone.
 - **Never silent.** A placement now says "Placed <location> on <scene>." A drop that cannot be placed (no scene open, unreadable drop, location not found, or any error) shows a warning or the error.
+- **Placed pins are checked.** After Place on map or a drop, Locations waits for Foundry to draw the pin, pans to it when it is off screen, and if it cannot be seen it says why in plain words (not drawn, hidden, Map Notes turned off, zero size, empty picture, transparent) and logs the details to the console. A pin that looks fine gets the "Placed" note.
 - Nothing stored changes; no migration. Tests are mocked Foundry; they do not drag on the real canvas.
 
 ## 0.36.0 — 2026-10-30

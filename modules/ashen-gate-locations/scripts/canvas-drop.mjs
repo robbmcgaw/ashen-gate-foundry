@@ -21,7 +21,7 @@ export function parseDrop(event) {
 }
 
 /**
- * deps: {isGM(), api() -> module api, canvas() -> canvas, notify: {info, warn, error}, now?}
+ * deps: {isGM(), api() -> module api, canvas() -> canvas, notify: {info, warn, error}, confirm?({note, name, scene, x, y}), now?}
  * Returns {onHook, onDrop, onDragOver, attach, detach}.
  */
 export function createCanvasDrop(deps) {
@@ -53,8 +53,9 @@ export function createCanvasDrop(deps) {
     let name = data.id;
     try { name = api.getLocation(data.id)?.name || name; } catch { /* the placement below reports a real problem */ }
     try {
-      await api.placeOnScene(data.id, {scene, x, y});
-      deps.notify.info(`Placed ${name} on ${scene.name}.`);
+      const note = await api.placeOnScene(data.id, {scene, x, y});
+      if (deps.confirm) await deps.confirm({note, name, scene, x, y});
+      else deps.notify.info(`Placed ${name} on ${scene.name}.`);
     } catch (err) {
       last = {key: '', at: -Infinity}; // a failed drop may be tried again at once
       deps.notify.error(err);

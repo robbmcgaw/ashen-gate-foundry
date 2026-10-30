@@ -99,3 +99,64 @@ test('attach binds capture listeners to the new element and detaches the old one
   assert.deepEqual(log, ['+a:drop:true', '+a:dragover:true', '-a:drop:true', '-a:dragover:true', '+b:drop:true', '+b:dragover:true']);
   assert.equal(r.cd.attach(null), false);
 });
+
+// ---- placed-pin confirmation (pin-verify.mjs) ----
+import {confirmPlacement, hiddenReasons, isOffScreen} from '../scripts/pin-verify.mjs';
+const noWait = () => Promise.resolve();
+function vrig({obj, scene = {id: 's1', name: '[TEST] Town'}, canvasScene = scene, toggle = true, pivot = {x: 0, y: 0}} = {}) {
+  const info = [], warn = [], pans = [], logs = [];
+  const note = {id: 'n1', x: 5000, y: 5000, iconSize: 40, texture: {src: 'icons/test.webp'}, object: obj};
+  const canvas = {scene: canvasScene, notes: {placeables: obj ? [obj] : [], active: false}, stage: {pivot, scale: {x: 1}}, app: {screen: {width: 1000, height: 800}}, animatePan: async p => pans.push(p)};
+  const game = {settings: {get: () => toggle}};
+  const run = () => confirmPlacement({note, name: '[TEST] Inn', scene, x: 5000, y: 5000, canvas, game, notify: {info: m => info.push(m), warn: m => warn.push(m)}, wait: noWait, log: {warn: (...a) => logs.push(a)}});
+  return {run, info, warn, pans, logs, note};
+}
+const drawn = (extra = {}) => ({document: {id: 'n1'}, id: 'n1', visible: true, alpha: 1, controlIcon: {width: 40, height: 40, alpha: 1}, ...extra});
+
+test('a drawn, visible pin far from the view pans to it and reports success', async () => {
+  const r = vrig({obj: drawn()}); const out = await r.run();
+  assert.equal(out.ok, true); assert.equal(out.panned, true);
+  assert.deepEqual(r.pans, [{x: 5000, y: 5000, duration: 500}]);
+  assert.deepEqual(r.info, ['Placed [TEST] Inn on [TEST] Town.']); assert.deepEqual(r.warn, []);
+});
+test('a pin already in view is not panned to', async () => {
+  const r = vrig({obj: drawn(), pivot: {x: 4900, y: 4900}}); await r.run();
+  assert.deepEqual(r.pans, []); assert.equal(isOffScreen({app: {screen: {width: 10, height: 10}}, stage: {pivot: {x: 0, y: 0}, scale: {x: 1}}}, 100, 0), true);
+});
+test('no canvas object: warns with the position and a console detail, no success note', async () => {
+  const r = vrig({obj: null}); const out = await r.run();
+  assert.equal(out.ok, false); assert.equal(r.info.length, 0);
+  assert.match(r.warn[0], /placed at 5000, 5000.*did not draw it/); assert.equal(r.logs.length, 1);
+});
+test('hidden, empty picture, zero size and transparent pins each give a plain reason', () => {
+  const doc = {iconSize: 40, texture: {src: 'a.webp'}};
+  assert.match(hiddenReasons(drawn({visible: false}), doc, {game: {settings: {get: () => false}}, canvas: {notes: {active: false}}}).join(), /Map Notes are turned off/);
+  assert.match(hiddenReasons(drawn({isVisible: false}), doc, {game: {settings: {get: () => true}}}).join(), /marked it hidden/);
+  assert.match(hiddenReasons(drawn(), {iconSize: 0, texture: {src: 'a'}}).join(), /size is zero/);
+  assert.match(hiddenReasons(drawn(), {iconSize: NaN, texture: {src: 'a'}}).join(), /size is zero/);
+  assert.match(hiddenReasons(drawn(), {iconSize: 40, texture: {src: ''}}).join(), /picture is empty/);
+  assert.match(hiddenReasons(drawn({alpha: 0}), doc).join(), /transparent/);
+  assert.match(hiddenReasons(drawn({controlIcon: {width: NaN, height: 5, alpha: 1}}), doc).join(), /no drawn size/);
+  assert.deepEqual(hiddenReasons(drawn(), doc), []);
+});
+test('placing on a scene that is not on screen is reported', async () => {
+  const r = vrig({obj: drawn(), canvasScene: {id: 'other', name: 'Other'}}); const out = await r.run();
+  assert.equal(out.ok, false); assert.match(r.warn[0], /not the one on screen/);
+});
+test('a canvas object that appears a frame late is found', async () => {
+  const obj = drawn(); const r = vrig({obj: null});
+  let n = 0; r.note.object = undefined;
+  const canvas = {scene: {id: 's1'}, notes: {get placeables() { return ++n > 2 ? [obj] : []; }}, stage: {pivot: {x: 5000, y: 5000}, scale: {x: 1}}, app: {screen: {width: 1000, height: 800}}};
+  const info = [];
+  const out = await confirmPlacement({note: r.note, name: 'X', scene: {id: 's1', name: 'S'}, canvas, game: {settings: {get: () => true}}, notify: {info: m => info.push(m), warn() {}}, wait: noWait});
+  assert.equal(out.ok, true); assert.deepEqual(info, ['Placed X on S.']);
+});
+test('drop path uses confirm instead of the plain note, and a warning replaces the success note', async () => {
+  const seen = []; const info = [];
+  const cd = createCanvasDrop({isGM: () => true, api: () => ({getLocation: () => ({name: 'N'}), placeOnScene: async () => ({id: 'n9'})}),
+    canvas: () => ({scene: {name: 'S'}, canvasCoordinatesFromClient: p => p}), notify: {info: m => info.push(m), warn() {}, error() {}},
+    confirm: async a => seen.push(a)});
+  await cd.onHook({}, {type: 'AshenGateLocation', id: 'LOC-TEST-X', x: 1, y: 2}, {});
+  await new Promise(res => setImmediate(res));
+  assert.equal(seen.length, 1); assert.equal(seen[0].note.id, 'n9'); assert.equal(info.length, 0);
+});
