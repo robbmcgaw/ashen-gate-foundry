@@ -1,3 +1,13 @@
+## 0.36.0 — 2026-10-30
+
+Added: a way for other modules to tell whether the Conditions overlay is open, and to toggle it. No window or setting changes.
+
+- **`api.conditions.isOverlayOpen()`** returns `true` while the overlay window is open for this user and `false` otherwise (closed, hidden from this user by Player Access, or called before the world is ready). It reads the real window, not the page, and never throws.
+- **`api.conditions.toggleOverlay()`** closes the overlay if it is open and opens it if it is not. Opening returns the same window object as `openOverlay()` and has the same permission rule (a player the GM has hidden Utilities from is refused); closing resolves to `false`. Calling it twice in a row ends where it started.
+- `openOverlay()` and `closeOverlay()` behave exactly as before. General Manager's player dock can use these to make its Conditions button close the overlay on a second click.
+- Tests use mocked Foundry; they check the API and window state, not the live windows.
+- Check in Forge: update Utilities. As a player, open the Conditions overlay from the dock, click the dock button again and it closes; close it with its own X and the next click opens it. In the console, `game.modules.get('ashen-gate-utilities').api.conditions.isOverlayOpen()` reports `true` or `false` to match.
+
 ## 0.35.0 — 2026-10-28
 
 Added: a read-only way for Locations to list the shops at a place. No window or setting changes.
