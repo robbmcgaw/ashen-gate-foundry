@@ -67,5 +67,5 @@ test('wiring: jump handler, metadata-only confirmation, version', () => {
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   assert.match(main, /data-ag-sync-jump/); assert.match(main, /plan\.metadataOnly\s*\?await confirmDialog/);
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.85.2'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.85.3'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.85.3/ashen-gate-manager.zip'));
 });

@@ -1,3 +1,13 @@
+## 0.85.3 — 2026-10-30
+
+Fix: the scene navigation bar no longer gets pushed away from the dock. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.
+
+- **What was wrong.** The 0.85.0 nudge assumed the bar sits at the top left of the screen and always shifted it so it started beside the dock column. In V14 core the bar sits in the middle interface column (60% wide and centred, so it starts about 20% of the screen width from the left at 100% interface scale), and the shift was applied as a `left` offset on top of that natural position, measured from the bar's own already shifted position. The result could be a large empty gap between the dock and the bar, and a stale shift when the dock moved.
+- **Now collision-based.** With the dock in the top-left corner, Manager reads the bar's own natural position (its nudge switched off first, so it never measures its own shift) and moves it right only by the amount it would overlap the dock column (the dock, plus the docked token controls under it) plus a small gap. If it does not overlap, nothing is applied. The nudge is a visual `translate`, divided by the interface scale. It works the same with Monk's Scene Navigation, which keeps core's `#scene-navigation` element: Manager only nudges it if it would overlap the dock.
+- **Always removed.** The nudge (`body.agm-nav-offset`, `--agm-nav-shift`) is cleared when the dock moves to another corner, is switched off or hidden, and for GMs; it is recomputed when the dock is minimized or resized, the sidebar collapses, or the window resizes. Manager sets nothing on the bar itself.
+- **Diagnostic.** While Manager is nudging the bar, `<body>` carries `data-agm-nav-shift="<px>"`; the attribute is absent otherwise. If the bar is far from the left and the attribute is absent, the distance is Foundry's own layout, not Manager.
+- Tests are mocked; the live Forge layout has not been seen.
+
 ## 0.85.2 — 2026-10-30
 
 Player dock: new button labels and order. Visual only and for players: GMs see the normal interface, and no permission, document or saved data changes.

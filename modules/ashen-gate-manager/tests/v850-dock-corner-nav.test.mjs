@@ -97,7 +97,7 @@ test('dock corner: every corner is applied to the dock and to the body, with con
     assert.equal(dock.getAttribute('data-corner'),corner,`${corner} dock`);
     assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),corner,`${corner} body`);
     assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),dockControls);
-    assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),corner==='top-left',`${corner} nav offset`);
+    assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false,`${corner} nav offset`);
     assert.equal(e.doc.body.classList.contains('agm-nav-bottom'),false);
     // minimized: the corner stays
     dock.agmSetMinimized(true);assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),corner);assert.equal(dock.getAttribute('data-corner'),corner);
@@ -108,7 +108,7 @@ test('dock corner: changing the corner live moves the whole group; turning the d
   for(const corner of ['top-right','bottom-left','bottom-right','top-left','bottom-left']){
     e.ap.set({playerDockCorner:corner});e.apply();
     assert.equal(dock.getAttribute('data-corner'),corner);assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),corner);
-    assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),corner==='top-left');
+    assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false);
   }
   e.ap.set({playerDock:false});e.apply();
   assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),null);assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false);
@@ -126,37 +126,60 @@ test('navigation: offset only for a player with the dock top left',()=>{
   assert.equal(shouldOffsetNavigation({isGM:true,corner:'top-left',dockShown:true}),false);
   assert.equal(shouldOffsetNavigation({isGM:false,corner:'top-left',dockShown:false}),false);
 });
-test('navigation: top-left dock slides it right of the dock, measured; other corners and no dock leave it alone; nothing is reserved',()=>{
-  const e=dockEnv({state:{playerDockCorner:'top-left'}});
-  const nav=add(e.doc,'nav',{id:'scene-navigation'});nav.offsetWidth=200;
-  let navLeft=104;nav.getBoundingClientRect=()=>({left:navLeft+(Number.parseInt(e.doc.vars.get('--agm-nav-shift')??'0',10)||0),width:200,right:0,height:40,top:16});
+// 0.85.3: collision-based. The mock navigation reports its rect with our translate applied (as a browser would), so any
+// feedback from measuring the shifted position would show up as drift.
+const NAV_ATTR='data-agm-nav-shift';
+function navMock(e,{left,width=400,scale=1,cls}){
+  const nav=add(e.doc,'nav',{id:'scene-navigation'});nav.offsetWidth=width/scale;
+  nav.getBoundingClientRect=()=>{const on=e.doc.body.classList.contains(NAV_OFFSET_CLASS);const sh=on?(Number.parseInt(e.doc.vars.get('--agm-nav-shift')??'0',10)||0):0;return {left:left+sh*scale,width,right:left+width,height:40,top:16};};
+  return nav;
+}
+const navOurs=(e,nav)=>({cls:e.doc.body.classList.contains(NAV_OFFSET_CLASS),v:e.doc.vars.has('--agm-nav-shift'),attr:e.doc.body.getAttribute(NAV_ATTR),inline:nav.attrs?.get?.('style')??null});
+const nothing=(e,nav)=>{const o=navOurs(e,nav);assert.deepEqual(o,{cls:false,v:false,attr:null,inline:null});};
+test('navigation: far from the dock (core natural ~20% of the screen, or centred like Monk\'s) gets no shift at all',()=>{
+  const e=dockEnv({state:{playerDockCorner:'top-left'}});const nav=navMock(e,{left:384});
+  const dock=e.apply();dock.getBoundingClientRect=rect(80,176,260);e.layout.measure();
+  nothing(e,nav);assert.equal(e.doc.vars.get('--agm-dock-w'),'176px');
+});
+test('navigation: overlapping the dock gets the minimal shift; recomputing is stable (no feedback)',()=>{
+  const e=dockEnv({state:{playerDockCorner:'top-left'}});const nav=navMock(e,{left:104,width:200});
   const dock=e.apply();dock.getBoundingClientRect=rect(80,176,260);
-  e.layout.measure();
-  assert.equal(e.doc.vars.get('--agm-dock-w'),'176px');
-  assert.equal(e.doc.vars.get('--agm-nav-shift'),`${80+176+NAV_GAP_PX-104}px`,'dock right edge + gap minus the natural left');
-  e.layout.measure();assert.equal(e.doc.vars.get('--agm-nav-shift'),`${80+176+NAV_GAP_PX-104}px`,'stable on re-measure (own shift taken off)');
-  dock.getBoundingClientRect=rect(80,48,40);e.layout.measure();   // minimized: the shift shrinks, never goes negative
-  assert.equal(e.doc.vars.get('--agm-nav-shift'),`${Math.max(0,80+48+NAV_GAP_PX-104)}px`);
-  assert.equal(nav.parentElement,e.doc.body,'not re-parented');
-  for(const v of e.doc.vars.keys())assert.doesNotMatch(v,/nav-h|stack/,'no reserved-space variables');
-  // another corner: nothing is set for the navigation
-  e.ap.set({playerDockCorner:'top-right'});e.apply();
-  assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false);assert.equal(e.doc.vars.has('--agm-nav-shift'),false);
-  // back to top left, then the dock is switched off
-  e.ap.set({playerDockCorner:'top-left'});e.apply();assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),true);
-  e.ap.set({playerDock:false});e.apply();assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false);assert.equal(e.doc.vars.size,0);
+  const want=80+176+NAV_GAP_PX-104;
+  for(let i=0;i<5;i++){e.layout.measure();assert.equal(e.doc.vars.get('--agm-nav-shift'),`${want}px`,`pass ${i}`);}
+  assert.equal(e.doc.body.getAttribute(NAV_ATTR),String(want));assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),true);
+  assert.equal(nav.attrs?.get?.('style')??null,null,'nothing set on the navigation element itself');
+  dock.getBoundingClientRect=rect(80,48,40);e.layout.measure();   // minimized: recomputed, smaller
+  assert.equal(e.doc.vars.get('--agm-nav-shift'),`${80+48+NAV_GAP_PX-104}px`);
+  dock.getBoundingClientRect=rect(10,48,40);e.layout.measure();   // no longer overlapping: removed
+  nothing(e,nav);
+  dock.getBoundingClientRect=rect(80,176,260);e.layout.measure();assert.equal(e.doc.vars.get('--agm-nav-shift'),`${want}px`);
 });
-test('navigation: with the controls docked under the dock, the group is as wide as the wider of the two; interface scale is divided out',()=>{
+test('navigation: transformed #ui-middle (interface scale 2) and a non-zero natural left: shift is in local px, minimal',()=>{
   const e=dockEnv({state:{playerDockCorner:'top-left',dockSceneControls:true}});
-  const c=controls(e.doc);c.getBoundingClientRect=rect(8,300,40);   // controls row wider than the dock
-  const nav=add(e.doc,'nav',{id:'scene-navigation'});nav.offsetWidth=200;nav.getBoundingClientRect=()=>({left:208+(Number.parseInt(e.doc.vars.get('--agm-nav-shift')??'0',10)||0)*2,width:400,right:0,height:40,top:32});   // ui-scale 2
-  const dock=e.apply();dock.getBoundingClientRect=rect(8,170,200);e.layout.measure();
-  assert.equal(e.doc.vars.get('--agm-dock-w'),'300px');
-  assert.equal(e.doc.vars.get('--agm-nav-shift'),`${Math.round((8+300+NAV_GAP_PX-208)/2)}px`);
+  const c=controls(e.doc);c.getBoundingClientRect=rect(8,300,40);
+  const nav=navMock(e,{left:208,width:400,scale:2});
+  const dock=e.apply();dock.getBoundingClientRect=rect(8,170,200);
+  for(let i=0;i<3;i++){e.layout.measure();assert.equal(e.doc.vars.get('--agm-nav-shift'),`${Math.ceil((8+300+NAV_GAP_PX-208)/2)}px`);}
+  assert.equal(e.doc.vars.get('--agm-dock-w'),'300px');void nav;
 });
-test('navigation: no navigation element, or no layout numbers, never throws',()=>{
-  const e=dockEnv();e.apply();e.layout.measure();assert.equal(e.doc.vars.get('--agm-nav-shift'),'0px');
-  const e2=dockEnv();const nav=add(e2.doc,'nav',{id:'scene-navigation'});nav.getBoundingClientRect=()=>{throw new Error('x');};e2.apply();assert.equal(e2.doc.vars.get('--agm-nav-shift'),'0px');
+test('navigation: class, variable and attribute are removed on every corner change, dock off, hidden and GM',()=>{
+  for(const to of ['top-right','bottom-left','bottom-right']){
+    const e=dockEnv({state:{playerDockCorner:'top-left'}});const nav=navMock(e,{left:104,width:200});
+    const dock=e.apply();dock.getBoundingClientRect=rect(80,176,260);e.layout.measure();assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),true);
+    e.ap.set({playerDockCorner:to});e.apply();e.layout.measure();nothing(e,nav);
+    e.ap.set({playerDockCorner:'top-left'});const d2=e.apply();d2.getBoundingClientRect=rect(80,176,260);e.layout.measure();assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),true,'back on');
+  }
+  const e=dockEnv({state:{playerDockCorner:'top-left'}});const nav=navMock(e,{left:104,width:200});
+  const dock=e.apply();dock.getBoundingClientRect=rect(80,176,260);e.layout.measure();
+  e.ap.set({playerDock:false});e.apply();nothing(e,nav);assert.equal(e.doc.vars.size,0);
+  e.ap.set({playerDock:true});const d3=e.apply();d3.getBoundingClientRect=rect(80,176,260);e.layout.measure();assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),true);
+  e.layout.disable();nothing(e,nav);e.layout.disable();nothing(e,nav);   // idempotent
+  const g=dockEnv({isGM:true,state:{playerDockCorner:'top-left'}});const gn=navMock(g,{left:10,width:200});
+  assert.equal(g.apply(),null);nothing(g,gn);
+});
+test('navigation: no navigation element, or no layout numbers, never throws and sets nothing',()=>{
+  const e=dockEnv();e.apply();e.layout.measure();assert.equal(e.doc.vars.has('--agm-nav-shift'),false);assert.equal(e.doc.body.classList.contains(NAV_OFFSET_CLASS),false);
+  const e2=dockEnv();const nav=add(e2.doc,'nav',{id:'scene-navigation'});nav.getBoundingClientRect=()=>{throw new Error('x');};e2.apply();nothing(e2,nav);
 });
 
 // ---- the removed setting
@@ -184,15 +207,16 @@ test('no leftover references to the bottom-left stack in scripts, styles or temp
 // ---- CSS and wiring
 test('CSS: the navigation rule exists only under body.agm-nav-offset and uses the measured shift; bottom-right corner; no reserved top gap',()=>{
   const css=read('../styles/player-dock.css');
-  assert.match(css,/body\.agm-nav-offset #scene-navigation[\s\S]*?left: var\(--agm-nav-shift, 0px\)/);
+  assert.match(css,/body\.agm-nav-offset #scene-navigation[\s\S]*?translate: var\(--agm-nav-shift, 0px\) 0/);
+  assert.doesNotMatch(css,/#(scene-)?navigation[^{}]*\{[^}]*\b(left|margin|position)\b/);
   const navRules=css.match(/[^{}]*#scene-navigation[^{}]*\{[^}]*\}/g)??[];
   assert.ok(navRules.length>0);for(const r of navRules)assert.match(r,/agm-nav-offset/,'every navigation rule is behind the offset class');
   assert.match(css,/\.agm-dock\[data-corner="bottom-right"\]/);
   assert.doesNotMatch(css,/--agm-dock-top: 3\.75rem/);
 });
-test('wiring: version 0.85.2, changelog, Help, wording, 0.x',()=>{
+test('wiring: version 0.85.3, changelog, Help, wording, 0.x',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.85.2');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.2/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.85.3');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.3/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.0 /m);assert.doesNotMatch(log.split('## 0.84.1')[0],/\b(Alpha|Beta|Preview)\b/);
   assert.match(main,/Quest Log, User Settings and Foundry Settings open on the first press and close on the second/);
   assert.match(main,/bottom right/);assert.match(main,/slid to the right of the dock/);
