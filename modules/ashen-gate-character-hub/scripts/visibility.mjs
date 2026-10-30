@@ -19,6 +19,7 @@ export const PARTS = [
   {key: 'partyStash', label: 'Inventory: party stash', partner: 'ashen-gate-utilities', partnerLabel: 'Utilities'},
   {key: 'magic', label: 'Magic', core: true},
   {key: 'features', label: 'Features', core: true},
+  {key: 'effects', label: 'Effects', core: true},
   {key: 'rest', label: 'Short and Long Rest buttons', core: true},
   {key: 'equipment', label: 'Equipment slots (paper doll)', core: true},
   {key: 'companions', label: 'Companions'},

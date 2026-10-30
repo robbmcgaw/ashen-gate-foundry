@@ -50,6 +50,7 @@ import {openCodex} from './codex.mjs';
 import {configChoices} from './character.mjs';
 import {renameAsk} from './name-title.mjs';
 import {startAdd, dropOnList} from './item-add.mjs';
+import * as fx from './effects.mjs';
 import {rowOf, openRowMenu, closeRowMenu, deleteRowItem, rowFocusTarget} from './row-delete.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
@@ -118,6 +119,11 @@ export const ACTIONS = {
   // 0.42.0: the slot itself (a key press passes only its number) places dnd5e's roll dialogs (item-actions.mjs rollEvent).
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e, t.getBoundingClientRect ? t : s.element?.querySelector?.(`[data-hotbar-slot="${t.dataset.hotbarSlot}"]`) ?? s.element ?? null),
   'hotbar-undo': (s, t) => s.undoList.undo(t.dataset.undo),
+  // 0.68.0 Effects tab: the data layer (effects.mjs) checks who may; a hook re-draws, the render here is for immediate feedback.
+  'effect-toggle': async (s, t) => { const r = await fx.toggleEffect(s.document, t.dataset.id, {parentId: t.dataset.parent}); if (r.ok) s.render(); return r; },
+  'effect-edit': (s, t) => fx.editEffect(s.document, t.dataset.id, {parentId: t.dataset.parent}),
+  'effect-add': async s => { const r = await fx.addEffect(s.document); if (r.ok) s.render(); return r; },
+  'effect-delete': async (s, t) => { const r = await fx.deleteEffect(s.document, t.dataset.id, {parentId: t.dataset.parent}); if (r.ok && r.result) s.render(); return r; },
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id, s),
   'menu-close': s => toggleMenu(s, null),

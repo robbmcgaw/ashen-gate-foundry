@@ -1,3 +1,14 @@
+## 0.68.0 — 2026-10-30
+
+A new **Effects** tab, like the Effects tab of the standard dnd5e sheet.
+
+- **Lists every effect on the character**, grouped the way dnd5e groups them (Temporary, Passive, Inactive, Unavailable, and enchantments when there are any; the grouping is dnd5e's own). Each row shows the icon, name, **source** (the item, spell or other character it comes from, or the character itself for one added by hand), the time left on a temporary effect, and an **on/off switch** that saves at once.
+- **Add effect** makes a plain effect on the character and opens dnd5e's own effect window; **Edit** opens that window for an existing one; **Delete** asks "Delete <effect>?" first (Cancel is the default).
+- An effect that comes from an item can be switched here but is changed on the item (Delete is off, with the reason shown). Concentration ends from the concentration control. Effects Ashen Gate modules manage (Cinders, Strain, marks and the like) are the GM's to change; conditions follow the same rule as the Conditions strip.
+- Owners and the GM can change effects; observers see the list only. The rules run when the button is pressed, not only in what is shown.
+- GM Setup → Player visibility has a new **Effects** switch (on by default). The rail now has 9 tabs for a player and 10 for a GM; this is covered by the Hub's recorded rail exception in the UI guidelines.
+- No stored data changes, no migration. Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.67.0 — 2026-10-30
 
 The dock portrait opens and closes the Hub with one click.

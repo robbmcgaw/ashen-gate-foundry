@@ -8,6 +8,7 @@ import {characterPanelHtml, compactPanelHtml, identityLineHtml, levelUpBtn, rest
 import {canPopOut, isPoppedOut} from './popout.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
+import {effectsTab} from './effects.mjs';
 import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState, knownProfessions} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mjs';
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
@@ -89,6 +90,7 @@ export function professionsBox(actor) {
 export const TABS = [
   {id: 'overview', label: 'Overview', icon: 'fa-solid fa-user', render: overviewTab, parts: ['overview']},
   ...ITEM_TABS,
+  {id: 'effects', label: 'Effects', icon: 'fa-solid fa-bolt', render: effectsTab, parts: ['effects']},
   {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: ashenGateTab, parts: AG_PANELS.map(p => partForPartner(p.id))},
   {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab, parts: ['companions']},
   {id: 'journey', label: 'Journey', icon: 'fa-solid fa-book-open', render: journeyTab, parts: ['journey']},
