@@ -8,7 +8,8 @@
  *  - A saved node (Location or template) draws from its own Common/Rare tables, as before. An ad-hoc round draws from the
  *    imported Materials of the chosen professions and tiers, by their quality.
  *  - Each successful player gets a different material while the pool has more to give (no repeat until it runs out).
- * When a success has nothing to draw from, the row is "undetermined" and the GM hands it out by hand. */
+ * When a success has nothing to draw from, the row is "undetermined" and the GM hands it out by hand. 0.42.0: when the node's table
+ * names materials but none of them may be rewarded (`pool.empty`), the row is `noReward` instead: no reward and a message, no hand-out. */
 import {norm} from './core.mjs';
 import {professionKey} from './checks.mjs';
 import {GATHERING_KEYS,professionKeyFromId,materialProfessionKeys,resolveExotic,normalizeExotics} from './exotic.mjs';
@@ -100,13 +101,18 @@ export function planRound({pool,exoticNode=null,rolls,dc,roll,percent,metaOf,key
   for(const r of rolls??[]){
     const outcome=gatherOutcome(r.total,dc);
     const row={actorId:r.actorId,actorName:r.actorName,total:outcome.total,dc:outcome.dc,margin:outcome.margin,result:outcome.result,drops:[],undetermined:[],
-      noRareFallback:false,mayReceive:[],exotic:{kind:'none',roll:null,target:null}};
+      noRareFallback:false,mayReceive:[],noReward:[],exotic:{kind:'none',roll:null,target:null}};
     if(outcome.result!=='fail'){
       let kind=outcome.result;
       if(kind==='rare'&&!(pool?.rare??[]).length){kind='common';row.noRareFallback=true;}
-      row.mayReceive.push(kind==='rare'?'Rare':'Common');
-      const e=draw(kind);
-      if(e)row.drops.push({materialId:e.materialId,quantity:e.quantity,kind});else row.undetermined.push(kind);
+      // 0.42.0: a table that names materials but has none left once the unreleased and missing ones are dropped (`pool.empty[kind]`)
+      // rewards nothing and is not handed to the GM as "undetermined": the GM gets a message instead (round.result row.reason).
+      if(!(pool?.[kind]??[]).length&&pool?.empty?.[kind])row.noReward.push(kind);
+      else{
+        row.mayReceive.push(kind==='rare'?'Rare':'Common');
+        const e=draw(kind);
+        if(e)row.drops.push({materialId:e.materialId,quantity:e.quantity,kind});else row.undetermined.push(kind);
+      }
       if(exoticNode?.exotics?.length){
         const free=exoticNode.exotics.filter(x=>!usedExotic.has(x.materialId));
         const x=resolveExotic({node:{...exoticNode,exotics:free.length?free:exoticNode.exotics},outcome,percent,roll,metaOf,keyOf});

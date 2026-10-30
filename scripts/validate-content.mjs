@@ -276,7 +276,10 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
     const notes = [...r.warnings];
     const mats = [...new Set(r.nodes.flatMap(n => ['common', 'rare', 'exotic'].flatMap(t => n.materials[t].map(e => e.materialId))))];
     const missing = mats.filter(id => !knownIds.has(id));
-    if (missing.length) notes.push(`Materials not defined in this folder (they must be imported with General Manager before they can be awarded): ${missing.join(', ')}.`);
+    if (missing.length) {
+      const hit = r.nodes.filter(n => ['common', 'rare', 'exotic'].some(t => n.materials[t].some(e => missing.includes(e.materialId)))).length;
+      notes.push(`Report only, not an error: ${missing.length} material${missing.length === 1 ? '' : 's'} named by ${hit} of ${r.nodes.length} node${r.nodes.length === 1 ? '' : 's'} ${missing.length === 1 ? 'is' : 'are'} not defined in this folder (${missing.join(', ')}). Profession Ledger leaves a material out when a node is rolled until General Manager has imported it and it is released (approved and player-visible).`);
+    }
     return {kind: 'gathering-nodes', errors: r.errors, notes: [...notes, 'Imported in Profession Ledger > Gathering Nodes > Import nodes (not through Manager Import).']};
   }
   if (/\.npc-codex\.json$/i.test(filename)) {

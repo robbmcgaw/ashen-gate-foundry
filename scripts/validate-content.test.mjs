@@ -165,7 +165,7 @@ test('gathering node files (Ledger 0.25.0) go through the Ledger parser, by name
   const ok = await checkContent(nodeFile([reeds()]), 'x.gathering-nodes.json');
   assert.equal(ok.kind, 'gathering-nodes');
   assert.deepEqual(ok.errors, []);
-  assert.match(ok.notes.join(' '), /Materials not defined in this folder.*MAT-TEST-HERB, MAT-TEST-STAR.*Gathering Nodes > Import nodes/);
+  assert.match(ok.notes.join(' '), /Report only, not an error: 2 materials named by \d+ of \d+ nodes? are not defined in this folder \(MAT-TEST-HERB, MAT-TEST-STAR\).*Gathering Nodes > Import nodes/);
   assert.deepEqual((await checkContent(nodeFile([reeds()]), 'x.gathering-nodes.json', {knownIds: new Set(['MAT-TEST-HERB', 'MAT-TEST-STAR'])})).notes,
     ['Imported in Profession Ledger > Gathering Nodes > Import nodes (not through Manager Import).']);
   assert.equal((await checkContent(nodeFile([reeds({activity: 'Skinning & Harvesting'})]), 'any-name.json')).kind, 'gathering-nodes', 'recognised by its schema');

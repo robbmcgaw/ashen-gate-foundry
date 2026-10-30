@@ -284,10 +284,13 @@ export function resolveEntry(entry,templateOf){
     exhausted:entry.exhausted===true,available:entry.available!==false,visible:entry.visible!==false};
 }
 /** What a Location may publish to players about a referenced template: no materials' chances, no Exotics, no DC unless shown. */
-export function templatePlayerView(t,{tier=null}={}){
+export function templatePlayerView(t,{tier=null,released=null}={}){
   const n=templateNode(t,{tier});
+  // 0.42.0: with `released(id)` (the Ledger passes its own rule) only released materials are published; the first one of each table that is.
+  const pick=list=>released?list.find(e=>released(e.materialId)):list[0];
+  const common=pick(t.materials.common),rare=pick(t.materials.rare);
   return {nodeId:t.id,label:n.label,skill:n.skill,activity:t.activity,tier:n.tier,...(t.dcVisible&&t.dc!=null?{dc:t.dc}:{}),
-    materialId:n.materialId,quantity:n.quantity,rareMaterialId:n.rareMaterialId,rareQuantity:n.rareQuantity,finite:t.finite};
+    materialId:common?.materialId??'',quantity:common?.quantity??1,rareMaterialId:rare?.materialId??'',rareQuantity:rare?.quantity??1,finite:t.finite};
 }
 
 /* ---- Node files (import/export) ---- */

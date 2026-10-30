@@ -29,6 +29,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGa
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
+import {isReleasedState,templateMaterialIds,templateMaterialTables,auditMaterials,auditWarning,scaleTable,poolNote,emptyPoolMessage,releasePlan,releaseConfirmText,importReport} from './node-materials.mjs';
 import {snapshotItem,readRecipePreviews,storedRecipePreviews,samePreviews} from './result-preview.mjs';
 import {readHistory,storedHistory,upsertEntry,removeEntry,setRowXp,humanWhen,HISTORY_MAX} from './gather-history.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
@@ -37,7 +38,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.40.0';
+const VERSION='0.42.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -2196,12 +2197,23 @@ function materialBadge(id){
   const label=s.state==='missing'?'Not imported':s.state==='draft'?'Draft':usableAnyway(s.state)?'Unreleased':s.state==='duplicate'?'Imported twice':'Retired';
   return `<span ${tip(materialUnavailable(id))}>${badge(label,'warn')}</span>`;
 }
-/** GM: the first material problem of a node (its common table), as startBlocker/nodeBlocker options. */
-function nodeMaterialCheck(node,allowDraft=false){
-  const ids=[...new Set([node?.materialId,...(node?.tables?.common??[]).map(e=>e.materialId)].filter(Boolean))];
-  for(const id of ids){const s=materialState(id);if(!releasedState(s.state)&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,materialName:materialName(id),allowDraft};}
-  return {materialFound:true,materialState:'ok',allowDraft};
+/** 0.42.0: an unreleased or missing material no longer blocks a node: it is dropped from the pool when the node is rolled (buildRoundPool),
+ * and the GM sees a warning on the node (nodeAudit). So the material half of startBlocker/nodeBlocker always passes. */
+const nodeMaterialCheck=()=>({materialFound:true,materialState:'ok'});
+/** The MAT-* ids a resolved node (a Location spot or a template at one tier) names, per table. */
+function nodeTablesOf(node){
+  const p=nodePool(node);
+  return {common:[...new Set(p.common.map(e=>e.materialId))],rare:[...new Set(p.rare.map(e=>e.materialId))],exotic:[...new Set(normalizeExotics(node?.exotics).map(e=>e.materialId))]};
 }
+/** The name of an imported material even when it is draft or unreleased (the GM's view); a readable fallback otherwise. */
+function anyMaterialName(id){
+  const item=worldMaterial(id)??(game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i));
+  return item?.name??humanizeId(id);
+}
+/** GM: what is wrong with the materials of tables {common,rare,exotic} of MAT-* ids (see node-materials.mjs auditMaterials). */
+const auditTables=tables=>auditMaterials(tables,materialState,anyMaterialName);
+const nodeAudit=node=>auditTables(nodeTablesOf(node));
+const templateAudit=t=>auditTables(templateMaterialTables(t));
 /** A skip reason with the specific Manager fix when the material is not awardable. */
 const skipReason=(id,reason)=>/^Not an imported/.test(reason)?materialUnavailable(id)||reason:reason;
 /** A PROF-* id as a gathering-profession key, from its world Profession definition's name, else from the id. */
@@ -2235,7 +2247,7 @@ function gatherLocations(){
       const revealed=gm?loc?.revealed===true:true;
       const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(gm?resolveEntry(entry,id=>templates.get(id)):entry,{locationId:loc.id,locationName:loc.name??'Unnamed location',locationRevealed:revealed,index}))
         .filter(n=>n&&(gm||n.visible)).map(n=>gm?n:{...n,exotics:[]}).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
-        .map(n=>({...n,blocked:nodeBlocker(n,gm?nodeMaterialCheck(n):{forPlayer:true})}));
+        .map(n=>({...n,blocked:nodeBlocker(n,gm?nodeMaterialCheck(n):{forPlayer:true}),...(gm?{materialsOk:nodeAudit(n).ok}:{})}));
       return {id:loc.id,name:String(loc.name??'Unnamed location'),revealed,nodes};
     }).filter(l=>l.nodes.length).sort((a,b)=>a.name.localeCompare(b.name));
     return {ok:true,locations};
@@ -2311,7 +2323,6 @@ const roundSummary=round=>({id:round.id,status:round.status,professions:[...roun
 /** GM: the first problem that stops a saved node being gathered ('' when none). A node with no material is fine: the GM hands it out. */
 function roundNodeProblem(node,allowDraft){
   if(node.missingTemplate||node.exhausted||!node.available)return nodeBlocker({...node,dc:node.dc??1});
-  if(hasOwnMaterials(node)){const m=nodeMaterialCheck(node,allowDraft);if(!m.materialFound)return nodeBlocker({...node,dc:node.dc??1},m);}
   return '';
 }
 /** The check plan one character rolls for a gather with this profession: the setup form and the round both use it. */
@@ -2480,7 +2491,13 @@ const materialShow=(round,id)=>{const item=awardMaterial(id,round.allowDraft);re
 /** GM: the materials this round can give, awardable only (a draft one only when the GM allowed drafts). */
 function buildRoundPool(round){
   const ok=id=>Boolean(awardMaterial(id,round.allowDraft)),keep=t=>t.filter(e=>ok(e.materialId));
-  if(round.poolSource==='node'){const p=nodePool(round.node);return {common:keep(p.common),rare:keep(p.rare),exotics:[]};}
+  if(round.poolSource==='node'){
+    // 0.42.0: unreleased and missing materials are dropped from a saved node's Common and Rare tables and the remaining chances are
+    // scaled to 100 (node-materials.mjs scaleTable). `empty[kind]` = the table names materials but none can be rewarded.
+    const p=nodePool(round.node),c=scaleTable(p.common,ok),r=scaleTable(p.rare,ok);
+    return {common:c.table,rare:r.table,exotics:[],empty:{common:p.common.length>0&&!c.table.length,rare:p.rare.length>0&&!r.table.length},
+      left:[{kind:'common',...c},{kind:'rare',...r}].filter(x=>x.dropped.length)};
+  }
   const c=catalogPool(materialCatalog(),{professions:round.professions,tiers:round.tiers,keyOf:professionKeyOfId,
     usable:m=>releasedState(m.state)||(round.allowDraft&&usableAnyway(m.state))});
   return {common:keep(c.common),rare:keep(c.rare),exotics:c.exotics.filter(e=>ok(e.materialId))};
@@ -2535,10 +2552,14 @@ function revealRound(roundId){
     best:bestResult(plan.rows),needsManual:needsManual(plan.rows),revealedAt:Date.now()};
   const reasons={};
   for(const row of round.result.rows)if(row.undetermined.length){const k=row.undetermined[0];row.reason=reasons[k]??=poolReason(round,k);}
+  // 0.42.0: a success with nothing releasable to draw from gets a message, not a reward and not an error.
+  const emptyNames=kind=>[...new Set(nodePool(round.node)[kind].map(e=>anyMaterialName(e.materialId)))];
+  for(const row of round.result.rows)if(row.noReward.length){const k=row.noReward[0];row.reason=reasons[`no:${k}`]??=emptyPoolMessage(nodeTitle(round.node),k,emptyNames(k));}
   round.status='revealed';
   const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
   const notes=plan.skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??materialName(x.materialId)} skipped: ${skipReason(x.materialId,x.reason)}.`);
-  round.result.gmNotes=[...new Set(notes)];
+  const left=poolNote(nodeTitle(round.node),pool.left??[],anyMaterialName);
+  round.result.gmNotes=[...new Set([...(left?[left]:[]),...notes])];
   const view=roundView(round,{players:true});
   sendSocket({type:'gather-round-reveal',toUserIds:nonGmUserIds(),roundId:round.id,view});
   syncHistory(round);
@@ -2552,7 +2573,7 @@ function roundView(round,{players=false}={}){
     drops:r.drops.map(d=>{const m=materialShow(round,d.materialId),hidden=players&&!m.released&&!d.given;
       // A player's copy never carries an unreleased material's name, picture or id.
       return hidden?{name:'',img:'',quantity:d.quantity,kind:d.kind,hidden:true}:{...(players?{}:{materialId:d.materialId}),name:m.name,img:m.img,quantity:d.quantity,kind:d.kind,hidden:false};}),
-    undetermined:r.undetermined.length>0,...(players?{}:{reason:r.reason??'',advantage:r.adv?.text??'',advantageMode:r.adv?.mode??0})}));
+    undetermined:r.undetermined.length>0,...(players?{}:{noReward:r.noReward?.length>0,reason:r.reason??'',advantage:r.adv?.text??'',advantageMode:r.adv?.mode??0})}));
   const ids=new Set([...(round.poolIds??[])]);
   const reel=[];
   for(const id of ids){const m=materialShow(round,id);if(players&&!m.released)continue;reel.push({img:m.img,name:m.name});}
@@ -2739,7 +2760,7 @@ function handoutRows(round){
   return round.result.rows.map(r=>{
     const given=r.drops.map(d=>d.name??materialShow(round,d.materialId).name);
     return {actorId:r.actorId,name:r.actorName,total:r.total,dc:r.dc,met:r.result!=='fail',result:r.result,verdict:verdictOf(r.result),mayReceive:[...r.mayReceive],
-      advantage:r.adv?.text??'',picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.undetermined.length?(r.reason?`${r.reason} Give it by hand.`:`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`):`The Ledger picked ${given.join(' and ')}`};
+      advantage:r.adv?.text??'',picked:given,needsHand:r.undetermined.length>0,status:r.result==='fail'?'Did not meet the DC: nothing':r.noReward?.length&&!r.drops.length?r.reason:r.undetermined.length?(r.reason?`${r.reason} Give it by hand.`:`The Ledger can’t pick a ${r.undetermined.join(' / ')} material: give it by hand`):`The Ledger picked ${given.join(' and ')}`};
   });
 }
 /** GM: materials a character may be given by hand for this row, matching its quality, the round's professions and tiers (all of that quality if none match). */
@@ -2864,15 +2885,15 @@ async function handleGatherRequest(request,senderId){
   const party=partyActors();
   // Setup problems are reported now, not after the GM has approved: the player gets a plain line, the GM the exact fix.
   const base={rosterCount:rosterIds().length,partyCount:party.length,node};
-  const setup=startBlocker({...base,...nodeMaterialCheck(node)});
-  // 0.25.0: a node whose only problem is a draft/unreleased material waits in the queue; the GM may approve it with that material anyway.
-  const draft=Boolean(setup)&&!startBlocker({...base,...nodeMaterialCheck(node,true)});
-  if(setup&&!draft){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
-    return reply('refused',`The GM can’t start this yet: ${nodeBlocker(node,{...nodeMaterialCheck(node),forPlayer:true})||'the party is not set up.'} They have been told.`);}
+  const setup=startBlocker({...base});
+  // 0.42.0: unreleased or missing materials no longer hold a request back: they are left out when the gather is rolled.
+  if(setup){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
+    return reply('refused',`The GM can’t start this yet: ${nodeBlocker(node,{forPlayer:true})||'the party is not set up.'} They have been told.`);}
+  const draft=!nodeAudit(node).ok;
   gatherRequests.set(request.requestId,{requestId:request.requestId,requesterId:requester.id,requesterName:requester.name,actorId:actor.id,actorName:actor.name,
     locationId:request.locationId,nodeId:request.nodeId,node,draft,at:Date.now()});
   lastGatherRequestAt.set(actor.id,Date.now());
-  say(`${requester.name} asks for ${actor.name} to gather ${nodeTitle(node)}. See Profession Ledger → Gathering → Requests.${draft?` ${setup}`:''}`);
+  say(`${requester.name} asks for ${actor.name} to gather ${nodeTitle(node)}. See Profession Ledger → Gathering → Requests.${draft?' Some of its materials are unreleased and will be left out.':''}`);
   refreshLedger();
   return reply('queued',`Request sent. ${actor.name} waits for the GM to approve gathering at ${publicNodeTitle(node)}.`,{title:publicNodeTitle(node)});
 }
@@ -2964,16 +2985,60 @@ async function deleteNodeTemplate(id){
   await writeNodeStore(removeTemplate(readNodeStore(),id));
   return {removed:id,references};
 }
-function previewNodeFile(data){requireNodesGM();return structuredClone(planNodeImport(readNodeStore(),data));}
+/** 0.42.0: what a node file's materials look like in THIS world (not imported, imported but unreleased): lines for the preview, never errors. */
+function nodeFileMaterialReport(plan){
+  return importReport([...plan.add,...plan.update],materialState,anyMaterialName);
+}
+function previewNodeFile(data){
+  requireNodesGM();
+  const plan=planNodeImport(readNodeStore(),data);
+  return structuredClone({...plan,materials:plan.ok?nodeFileMaterialReport(plan):{lines:[],missing:[],unreleased:[],perNode:[]}});
+}
 /** GM: imports a node file: adds new ids, updates templates the GM has not edited; never removes one or overwrites an edit. */
 async function importNodeFile(data){
   requireNodesGM();
   const store=readNodeStore(),plan=planNodeImport(store,data);
   if(!plan.ok)throw Error(`Node file not imported: ${plan.errors.slice(0,3).join(' ')}${plan.errors.length>3?` (+${plan.errors.length-3} more)`:''}`);
   await writeNodeStore(applyNodeImport(store,plan));
-  return {added:plan.add.map(n=>n.id),updated:plan.update.map(n=>n.id),kept:plan.keep.map(n=>n.id),unchanged:plan.unchanged.map(n=>n.id),retired:plan.retired.map(n=>n.id),warnings:plan.warnings};
+  const materials=nodeFileMaterialReport(plan);
+  return {materials:structuredClone(materials),added:plan.add.map(n=>n.id),updated:plan.update.map(n=>n.id),kept:plan.keep.map(n=>n.id),unchanged:plan.unchanged.map(n=>n.id),retired:plan.retired.map(n=>n.id),warnings:plan.warnings};
 }
 function exportNodeFile(){requireNodesGM();return exportNodes(readNodeStore());}
+/** GM (0.42.0): the materials a saved template names and what is wrong with them (see node-materials.mjs auditMaterials). */
+function nodeMaterialReport(id){
+  requireNodesGM();
+  const t=readNodeStore().nodes.find(n=>n.id===id);
+  if(!t)throw Error('That gathering node no longer exists');
+  return structuredClone(templateAudit(t));
+}
+/** GM (0.42.0): what Release materials… would release for these MAT-* ids; changes nothing. */
+function previewMaterialRelease(ids){requireNodesGM();return structuredClone(releasePlan(ids,materialState,anyMaterialName));}
+/**
+ * GM only, and only with `confirm: true` (the window asks first): releases exactly the given materials that exist once in this world
+ * as draft or not player-visible, by setting Manager's source status to `approved` and visibility to `player`. Missing ones cannot be
+ * released (nothing to release), imported-twice or retired ones need fixing in General Manager. Nothing is given to a character,
+ * ownership is not touched, and nothing is released by anything but this call. Never throws for one failed write: it reports it.
+ */
+async function releaseMaterials(ids,{confirm=false}={}){
+  requireNodesGM();
+  if(confirm!==true)throw Error('Releasing materials needs the GM’s confirmation');
+  const plan=releasePlan(ids,materialState,anyMaterialName),released=[],failed=[];
+  for(const r of plan.release){
+    const doc=draftMaterial(r.id);
+    if(!doc||!['draft','gm-only'].includes(materialState(r.id).state)){failed.push({id:r.id,name:r.name,reason:'It changed since the preview.'});continue;}
+    const base='flags.ashen-gate-manager.source',def=doc.flags['ashen-gate-manager'].source.definition,upd={[`${base}.status`]:'approved',[`${base}.visibility`]:'player'};
+    if(def&&typeof def==='object'){if('status' in def)upd[`${base}.definition.status`]='approved';if('visibility' in def)upd[`${base}.definition.visibility`]='player';}
+    try{await doc.update(upd);released.push({id:r.id,name:r.name,was:r.state==='draft'?r.status||'draft':'not player-visible'});}
+    catch(err){failed.push({id:r.id,name:r.name,reason:String(err?.message??err)});}
+  }
+  if(released.length){
+    try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),
+      content:`<div class="agl-chat-card"><p><strong>GM:</strong> released ${plural(released.length,'material')} for gathering: ${released.map(r=>`${esc(r.name)} (was ${esc(r.was)})`).join(', ')}.</p></div>`});}
+    catch(err){console.warn(`[${ID}] release note failed`,err);}
+  }
+  refreshLedger();
+  return {released,failed,alreadyReleased:plan.alreadyReleased,missing:[...plan.missing],stuck:[...plan.stuck]};
+}
 /**
  * GM: copies Location gathering entries that were never copied into templates (migration, safe to run again). Locations
  * records are never changed; the original entries are kept as a backup in the store, and the GM gets a whispered note.
@@ -3710,7 +3775,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> sub-tabs <em>Requests</em> (what players asked for: Approve or Decline), <em>Gather</em> and <em>Gathering nodes</em>. In <em>Gather</em> choose <em>Ad-hoc</em>, a <em>Location spot</em> or a <em>Node template</em>, tick the professions that can roll, the tier(s) and the DC, then <b>Start gather…</b>. The Can roll list shows who rolls with Advantage and why (a tool they carry or are proficient with, from GM Setup → Tools and checks). Only party characters who hold a chosen profession are offered a roll, once each (players roll for themselves; you can roll for them or record a total). <b>Reveal results</b> settles every drop at once: a success gives a Common material, a success by 5+ a Rare one instead (Common if there is no Rare), and a success may also find an Exotic by the node’s Exotic rules. A saved spot draws from its own materials; an ad-hoc gather draws from the imported Materials of the chosen professions and tiers. Each successful character gets a different material while the pool has more to give. If the Ledger cannot pick one, a pop-up lists who rolled, who met the DC and what each may receive, with <b>Give…</b> for each. Nothing is given until you press <b>Give loot</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering → History:</strong> the last 10 completed gathers, newest first (spot, tier, DC, when, and each character’s total, outcome, loot given and XP). Clear history… and Clear last gather… (on the Last gather banner) ask first and never touch loot already given, XP or characters. Players do not have this tab.</p>':''}
-    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> (spots are listed by tier, lowest first, then profession, then name, everywhere you pick one) reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes…</em> shows what it would create (by activity) and asks first, then makes templates from the gathering nodes your Locations already have, without changing Locations. <em>Undo last copy…</em> takes the last copy back (templates you edited since, or that a Location uses, are kept unless you tick them; a snapshot is saved first). Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gather sub-tab to give one.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering → Gathering nodes:</strong> (spots are listed by tier, lowest first, then profession, then name, everywhere you pick one) reusable gathering spots, each with a permanent node id, with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Gather at one from anywhere (Gathering → Gather → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes…</em> shows what it would create (by activity) and asks first, then makes templates from the gathering nodes your Locations already have, without changing Locations. <em>Undo last copy…</em> takes the last copy back (templates you edited since, or that a Location uses, are kept unless you tick them; a snapshot is saved first). A node only rewards released materials (imported once, approved and player-visible): when it is rolled, unreleased and not-imported ones are left out, the remaining chances are scaled to add up to 100 and you are told; if nothing releasable is left for a table that success rewards nothing. Each node warns you which of its materials are unreleased or not imported; <em>Release materials…</em> (after a confirmation) approves and releases exactly the ones that node uses. Tick <em>Use draft materials anyway</em> on the Gather sub-tab to let one gather give a draft one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Refresh recipes…:</strong> on a character’s Known recipes (Individual) or for the whole party (Party). It lists every known recipe in a group with why, and the starting recipes they are missing. Recipes that no longer exist are ticked to remove because they cannot work. So are <em>Replaced starting recipes</em>: ones that were starters and are not any more (recorded as granted, or marked as a former starter by the pack; sync the packs first), when the character has not crafted with them (if they have, they stay unless you tick them). Learned recipes are never ticked for you. The party view lists every character with any of these, or a missing starting recipe, and only says no problems when none remain. Assign → Starting recipes → Replace or remove starting recipes… opens it. A learned recipe with crafted items or XP needs the character’s name typed. A snapshot is saved first; crafted items, materials, XP and gear are never touched.</p>':''}
     ${game.user.isGM?'<p><strong>Assign → Professions → Refresh professions…:</strong> pick one character and press <em>Refresh professions…</em> to swap their professions after a change of proficiencies. The preview lists what it will add, keep and remove, and what it can’t tell and leaves alone. It removes only profession features, starting recipes and signature perks the Ledger recorded giving them (or that you tick under <em>Can’t tell, left alone</em>, where <em>Select all that I can’t identify</em> ticks every row, including recipes the catalog doesn’t know), and never crafted items, materials, gear or anything you added by hand. A profession with XP, crafted items or learned recipes is kept unless you tick <em>Also remove … progress</em> and type the character’s name. A snapshot Journal (GM only) is saved first; if that fails nothing changes.</p><p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
@@ -3802,10 +3867,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return `<article class="ag-card agl-recipe-row agl-node-card" data-recipe-search="${esc(search)}">
       <div class="agl-recipe-head"><div class="agl-recipe-title"><strong>${esc(t.name)}</strong>
         <span class="agl-recipe-meta">${esc(templateLine(t))}</span><span class="agl-recipe-meta">${templateMaterialsHtml(t)}</span>${t.note?`<span class="agl-recipe-meta">${esc(t.note)}</span>`:''}
-        ${t.problems?.length?`<span class="agl-reason">${esc(t.problems.join(' '))}</span>`:''}</div>
+        ${t.problems?.length?`<span class="agl-reason">${esc(t.problems.join(' '))}</span>`:''}
+        ${this._nodeMaterialWarning(templateAudit(t),{id:t.id})}</div>
         <div class="agl-recipe-actions">${where}<button type="button" class="ag-btn ag-btn--sm" data-action="node-edit" data-id="${esc(t.id)}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>
           <button type="button" class="ag-btn ag-btn--sm" data-action="node-duplicate" data-id="${esc(t.id)}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Duplicate</button>
           <button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="node-delete" data-id="${esc(t.id)}"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button></div></div></article>`;
+  }
+  /** 0.42.0 (GM): the visible warning for a node whose materials are unreleased or not imported, with Release materials… when some can be released.
+   * `id` = a saved template's id; the editor passes none and releases the materials of the draft on screen. */
+  _nodeMaterialWarning(audit,{id=''}={}){
+    const text=auditWarning(audit);
+    if(!text)return '';
+    const release=audit.releasable.length?`<button type="button" class="ag-btn ag-btn--sm" data-action="node-release" ${id?`data-id="${esc(id)}"`:'data-draft="1"'}><i class="fa-solid fa-unlock" aria-hidden="true"></i> Release materials…</button>`:'';
+    return `<div class="ag-notice ag-notice--warn agl-node-mats" role="status"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${esc(text)} ${release}</span></div>`;
   }
   /** GM node editor. Text edits are kept without a re-render; structure changes (rows, activity, mode) re-render. */
   _nodeEditor(store){
@@ -3856,7 +3930,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Check tool${sel('checkTool',[['','The profession’s (GM Setup)'],...toolKeys().map(k=>[k,toolLabel(k)])],d.checkTool)}</label>
       </div>`;
     const count=TABLES.reduce((n,t)=>n+d[t].filter(e=>e.materialId).length,0);
+    const audit=auditTables(Object.fromEntries(TABLES.map(t=>[t,[...new Set(d[t].map(e=>e.materialId).filter(Boolean))]])));
     return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||'gathering node')}`}</h2>
+      ${this._nodeMaterialWarning(audit)}
       ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
       ${fold({key:'node-basics',title:'Basics',open:true,body:basics})}
       ${fold({key:'node-check',title:'Check',open:true,body:check})}
@@ -3873,7 +3949,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <ul class="agl-node-plan-list">${nodes.map(n=>`<li>${esc(n.name)}</li>`).join('')}</ul></details></li>`:'';
     return `<section class="ag-card agl-panel agl-node-import"><h2>Import ${esc(fileName||'node file')}</h2>
       ${plan.ok?`<ul class="agl-node-plan">${list('New',plan.add,'ok')}${list('Updated',plan.update,'ok')}${list('Kept (edited here; your edit stays)',plan.keep,'warn')}${list('Unchanged',plan.unchanged)}${list('Skipped (deleted id; ids are never reused)',plan.retired,'warn')}</ul>
-        ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
+        ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}
+        ${plan.materials?.lines?.length?notice(plan.materials.lines.map(esc).join('<br>'),'warn'):''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
         :`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>This file can’t be imported:<br>${plan.errors.map(esc).join('<br>')}</span></div>`}
     </section>`;
   }
@@ -3888,13 +3965,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const cards=list.map(r=>{
       const node=r.node,who=roundCandidates(nodeProfessionDefaults(node)).map(c=>c.actor.name);
       const stale=activePlaces()&&!activePlaces().isActive(r.locationId)?`<p class="agl-reason" role="status">${esc(r.node.locationName||'This place')} is not active any more. You can still approve it.</p>`:'';
-      const draftNote=stale+(r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'');
+      const audit=nodeAudit(node),draftNote=stale+(audit.ok?'':`<p class="agl-reason" role="status">${esc(auditWarning(audit))}</p>`);
       return `<article class="ag-card ag-card--compact agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
         <p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(materialName(node.materialId))}${node.rareMaterialId?`, rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}</p>
         <p class="agl-sub">${who.length?`Can roll: ${esc(who.join(', '))}`:'Nobody in the party holds a profession this spot allows.'}</p>
         <label class="ag-field">Reason for declining (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
         <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-action="gather-approve" data-id="${esc(r.requestId)}"${r.draft?' data-draft="1"':''}><i class="fa-solid fa-check" aria-hidden="true"></i> ${r.draft?'Approve (use draft material)':'Approve'}</button></div></article>`;}).join('');
+          <button type="button" class="ag-btn ag-btn--primary" data-action="gather-approve" data-id="${esc(r.requestId)}"><i class="fa-solid fa-check" aria-hidden="true"></i> Approve</button></div></article>`;}).join('');
     return `<p class="agl-sub">Players asked to gather. Approve opens a gather at that spot, as Start gather does; Decline tells the player, with your reason if you give one.</p>
       <div class="agl-request-list">${cards}</div>`;
   }
@@ -3963,7 +4040,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     }
     const res=round.result,view=roundView(round,{players:false});
     const wins=res.rows.filter(r=>r.result!=='fail');
-    const lines=wins.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.actorName)}</span><span class="ag-row__meta">${r.undetermined.length&&!r.drops.length?(r.reason?`${esc(r.reason)} Give it by hand.`:`The Ledger can’t pick a ${esc(r.undetermined.join(' / '))} material: give it by hand`):'May receive '+esc(r.mayReceive.join(' / '))}</span></span>
+    const lines=wins.map(r=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.actorName)}</span><span class="ag-row__meta">${r.noReward?.length&&!r.drops.length?esc(r.reason):r.undetermined.length&&!r.drops.length?(r.reason?`${esc(r.reason)} Give it by hand.`:`The Ledger can’t pick a ${esc(r.undetermined.join(' / '))} material: give it by hand`):'May receive '+esc(r.mayReceive.join(' / '))}</span></span>
       <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="gather-give-open" data-id="${esc(r.actorId)}">Give…</button></span></li>`).join('');
     const pending=res.rows.reduce((n,r)=>n+r.drops.filter(d=>!d.given).length,0);
     return `<section class="ag-card agl-panel agl-round">${head}
@@ -3995,7 +4072,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       // 0.37.0: spots sorted by tier (lowest first), then profession, then name, under tier headings; the label says tier, profession and where.
       const spots=where.locations.flatMap(loc=>loc.nodes.map(n=>({loc,n,range:spotRange(n.tier),activity:skillText(n.skill),name:nodeTitle(n)})));
       const nodeOptions=groupByTier(spots).map(grp=>`<optgroup label="${esc(grp.label)}">${grp.items.map(({loc,n})=>{const value=`${loc.id}|${n.id??''}`,ok=n.available&&!n.exhausted&&!n.missingTemplate&&!nodeBusy(n.key);
-        return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok?'':'disabled'}>${esc(spotLabel({range:spotRange(n.tier),activity:skillText(n.skill),name:nodeTitle(n)}))} · ${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}${Number.isInteger(n.dc)?` · DC ${n.dc}`:' · no DC'}${n.visible?'':' · hidden from players'}${!n.materialId?' — no material: hand out':''}${n.blocked&&n.materialId?` — ${esc(n.blocked)}`:''}</option>`;}).join('')}</optgroup>`).join('');
+        return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok?'':'disabled'}>${esc(spotLabel({range:spotRange(n.tier),activity:skillText(n.skill),name:nodeTitle(n)}))} · ${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}${Number.isInteger(n.dc)?` · DC ${n.dc}`:' · no DC'}${n.visible?'':' · hidden from players'}${!n.materialId?' — no material: hand out':''}${n.blocked&&n.materialId?` — ${esc(n.blocked)}`:''}${n.materialsOk===false?' — has unreleased materials':''}</option>`;}).join('')}</optgroup>`).join('');
       const form=adhoc?`<div class="agl-gather-form"><label class="ag-field">Label (optional)<input data-gather-label maxlength="80" value="${esc(g.label)}" placeholder="e.g. Roadside herb patch"></label></div>`
         :g.source==='template'?this._templatePick(templates)
         :`<label class="ag-field">Gathering spot<select data-gather-field="nodeRef"><option value="">Choose a spot…</option>${nodeOptions}</select></label>
@@ -4024,7 +4101,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <ul class="ag-rows agl-can-roll__list">${cands.map(c=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(c.actor.name)}</span><span class="ag-row__meta">${esc(professionTitle(c.professionKey))}${excluded.has(c.actor.id)?' · Not included':''}</span></span>
             <span class="ag-row__end">${advantageMarker(presetOfProjection(c.actor,rollerPlan(c.actor,node,c.professionKey)),{who:c.actor.name})}<label class="ag-field ag-field--inline"><input type="checkbox" data-gather-setup-include="${esc(c.actor.id)}" ${excluded.has(c.actor.id)?'':'checked'}> Included<span class="ag-sr-only"> in this gather: ${esc(c.actor.name)}</span></label></span></li>`).join('')}</ul>`:''}</div>
         <div class="agl-field-group"><label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft aria-describedby="agl-allow-draft-hint" ${g.allowDraft?'checked':''}> Use draft materials anyway</label>
-          <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: this gather can give draft or unreleased materials. Players never see them listed.</p></div>
+          <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: normally a node leaves out materials that are unreleased or not imported. Tick this to let this one gather give draft or unreleased ones too. Players never see them listed.</p></div>
+        ${node&&!adhoc&&!g.allowDraft&&!nodeAudit(node).ok?notice(`${esc(auditWarning(nodeAudit(node)))}${nodeAudit(node).releasable.length?` You can release them in Gathering Nodes.`:''}`,'warn'):''}
         ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
         <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${blocker?'disabled':''}><i class="fa-solid fa-seedling" aria-hidden="true"></i> Start gather…</button></div>
       </section>`;
@@ -4522,7 +4600,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.gather.pending=true;this.render();say('Gathering request sent to the GM.');
         let out;try{out=await requestGather({actorId:actor?.id,locationId,nodeId});}finally{this.gather.pending=false;}
         this.notice=out.message;if(out.ok)this.gather.nodeRef='';this.render();say(out.message,!out.ok);return;}
-      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});this.gatherTab='start';this.render();return;}
+      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id);this.gatherTab='start';this.render();return;}
       if(action.startsWith('node-')){await this._nodeAction(action,id);return;}
       if(action==='gather-decline'){if(!game.user.isGM)throw Error('Only the GM can decline gathering');
         const reason=this.element?.querySelector?.(`[data-gather-decline-reason="${id}"]`)?.value??'';declineGatherRequest(id,{reason});this.render();return;}
@@ -4558,7 +4636,16 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(action==='node-import-cancel'){this.nodeImport=null;this._backToNodeList();this.render();return;}
     if(action==='node-import-apply'){const p=this.nodeImport;if(!p)throw Error('Choose a node file first');
       const out=await importNodeFile(p.data);this.nodeImport=null;this._backToNodeList();
-      this.notice=`Imported nodes: ${out.added.length} new, ${out.updated.length} updated${out.kept.length?`, ${out.kept.length} kept as you edited them`:''}${out.retired.length?`, ${out.retired.length} skipped (deleted ids)`:''}.`;this.render();say(this.notice);return;}
+      this.notice=`Imported nodes: ${out.added.length} new, ${out.updated.length} updated${out.kept.length?`, ${out.kept.length} kept as you edited them`:''}${out.retired.length?`, ${out.retired.length} skipped (deleted ids)`:''}.${out.materials.lines.length?' Some of their materials are not imported or not released: see each node.':''}`;this.render();say(this.notice);
+      for(const line of out.materials.lines)say(line);return;}
+    if(action==='node-release'){
+      const ids=id?templateMaterialIds(nodeTemplate(id)):[...new Set(TABLES.flatMap(t=>(this.nodeDraft?.data[t]??[]).map(e=>e.materialId)).filter(Boolean))];
+      const plan=previewMaterialRelease(ids);
+      if(!plan.release.length){this.notice='Nothing here can be released: the materials are already released, not imported, or need fixing in General Manager.';this.render();say(this.notice);return;}
+      const n=plan.release.length;
+      if(!await confirmDialog(releaseConfirmText(plan),{title:`Release ${n} ${n===1?'material':'materials'}?`,yes:'Release materials',no:'Cancel'}))return;
+      const out=await releaseMaterials(ids,{confirm:true});
+      this.notice=`Released ${plural(out.released.length,'material')}.${out.failed.length?` ${out.failed.length} could not be released: ${out.failed.map(f=>`${f.name} (${f.reason})`).join('; ')}.`:''}`;this.render();say(this.notice,out.failed.length>0);return;}
     if(action==='node-export'){const data=exportNodeFile();
       const save=globalThis.foundry?.utils?.saveDataToFile??globalThis.saveDataToFile;
       if(typeof save!=='function')throw Error('This Foundry version cannot download files here');
@@ -4913,8 +5000,11 @@ Hooks.once('ready',()=>{
         /** A Location entry ({nodeId, …}) resolved against its template: the node the Ledger gathers. */
         resolve:entry=>{requireNodesGM();return normalizeNode(resolveEntry(entry??{},id=>nodeTemplate(id)),{locationId:null});},
         /** What a Location may publish to players for a template: no chances, no Exotics, DC only when shown. */
-        playerView:(id,options)=>{requireNodesGM();const t=nodeTemplate(id);return t?templatePlayerView(t,options):null;},
+        playerView:(id,options)=>{requireNodesGM();const t=nodeTemplate(id);return t?templatePlayerView(t,{...options,released:mid=>isReleasedState(materialState(mid).state)}):null;},
         preview:data=>previewNodeFile(data),import:data=>importNodeFile(data),export:()=>exportNodeFile(),
+        /** GM only (0.42.0): materials(id) lists a template's unreleased/not-imported materials; releasePreview(ids) changes nothing;
+         * releaseMaterials(ids, {confirm: true}) releases exactly those ids that exist as draft/not player-visible (refuses without confirm). */
+        materials:id=>nodeMaterialReport(id),releasePreview:ids=>previewMaterialRelease(ids),releaseMaterials:(ids,options)=>releaseMaterials(ids,options),
         copyFromLocations:()=>copyLocationNodes(),
         /** GM only (0.35.5): copyPreview() changes nothing; undoCopy({preview = true, alsoRemove}) undoes the last copy (snapshot first). */
         copyPreview:()=>structuredClone(copyLocationPreview()),undoCopy:options=>undoLocationCopy(options)},
@@ -5009,4 +5099,4 @@ export const _test={favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,p
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,getHistory,clearGatherHistory,clearLastGather,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};
+  readNodeStore,writeNodeStore,releaseMaterials,previewMaterialRelease,nodeMaterialReport,nodeAudit,copyLocationNodes,copyLocationPreview,undoLocationCopy,copyUndoPlan,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,itemLinkClick,skillTreeClick,openItemLink,recipeRow,itemRef,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

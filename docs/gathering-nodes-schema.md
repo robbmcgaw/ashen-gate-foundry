@@ -64,7 +64,7 @@ A node file is imported in Ledger → Gathering Nodes → **Import nodes** (a pr
 | `materials.common` | list | The bundle a success gives. Each entry `{materialId, quantity?, chance?}`. Empty or left out: the GM awards the node by hand (a warning, not an error). |
 | `materials.rare` | list | Optional. The bundle a success by 5+ gives instead of the common one. Needs a common table. Empty: a success by 5+ gives the common bundle. |
 | `materials.exotic` | list | Optional, at most 20. Exotic candidates, as in Locations 1.9+ / Ledger 0.15+: `{materialId, mode: "discovery"}` (rolled at the GM Setup discovery chance on a success) or `{materialId, mode: "designated", chance: 1–100, condition: "success" or "rare"}` (its own chance; replaces the discovery roll). A candidate is only found when its imported definition says quality *Exotic*, it is gathered by one of the node's professions, and its tier is not above the node's. |
-| `materialId` | string | A `MAT-*` id. Not checked against the world at import: the Gathering Nodes tab shows each material as *Released*, *Draft*, *Unreleased* or *Not imported*. |
+| `materialId` | string | A `MAT-*` id. Not checked against the world at import (0.42.0: the preview and the import result list, as report lines and never errors, the materials this world has not imported and the imported ones that are not released): the Gathering Nodes tab shows each material as *Released*, *Draft*, *Unreleased* or *Not imported*, and a node warns the GM which of its materials are not released. |
 | `quantity` | integer | Optional, 1–999, default 1. |
 | `chance` | integer | Common/rare tables: with one entry, leave it out. With two or more, every entry needs a whole percent and the chances add up to exactly 100; a success rolls one d100 to pick the bundle. Each material once per table. |
 | `note` | string | Optional, up to 500 characters. GM only. |
@@ -98,6 +98,18 @@ The first time the GM loads the world with Ledger 0.25.0 (with Locations active)
 - An entry whose id is already a `NODE-*` id keeps that id; others get `NODE-<NAME>` (with `-2`, `-3` … when taken). A Location skill that is a gathering profession sets the activity (`Skinning & Harvesting` → `hunting`); a dnd5e skill becomes `check.skill`; anything else is kept in the note and the template is flagged "no activity" until the GM sets one.
 - **Backup:** every copied entry, exactly as Locations had it, is kept in the same Journal flag (`gatheringNodes.migrations[].backup`), and the GM gets a whispered chat note.
 
+## Released materials (0.42.0)
+
+A material is **released** when it is imported once in the world, its Manager status is `approved` and its visibility is `player`. A node only ever rewards released materials. When a node is rolled (from a template, a Location spot, or a player's approved request):
+
+- Materials that are not released (draft, GM-only, retired or imported twice) or not imported are **left out** of the Common and Rare tables. The gather still starts.
+- The chances of the entries that remain are **scaled in proportion** so they add up to 100 again, rounded by largest remainder (50/30/20 with the 20 left out becomes 63/37). One entry left needs no chance. A table without chances keeps its entries equally likely. The GM sees a note saying what was left out and how the chances changed.
+- Exotic candidates that are not released are skipped (the GM sees why), as before.
+- If a table names materials but none of them is released, that success gives **no reward** and the GM gets a message (not an error); a success by 5+ whose Rare table is empty this way gives the Common material. A node that lists no materials at all is still awarded by hand.
+- Players never see unreleased materials: a template's published player view names only released ones.
+
+The GM sees a warning on each node (list row and editor, the Gather form, a queued request) naming the unreleased and not-imported materials, and **Release materials…** (GM only, asks "Release <n> materials?") sets exactly the unreleased materials that node uses to approved and player-visible. It never runs by itself, never gives anything to a character and cannot release a material that is not imported.
+
 ## Draft materials
 
-Players only ever see released materials (approved and player-visible). The GM's gathering tools list every imported material: draft and unreleased ones are in their own group, marked *Draft* / *Unreleased*. A node whose material is draft says so ("… is draft/unreleased (status: draft): approve it in General Manager, or tick “Use draft materials anyway”"), which is different from a material that is not imported ("… is not imported in this world: import it with General Manager"). Ticking **Use draft materials anyway** (Gathering tab, GM only) awards draft or unreleased common, rare and Exotic materials for that check.
+Players only ever see released materials (approved and player-visible). The GM's gathering tools list every imported material: draft and unreleased ones are in their own group, marked *Draft* / *Unreleased*. A node whose material is draft says so on the node, which is different from a material that is not imported ("… is not imported in this world: import it with General Manager"). Ticking **Use draft materials anyway** (Gathering tab, GM only, off by default) lets that one gather give draft or unreleased common, rare and Exotic materials; it never covers a material that is not imported.

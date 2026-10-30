@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.40.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.42.0',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -226,10 +226,17 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   // Location node at Ford Shallows with a draft material: the reason says draft, not "not in the world".
   app.gather.source='location';app.gather.nodeRef='LOC-TG-FORD|f1';app.gather.allowDraft=false;
   let h=await html('gathering');
-  assert.match(h,/Material “Tg Fish” is draft\/unreleased \(status: draft\): approve it in General Manager, or tick “Use draft materials anyway”/);
-  assert.match(h,/data-action="gather-start" disabled/);
+  // 0.42.0: the spot is not blocked. The GM sees which material is unreleased; at roll time it is left out and that success rewards nothing.
+  assert.match(h,/Unreleased: \[TEST\] Ford Fish \(Common\)/);
+  assert.doesNotMatch(h,/is draft\/unreleased|not imported in this world/,'the material no longer blocks Start (this spot is Fishing, so Start waits for a Fishing holder instead)');
   const node=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-FORD').nodes.find(n=>n.id==='f1');
-  await assert.rejects(()=>_test.startRound({node,leadId:'belwar'}),/is draft\/unreleased/);
+  const empty=await _test.startRound({node,professions:['herbalism']});
+  _test.recordRoll(empty.id,{actorId:'belwar',total:12});
+  const none=_test.revealRound(empty.id);
+  assert.deepEqual(none.rows[0].drops.filter(d=>d.kind==='common'),[],'an unreleased Common material is never rolled');
+  assert.deepEqual(none.rows[0].noReward,['common']);assert.equal(none.needsManual,false,'no hand-out is asked for');
+  assert.match(none.rows[0].reason,/every Common material this node lists is unreleased or not imported \(\[TEST\] Ford Fish\), so nothing was rewarded/);
+  _test.cancelRound(empty.id);
   // Ad-hoc gather: its pool is the imported materials of the chosen professions and tiers; a draft one is in it only when the GM allows drafts.
   app.gather.source='adhoc';Object.assign(app.gather,{professions:['herbalism'],tiers:[1],dc:'',label:''});
   h=await html('gathering');
@@ -251,24 +258,28 @@ test('Robb A: a draft material is listed for the GM (marked), refused with a nam
   await _test.giveRound(round.id);
   assert.equal(qty('MAT-TG-FISH'),1);assert.equal(qty('MAT-TG-PEARL'),1);
   values.exoticChance=2;
-  // A material that is not imported at all still says so, and "use anyway" does not cover it.
-  await assert.rejects(()=>api.gathering.start({node:{label:'x',skill:'Herbalism',tier:1,materialId:'MAT-TG-GONE'},leadId:'belwar',allowDraft:true}),/“Tg Gone” is not imported in this world/);
+  // A material that is not imported at all is left out, and "use anyway" does not cover it (0.42.0: the gather starts, that success rewards nothing).
+  const gone=await api.gathering.start({node:{label:'x',skill:'Herbalism',tier:1,materialId:'MAT-TG-GONE'},leadId:'belwar',allowDraft:true});
+  _test.recordRoll(gone.id,{actorId:'belwar',total:12});
+  const goneOut=_test.revealRound(gone.id);
+  assert.deepEqual(goneOut.rows[0].drops.filter(d=>d.kind==='common'),[]);assert.deepEqual(goneOut.rows[0].noReward,['common']);
+  assert.match(goneOut.rows[0].reason,/\(Tg Gone\)/);
+  _test.cancelRound(gone.id);
   assert.equal(_test.materialState('MAT-TG-GONE').state,'missing');assert.equal(_test.materialState('MAT-TG-FISH').state,'draft');
 });
 
-test('player request on a draft-material node waits for the GM, who approves it with the draft material',async()=>{
+test('player request on a node with an unreleased material waits for the GM, who approves it as usual (the material is left out)',async()=>{
   game.user=gm;_test.resetGatherRequests();
   const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rq1',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-FORD',nodeId:'f1'},'u1');
   assert.equal(out.status,'queued');assert.doesNotMatch(out.message,/MAT-|draft/i,'the player is not told about drafts');
   app.gather.source='location';let h=await html('gathering');
-  assert.match(h,/is draft\/unreleased.*Approve gives it anyway/s);assert.match(h,/data-draft="1"[^>]*>.*Approve \(use draft material\)/s);
+  assert.match(h,/Unreleased: \[TEST\] Ford Fish \(Common\)/);assert.doesNotMatch(h,/data-draft="1"|Approve \(use draft material\)/);
   assert.equal(api.gathering.requests()[0].draftMaterial,true);
-  await assert.rejects(()=>_test.approveGatherRequest('rq1'),/draft\/unreleased/,'a plain approve still names the draft');
   // The spot is Fishing: only a character who holds Fishing is asked to roll.
-  await assert.rejects(()=>_test.approveGatherRequest('rq1',{allowDraft:true}),/No party character holds any of the chosen professions \(Fishing\)/);
+  await assert.rejects(()=>_test.approveGatherRequest('rq1'),/No party character holds any of the chosen professions \(Fishing\)/);
   inv.push(held('bfish','[TEST] Fishing — Profession',src('PROF-TG-FISHING','Profession',{definition:{id:'PROF-TG-FISHING',entity_type:'Profession',version:'0.1.0',refs:[],name:'[TEST] Fishing'}}),1,{type:'feat'}));
-  const s=await _test.approveGatherRequest('rq1',{allowDraft:true});
-  assert.equal(s.allowDraft,true);_test.cancelRound(s.id);
+  const s=await _test.approveGatherRequest('rq1');
+  assert.equal(s.allowDraft,false,'approving never turns draft materials on');_test.cancelRound(s.id);
   inv.splice(inv.findIndex(i=>i.id==='bfish'),1);
 });
 

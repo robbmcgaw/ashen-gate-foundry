@@ -366,7 +366,9 @@ test('unrevealed location in a public card is not named; ad-hoc gather works wit
  modules['ashen-gate-locations']=undefined;
  assert.equal(_test.gatherLocations().ok,false);
  assert.match(await html('gathering'),/Start gather…/);
- await assert.rejects(()=>api.gathering.start({node:{label:'x',tier:1,materialId:'MAT-TG-SECRET'},professions:['herbalism'],leadId:'belwar'}),/player-visible/);
+ // 0.42.0: an unreleased material no longer blocks the start; it is left out when the gather is rolled.
+ const secret=await api.gathering.start({node:{label:'x',tier:1,materialId:'MAT-TG-SECRET'},professions:['herbalism'],leadId:'belwar'});
+ assert.equal(api.gathering.cancel(secret.id),true);
  const s=await api.gathering.start({node:{label:'[TEST] Ditch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB'},leadId:'belwar'});
  assert.equal(s.dc,12,'ad-hoc DC defaults by tier');
  assert.equal(api.gathering.cancel(s.id),true);assert.equal(_test.gatherRounds.size,0);
@@ -516,15 +518,18 @@ test('gathering blockers in Forge: GM tab, GM start and player tab each name the
  try{
   h=await html('gathering');app.gather.source='location';app.gather.nodeRef='LOC-TG-MEADOW|n9';
   h=await html('gathering');
-  assert.match(h,/Material “Tg Herb” is not imported in this world: import it with General Manager/);
-  assert.match(h,/data-action="gather-start" disabled/);
-  await assert.rejects(()=>_test.startRound({node:nodeOf('LOC-TG-MEADOW','n9')}),/Material “Tg Herb” is not imported in this world/);
-  // A player request is refused before the GM is bothered; the player gets no id, the GM gets the exact fix.
+  // 0.42.0: a node whose material is not imported is still gatherable: the GM sees a warning, the material is left out when it is rolled.
+  assert.match(h,/Not imported: Tg Herb \(Common\)/);
+  assert.doesNotMatch(h,/data-action="gather-start" disabled/);
+  const open=await _test.startRound({node:nodeOf('LOC-TG-MEADOW','n9')});
+  assert.equal(api.gathering.cancel(open.id),true);
+  // A player request is queued (not refused); the player gets no id and no detail about the material.
   const before=dialogs.length;errors.length=0;sent.length=0;
   const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rm',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n9'},'u1');
-  assert.equal(out.ok,false);assert.equal(dialogs.length,before,'no approval popup');
-  assert.doesNotMatch(out.message,/MAT-/);assert.match(out.message,/GM can’t start this yet/);
-  assert.ok(errors.some(e=>/“Tg Herb” is not imported in this world/.test(e)),'the GM sees the fix');
+  assert.equal(out.ok,true);assert.equal(out.status,'queued');assert.equal(dialogs.length,before,'no approval popup');
+  assert.doesNotMatch(out.message,/MAT-|Tg Herb/);
+  assert.equal(api.gathering.requests()[0].draftMaterial,true,'the GM queue says the node has unreleased materials');
+  api.gathering.decline('rm');
  }finally{world.push(missing);}
  // Locations inactive.
  const loc=modules['ashen-gate-locations'];loc.active=false;
