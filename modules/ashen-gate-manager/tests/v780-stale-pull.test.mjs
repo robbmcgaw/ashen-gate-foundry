@@ -67,5 +67,5 @@ test('main.js wiring: set after a different-commit pull, cleared by Preview in S
 test('Help describes it; version is 0.83.0', () => {
   assert.match(read('../scripts/main.js'), /Pulling again does not replace the files Sync already holds/);
   const man = JSON.parse(read('../module.json'));
-  assert.equal(man.version, '0.84.1'); assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));
+  assert.equal(man.version, '0.85.0'); assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));
 });

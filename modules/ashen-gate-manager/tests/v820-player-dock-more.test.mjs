@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import {FakeDocument,fakeStorage} from '../../../scripts/kit-tests/fake-dom.mjs';
 import {createAppearanceController,registerAppearanceSettings,PLAYER_SCREEN_FLAGS,AUTO_COLLAPSE_KEY,DEFAULT_AUTO_COLLAPSE_SECONDS,cleanAutoCollapse} from '../scripts/appearance.js';
 import {readGmSetupForm,saveGmSetup} from '../scripts/gm-setup.js';
-import {applyPlayersList,createControlsLayout,openUserConfiguration,shouldDockControls,shouldHidePlayersList,PLAYERS_LIST_CLASS,CONTROLS_DOCKED_CLASS} from '../scripts/dock-controls.js';
+import {applyPlayersList,createControlsLayout,toggleUserConfiguration,findUserConfiguration,shouldDockControls,shouldHidePlayersList,PLAYERS_LIST_CLASS,CONTROLS_DOCKED_CLASS} from '../scripts/dock-controls.js';
 import {isSidebarExpanded,startSidebarCollapsed} from '../scripts/sidebar-collapse.js';
 import {openSidebarTab,closeSidebarTab} from '../scripts/sidebar-tabs.js';
 import {createSidebarIdleCollapse,installSidebarIdleCollapse,hasTypedText} from '../scripts/sidebar-idle.js';
@@ -47,7 +47,7 @@ test('settings: players list and scene controls are off by default, GM only, wor
   const a=reg.find(r=>r.k===AUTO_COLLAPSE_KEY).v;
   assert.deepEqual([a.scope,a.config,a.restricted,a.type,a.default],['world',false,true,Number,8]);
   assert.equal(DEFAULT_AUTO_COLLAPSE_SECONDS,8);assert.match(a.name,/Auto-collapse chat and Settings after \(seconds\)/);
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-3,-1).map(f=>f.state),['hidePlayersList','dockSceneControls']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-2).map(f=>f.state),['hidePlayersList','dockSceneControls']);
   const g=ctl();const st=g.c.getState();
   assert.deepEqual([st.hidePlayersList,st.dockSceneControls,st.autoCollapseSeconds],[false,false,8]);
   await g.c.setHidePlayersList(true);await g.c.setDockSceneControls(true);await g.c.setAutoCollapseSeconds(0);
@@ -85,33 +85,33 @@ test('players list: hidden only for a player with the setting on; live; idempote
 });
 
 // ---------- user configuration
-test('User Configuration opener: V2 sheet, legacy class, none; never throws',()=>{
+test('User Configuration toggle: V2 sheet opens, legacy class opens, none; never throws',async()=>{
   const calls=[];const user={id:'p'};
-  class V2{constructor(o){calls.push(['v2',o.document]);}render(o){calls.push(['render',o]);}}
-  assert.equal(openUserConfiguration({foundryNs:{applications:{sheets:{UserConfig:V2}}},game:{user},globals:{}}),true);
+  class V2{constructor(o){calls.push(['v2',o.document]);}async render(o){calls.push(['render',o]);}}
+  assert.equal(await toggleUserConfiguration({foundryNs:{applications:{sheets:{UserConfig:V2}}},game:{user},globals:{}}),true);
   assert.deepEqual(calls,[['v2',user],['render',{force:true}]]);
   calls.length=0;class Old{constructor(u){calls.push(['old',u]);}render(f){calls.push(['render',f]);}}
-  assert.equal(openUserConfiguration({foundryNs:{},game:{user},globals:{UserConfig:Old}}),true);assert.deepEqual(calls,[['old',user],['render',true]]);
-  assert.equal(openUserConfiguration({foundryNs:{},game:{user},globals:{}}),false);
-  assert.equal(openUserConfiguration({foundryNs:{},game:{},globals:{}}),false);
+  assert.equal(await toggleUserConfiguration({foundryNs:{},game:{user},globals:{UserConfig:Old}}),true);assert.deepEqual(calls,[['old',user],['render',true]]);
+  assert.equal(await toggleUserConfiguration({foundryNs:{},game:{user},globals:{}}),false);
+  assert.equal(await toggleUserConfiguration({foundryNs:{},game:{},globals:{}}),false);
   class Boom{constructor(){throw new Error('x');}}
-  assert.equal(openUserConfiguration({foundryNs:{applications:{sheets:{UserConfig:Boom}}},game:{user},globals:{}}),false);
+  assert.equal(await toggleUserConfiguration({foundryNs:{applications:{sheets:{UserConfig:Boom}}},game:{user},globals:{}}),false);
 });
 
 // ---------- dock env
-function dockEnv({isGM=false,state={},modules=new Map(),storage=fakeStorage(),openConfig=()=>true}={}){
+function dockEnv({isGM=false,state={},modules=new Map(),storage=fakeStorage(),toggleConfig=()=>true}={}){
   const doc=richDoc(),ap=fixed({playerDock:true,playerDockCorner:'top-left',...state}),notes=[];
   const ui={notifications:{warn:m=>notes.push(m)},sidebar:{tabGroups:{primary:'chat'}}};
   const game={user:{isGM,id:'p1'},modules};
   const layout=createControlsLayout({doc,win:{}});
-  return {doc,ap,ui,game,notes,storage,layout,apply:()=>applyPlayerDock({game,doc,appearance:ap,getUi:()=>ui,peek:{tab:null,armed:false},storage,layout,openConfig})};
+  return {doc,ap,ui,game,notes,storage,layout,apply:()=>applyPlayerDock({game,doc,appearance:ap,getUi:()=>ui,peek:{tab:null,armed:false},storage,layout,toggleConfig})};
 }
 
-test('dock: User Configuration link is always there, is a button, and calls the opener; slot contract is stable',()=>{
-  const opened=[];const e=dockEnv({openConfig:a=>{opened.push(a.game.user.id);return true;}});
+test('dock: User Configuration link is always there, is a button, and calls the toggle; slot contract is stable',()=>{
+  const opened=[];const e=dockEnv({toggleConfig:a=>{opened.push(a.game.user.id);return true;}});
   const dock=e.apply();const link=dock.querySelector('[data-agm-dock="user-config"]');
   assert.equal(link.tagName,'BUTTON');assert.match(link.querySelector('span').textContent,/User Configuration/);link.click();assert.deepEqual(opened,['p1']);
-  const bad=dockEnv({openConfig:()=>false});const d2=bad.apply();d2.querySelector('[data-agm-dock="user-config"]').click();
+  const bad=dockEnv({toggleConfig:()=>false});const d2=bad.apply();d2.querySelector('[data-agm-dock="user-config"]').click();
   return tick().then(()=>{assert.equal(bad.notes.length,1);
     const slots=dock.querySelectorAll('[data-agm-dock-slot]').map(s=>s.dataset.agmDockSlot);
     assert.deepEqual(slots,['portrait','combat','settings','conditions','quest-tracker','user-config','ashen-gate']);
@@ -138,8 +138,9 @@ test('controls relocation: class, corner and measured sizes while on; removed wh
   assert.equal(run(),dock,'idempotent');
   e.ap.set({playerDockCorner:'top-right'});run();assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),'top-right');
   e.ap.set({dockSceneControls:false});run();
-  assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.vars.size,0);assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),null);
+  assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),'top-right','0.85.0: the corner stays while the dock shows');
   e.ap.set({dockSceneControls:true});run();e.ap.set({playerDock:false});run();
+  assert.equal(e.doc.vars.size,0);assert.equal(e.doc.body.getAttribute('data-agm-dock-corner'),null);
   assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false,'no dock, nothing moves');
   const gm=dockEnv({isGM:true,state:{dockSceneControls:true}});gm.apply();assert.equal(gm.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);
   const css=read('../styles/player-dock.css');
@@ -287,7 +288,7 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Tracker<\/em>/);
-  assert.equal(man.version,'0.84.1');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.84.1/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.equal(man.version,'0.85.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.85.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);
@@ -301,7 +302,7 @@ test('installPlayerDock hooks both renders and cleans up (controls released)',()
   stop();assert.deepEqual(off.slice(0,2),['renderSidebar','renderSceneControls']);assert.equal(e.doc.body.classList.contains(CONTROLS_DOCKED_CLASS),false);assert.equal(e.doc.getElementById(DOCK_ID),null);
 });
 
-// ---------- 0.84.1 verified collapsed / expanded mechanism (Foundry 14.367)
+// ---------- 0.85.0 verified collapsed / expanded mechanism (Foundry 14.367)
 test('sidebar state: ui.sidebar.expanded wins, #sidebar-content.expanded is the fallback, otherwise unknown',()=>{
   const e=idleEnv();
   assert.equal(isSidebarExpanded({ui:e.ui,doc:e.doc}),true);e.set.delete('expanded');assert.equal(isSidebarExpanded({ui:e.ui,doc:e.doc}),false);
