@@ -98,6 +98,8 @@ const nameValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value?
 /** The optional locked-rank flavor line from a rank row: kept when written, removed when cleared (an old record without one is not given an empty field). */
 const withFlavor=(m,row)=>{const v=String(row.querySelector?.('[data-field=flavor]')?.value??m.flavor??'').trim().slice(0,FLAVOR_MAX);if(v)m.flavor=v;else delete m.flavor;return m;};
 const selectedValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'');
+// 0.26.0, GM only: the file Export downloads (`ag-factions-source-export/0.4`: every faction and deity definition, no standings, claims or discovery). One function serves the Export button and api.exportDefinitions.
+const exportDefinitions=()=>{assertGM();return{schema_version:IMPORT_SCHEMA,definitions:defs().map(d=>withLiveFolder(sourceDefinition(getFaction(d)))),note:'Excludes all mutable campaign state and user discovery state.'};};
 const jsonDownload=(data,file)=>{const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=file;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);};
 async function saveDef(doc,record){
   assertGM();const clean=sourceDefinition(record),f=upgradeFaction(record),faults=validateFaction(clean);
@@ -1087,7 +1089,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       await this.render({force:true});
     }catch(e){notifyError(e)}
   }
-  static async exportAll(){try{assertGM();jsonDownload({schema_version:IMPORT_SCHEMA,definitions:defs().map(d=>withLiveFolder(sourceDefinition(getFaction(d)))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions.json');}catch(e){notifyError(e)}}
+  static async exportAll(){try{jsonDownload(exportDefinitions(),'AG_Factions_Definitions.json');}catch(e){notifyError(e)}}
 }
 // FR-02: every action that re-renders asks first when typed edits are unsaved (the submit actions save them instead).
 for(const [name,fn] of Object.entries(Dashboard.DEFAULT_OPTIONS.actions)){
@@ -1258,6 +1260,7 @@ Hooks.once('ready',()=>{
   if(mod)mod.api=Object.freeze({
     open:openDashboard,
     embed:Object.freeze({contract:'ag-factions-embed/1',modes:Object.freeze([...EMBED_MODES]),mount:mountEmbed}),
+    exportDefinitions:()=>exportDefinitions(),
     getFactions:()=>{requirePlayerAccess();return game.user.isGM?factionDefs().map(d=>withLiveFolder(sourceDefinition(getFaction(d)))):getView(userViewDoc(game.user))?.payload.factions??[];},
     validateFaction,
     // 0.23.0, GM only: Recruit (on:true) or remove from members (on:false) the party ({party:true}) or one character ({actorId}). Recruiting also shows the faction; standing is never deleted.

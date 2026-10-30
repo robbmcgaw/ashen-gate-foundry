@@ -113,7 +113,7 @@ const result = api?.resolveObjective('QUEST-EXAMPLE', {entityType: 'Objective'})
 const view = api?.getVisibleObjective('QUEST-EXAMPLE'); // sanitized player view
 ```
 
-Also: `open`, `openObjective`, `embed` (`mount`, see below), `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Compendium packs.
+Also: `open`, `openObjective`, `embed` (`mount`, see below), `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `exportSource` (0.31.0: the `ag-quest-source/0.1` package the Export JSON button downloads), `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Compendium packs.
 
 ### `embed.mount(element, options)` (0.8.0)
 

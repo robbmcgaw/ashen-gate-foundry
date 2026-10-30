@@ -1,3 +1,7 @@
+## 0.26.0 — 2026-10-30
+
+- **`api.exportDefinitions()`** (GM only, refused for players): returns the file **Export** downloads (`schema_version` `ag-factions-source-export/0.4`: every faction and deity definition, no standings, claims or discovery). The Export button now calls the same function, so there is one code path. General Manager's *Back up world now…* uses it for `factions.json`. Feature-detect it (`typeof api.exportDefinitions === 'function'`). Nothing saved is changed.
+
 ## 0.25.0 — 2026-10-28
 
 **Players see every rank; ranks they have not unlocked are flavor-only locked cards.**

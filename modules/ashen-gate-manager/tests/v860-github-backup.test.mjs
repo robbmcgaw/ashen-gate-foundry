@@ -1,9 +1,9 @@
-// 0.86.0: Back up world to GitHub. Mocked Foundry globals and a mocked GitHub (fetch); synthetic [TEST] data only.
+// 0.87.0: Back up world to GitHub. Mocked Foundry globals and a mocked GitHub (fetch); synthetic [TEST] data only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import * as bk from '../scripts/github-backup.js';
-import {settingsView, exportView, confirmHtml} from '../scripts/backup-view.js';
+import {settingsView, exportView, confirmFields} from '../scripts/backup-view.js';
 import {readGmSetupForm, saveGmSetup} from '../scripts/gm-setup.js';
 
 const TOKEN = 'github_pat_TESTBACKUP0123456789abcdef';
@@ -14,8 +14,8 @@ const mkStore = (init = {}) => { const data = {backupToken: TOKEN, backupConfig:
 function mkGame({gm = true, modules} = {}) {
   const mods = modules ?? {
     'ashen-gate-locations': {active: true, version: '0.0.0', api: {exportPackage: () => ({manifest: {package_id: 'PKG-TEST'}, records: [{id: 'LOC-TEST', name: '[TEST] Place'}]})}},
-    'ashen-gate-quest-manager': {active: true, api: {listQuests: () => [{id: 'Q-TEST', name: '[TEST] Quest', kind: 'quest', definitionStatus: 'draft'}], getGMSource: id => ({id}), getGMState: () => ({status: 'hidden'})}},
-    'ashen-gate-factions': {active: true, api: {getFactions: () => [{id: 'FAC-TEST'}], getDeities: () => []}},
+    'ashen-gate-quest-manager': {active: true, api: {exportSource: () => ({schema_version: 'ag-quest-source/0.1', domain: 'quests_orders', version: '0.4.0', records: [{id: 'QUEST-TEST', name: '[TEST] Quest'}]})}},
+    'ashen-gate-factions': {active: true, api: {exportDefinitions: () => ({schema_version: 'ag-factions-source-export/0.4', definitions: [{id: 'FAC-TEST'}], note: 'Excludes all mutable campaign state and user discovery state.'})}},
     'ashen-gate-utilities': {active: true, api: {shops: {exportShops() { return {shops: [{id: 'SHOP-TEST'}]}; }}}}
   };
   return {user: {isGM: gm}, world: {id: 'w'}, modules: new Map(Object.entries(mods)), items: {contents: []}, journal: {contents: []}, actors: {contents: []}, tables: {contents: []}, macros: {contents: []}};
@@ -49,8 +49,10 @@ test('collects the five files from public apis, pretty JSON under world-backup/'
   assert.deepEqual(p.files.map(f => f.path), ['manager-edits', 'locations', 'quests', 'factions', 'shops'].map(n => `world-backup/${n === 'manager-edits' ? n : n}.json`));
   assert.match(p.files[1].text, /\n  "manifest"/);
   assert.ok(p.files.every(f => f.bytes === new TextEncoder().encode(f.text).length));
-  assert.equal(JSON.parse(p.files[2].text).quests[0].state.status, 'hidden');
+  assert.equal(JSON.parse(p.files[2].text).schema_version, 'ag-quest-source/0.1');
+  assert.equal(JSON.parse(p.files[3].text).schema_version, 'ag-factions-source-export/0.4');
   assert.match(p.files[3].note, /standings/);
+  assert.equal(JSON.parse(p.files[0].text).schema, 'ag-world-edits/0.1');
 });
 
 test('a missing, inactive or export-less module is skipped with a reason', () => {
@@ -59,13 +61,14 @@ test('a missing, inactive or export-less module is skipped with a reason', () =>
   assert.deepEqual(p.files.map(f => f.path), ['world-backup/manager-edits.json']);
   const why = Object.fromEntries(p.skipped.map(s => [s.label.split(/\W/)[0], s.reason]));
   assert.match(why.Locations, /not active/);
-  assert.match(why.Quests, /no export/);
+  assert.match(why.Quests, /no source export/);
   assert.match(why.Factions, /no export/);
   assert.match(why.Shops, /not installed/);
-  const html = confirmHtml(p, {repo: 'owner/priv', branch: 'world-backup'});
-  assert.match(html, /not installed/);
-  assert.match(html, /play state/);
-  assert.match(html, /world-backup\/manager-edits\.json/);
+  const field = confirmFields(p, {repo: 'owner/priv', branch: 'world-backup'}, bk.ALL_TYPE_IDS)[0];
+  assert.match(field.hint, /not installed/);
+  assert.match(field.hint, /private/);
+  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro']);
+  assert.match(field.options[0].label, /manager-edits\.json/);
 });
 
 test('a non-GM is refused everywhere, before any request', async () => {
@@ -210,6 +213,6 @@ test('the action lives in the Export area and the settings in GM Setup; help exp
   assert.match(main, /Back up world to GitHub<\/strong>/);
   const view = exportView({target: {branch: 'world-backup'}, lastLabel: '2 hours ago', message: {tone: 'ok', text: 'Done.', url: 'https://github.com/o/r/commit/x'}});
   assert.match(view, /Back up world now…/); assert.match(view, /2 hours ago/); assert.match(view, /rel="noopener/);
-  assert.doesNotMatch(settingsView({}) + view + confirmHtml({files: [], skipped: []}, {repo: 'a/b', branch: 'c'}), /\b(Alpha|Beta|Preview)\b/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.86.0');
+  assert.doesNotMatch(settingsView({}) + view + JSON.stringify(confirmFields({types: []}, {repo: 'a/b', branch: 'c'})), /\b(Alpha|Beta|Preview)\b/);
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.87.0');
 });
