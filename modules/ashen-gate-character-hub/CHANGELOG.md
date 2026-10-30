@@ -1,3 +1,12 @@
+## 0.67.0 — 2026-10-30
+
+The dock portrait opens and closes the Hub with one click.
+
+- **Click the round picture** in General Manager's player dock once to open your Character Hub, and click it again to close it. This replaces double-click to open (which had no way to close). **Tab** to it and press **Enter** or **Space** for the same toggle; on a touch screen, tap it.
+- The picture shows when the Hub is open: a heavier border, and it is announced as pressed. Closing the Hub with its window X puts the picture back to closed. The tooltip and accessible name read "Open <name>" or "Close <name>".
+- A quick double-click opens the Hub and stops there: a click within 350 ms of the previous one is ignored (and clicks are ignored while an open or close is still running).
+- Display only: nothing stored changes, no migration. Tests are mocked Foundry; they do not open the real Hub or the real dock.
+
 ## 0.66.0 — 2026-10-30
 
 The dock portrait is just the picture.

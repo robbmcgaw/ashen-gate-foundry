@@ -1124,3 +1124,5 @@
 .agch-dock-portrait .agch-dock-portrait__btn:focus-visible { outline: .125rem solid var(--ag-focus, var(--ag-accent, currentColor)); outline-offset: .125rem; }
 .agch-dock-portrait .agch-dock-portrait__btn { transition: border-color var(--ag-dur-fast, .12s) var(--ag-ease, ease), box-shadow var(--ag-dur-fast, .12s) var(--ag-ease, ease); }
 @media (prefers-reduced-motion: reduce) { .agch-dock-portrait .agch-dock-portrait__btn { transition: none; } }
+/* 0.67.0: the dock portrait is a toggle. Open = a heavier border, the same treatment as Manager's pressed dock buttons (not colour alone). */
+.agch-dock-portrait .agch-dock-portrait__btn[aria-pressed="true"] { border-style: solid; border-color: var(--ag-focus, var(--ag-accent, currentColor)); border-width: .125rem; }
