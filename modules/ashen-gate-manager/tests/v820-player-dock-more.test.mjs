@@ -47,7 +47,7 @@ test('settings: players list and scene controls are off by default, GM only, wor
   const a=reg.find(r=>r.k===AUTO_COLLAPSE_KEY).v;
   assert.deepEqual([a.scope,a.config,a.restricted,a.type,a.default],['world',false,true,Number,8]);
   assert.equal(DEFAULT_AUTO_COLLAPSE_SECONDS,8);assert.match(a.name,/Auto-collapse chat and Settings after \(seconds\)/);
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-2).map(f=>f.state),['hidePlayersList','dockSceneControls']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.slice(-3,-1).map(f=>f.state),['hidePlayersList','dockSceneControls']);
   const g=ctl();const st=g.c.getState();
   assert.deepEqual([st.hidePlayersList,st.dockSceneControls,st.autoCollapseSeconds],[false,false,8]);
   await g.c.setHidePlayersList(true);await g.c.setDockSceneControls(true);await g.c.setAutoCollapseSeconds(0);

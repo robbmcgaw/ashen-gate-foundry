@@ -24,13 +24,13 @@ const player={user:{isGM:false}},gm={user:{isGM:true}};
 
 test('settings: hidden, restricted world values, off by default, plain wording; corner is a GM choice',()=>{
   const reg=[];registerAppearanceSettings({game:{settings:{register:(n,k,v)=>reg.push({k,v})}},namespace:'m'});
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','collapsePlayerSidebar','playerDock','hidePlayersList','dockSceneControls']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','collapsePlayerSidebar','playerDock','hidePlayersList','dockSceneControls','pullSceneNavigationLeft']);
   for(const f of PLAYER_SCREEN_FLAGS){
     const s=reg.find(r=>r.k===f.key).v;
     assert.deepEqual([s.scope,s.config,s.restricted,s.type,s.default],['world',false,true,Boolean,false]);
     assert.doesNotMatch(`${s.name} ${s.hint}`,/\b(new|beta|alpha|preview)\b|[A-Z]{3,}-/i);
   }
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Start players with the sidebar collapsed','Show the player dock','Hide the players list from players',"Move players' scene controls under the player dock"]);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Start players with the sidebar collapsed','Show the player dock','Hide the players list from players',"Move players' scene controls under the player dock",'Pull the scene navigation to the left']);
   const c=reg.find(r=>r.k===DOCK_CORNER_KEY).v;
   assert.deepEqual([c.scope,c.restricted,c.default],['world',true,'top-left']);assert.deepEqual(Object.keys(c.choices),['top-left','top-right','bottom-left','bottom-right']);
 });
@@ -56,7 +56,7 @@ test('GM Setup form reads the new controls and saves only what changed',async()=
   assert.deepEqual([v.hideSceneTools,v.collapsePlayerSidebar,v.playerDock,v.playerDockCorner],[true,true,false,'top-right']);
   const g=ctl();
   const out=await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});
-  assert.equal(out.ok,true);assert.equal(g.writes.length,5);
+  assert.equal(out.ok,true);assert.equal(g.writes.length,6);
   g.writes.length=0;await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});assert.deepEqual(g.writes,[],'idempotent');
   assert.equal(readGmSetupForm({querySelector:()=>null,querySelectorAll:()=>[]}).hideSceneTools,undefined);
   await assert.rejects(()=>saveGmSetup(v,{game:player,moduleId:'m',codexAccessKey:'k',appearance:g.c}),/Only the GM/);

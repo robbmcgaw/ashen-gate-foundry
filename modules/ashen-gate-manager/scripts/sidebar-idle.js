@@ -43,23 +43,49 @@ export const OPEN_SELECTORS = Object.freeze(['dialog[open]', '.application.dialo
 export const BUSY_REASONS = Object.freeze(['pointer', 'focus', 'text', 'window', 'dock-menu']);
 export const BUSY_ATTR = 'data-agm-idle-busy';
 export const ARMED_ATTR = 'data-agm-idle-armed';
-const NON_TEXT_INPUTS = Object.freeze(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'color', 'file', 'image']);
 
-/** True when any text box inside `root` holds non-blank text: textarea, text input, or a contenteditable editor (V14 chat). */
-export function hasTypedText(root) {
+const INVISIBLE = /[\u200b-\u200d\u2060\ufeff\u00a0]/g;
+const cleanText = value => String(value ?? '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(INVISIBLE, ' ').trim();
+/** Parts of the sidebar that hold values but are not typing: the dice tray / roll controls and message-mode buttons. */
+const CONTROL_IDS = Object.freeze(['chat-controls', 'message-modes', 'roll-privacy']);
+const CONTROL_CLASS = /(^|\s)(dice-tray\S*|roll-controls|chat-controls|control-buttons)(\s|$)/;
+const FREE_TEXT_TYPES = Object.freeze(['text', 'search', '']);
+const inControls = el => { for (let n = el; n; n = n.parentElement) { if (CONTROL_IDS.includes(n.id) || CONTROL_CLASS.test(String(n.getAttribute?.('class') ?? ''))) return true; } return false; };
+const inEditor = el => { for (let n = el; n; n = n.parentElement) { if (n.id === 'chat-message' || String(n.tagName).toLowerCase() === 'prose-mirror') return true; } return false; };
+const flagged = el => el?.hidden === true || el?.disabled === true || el?.readOnly === true
+  || ['readonly', 'disabled', 'hidden'].some(a => el?.hasAttribute?.(a) || el?.getAttribute?.(a) === '');
+/** "tag#id.class" of an element, trimmed, for the diagnostic. */
+export function describeElement(el) {
+  try { const cls = String(el.getAttribute?.('class') ?? '').trim().split(/\s+/).filter(Boolean)[0]; return `${String(el.tagName ?? '').toLowerCase()}${el.id ? `#${el.id}` : ''}${cls ? `.${cls}` : ''}`.slice(0, 60); } catch { return 'unknown'; }
+}
+/**
+ * The element that holds typed text inside `root`, or null. Only two things count: the chat message editor (`#chat-message`,
+ * the `prose-mirror` element or its editable child; its `value` or editable text with tags, zero-width and nbsp characters
+ * ignored, so an empty paragraph or a placeholder is empty), and genuine free-text fields (textarea, input type text or
+ * search) that are not read-only, disabled or hidden and are not part of the dice tray or roll controls. Number, range, hidden
+ * and every other input type are ignored, as is any other contenteditable.
+ */
+export function typedTextElement(root) {
   try {
-    for (const el of root?.querySelectorAll?.('textarea, input') ?? []) {
-      const type = String(el.type ?? el.getAttribute?.('type') ?? 'text').toLowerCase();
-      if (NON_TEXT_INPUTS.includes(type)) continue;
-      if (String(el.value ?? '').trim() !== '') return true;
+    const editors = [...(root?.querySelectorAll?.('[id="chat-message"]') ?? []), ...[...(root?.querySelectorAll?.('[contenteditable]') ?? [])].filter(inEditor)];
+    for (const ed of editors) {
+      if (ed.hidden === true) continue;
+      const editable = ed.getAttribute?.('contenteditable') != null ? ed : ed.querySelector?.('[contenteditable]');
+      if (editable && String(editable.getAttribute?.('contenteditable')).toLowerCase() === 'false') continue;
+      const text = editable ? cleanText(editable.textContent) : cleanText(typeof ed.value === 'string' ? ed.value : ed.textContent);
+      if (text !== '') return ed;
     }
-    for (const el of root?.querySelectorAll?.('[contenteditable]') ?? []) {
-      if (String(el.getAttribute?.('contenteditable')).toLowerCase() === 'false') continue;
-      if (String(el.textContent ?? '').replace(/\u200b/g, '').trim() !== '') return true;
+    for (const el of root?.querySelectorAll?.('textarea, input') ?? []) {
+      if (flagged(el) || inControls(el) || inEditor(el)) continue;
+      const tag = String(el.tagName ?? '').toLowerCase();
+      if (tag === 'input' && !FREE_TEXT_TYPES.includes(String(el.type ?? el.getAttribute?.('type') ?? 'text').toLowerCase())) continue;
+      if (cleanText(el.value) !== '') return el;
     }
   } catch { /* treated as no text */ }
-  return false;
+  return null;
 }
+/** True when the chat message editor or a free-text field in `root` holds non-blank text. */
+export const hasTypedText = root => typedTextElement(root) !== null;
 
 /** Is this element really on screen? Not hidden, not an unopened dialog, not an empty menu shell. */
 export function isShown(el) {
@@ -109,7 +135,8 @@ export function createSidebarIdleCollapse({
   const busyReason = el => {
     if (hovered(el)) return 'pointer';
     if (focusInSelect(el)) return 'focus';
-    if (hasTypedText(el)) return 'text';
+    const typed = typedTextElement(el);
+    if (typed) return `text:${describeElement(typed)}`;
     if (hasOpenWindow(doc)) return 'window';
     try { if (isDockMenuOpen()) return 'dock-menu'; } catch { /* not open */ }
     return null;

@@ -1471,6 +1471,8 @@
         <p class="agmanager-tiny">Removes those two tool groups for players. Only the buttons go: permissions, notes and regions are unchanged.</p>
         <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="dockSceneControls" {{#if dockSceneControls}}checked{{/if}}> Move players' scene controls under the player dock</label>
         <p class="agmanager-tiny">Moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, as one row of Select, Select Targets, Measure and Find My Token. Needs the player dock. The tools work as before. The scene navigation stays where Foundry puts it (with Monk's Scene Navigation too); only if the dock in the top left corner would overlap it is it nudged to the right of the dock.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="pullSceneNavigationLeft" {{#if pullSceneNavigationLeft}}checked{{/if}}> Pull the scene navigation to the left</label>
+        <p class="agmanager-tiny">Foundry centres the scene navigation bar, so it sits a long way in from the left. With this on, players' bar moves left to sit beside the player dock (dock in the top left corner) or beside the scene controls, with a small gap. It works with or without the dock; the bar and its scene list work as before. GMs always see the normal place.</p>
       </section>
       <section class="ag-section" aria-label="Player dock">
         <div class="ag-section__head"><h3 class="ag-section__title">Player dock</h3></div>

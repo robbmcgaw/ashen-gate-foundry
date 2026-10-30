@@ -345,8 +345,9 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
     try {
       // 0.85.0: the corner always applies, with or without docked controls. (The removed 0.83.0 stack used to override it.)
       const controls = Boolean(dock) && shouldDockControls({ isGM, setting: state.dockSceneControls === true, dockShown: true });
-      if (dock) layout?.enable({ dock, corner, controls });
-      else layout?.disable();
+      const pullNav = !isGM && state.pullSceneNavigationLeft === true;
+      if (dock) layout?.enable({ dock, corner, controls, pullNav });
+      else { layout?.disable(); if (pullNav) layout?.enableNavOnly?.(); }
     } catch (error) { console.warn('[ashen-gate-manager] Scene controls not moved', error); }
   };
   if (!show) { existing?.remove(); place(null); return null; }

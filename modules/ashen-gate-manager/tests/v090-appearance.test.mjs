@@ -77,7 +77,7 @@ test('live settings change publishes updates; disposed controller unsubscribes',
 });
 test('registers world default as GM restricted and override as user scoped',()=>{
   const registered=[];registerAppearanceSettings({game:{settings:{register:(n,k,v)=>registered.push({n,k,v})}},namespace:'ashen-gate-manager'});
-  assert.equal(registered.length,19,'5 appearance + 4 sidebar tab (checklist and the three it replaced) + 2 directory filters + 6 player screen switches + dock corner + auto-collapse seconds');
+  assert.equal(registered.length,20,'5 appearance + 4 sidebar tab (checklist and the three it replaced) + 2 directory filters + 7 player screen switches + dock corner + auto-collapse seconds');
   assert.equal(registered[0].v.scope,'world');assert.equal(registered[0].v.restricted,true);
   assert.equal(registered[1].v.scope,'user');assert.equal(registered[1].v.config,false);
   assert.equal(registered[2].k,'uiSize');assert.equal(registered[2].v.scope,'client');
