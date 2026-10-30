@@ -28,6 +28,26 @@ export const DEFAULT_PLAYERS_FOLDER = false;
 // Hide the Compendiums tab from players (0.80.0), world scope, GM-only, off by default; see sidebar-tabs.js.
 export const HIDE_COMPENDIUMS_KEY = 'hideCompendiumsTab';
 export const DEFAULT_HIDE_COMPENDIUMS = false;
+// Player screen settings (0.81.0), all world scope, GM-only, off by default, purely visual (see scene-controls.js, sidebar-tabs.js,
+// sidebar-collapse.js, player-dock.js). `state` is the key in getState(), `setter` the controller method, `who` the refusal wording.
+export const PLAYER_SCREEN_FLAGS = Object.freeze([
+  Object.freeze({key:'hidePlayerSceneTools',state:'hideSceneTools',setter:'setHideSceneTools',who:'which scene controls players see',
+    name:'Hide Region Controls and Journal Notes from players\' scene controls',
+    hint:'Players no longer see the Region Controls and Journal Notes tool groups in the scene controls. Only the buttons are hidden: nobody\'s permissions change, and notes and regions work as before. GMs always see them.'}),
+  Object.freeze({key:'chatOnlySidebar',state:'chatOnlySidebar',setter:'setChatOnlySidebar',who:'which sidebar tabs players see',
+    name:'Show players only the Chat tab in the sidebar',
+    hint:'Players see only the Chat tab in the sidebar; every other tab is hidden. Only the tabs are hidden: nothing is removed or locked, and the player dock (if on) opens Combat and Settings. GMs always see every tab.'}),
+  Object.freeze({key:'collapsePlayerSidebar',state:'collapsePlayerSidebar',setter:'setCollapsePlayerSidebar',who:'whether the sidebar starts collapsed for players',
+    name:'Start players with the sidebar collapsed',
+    hint:'When a player loads the game the sidebar starts collapsed, so the scene fills the screen. They can expand and collapse it as usual afterwards. Applied once when the game loads, not live. GMs are never collapsed.'}),
+  Object.freeze({key:'playerDock',state:'playerDock',setter:'setPlayerDock',who:'whether players see the player dock',
+    name:'Show the player dock',
+    hint:'Players get a small group of buttons in a corner of the screen: Combat, Settings and an Ashen Gate menu of the windows they may open. It is meant for use with Show players only the Chat tab. GMs never see it.'})
+]);
+// Which screen corner the dock sits in (0.81.0), world scope, GM-only.
+export const DOCK_CORNER_KEY = 'playerDockCorner';
+export const DOCK_CORNERS = Object.freeze({'top-left':'Top left','top-right':'Top right','bottom-left':'Bottom left'});
+export const DEFAULT_DOCK_CORNER = 'top-left';
 const SIZE_LABELS = Object.freeze({compact:'Compact',comfortable:'Comfortable'});
 const knownSize = value => SIZES.includes(value) ? value : DEFAULT_SIZE;
 /** Size options for a picker: [{id,label,selected}]. */
@@ -160,6 +180,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   function readHandouts(){try{const v=read(PLAYER_HANDOUTS_KEY);return v===undefined||v===null?DEFAULT_PLAYER_HANDOUTS:Boolean(v);}catch{return DEFAULT_PLAYER_HANDOUTS;}}
   function readPlayersFolder(){try{const v=read(PLAYERS_FOLDER_KEY);return v===undefined||v===null?DEFAULT_PLAYERS_FOLDER:Boolean(v);}catch{return DEFAULT_PLAYERS_FOLDER;}}
   function readHideCompendiums(){try{const v=read(HIDE_COMPENDIUMS_KEY);return v===undefined||v===null?DEFAULT_HIDE_COMPENDIUMS:Boolean(v);}catch{return DEFAULT_HIDE_COMPENDIUMS;}}
+  function readFlag(flag){try{const v=read(flag.key);return v===undefined||v===null?false:Boolean(v);}catch{return false;}}
+  function readDockCorner(){try{const v=read(DOCK_CORNER_KEY);return Object.hasOwn(DOCK_CORNERS,v)?v:DEFAULT_DOCK_CORNER;}catch{return DEFAULT_DOCK_CORNER;}}
   function user(){const u=currentUser();if(!u?.id)throw new Error('Appearance requires an authenticated Foundry user');return u;}
   function listSkins(){return SKINS.map(publicSkin);}
   function getState(){
@@ -171,7 +193,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
       invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
-      size:readSize(),chat:readChat(),compactPause:readPause(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums(),playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder()};
+      size:readSize(),chat:readChat(),compactPause:readPause(),hideJournalsTab:readHideJournals(),hideCompendiumsTab:readHideCompendiums(),playerHandoutsOnly:readHandouts(),playersFolderOnly:readPlayersFolder(),
+      ...Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.state,readFlag(flag)])),playerDockCorner:readDockCorner()};
   }
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
@@ -219,6 +242,17 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     const on=Boolean(value);
     await setSetting(HIDE_COMPENDIUMS_KEY,on);observed.set(HIDE_COMPENDIUMS_KEY,on);emit();return getState();
   }
+  /** GM only (rejected here, not just hidden): the 0.81.0 player screen settings. Visual only; no document or permission changes. */
+  const flagSetters=Object.fromEntries(PLAYER_SCREEN_FLAGS.map(flag=>[flag.setter,async value=>{
+    if(!user().isGM)throw new Error(`Only GMs may change ${flag.who}`);
+    const on=Boolean(value);
+    await setSetting(flag.key,on);observed.set(flag.key,on);emit();return getState();
+  }]));
+  async function setPlayerDockCorner(value){
+    if(!user().isGM)throw new Error('Only GMs may change where the player dock sits');
+    if(!Object.hasOwn(DOCK_CORNERS,value))throw new TypeError('Unknown player dock corner');
+    await setSetting(DOCK_CORNER_KEY,value);observed.set(DOCK_CORNER_KEY,value);emit();return getState();
+  }
   async function setSize(value){
     user();
     if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
@@ -240,6 +274,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     }
     if(key===CHAT_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
     if(key===PAUSE_KEY||key===HIDE_JOURNALS_KEY||key===PLAYER_HANDOUTS_KEY||key===PLAYERS_FOLDER_KEY||key===HIDE_COMPENDIUMS_KEY){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(PLAYER_SCREEN_FLAGS.some(flag=>flag.key===key)){if(typeof value==='boolean')observed.set(key,value);else observed.delete(key);emit();return;}
+    if(key===DOCK_CORNER_KEY){if(typeof value==='string')observed.set(key,value);else observed.delete(key);emit();return;}
     if([WORLD_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();
   }
   function applyTo(root){
@@ -261,7 +297,7 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setHideCompendiumsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,setChat,setCompactPause,setHideJournalsTab,setHideCompendiumsTab,setPlayerHandoutsOnly,setPlayersFolderOnly,...flagSetters,setPlayerDockCorner,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
@@ -296,6 +332,13 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   game.settings.register(namespace,HIDE_COMPENDIUMS_KEY,{
     name:'Hide the Compendiums tab from players',hint:'Players no longer see the Compendiums tab in the sidebar. Only the tab is hidden: compendium permissions are unchanged, and links and Ashen Gate windows that open compendium entries still work for players. GMs always see it.',
     scope:'world',config:false,restricted:true,type:Boolean,default:DEFAULT_HIDE_COMPENDIUMS,onChange:value=>onSettingChange(HIDE_COMPENDIUMS_KEY,value)
+  });
+  for(const flag of PLAYER_SCREEN_FLAGS)game.settings.register(namespace,flag.key,{
+    name:flag.name,hint:flag.hint,scope:'world',config:false,restricted:true,type:Boolean,default:false,onChange:value=>onSettingChange(flag.key,value)
+  });
+  game.settings.register(namespace,DOCK_CORNER_KEY,{
+    name:'Player dock corner',hint:'Which corner of the screen the player dock sits in.',
+    scope:'world',config:false,restricted:true,type:String,choices:DOCK_CORNERS,default:DEFAULT_DOCK_CORNER,onChange:value=>onSettingChange(DOCK_CORNER_KEY,value)
   });
   game.settings.register(namespace,PLAYER_HANDOUTS_KEY,{
     name:'Show players only Player Handouts in the Items tab',hint:'Players see only the Items inside a folder named Player Handouts (and its subfolders) in the Items tab. Every other Item and folder is hidden from the list. If no folder has that name, players see an empty Items tab. Only the list changes: item access is unchanged, and character sheets, compendiums and links still work. GMs always see everything.',

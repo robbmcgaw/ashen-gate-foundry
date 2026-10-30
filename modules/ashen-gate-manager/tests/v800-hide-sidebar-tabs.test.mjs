@@ -26,7 +26,7 @@ function dom({bare=[]}={}){
   }
   const classes=new Set();
   const doc={body:{classList:{toggle:(c,on)=>on?classes.add(c):classes.delete(c)}},
-    querySelectorAll:sel=>{doc.last=sel;const m=sel.match(/data-tab="(\w+)"/);return m?tabs[m[1]].all:[];}};
+    querySelectorAll:sel=>{doc.last=sel;const m=sel.match(/data-tab="(\w+)"/);return m?(tabs[m[1]]?.all??[]):[];}};
   panel_closest(tabs);
   return {doc,tabs,classes};
 }
@@ -64,8 +64,8 @@ test('the DOM selector lives in one function and stays inside the sidebar',()=>{
   const d=dom();tabElements(d.doc,'compendium');assert.equal(d.doc.last,'#sidebar [data-tab="compendium"], #sidebar #compendium');
   tabElements(d.doc,'journal');assert.equal(d.doc.last,'#sidebar [data-tab="journal"], #sidebar #journal');
   const src=read('../scripts/sidebar-tabs.js').replace(/\/\*[\s\S]*?\*\//g,'');
-  assert.equal((src.match(/querySelector/g)||[]).length,1);
-  assert.equal((src.match(/#sidebar/g)||[]).length,3,'selectors only inside tabElements');
+  assert.equal((src.match(/querySelector/g)||[]).length,2,'tabElements and listTabIds only');
+  assert.equal((src.match(/#sidebar\b(?!-)/g)||[]).length,2,'panel selectors only inside tabElements');
 });
 
 test('hiding removes the wrapper slot, not only the button: <li> is display:none and the button inside need not be',()=>{
@@ -144,5 +144,5 @@ test('wiring, placement, Help, visual only, version',()=>{
   assert.match(main,/hideCompendiumsTab: this\.tab === "setup" \? Boolean\(this\.setupDraft\?\.hideCompendiumsTab \?\? /);
   assert.match(main,/<em>Hide the Compendiums tab from players<\/em>/);
   assert.doesNotMatch(src,/ownership|permission|setFlag|update\(|updateDocuments|settings\.set/);
-  const m=JSON.parse(read('../module.json'));assert.equal(m.version,'0.80.0');assert.ok(m.download.endsWith('/ashen-gate-manager-v0.80.0/ashen-gate-manager.zip'));
+  const m=JSON.parse(read('../module.json'));assert.equal(m.version,'0.81.0');assert.ok(m.download.endsWith('/ashen-gate-manager-v0.81.0/ashen-gate-manager.zip'));
 });
