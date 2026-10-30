@@ -1,4 +1,4 @@
-// 0.82.0 clean player screen: scene control groups, chat-only sidebar, collapsed start, player dock. Mocked Foundry: proves
+// 0.82.0 clean player screen: scene control groups, collapsed start, player dock. Mocked Foundry: proves
 // logic and wiring, not the live V14 sidebar, scene controls or dock placement.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,6 +8,7 @@ import {createAppearanceController,registerAppearanceSettings,PLAYER_SCREEN_FLAG
 import {readGmSetupForm,saveGmSetup} from '../scripts/gm-setup.js';
 import {removeControlGroups,hideSceneControlsDom,leaveRemovedControl,refreshSceneControls,installSceneControlHider} from '../scripts/scene-controls.js';
 import {KNOWN_TABS,applySidebarTabs,openSidebarTab,listTabIds} from '../scripts/sidebar-tabs.js';
+import {presetPolicy} from '../scripts/sidebar-policy.js';
 import {startSidebarCollapsed,collapseSidebar} from '../scripts/sidebar-collapse.js';
 import {DOCK_ID,DOCK_SLOTS,DOCK_LAUNCHERS,listDockLaunchers,applyPlayerDock,installPlayerDock} from '../scripts/player-dock.js';
 
@@ -23,27 +24,27 @@ const player={user:{isGM:false}},gm={user:{isGM:true}};
 
 test('settings: hidden, restricted world values, off by default, plain wording; corner is a GM choice',()=>{
   const reg=[];registerAppearanceSettings({game:{settings:{register:(n,k,v)=>reg.push({k,v})}},namespace:'m'});
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','chatOnlySidebar','collapsePlayerSidebar','playerDock','hidePlayersList','dockSceneControls','moveSceneNavigation']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.state),['hideSceneTools','collapsePlayerSidebar','playerDock','hidePlayersList','dockSceneControls','moveSceneNavigation']);
   for(const f of PLAYER_SCREEN_FLAGS){
     const s=reg.find(r=>r.k===f.key).v;
     assert.deepEqual([s.scope,s.config,s.restricted,s.type,s.default],['world',false,true,Boolean,false]);
     assert.doesNotMatch(`${s.name} ${s.hint}`,/\b(new|beta|alpha|preview)\b|[A-Z]{3,}-/i);
   }
-  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Show players only the Chat tab in the sidebar','Start players with the sidebar collapsed','Show the player dock','Hide the players list from players',"Move players' scene controls under the player dock",'Move the scene navigation to the bottom left']);
+  assert.deepEqual(PLAYER_SCREEN_FLAGS.map(f=>f.name),["Hide Region Controls and Journal Notes from players' scene controls",'Start players with the sidebar collapsed','Show the player dock','Hide the players list from players',"Move players' scene controls under the player dock",'Move the scene navigation to the bottom left']);
   const c=reg.find(r=>r.k===DOCK_CORNER_KEY).v;
   assert.deepEqual([c.scope,c.restricted,c.default],['world',true,'top-left']);assert.deepEqual(Object.keys(c.choices),['top-left','top-right','bottom-left']);
 });
 
 test('controller: defaults off, GM sets each, players are refused in the data layer, corner validated',async()=>{
   const g=ctl();const st=g.c.getState();
-  assert.deepEqual([st.hideSceneTools,st.chatOnlySidebar,st.collapsePlayerSidebar,st.playerDock,st.playerDockCorner],[false,false,false,false,'top-left']);
+  assert.deepEqual([st.hideSceneTools,st.collapsePlayerSidebar,st.playerDock,st.playerDockCorner],[false,false,false,'top-left']);
   for(const f of PLAYER_SCREEN_FLAGS){await g.c[f.setter](true);assert.equal(g.c.getState()[f.state],true);}
   await g.c.setPlayerDockCorner('bottom-left');assert.equal(g.c.getState().playerDockCorner,'bottom-left');
   await assert.rejects(()=>g.c.setPlayerDockCorner('middle'),/Unknown/);
   const p=ctl({isGM:false});
   for(const f of PLAYER_SCREEN_FLAGS)await assert.rejects(()=>p.c[f.setter](true),/Only GMs/);
   await assert.rejects(()=>p.c.setPlayerDockCorner('top-right'),/Only GMs/);assert.deepEqual(p.writes,[]);
-  const seen=[];p.c.subscribe(s=>seen.push(s.chatOnlySidebar));p.c.noteChange('chatOnlySidebar',true);assert.deepEqual(seen,[true]);
+  const seen=[];p.c.subscribe(s=>seen.push(s.hideSceneTools));p.c.noteChange('hidePlayerSceneTools',true);assert.deepEqual(seen,[true]);
   p.c.noteChange(DOCK_CORNER_KEY,'top-right');assert.equal(p.c.getState().playerDockCorner,'top-right');
   assert.equal(ctl({values:{[DOCK_CORNER_KEY]:'bogus'}}).c.getState().playerDockCorner,'top-left');
 });
@@ -52,12 +53,12 @@ test('GM Setup form reads the new controls and saves only what changed',async()=
   const boxes=Object.fromEntries(PLAYER_SCREEN_FLAGS.map(f=>[f.state,{checked:f.state!=='playerDock'}]));
   const root={querySelector:s=>{const m=s.match(/data-ag-setup-screen="(\w+)"/);if(m)return boxes[m[1]];return s==='[data-ag-setup-dock-corner]:checked'?{value:'top-right'}:null;},querySelectorAll:()=>[]};
   const v=readGmSetupForm(root);
-  assert.deepEqual([v.hideSceneTools,v.chatOnlySidebar,v.collapsePlayerSidebar,v.playerDock,v.playerDockCorner],[true,true,true,false,'top-right']);
+  assert.deepEqual([v.hideSceneTools,v.collapsePlayerSidebar,v.playerDock,v.playerDockCorner],[true,true,false,'top-right']);
   const g=ctl();
   const out=await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});
-  assert.equal(out.ok,true);assert.equal(g.writes.length,7);
+  assert.equal(out.ok,true);assert.equal(g.writes.length,6);
   g.writes.length=0;await saveGmSetup(v,{game:gm,moduleId:'m',codexAccessKey:'k',appearance:g.c});assert.deepEqual(g.writes,[],'idempotent');
-  assert.equal(readGmSetupForm({querySelector:()=>null,querySelectorAll:()=>[]}).chatOnlySidebar,undefined);
+  assert.equal(readGmSetupForm({querySelector:()=>null,querySelectorAll:()=>[]}).hideSceneTools,undefined);
   await assert.rejects(()=>saveGmSetup(v,{game:player,moduleId:'m',codexAccessKey:'k',appearance:g.c}),/Only the GM/);
 });
 
@@ -123,25 +124,8 @@ const hiddenTabs=d=>Object.entries(d.tabs).filter(([,t])=>t.li.hidden).map(([k])
 const hiddenPanels=d=>Object.entries(d.tabs).filter(([,t])=>t.panel.hidden).map(([k])=>k);
 function uiMock(active='combat'){const calls=[];const ui={calls,sidebar:{tabGroups:{primary:active},changeTab:(t,g)=>{calls.push(['changeTab',t,g]);ui.sidebar.tabGroups.primary=t;},expand:()=>calls.push(['expand'])}};return ui;}
 
-test('chat-only sidebar: players keep only Chat (also an added tab), GM keeps everything, restores live, idempotent',()=>{
-  const d=sidebarDom(['modtab']),ui=uiMock('combat'),ap=fixed({chatOnlySidebar:true}),peek={tab:null,armed:false};
-  assert.ok(listTabIds(d.doc).includes('modtab'));
-  const hidden=applySidebarTabs({game:player,doc:d.doc,ui,appearance:ap,peek});
-  assert.equal(hidden.includes('chat'),false);assert.equal(hidden.length,KNOWN_TABS.length);
-  assert.deepEqual(hiddenTabs(d).sort(),[...KNOWN_TABS.filter(t=>t!=='chat'),'modtab'].sort());
-  assert.deepEqual(hiddenPanels(d).sort(),hiddenTabs(d).sort());assert.ok(d.classes.has('agm-chat-only-sidebar'));
-  assert.deepEqual(ui.calls,[['changeTab','chat','primary']],'moved off a hidden tab to Chat');
-  const snapshot=JSON.stringify(hiddenTabs(d));applySidebarTabs({game:player,doc:d.doc,ui,appearance:ap,peek});assert.equal(JSON.stringify(hiddenTabs(d)),snapshot);assert.equal(ui.calls.length,1);
-  ap.set({chatOnlySidebar:false});applySidebarTabs({game:player,doc:d.doc,ui,appearance:ap,peek});
-  assert.deepEqual(hiddenTabs(d),[]);assert.deepEqual(hiddenPanels(d),[]);assert.ok(!d.classes.has('agm-chat-only-sidebar'));
-  ap.set({chatOnlySidebar:true});const d2=sidebarDom();applySidebarTabs({game:gm,doc:d2.doc,ui:uiMock(),appearance:ap,peek});assert.deepEqual(hiddenTabs(d2),[]);
-});
-test('chat-only sidebar combines with the Journals/Compendiums settings and does not mix them up',()=>{
-  const d=sidebarDom();applySidebarTabs({game:player,doc:d.doc,ui:uiMock('chat'),appearance:fixed({hideJournalsTab:true}),peek:{}});
-  assert.deepEqual(hiddenTabs(d),['journal']);
-});
 test('openSidebarTab: peek shows the panel only, until another tab is chosen; pop-out preferred for Combat',()=>{
-  const d=sidebarDom(),ui=uiMock('chat'),ap=fixed({chatOnlySidebar:true}),peek={tab:null,armed:false};
+  const d=sidebarDom(),ui=uiMock('chat'),ap=fixed({playerSidebarTabs:presetPolicy('chat')}),peek={tab:null,armed:false};
   applySidebarTabs({game:player,doc:d.doc,ui,appearance:ap,peek});
   const reapply=()=>applySidebarTabs({game:player,doc:d.doc,ui,appearance:ap,peek});
   assert.equal(openSidebarTab('settings',{ui,peek,prefer:'tab',reapply}),'tab');
@@ -254,15 +238,15 @@ test('dock menu: empty state, failing open notifies, outside click closes (insta
 });
 
 // ---------- wiring
-test('wiring: settings in GM Setup > Sidebar, Help, stylesheet, no core overrides, no unguarded core calls',()=>{
+test('wiring: settings in GM Setup > Player screen, Help, stylesheet, no core overrides, no unguarded core calls',()=>{
   const tpl=read('../templates/manager.hbs'),main=read('../scripts/main.js'),man=JSON.parse(read('../module.json'));
-  assert.match(tpl,/aria-label="Sidebar"[\s\S]*data-ag-setup-screen="hideSceneTools"[\s\S]*data-ag-setup-screen="chatOnlySidebar"[\s\S]*data-ag-setup-screen="collapsePlayerSidebar"[\s\S]*data-ag-setup-screen="playerDock"[\s\S]*data-ag-setup-dock-corner/);
+  assert.match(tpl,/aria-label="Scene controls and navigation"[\s\S]*data-ag-setup-screen="hideSceneTools"[\s\S]*aria-label="Player dock"[\s\S]*data-ag-setup-screen="playerDock"[\s\S]*data-ag-setup-dock-corner[\s\S]*aria-label="Collapse"[\s\S]*data-ag-setup-screen="collapsePlayerSidebar"/);
   for(const f of PLAYER_SCREEN_FLAGS)assert.ok(tpl.includes(f.name.replace("'","'")),f.name);
   assert.match(main,/installSceneControlHider\(\{game:\{get user\(\)/);assert.match(main,/sceneControlHider\?\.attach\(appearanceController\)/);
   assert.match(main,/startSidebarCollapsed\(/);assert.match(main,/installPlayerDock\(\{game,hooks:Hooks/);
   assert.match(main,/<em>Show the player dock<\/em>/);
   assert.ok(man.styles.includes('styles/player-dock.css'));
-  assert.ok(man.version==='0.83.0'&&man.download.endsWith('/ashen-gate-manager-v0.83.0/ashen-gate-manager.zip'));
+  assert.ok(man.version==='0.84.0'&&man.download.endsWith('/ashen-gate-manager-v0.84.0/ashen-gate-manager.zip'));
   for(const f of ['scene-controls','sidebar-collapse','player-dock','sidebar-tabs']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set/,f);

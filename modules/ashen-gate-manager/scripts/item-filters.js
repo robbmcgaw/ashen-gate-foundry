@@ -107,7 +107,7 @@ export const MANAGER_TABS = Object.freeze([
   {id: 'setup', label: 'GM Setup', icon: 'fa-solid fa-gears', gm: true}
 ].map(v => Object.freeze(v)));
 export const IMPORT_VIEWS = Object.freeze(['package', 'history']);
-export const SETUP_VIEWS = Object.freeze(['general', 'sources', 'developer']);
+export const SETUP_VIEWS = Object.freeze(['general', 'screen', 'sources', 'developer']);
 /** Pre-0.36.0 Library rail ids → Items views (codex and adopt now live elsewhere; resolveTab moves them). */
 const LIBRARY_SECTION_VIEW = Object.freeze({records: 'records', check: 'checks', export: 'export', adopt: 'adopt', codex: 'codex'});
 

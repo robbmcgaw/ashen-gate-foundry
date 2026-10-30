@@ -1429,38 +1429,6 @@
         <p class="agmanager-tiny">Off keeps Foundry's large Game Paused banner. On hides it for everyone and shows a small Paused label at the top centre of the screen, out of the way. Pausing and resuming work as usual. Saved with Save Changes.</p>
         <p class="agmanager-tiny">While the small indicator is on, Foundry's coloured glow around the screen edges is switched off too. If a glow still shows while paused, see "Pause glow" in the module README for how to find what draws it.</p>
       </section>
-      <section class="ag-section" aria-label="Sidebar">
-        <div class="ag-section__head"><h3 class="ag-section__title">Sidebar</h3></div>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-hide-journals {{#if hideJournalsTab}}checked{{/if}}> Hide the Journals tab from players</label>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-hide-compendiums {{#if hideCompendiumsTab}}checked{{/if}}> Hide the Compendiums tab from players</label>
-        <p class="agmanager-tiny">On removes the Compendiums tab for players, who land on Chat if it was open, and the other tabs close up the space. You always see it. Only the tab is hidden: compendium permissions are unchanged, and links and Ashen Gate windows that open compendium entries still work. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-handouts-only {{#if playerHandoutsOnly}}checked{{/if}}> Show players only Player Handouts in the Items tab</label>
-        <p class="agmanager-tiny">On, players see only the Items inside a folder named Player Handouts (and its subfolders) in the Items tab; nothing else is listed. With no such folder, players see an empty Items tab. Only the list changes: item access, character sheets, compendiums and links are unchanged, and you always see everything. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-players-only {{#if playersFolderOnly}}checked{{/if}}> Show players only the Players folder in the Actors tab</label>
-        <p class="agmanager-tiny">On, players see only the Actors inside a folder named Players (and its subfolders) in the Actors tab; nothing else is listed, and the Ashen Gate buttons at the top and bottom of the tab stay. With no such folder, the list is empty. Only the list changes: Actor access, character sheets and links are unchanged, and you always see everything. Saved with Save Changes.</p>
-        <h4 class="agm-subhead">Clean player screen</h4>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hideSceneTools" {{#if hideSceneTools}}checked{{/if}}> Hide Region Controls and Journal Notes from players' scene controls</label>
-        <p class="agmanager-tiny">On removes those two tool groups from the scene controls for players. Only the buttons go: permissions, notes and regions are unchanged. You always see them. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="chatOnlySidebar" {{#if chatOnlySidebar}}checked{{/if}}> Show players only the Chat tab in the sidebar</label>
-        <p class="agmanager-tiny">On hides every other sidebar tab for players; the remaining tab sits alone with no gap. Nothing is locked or removed. Turn on the player dock below so players can still reach Combat, Settings and the Ashen Gate windows. You always see every tab. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="collapsePlayerSidebar" {{#if collapsePlayerSidebar}}checked{{/if}}> Start players with the sidebar collapsed</label>
-        <p class="agmanager-tiny">On collapses the sidebar once when a player loads the game, so the scene fills the screen. Players can expand and collapse it as they like afterwards. It takes effect the next time a player loads the game, not live. You are never collapsed. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="playerDock" {{#if playerDock}}checked{{/if}}> Show the player dock</label>
-        <fieldset class="ag-field agmanager-corner"><legend>Player dock corner</legend>
-          {{#each dockCornerChoices}}<label class="ag-field--inline"><input type="radio" name="agm-dock-corner" value="{{value}}" data-ag-setup-dock-corner {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}
-        </fieldset>
-        <p class="agmanager-tiny">On gives players a small group of buttons in the corner you pick: Combat, Settings, an Ashen Gate menu listing only the windows that player may open, Quest Tracker and Conditions (shown only when Quest Log or Utilities is on and the player may open it), a User Configuration link, and a button that minimizes the dock to a small handle (each player's choice is kept on their device). GMs never see it. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="dockSceneControls" {{#if dockSceneControls}}checked{{/if}}> Move players' scene controls under the player dock</label>
-        <p class="agmanager-tiny">On moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, so the scene navigation takes the corner. Needs the player dock. The tools work as before. You always see them in the normal place. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="moveSceneNavigation" {{#if moveSceneNavigation}}checked{{/if}}> Move the scene navigation to the bottom left</label>
-        <p class="agmanager-tiny">On stacks, at the bottom left for players: the player dock, then their token controls in one row (only Select, Select Targets, Measure and Find My Token), then the scene navigation. The scene list opens upward. Needs the player dock; takes the place of the two settings above for players while it is on. Scenes work as before. You always see the normal layout. Saved with Save Changes.</p>
-        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hidePlayersList" {{#if hidePlayersList}}checked{{/if}}> Hide the players list from players</label>
-        <p class="agmanager-tiny">On hides the players, latency and FPS panel at the bottom left for players. With the player dock on, the dock has a User Configuration link instead. Only the panel is hidden. You always see it. Saved with Save Changes.</p>
-        <label class="ag-field">Auto-collapse chat and Settings after (seconds)
-          <input type="number" min="0" max="600" step="1" value="{{autoCollapseSeconds}}" data-ag-setup-autocollapse></label>
-        <p class="agmanager-tiny">When a player opens the sidebar chat or the Settings panel, it closes again after this many seconds without use. It stays open while the pointer is over it, something is typed in the chat box, or a window or menu from it is open; any click, key press or mouse movement restarts the count. 0 turns it off. You are never collapsed. Saved with Save Changes.</p>
-        <p class="agmanager-tiny">Hide the Journals tab: off leaves the sidebar as Foundry made it. On removes the Journals tab for players, who land on Chat if it was open. You always see it. Only the tab is hidden: nobody's access to journals changes, and handouts, quests and locations still open for players. Saved with Save Changes.</p>
-      </section>
       <section class="ag-section" aria-label="NPC Codex">
         <div class="ag-section__head"><h3 class="ag-section__title">NPC Codex</h3></div>
         <p>Players {{#if codexPlayerAccess}}<strong>can</strong>{{else}}<strong>cannot</strong>{{/if}} open the NPC Codex. Reveal or hide it on the {{{gotoModules}}} tab, with the other modules' player windows.</p>
@@ -1474,6 +1442,55 @@
             <option value="player" {{#if itemsReadable}}selected{{/if}}>Yes: approved player-visible records</option>
           </select>
           <span class="ag-field__hint">Applies to Items Manager creates or updates from now on. Journals and Actors keep their rule, and handout Items always stay readable so item links in a revealed handout open. Items already in your world are never changed by this setting: use Items &gt; Checks &gt; Player access to Items to hide or release them. Saved with Save Changes.</span></div>
+      </section>
+    </div>
+    <div {{{setupPanels.screen}}} class="agm-subpanel">
+      <p class="agmanager-tiny">What players see on their own screen. You always see the normal screen. Nothing here locks, removes or re-permissions anything: journals, compendium entries, sheets and links still open for players. Saved with Save Changes.</p>
+      <section class="ag-section" aria-label="Sidebar tabs">
+        <div class="ag-section__head"><h3 class="ag-section__title">Sidebar tabs</h3></div>
+        <fieldset class="ag-field"><legend>Tabs players keep</legend>
+          <div class="agm-checks">{{#each sidebarTabRows}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-tab="{{id}}" {{#if kept}}checked{{/if}} {{#if locked}}disabled{{/if}}> {{label}}{{#if locked}} (always kept){{/if}}{{#if note}} <span class="agmanager-tiny">({{note}})</span>{{/if}}</label>{{/each}}</div>
+        </fieldset>
+        <div class="ag-cluster">
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-tab-preset="everything">Keep everything</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-tab-preset="chat">Keep Chat only</button>
+          <span class="agmanager-tiny" data-ag-tab-summary role="status">{{sidebarTabSummary}}</span>
+        </div>
+        <p class="agmanager-tiny">An unticked tab disappears for players and the remaining tabs close up the space; if a player had it open they land on Chat. Tabs other modules add are listed too. With the player dock on, players can still open Combat and Settings from it. Keep Chat only also hides tabs added later.</p>
+      </section>
+      <section class="ag-section" aria-label="Directory filters">
+        <div class="ag-section__head"><h3 class="ag-section__title">Directory filters</h3></div>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-handouts-only {{#if playerHandoutsOnly}}checked{{/if}}> Show players only Player Handouts in the Items tab</label>
+        <p class="agmanager-tiny">Players see only the Items inside a folder named Player Handouts (and its subfolders); with no such folder they see an empty Items tab. Only the list changes: item access, character sheets, compendiums and links are unchanged.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-players-only {{#if playersFolderOnly}}checked{{/if}}> Show players only the Players folder in the Actors tab</label>
+        <p class="agmanager-tiny">Players see only the Actors inside a folder named Players (and its subfolders), and the Ashen Gate buttons at the top and bottom of the tab stay. With no such folder the list is empty. Only the list changes: Actor access, character sheets and links are unchanged.</p>
+      </section>
+      <section class="ag-section" aria-label="Scene controls and navigation">
+        <div class="ag-section__head"><h3 class="ag-section__title">Scene controls and navigation</h3></div>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hideSceneTools" {{#if hideSceneTools}}checked{{/if}}> Hide Region Controls and Journal Notes from players' scene controls</label>
+        <p class="agmanager-tiny">Removes those two tool groups for players. Only the buttons go: permissions, notes and regions are unchanged.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="dockSceneControls" {{#if dockSceneControls}}checked{{/if}}> Move players' scene controls under the player dock</label>
+        <p class="agmanager-tiny">Moves the players' tool column (select, target, measure and so on) from the top left corner to just under the dock, so the scene navigation takes the corner. Needs the player dock. The tools work as before.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="moveSceneNavigation" {{#if moveSceneNavigation}}checked{{/if}}> Move the scene navigation to the bottom left</label>
+        <p class="agmanager-tiny">Stacks, at the bottom left for players: the player dock, then their token controls in one row (only Select, Select Targets, Measure and Find My Token), then the scene navigation. The scene list opens upward. Needs the player dock; takes the place of the setting above for players while it is on. Scenes work as before.</p>
+      </section>
+      <section class="ag-section" aria-label="Player dock">
+        <div class="ag-section__head"><h3 class="ag-section__title">Player dock</h3></div>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="playerDock" {{#if playerDock}}checked{{/if}}> Show the player dock</label>
+        <fieldset class="ag-field agmanager-corner"><legend>Player dock corner</legend>
+          {{#each dockCornerChoices}}<label class="ag-field--inline"><input type="radio" name="agm-dock-corner" value="{{value}}" data-ag-setup-dock-corner {{#if selected}}checked{{/if}}> {{label}}</label>{{/each}}
+        </fieldset>
+        <p class="agmanager-tiny">A small group of buttons for players in the corner you pick: Combat, Settings, Conditions, Quest Tracker, User Configuration and an Ashen Gate menu listing only the windows that player may open, plus a button that minimizes the dock to a small handle (each player's choice is kept on their device). Conditions and Quest Tracker show only when Utilities or Quest Log is on and the player may open it. GMs never see the dock.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="hidePlayersList" {{#if hidePlayersList}}checked{{/if}}> Hide the players list from players</label>
+        <p class="agmanager-tiny">Hides the players, latency and FPS panel at the bottom left for players. With the player dock on, the dock has a User Configuration button instead. Only the panel is hidden.</p>
+      </section>
+      <section class="ag-section" aria-label="Collapse">
+        <div class="ag-section__head"><h3 class="ag-section__title">Collapse</h3></div>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-screen="collapsePlayerSidebar" {{#if collapsePlayerSidebar}}checked{{/if}}> Start players with the sidebar collapsed</label>
+        <p class="agmanager-tiny">Collapses the sidebar once when a player loads the game, so the scene fills the screen. Players can expand and collapse it as they like afterwards. It takes effect the next time a player loads the game, not live.</p>
+        <label class="ag-field">Auto-collapse chat and Settings after (seconds)
+          <input type="number" min="0" max="600" step="1" value="{{autoCollapseSeconds}}" data-ag-setup-autocollapse></label>
+        <p class="agmanager-tiny">When a player opens the sidebar chat or the Settings panel, it closes again after this many seconds without use. It stays open while the pointer is over it, something is typed in the chat box, or a window or menu from it is open; any click, key press or mouse movement restarts the count. 0 turns it off.</p>
       </section>
     </div>
     <div {{{setupPanels.sources}}} class="agm-subpanel">
