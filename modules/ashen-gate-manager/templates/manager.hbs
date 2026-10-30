@@ -731,6 +731,7 @@
       {{#if worldExportSummary}}<pre class="agmanager-tiny agmanager-worldexport-summary">{{worldExportSummary}}</pre>{{/if}}
       <p class="agmanager-tiny">To export only some records with their local edits, tick them under Records and use <strong>Actions → Export selected / local edits</strong>.</p>
     </section>
+    {{{backupExportHtml}}}
     {{/if}}
 
       {{#if organizeActive}}
@@ -1443,6 +1444,7 @@
           </select>
           <span class="ag-field__hint">Applies to Items Manager creates or updates from now on. Journals and Actors keep their rule, and handout Items always stay readable so item links in a revealed handout open. Items already in your world are never changed by this setting: use Items &gt; Checks &gt; Player access to Items to hide or release them. Saved with Save Changes.</span></div>
       </section>
+      {{{backupSettingsHtml}}}
     </div>
     <div {{{setupPanels.screen}}} class="agm-subpanel">
       <p class="agmanager-tiny">What players see on their own screen. You always see the normal screen. Nothing here locks, removes or re-permissions anything: journals, compendium entries, sheets and links still open for players. Saved with Save Changes.</p>
