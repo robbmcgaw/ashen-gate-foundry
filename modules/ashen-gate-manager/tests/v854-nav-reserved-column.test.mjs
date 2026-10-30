@@ -55,8 +55,8 @@ test('numbers: 8 reserved columns are 312px, so the bar starts at 344px without 
 });
 test('stylesheet: collapses column-1 and --control-columns only under body.agm-controls-docked, !important over the inline value',()=>{
   const block=css.slice(css.indexOf('/* ---- 0.85.4 ---- */'));
-  assert.match(block,/body\.agm-controls-docked #ui-left \{ --control-columns: 0 !important; \}/);
-  assert.match(block,/body\.agm-controls-docked #ui-left #ui-left-column-1 \{[^}]*width: 0 !important;[^}]*margin-right: -16px;/);
+  assert.match(block,/body\.agm-controls-docked #ui-left \{ --control-columns: 0 !important; column-gap: 0 !important; \}/);
+  assert.match(block,/body\.agm-controls-docked #ui-left #ui-left-column-1 \{[^}]*width: 0 !important;/);
   const sels=[...block.matchAll(/^([^\n{/*]+)\{/gm)].map(m=>m[1].trim());
   assert.ok(sels.length>=2&&sels.every(s=>s.startsWith('body.agm-controls-docked ')),'every new rule is scoped to docked controls');
   assert.doesNotMatch(block,/#scene-controls[^-]/,'the controls themselves and their flyouts are not touched');
