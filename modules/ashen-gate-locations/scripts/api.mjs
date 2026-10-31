@@ -579,6 +579,7 @@ export function createApi(deps) {
      * publicState() (0.39.0; the GM always, a player only while Travel for players is on) -> {contract, enabled, day, total, used, left, requests: [{userId, name, action}], journal: [{id, day, kind, text, by}]}:
      * the PUBLIC part only, never conditions, Mounted, Announce, party modifiers or guidance.
      * declare(action) (0.39.0; a player only, while Travel for players is on; 'travel' | 'scout' | 'explore') -> {contract, requested: true, action}: asks the GM; one waiting request per user.
+     * resetDay({day, clearJournal, clearUsed, clearRequests, clearDaily}) (0.40.1, GM only, for testing): see the method.
      * previewAction(req) and resolveAction(req) (0.40.0, GM only): the calculator and the single atomic resolve. Players are refused here and again in the service.
      * Players are refused here and again in the service, not just in the window.
      */
@@ -590,6 +591,9 @@ export function createApi(deps) {
       previewAction(req) { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.previewAction(req); },
       /** GM only (0.40.0): one atomic step. req as previewAction plus {cost?, text?, requestUserId?, reached?}. See README for the result. */
       resolveAction(req) { if (!gm()) return Promise.reject(new Error('Only the GM can do that.')); if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.resolveAction(req); },
+      /** GM only (0.40.1), for testing: sets the day (whole number, 1 or more; default 1) and, by option, restores today's actions (clearUsed, default true), empties the journal (clearJournal, false),
+       *  drops waiting requests (clearRequests, false) and clears the daily condition overlay (clearDaily, true). Location records and persistent conditions are never touched. Resolves state(). */
+      resetDay(opts) { if (!gm()) return Promise.reject(new Error('Only the GM can do that.')); if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.resetDay(opts); },
       publicState() { if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.publicState(); },
       declare(action) { if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.declare(action); }
     }),
