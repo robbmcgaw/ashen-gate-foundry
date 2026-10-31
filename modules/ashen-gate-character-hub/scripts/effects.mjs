@@ -220,28 +220,31 @@ const rowKey = r => `${r.parentId}:${r.id}`;
 function switchHtml(r, editable) {
   const ok = editable && r.access.toggle.ok, why = !editable ? '' : r.access.toggle.reason ?? '';
   const label = `${r.name}: ${r.disabled ? 'off' : 'on'}`;
-  return `<button type="button" role="switch" class="agch-fxswitch${r.disabled ? '' : ' is-on'}" data-action="effect-toggle" data-id="${esc(r.id)}" data-parent="${esc(r.parentId)}" aria-checked="${!r.disabled}" aria-label="${esc(label)}"${why ? ` data-tooltip="${esc(why)}"` : ` data-tooltip="${r.disabled ? 'Turn on' : 'Turn off'} ${esc(r.name)}"`}${ok ? '' : ' disabled'}><span class="agch-fxswitch__knob" aria-hidden="true"></span><span class="ag-sr-only">${r.disabled ? 'Off' : 'On'}</span></button>`;
+  return `<button type="button" role="switch" class="agch-fxswitch${r.disabled ? '' : ' is-on'}" data-action="effect-toggle" data-id="${esc(r.id)}" data-parent="${esc(r.parentId)}" aria-checked="${!r.disabled}" aria-label="${esc(label)}" data-tooltip-direction="UP" data-tooltip="${esc(why || `${r.disabled ? 'Turn on' : 'Turn off'} ${r.name}`)}"${ok ? '' : ' disabled'}><span class="agch-fxswitch__knob" aria-hidden="true"></span><span class="ag-sr-only">${r.disabled ? 'Off' : 'On'}</span></button>`;
 }
+/** Tooltips open above the control so they never cover the help text under the list. */
+const UP = {'tooltip-direction': 'UP'};
 function rowHtml(r, editable) {
-  const note = r.transferred ? `Comes from ${r.itemName}: edit it there.` : r.concentration ? 'Concentration: end it from the concentration control.' : r.managed ? 'Managed by an Ashen Gate module.' : '';
-  const edit = editable ? btn('effect-edit', '', {kind: 'ghost', icon: 'fa-solid fa-pen-to-square', data: {id: r.id, parent: r.parentId}, title: r.access.edit.ok ? `Edit ${r.name}…` : r.access.edit.reason, aria: `Edit ${r.name}`, disabled: !r.access.edit.ok}) : '';
-  const del = editable ? btn('effect-delete', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {id: r.id, parent: r.parentId}, title: r.access.delete.ok ? `Delete ${r.name}…` : r.access.delete.reason, aria: `Delete ${r.name}`, disabled: !r.access.delete.ok}) : '';
+  const note = r.concentration ? 'Concentration: end it from the concentration control.' : r.managed ? 'Managed by an Ashen Gate module.' : '';
+  const edit = editable ? btn('effect-edit', '', {kind: 'ghost sm', icon: 'fa-solid fa-pen-to-square', data: {id: r.id, parent: r.parentId, ...UP}, title: r.access.edit.ok ? `Edit ${r.name}…` : r.access.edit.reason, aria: `Edit ${r.name}`, disabled: !r.access.edit.ok}) : '';
+  // Delete is only for effects the character owns directly; an item's effect is deleted on the item (the source line says so).
+  const del = editable && !r.transferred ? btn('effect-delete', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {id: r.id, parent: r.parentId, ...UP}, title: r.access.delete.ok ? `Delete ${r.name}…` : r.access.delete.reason, aria: `Delete ${r.name}`, disabled: !r.access.delete.ok}) : '';
   const state = r.suppressed ? '<span class="ag-badge">Unavailable</span>' : '';
+  const icon = r.source.kind === 'item' ? 'fa-suitcase' : r.source.kind === 'actor' ? 'fa-user' : 'fa-link';
   return `<li class="agch-fxrow${r.disabled ? ' is-off' : ''}" data-effect-key="${esc(rowKey(r))}">
     <img class="agch-fxrow__icon" src="${esc(r.img)}" alt="" width="28" height="28">
-    <span class="agch-fxrow__main"><span class="agch-fxrow__name">${esc(r.name)}</span> ${state}${note ? `<span class="agch-muted agch-fxrow__note">${esc(note)}</span>` : ''}</span>
-    <span class="agch-fxrow__source" data-tooltip="Source"><i class="fa-solid ${r.source.kind === 'item' ? 'fa-suitcase' : r.source.kind === 'actor' ? 'fa-user' : 'fa-link'}" aria-hidden="true"></i> <span class="ag-sr-only">Source: </span>${esc(r.source.name)}</span>
-    <span class="agch-fxrow__dur">${r.duration ? `<i class="fa-solid fa-clock" aria-hidden="true"></i> <span class="ag-sr-only">Duration: </span>${esc(r.duration)}` : ''}</span>
-    <span class="agch-fxrow__ctl">${switchHtml(r, editable)}${edit}${del}</span></li>`;
+    <div class="agch-fxrow__body">
+      <div class="agch-fxrow__title"><span class="agch-fxrow__name">${esc(r.name)}</span>${state}<span class="agch-fxrow__ctl">${switchHtml(r, editable)}${edit}${del}</span></div>
+      <p class="agch-fxrow__meta agch-muted"><span class="agch-fxrow__source"><i class="fa-solid ${icon}" aria-hidden="true"></i> <span class="ag-sr-only">Source: </span>${esc(r.source.name)}${r.transferred ? ' (edit it on the item)' : ''}</span>${r.duration ? `<span class="agch-fxrow__dur"><i class="fa-solid fa-clock" aria-hidden="true"></i> <span class="ag-sr-only">Duration: </span>${esc(r.duration)}</span>` : ''}${note ? `<span class="agch-fxrow__note">${esc(note)}</span>` : ''}</p>
+    </div></li>`;
 }
 /** The Effects tab. `ctx.editable` is the Hub's own owner / GM check; each control also carries its own access result. */
 export function effectsTab(ctx) {
   const {actor, editable} = ctx, d = effectsData(actor), why = editable ? addReason(actor) : (addReason(actor) || 'You can only add to a character you own.');
   const add = btn('effect-add', 'Add effect', {kind: 'sm', icon: 'fa-solid fa-plus', title: why || 'Add a new effect to this character', aria: 'Add effect', disabled: !!why});
-  const head = '<div class="agch-fxhead" aria-hidden="true"><span></span><span>Effect</span><span>Source</span><span>Duration</span><span>On / off</span></div>';
   const sections = d.categories.map(c => sectionHtml(sectionKey('effects', c.type), `${esc(c.label)} <span class="ag-badge">${c.rows.length}</span>`,
     `${c.info ? `<p class="agch-muted">${esc(c.info)}</p>` : ''}${c.rows.length ? `<ul class="agch-fxlist" aria-label="${esc(c.label)}">${c.rows.map(r => rowHtml(r, editable)).join('')}</ul>` : '<p class="agch-muted agch-fxnone">None.</p>'}`)).join('');
-  const body = d.total ? `${head}${sections}` : `<div class="ag-empty"><p class="ag-empty__title">No effects on this character.</p><p class="ag-empty__text">Spells, features, items and the GM add effects here. ${editable ? 'Use Add effect to make one yourself.' : ''}</p>${editable ? add : ''}</div>`;
-  return `<div class="agch-sticky"><div class="ag-toolbar agch-toolbar"><span class="ag-badge" data-tooltip="Turning an effect on or off saves at once">Switches apply now</span><div class="ag-toolbar__end">${d.total || !editable ? add : ''}</div></div></div>${body}
-    <p class="agch-muted agch-hint">The switch turns an effect on or off at once. Edit opens dnd5e's own effect window. An effect that comes from an item is changed on the item; you can still switch it here. Conditions are on the Conditions strip at the bottom.</p>`;
+  const body = d.total ? `${sections}` : `<div class="ag-empty"><p class="ag-empty__title">No effects on this character.</p><p class="ag-empty__text">Spells, features, items and the GM add effects here. ${editable ? 'Use Add effect to make one yourself.' : ''}</p>${editable ? add : ''}</div>`;
+  return `<div class="agch-sticky"><div class="ag-toolbar agch-toolbar"><span class="ag-badge" data-tooltip="Turning an effect on or off saves at once" data-tooltip-direction="DOWN">Switches apply now</span><div class="ag-toolbar__end">${d.total || !editable ? add : ''}</div></div></div>${body}
+    <p class="agch-muted agch-hint">The switch turns an effect on or off at once. Edit opens dnd5e's own effect window. An effect that comes from an item is changed or deleted on the item; you can still switch it here. Conditions are on the Conditions strip at the bottom.</p>`;
 }

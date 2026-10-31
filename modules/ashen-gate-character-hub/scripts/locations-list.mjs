@@ -8,7 +8,6 @@
 import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {isCollapsed, setCollapsed, sectionKey} from './collapse.mjs';
-import {linkButton} from './ag-html.mjs';
 
 export const LOCATIONS_ID = 'ashen-gate-locations';
 const SEARCH_DELAY = 150;
@@ -33,11 +32,15 @@ const foldKey = id => sectionKey('loc', id);
 const HERE = 'Your party is here';
 const herePin = hidden => `<span class="agch-loc__here" role="img" aria-label="${HERE}" data-tooltip="${HERE}" data-here-pin${hidden ? ' hidden' : ''}><i class="fa-solid fa-location-dot" aria-hidden="true"></i></span>`;
 
+/** The label for a restricted place: Locations 0.42.0+ says who ('Personal' or 'Selected players'); an older Locations sends none. */
+export const restrictedText = r => String(r?.restrictedLabel || 'Selected players');
+
+/** A place: its name is a plain row button (hover and keyboard focus show a background, no underline), then the type and status chips. */
 function rowHtml(r) {
   const kids = r.children?.length ? `<ul class="agch-loc__rows">${r.children.map(rowHtml).join('')}</ul>` : '';
-  return `<li class="agch-loc__row${r.match === false ? ' agch-loc__row--path' : ''}">${linkButton(r.name, {data: {action: 'partner-open', partner: LOCATIONS_ID, ref: r.ref, agAlways: true}})}`
-    + `${r.type ? ` <span class="agch-muted">${esc(r.type)}</span>` : ''}${r.active ? ' <span class="ag-badge ag-badge--ok">Here now</span>' : ''}`
-    + `${r.restricted ? ' <span class="ag-badge">Selected players</span>' : ''}${kids}</li>`;
+  return `<li class="agch-loc__row${r.match === false ? ' agch-loc__row--path' : ''}"><button type="button" class="agch-loc__place" data-action="partner-open" data-partner="${LOCATIONS_ID}" data-ref="${esc(r.ref)}" data-ag-always>${esc(r.name)}</button>`
+    + `${r.type ? `<span class="agch-muted">${esc(r.type)}</span>` : ''}${r.active ? '<span class="ag-badge ag-badge--ok">Here now</span>' : ''}`
+    + `${r.restricted ? `<span class="ag-badge">${esc(restrictedText(r))}</span>` : ''}${kids}</li>`;
 }
 
 /** One folder: a header button that folds it, the places directly inside, then the folders inside it. While a search or filter is on, folders show open. */
@@ -80,10 +83,10 @@ export function locationsListHtml(model, ui) {
 export const refused = err => /hidden|access|not available|permission|denied/i.test(err?.message ?? '');
 
 /** The panel state for the Ashen Gate tab: {state: 'ok', html} or the same 'error' shape the other panels use. */
-export function locationsPanelState(sheet, api, user) {
+export function locationsPanelState(sheet, api, user, actor = null) {
   const ui = locUi(sheet);
   try {
-    const model = api.listModel(modelOptions(ui, user));
+    const model = api.listModel({...modelOptions(ui, user), actorId: sheet.actor?.id ?? sheet.document?.id ?? actor?.id});
     ui.filtering = model.filtering === true;
     return {state: 'ok', html: locationsListHtml(model, ui)};
   } catch (err) {

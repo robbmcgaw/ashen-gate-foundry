@@ -93,7 +93,7 @@ test('condition (status) effects follow the Conditions rule for players', async 
 test('view: switch semantics, empty state, tab for every role', () => {
   const {actor} = setup(); const html = fx.effectsTab({actor, editable: true});
   assert.match(html, /role="switch"[^>]*aria-checked="true"/); assert.match(html, /Temporary Effects/); assert.match(html, /Delete \[TEST\] Hand/); assert.match(html, /Switches apply now/);
-  assert.match(html, /Comes from \[TEST\] Ring: edit it there/);
+  assert.match(html, /\[TEST\] Ring \(edit it on the item\)/);
   const empty = makeActor(); empty.effects = new Map(); empty.allApplicableEffects = function* () {};
   const e = fx.effectsTab({actor: empty, editable: true}); assert.match(e, /No effects on this character/); assert.match(e, /data-action="effect-add"/);
   for (const u of [users.owner, users.observer, users.gm]) assert.ok(visibleTabs(u).some(t => t.id === 'effects'));

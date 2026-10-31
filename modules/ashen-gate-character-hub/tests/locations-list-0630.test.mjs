@@ -40,7 +40,7 @@ test('the folders nest as Locations returns them and every link is a kit button 
   let at = -1; for (const s of order) { const i = html.indexOf(s, at + 1); assert.ok(i > at, `${s} in order`); at = i; }
   assert.match(html, /agch-loc__groups--root/);
   assert.equal((html.match(/agch-loc__toggle/g) ?? []).length, 4, 'a toggle per folder');
-  assert.match(html, /<button type="button" class="ag-link" data-action="partner-open" data-partner="ashen-gate-locations" data-ref="LOC-TEST-MUSTER" data-ag-always="">\[TEST\] The Muster<\/button>/);
+  assert.match(html, /<button type="button" class="agch-loc__place" data-action="partner-open" data-partner="ashen-gate-locations" data-ref="LOC-TEST-MUSTER" data-ag-always>\[TEST\] The Muster<\/button>/);
   assert.match(html, /data-ref="LOC-TEST-SMITHY"[^>]*>\[TEST\] Smithy &lt;b&gt;<\/button>/, 'names are escaped, nested under their parent place');
   assert.match(html, /Here now/); assert.match(html, /Selected players/);
   assert.doesNotMatch(html, /Other places|data-agch-embed|<b>/);
@@ -57,7 +57,7 @@ test('the Hub sends its view settings and who is asking; a player is never asked
   const g = partner({gm: true}); installGlobals({user: users.gm, modules: g.modules});
   const sheet = {agTab: ID, locUi: {query: 'mill', filters: {threat: 'hot'}, sort: 'threat', sortDesc: true, filtersOpen: false, filtering: false}};
   tab(sheet);
-  assert.deepEqual(g.calls[0][1], {query: 'mill', filters: {threat: 'hot'}, sort: 'threat', sortDesc: true, revealedOnly: true});
+  assert.deepEqual(g.calls[0][1], {query: 'mill', filters: {threat: 'hot'}, sort: 'threat', sortDesc: true, revealedOnly: true, actorId: 'actor1'});
   const p = partner(); installGlobals({user: users.owner, modules: p.modules});
   tab(); assert.equal(p.calls[0][1].revealedOnly, false);
 });
