@@ -364,3 +364,13 @@ test('Location beasts (Locations 0.32.0, GM only) are accepted with an NPC-* sou
   const badId = (await checkContent(pack([withBeasts([{label: '[TEST] Bear', uuid: 'Actor.bear', sourceId: 'bear'}])]))).errors;
   assert.deepEqual(badId, ['LOC-TEST-FIELD: beasts[0].sourceId "bear" is not an NPC-* or CRE-* id.']);
 });
+
+test('Location overlandConditions (Locations 0.40.0, GM only, optional) takes only the six ids with whole numbers 0 to 3', async () => {
+  const withOc = oc => ({...location(node()), location: {...location(node()).location, overlandConditions: oc}});
+  assert.deepEqual((await checkContent(pack([withOc({'harsh-weather': 2, 'hard-ground': 0, 'ashen-menace': 3})]))).errors, []);
+  assert.deepEqual((await checkContent(pack([location(node())]))).errors, [], 'the field is optional');
+  assert.match((await checkContent(pack([withOc({'cold-snap': 1})]))).errors.join('\n'), /overlandConditions\.cold-snap is not one of the six condition ids/);
+  assert.match((await checkContent(pack([withOc({'harsh-weather': 4})]))).errors.join('\n'), /overlandConditions\.harsh-weather 4 must be a whole number from 0 to 3/);
+  assert.match((await checkContent(pack([withOc({'harsh-weather': 1.5})]))).errors.join('\n'), /whole number from 0 to 3/);
+  assert.match((await checkContent(pack([withOc(['harsh-weather'])]))).errors.join('\n'), /must be an object/);
+});

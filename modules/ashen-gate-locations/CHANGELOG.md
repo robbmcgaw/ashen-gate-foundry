@@ -1,3 +1,16 @@
+## 0.40.0 — 2026-10-31
+
+New: Travel works out each action for you. The GM sees a calculated cost and result in an Action preview and resolves it in one step. No dice, no automatic encounters, nothing applied to characters.
+
+- **Conditions on places.** New GM-only field `overlandConditions` (`{conditionId: 0..3}`, the six ids only, sparse) on Locations and Regions, edited in the location editor (*Content*, **Travel conditions here**: Inherit, 0 to 3, with an "Inherited from" note). The nearest place that sets a condition wins, an explicit 0 clears an inherited value, severities never add across levels. Never published or in a player view or export; the GM export/import carry it (an update that leaves it out keeps the world's). The narrative Conditions section is untouched.
+- **Daily vs persistent.** The Travel tab's conditions are now **Daily conditions: weather and temporary effects**, for all areas or the current area. **New day…** clears only these. An action uses max(place, daily) per condition. **GM override** in the preview replaces one condition's severity for that preview only.
+- **Areas.** **Current area** (a Location or Region; defaults to the place marked Active, then the last area used) and, for Travel, a **Destination** (or *Other area*, which uses only daily conditions and overrides). Not every tile needs to be a Location. The public state carries only the area's display name (a Hidden place reads "Unknown area").
+- **Action preview** (GM only): the cost, survey rings / Scout precision / destination, encounter pressure (normal, elevated, high, dominant), condition chips, a *Calculated* line, *GM guidance*, shortcuts that open the area's Beasts, Hazards, Roll Tables and gathering entries, an optional text box, **Adjust cost** and one **Resolve** button. The direct buttons and **Resolve…** on a request open it first instead of spending.
+- **Calculator** (`overland-preview.mjs`, pure): conditions add at most +1 to Travel's cost, then mitigation and terrain efficiency reduce it (1 to 2); Explore range, Scout precision and the navigation flags follow the rules in `docs/modifiers-schema.md`. Mitigation protects the party only: it never lowers a condition on a place or the pressure label.
+- **Resolve and Undo.** `resolveAction` spends the calculated (or adjusted) cost, adds the Journal card (action, area name, cost only), clears the matching request and moves the current area on Travel, as one step. **Undo last** gives back the recorded cost and the previous area.
+- **API.** New GM-only `api.overland.previewAction()` and `api.overland.resolveAction()`; `ag-overland/1` and every existing method are unchanged. `state()` gains `area`, `areaConditions` and `here` (GM only); `publicState()` and Journal cards gain the area name and a card's cost.
+- Existing worlds: no migration; missing fields read as defaults. Docs: README, Help (Travel), `docs/modifiers-schema.md`, `docs/perks-and-modifiers-for-gpt.md`, `scripts/validate-content.mjs`. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.39.0 — 2026-10-31
 
 Changed: the GM-only Overland tab is now **Travel**, a tab players can have, with a Journal. Conditions only.

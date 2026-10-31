@@ -1,4 +1,5 @@
 /** Ashen Gate Locations: pure data model. No Foundry globals, so everything here is unit-tested. */
+import {normalizeOverlandConditions} from './overland-conditions.mjs';
 export const MODULE_ID = 'ashen-gate-locations';
 export const IMPORT_SCHEMA = 'ag-foundry-import/0.2';
 /** 1.17.4: a Character Hub level-up backup copy (GM-only "<Name> - level X"); never a watch candidate or target. Safe when the Hub is absent. */
@@ -371,6 +372,10 @@ export function normalizeLocation(raw = {}) {
   loc.pinShowNameWithProportions = r.pinShowNameWithProportions === true;
   // 0.27.1, GM-only: with Keep proportions on, draw the pin this many canvas px wide (height follows the art). 0 = off (Pin size is the height).
   loc.pinBannerWidth = bannerWidthOf(r.pinBannerWidth);
+  // 0.40.0, GM-only: PERSISTENT travel conditions {conditionId: 0..3} (sparse; omitted = not set here, an explicit 0 clears an inherited value). Kept off the
+  // body so Publish never copies it; written only when something is set, so older records stay byte-for-byte what they were.
+  const oc = normalizeOverlandConditions(r.overlandConditions);
+  if (Object.keys(oc).length) loc.overlandConditions = oc;
   // 0.20.0, GM-only: the RTE id this location was converted from (Developer Tools), so a route is never converted twice.
   loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
@@ -888,7 +893,7 @@ export function parseImport(pkg, existing = []) {
 
 /** Fields added in 1.3.0, 1.4.0, 1.8.0, 0.20.0, 0.25.0, 0.30.0, 0.32.0 (beasts) and 0.33.0 (travelSceneUuids). An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['beasts', 'npcs', 'parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'travelSceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
-  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth'];
+  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute', 'childPin', 'pinKeepProportions', 'pinShowNameWithProportions', 'pinBannerWidth', 'overlandConditions'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.

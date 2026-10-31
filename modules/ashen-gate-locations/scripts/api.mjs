@@ -579,12 +579,17 @@ export function createApi(deps) {
      * publicState() (0.39.0; the GM always, a player only while Travel for players is on) -> {contract, enabled, day, total, used, left, requests: [{userId, name, action}], journal: [{id, day, kind, text, by}]}:
      * the PUBLIC part only, never conditions, Mounted, Announce, party modifiers or guidance.
      * declare(action) (0.39.0; a player only, while Travel for players is on; 'travel' | 'scout' | 'explore') -> {contract, requested: true, action}: asks the GM; one waiting request per user.
+     * previewAction(req) and resolveAction(req) (0.40.0, GM only): the calculator and the single atomic resolve. Players are refused here and again in the service.
      * Players are refused here and again in the service, not just in the window.
      */
     overland: Object.freeze({
       contract: OVERLAND_CONTRACT,
       state() { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.state(); },
       partyModifiers() { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.partyModifiers(); },
+      /** GM only (0.40.0), reads only. req: {action: 'travel'|'scout'|'explore', area?: LOC id (default the current area), destination?: LOC id | 'other' (travel), terrain?, override?: {condition, severity}}. See README for the result. */
+      previewAction(req) { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.previewAction(req); },
+      /** GM only (0.40.0): one atomic step. req as previewAction plus {cost?, text?, requestUserId?, reached?}. See README for the result. */
+      resolveAction(req) { if (!gm()) return Promise.reject(new Error('Only the GM can do that.')); if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.resolveAction(req); },
       publicState() { if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.publicState(); },
       declare(action) { if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.declare(action); }
     }),

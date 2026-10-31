@@ -152,7 +152,7 @@ test('GM only: every read and write other than publicState and declare refuses a
     ['editEntry', 'e1', 'x'], ['deleteEntry', 'e1'], ['clearJournal'], ['migrate'], ['receiveDeclare', PIA, 'travel']]) await assert.rejects(playerSvc[fn](a, b), /Only the GM/, fn);
   assert.deepEqual([world.writes, world.secretWrites], [0, 0]);
   assert.equal(Object.isFrozen(playerApi.overland), true);
-  assert.deepEqual(Object.keys(playerApi.overland).sort(), ['contract', 'declare', 'partyModifiers', 'publicState', 'state']);
+  assert.deepEqual(Object.keys(playerApi.overland).sort(), ['contract', 'declare', 'partyModifiers', 'previewAction', 'publicState', 'resolveAction', 'state']);
   const none = createApi({version: '0.39.0', isGM: () => true, playerAccessEnabled: () => true});
   assert.throws(() => none.overland.state(), /unavailable/); assert.throws(() => none.overland.publicState(), /unavailable/); await assert.rejects(none.overland.declare('travel'), /unavailable/);
 });
@@ -168,8 +168,8 @@ test('Travel for players on: publicState is allowed for a player and has exactly
   const {playerApi, gmSvc} = boot();
   await gmSvc.act('scout', {text: 'North.'});
   const ps = playerApi.overland.publicState();
-  assert.deepEqual(Object.keys(ps).sort(), ['contract', 'day', 'enabled', 'journal', 'left', 'requests', 'total', 'used']);
-  assert.deepEqual(ps, {contract: 'ag-overland/1', enabled: true, day: 1, total: 3, used: 1, left: 2, requests: [], journal: [{id: 'e1', day: 1, kind: 'scout', text: 'North.', by: null}]});
+  assert.deepEqual(Object.keys(ps).sort(), ['area', 'contract', 'day', 'enabled', 'journal', 'left', 'requests', 'total', 'used']);
+  assert.deepEqual(ps, {contract: 'ag-overland/1', enabled: true, area: '', day: 1, total: 3, used: 1, left: 2, requests: [], journal: [{id: 'e1', day: 1, kind: 'scout', text: 'North.', by: null}]});
   ps.journal[0].text = 'changed'; assert.equal(playerApi.overland.publicState().journal[0].text, 'North.', 'a copy');
 });
 
@@ -184,7 +184,7 @@ test('no leaks: a player client cannot read severities, Mounted, Announce, party
   // the setting every client can read has none of it
   const payload = JSON.stringify(world.pub);
   assert.doesNotMatch(payload, SECRET_WORDS, payload);
-  assert.deepEqual(Object.keys(world.pub).sort(), ['day', 'journal', 'requests', 'total', 'used']);
+  assert.deepEqual(Object.keys(world.pub).sort(), ['area', 'day', 'journal', 'requests', 'total', 'used']);
   // the player api and service
   for (const out of [playerApi.overland.publicState(), playerSvc.publicState()]) assert.doesNotMatch(JSON.stringify(out), SECRET_WORDS);
   assert.throws(() => playerApi.overland.state(), /Only the GM/); assert.throws(() => playerApi.overland.partyModifiers(), /Only the GM/);
@@ -210,9 +210,9 @@ test('migration: moves severities, Mounted and Announce out of the public settin
   // before it runs, the GM still reads the old values
   assert.deepEqual([gmSvc.state().mounted, gmSvc.state().conditions['harsh-weather']], [true, 3]);
   assert.deepEqual(await gmSvc.migrate(), {moved: true, journal: 2});
-  assert.deepEqual(Object.keys(world.pub).sort(), ['day', 'journal', 'requests', 'total', 'used']);
+  assert.deepEqual(Object.keys(world.pub).sort(), ['area', 'day', 'journal', 'requests', 'total', 'used']);
   assert.doesNotMatch(JSON.stringify(world.pub), SECRET_WORDS);
-  assert.deepEqual(world.sec, {mounted: true, announce: true, conditions: {'harsh-weather': 3, 'hard-ground': 0, 'poor-visibility': 0, 'warped-paths': 1, 'blight-taint': 0, 'ashen-menace': 0}});
+  assert.deepEqual(world.sec, {mounted: true, announce: true, areaConditions: {}, areaRef: null, moves: [], conditions: {'harsh-weather': 3, 'hard-ground': 0, 'poor-visibility': 0, 'warped-paths': 1, 'blight-taint': 0, 'ashen-menace': 0}});
   assert.deepEqual(world.pub.journal, [{id: 'old-1', day: 3, kind: 'travel', text: '', by: null}, {id: 'old-2', day: 4, kind: 'scout', text: '', by: null}]);
   assert.deepEqual([world.pub.day, world.pub.used], [4, 2]);
   const st = gmSvc.state();
@@ -233,7 +233,7 @@ test('migration: an existing GM-only store wins over stale public keys; an inter
   assert.deepEqual(await fresh.gmSvc.migrate(), {moved: false, journal: 0});
   assert.deepEqual([fresh.world.writes, fresh.world.secretWrites], [0, 0]);
   // planMigration never keeps an old key
-  assert.deepEqual(Object.keys(planMigration({mounted: true, log: []}, {}).public).sort(), ['day', 'journal', 'requests', 'total', 'used']);
+  assert.deepEqual(Object.keys(planMigration({mounted: true, log: []}, {}).public).sort(), ['area', 'day', 'journal', 'requests', 'total', 'used']);
 });
 test('migration refreshes the public total when the party bonus changed since it was stored', async () => {
   const flask = item('ITEM-TEST-FLASK', [mod('travel.actions', 1)]);
@@ -301,7 +301,7 @@ test('GM markup: today, direct buttons with the text box, journal day cards newe
   assert.match(html, /Day 2/); assert.match(html, /Actions left 1 of 3/);
   for (const a of ['ov-travel', 'ov-scout', 'ov-explore', 'ov-undo', 'ov-newday', 'ov-resolve', 'ov-dismiss', 'ov-edit', 'ov-delete', 'ov-clear']) assert.match(html, new RegExp(`data-action="${a}"`), a);
   assert.doesNotMatch(html, /data-action="ov-declare"/);
-  assert.match(html, /<textarea id="agl-ov-text"[^>]*>draft &lt;b&gt;<\/textarea>/);
+  assert.doesNotMatch(html, /<textarea/, 'the text box lives in the Action preview card now');
   assert.equal((html.match(/ag-btn primary/g) ?? []).length, 1, 'one primary: New day…');
   assert.ok(html.indexOf('>Day 2</h4>') < html.indexOf('>Day 1</h4>'), 'newest day first');
   const day2 = html.slice(html.indexOf('>Day 2</h4>'), html.indexOf('>Day 1</h4>'));
@@ -309,13 +309,13 @@ test('GM markup: today, direct buttons with the text box, journal day cards newe
   assert.match(html, /Smoke\.<br>Two plumes\./);
   assert.ok(html.indexOf('id="agl-ov-journal"') < html.indexOf('id="agl-ov-gmhead"'), 'the journal comes before the GM section');
   const gmPart = html.slice(html.indexOf('id="agl-ov-gmhead"'));
-  for (const part of ['Table settings', "Today's conditions", 'Party modifiers', 'agl-ov-mounted', 'agl-ov-announce']) assert.ok(gmPart.includes(part), part);
-  assert.ok(!html.slice(0, html.indexOf('id="agl-ov-gmhead"')).includes("Today's conditions"));
+  for (const part of ['Table settings', 'Daily conditions: weather and temporary effects', 'Party modifiers', 'agl-ov-mounted', 'agl-ov-announce']) assert.ok(gmPart.includes(part), part);
+  assert.ok(!html.slice(0, html.indexOf('id="agl-ov-gmhead"')).includes('Daily conditions'));
   assert.match(html, /<footer class="ag-footer">/);
   assert.match(html, /Pia<\/strong> asks to Travel/);
   assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /\bj(?=[0-9a-z]*\d)[0-9a-z]{8,}|\be\d\b|\d{4}-\d\d-\d\d|T\d\d:\d\d|Overland|Hazard|natural|\bkind\b/i, 'no raw ids, timestamps, kinds or the old words in visible text');
   assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /harsh-weather|hard-ground|ashen-menace/);
-  assert.match(html, /aria-label="Conditions"/);
+  assert.match(html, /aria-label="Daily conditions"/);
   assert.equal((html.match(/data-action="ov-cond"/g) ?? []).length, 24, '6 conditions x severity 0 to 3');
   assert.ok(html.includes('Difficult Terrain')); assert.doesNotMatch(html, /Hazards \(unnatural\)|Conditions \(natural\)|Hard Ground/);
   assert.doesNotMatch(html, /\b(Alpha|Beta|Preview|Experimental)\b/);
@@ -413,6 +413,8 @@ test('window: GM buttons spend one action and add a card with the text; the text
   const app = appOf('travel');
   app.travelText = 'The ford is passable.';
   await app.onAction({dataset: {action: 'ov-travel'}});
+  assert.equal(w.settings.get('overland').used ?? 0, 0, 'a button only opens the preview');
+  await app.onAction({dataset: {action: 'ov-pv-resolve'}});
   assert.deepEqual(w.settings.get('overland').journal.map(e => [e.kind, e.text]), [['travel', 'The ford is passable.']]);
   assert.equal(app.travelText, '');
   await app.onAction({dataset: {action: 'ov-cond', cond: 'warped-paths', sev: '2'}});
@@ -427,6 +429,7 @@ test('window: GM buttons spend one action and add a card with the text; the text
   assert.equal(w.settings.get('overland').requests.length, 1);
   app.travelText = 'Hills to the east.';
   await app.onAction({dataset: {action: 'ov-resolve', user: 'p1'}});
+  await app.onAction({dataset: {action: 'ov-pv-resolve'}});
   assert.deepEqual(w.settings.get('overland').journal.map(e => [e.kind, e.text, e.by]), [['scout', 'Hills to the east.', '[TEST] Pia']]);
   game.user = player; await w.api.overland.declare('explore'); game.user = gm;
   await app.onAction({dataset: {action: 'ov-dismiss', user: 'p1'}});
@@ -499,4 +502,44 @@ test('no Overland in the module\'s UI text, README prose or Help', () => {
   const readme = fs.readFileSync(new URL('README.md', root), 'utf8');
   assert.doesNotMatch(readme.replace(/`[^`]*`/g, ''), /Overland/);
   assert.match(readme, /Travel for players/);
+});
+
+// ---- 0.40.0: the window's Action preview and the persistent-conditions block ----
+test('window (0.40.0): a direct button opens the Action preview, Adjust cost changes what is spent, Cancel spends nothing, a player cannot open one', async () => {
+  const w = await windowWorld({travel: true});
+  const app = appOf('travel');
+  await app.onAction({dataset: {action: 'ov-scout'}});
+  assert.equal(w.settings.get('overland').used ?? 0, 0);
+  let html = await app._renderHTML();
+  assert.match(html, /<h3 id="agl-pv-h">Scout/); assert.match(html, /Resolve Scout · 1 action/);
+  await app.onAction({dataset: {action: 'ov-pv-cost', delta: '1'}});
+  html = await app._renderHTML(); assert.match(html, /Resolve Scout · 2 actions/); assert.match(html, /Calculated 1/);
+  await app.onAction({dataset: {action: 'ov-pv-cancel'}});
+  assert.equal(app.travelPreview, null); assert.doesNotMatch(await app._renderHTML(), /agl-pv-h/);
+  assert.equal(w.settings.get('overland').used ?? 0, 0, 'Cancel spends nothing');
+  await app.onAction({dataset: {action: 'ov-explore'}});
+  await app.onAction({dataset: {action: 'ov-pv-cost', delta: '1'}});
+  await app.onAction({dataset: {action: 'ov-pv-resolve'}});
+  assert.deepEqual([w.settings.get('overland').used, w.settings.get('overland').journal[0].cost, app.travelPreview], [2, 2, null]);
+  await app.onAction({dataset: {action: 'ov-undo'}});
+  assert.equal(w.settings.get('overland').used, 0);
+  game.user = player;
+  const p = appOf('travel'); await p.onAction({dataset: {action: 'ov-scout'}});
+  assert.equal(p.travelPreview ?? null, null); assert.match(w.notes.warn.at(-1), /Only the GM/);
+});
+test('window (0.40.0): the location editor has a GM-only Travel conditions block that edits the draft (Inherit, 0 to 3)', async () => {
+  const w = await windowWorld({travel: true});
+  const app = appOf(); app.draft = (await import('../scripts/model.mjs')).normalizeLocation({id: 'LOC-TEST-OC', name: '[TEST] OC'}); app.dirty = false;
+  const html = app.overlandConditionsHtml(app.draft, []);
+  assert.match(html, /Travel conditions here/); assert.match(html, /GM only/);
+  assert.equal((html.match(/data-action="oc-set"/g) ?? []).length, 30, '6 conditions x (Inherit, 0, 1, 2, 3)');
+  await app.onAction({dataset: {action: 'oc-set', cond: 'warped-paths', val: '2'}});
+  assert.deepEqual(app.draft.overlandConditions, {'warped-paths': 2}); assert.equal(app.dirty, true);
+  await app.onAction({dataset: {action: 'oc-set', cond: 'warped-paths', val: '0'}});
+  assert.deepEqual(app.draft.overlandConditions, {'warped-paths': 0});
+  await app.onAction({dataset: {action: 'oc-set', cond: 'warped-paths', val: ''}});
+  assert.ok(!('overlandConditions' in app.draft));
+  const region = (await import('../scripts/model.mjs')).normalizeLocation({id: 'LOC-TEST-RG', name: '[TEST] Region', isRegion: true, overlandConditions: {'harsh-weather': 2}});
+  const child = {...app.draft, parentLocationId: 'LOC-TEST-RG'};
+  assert.match(app.overlandConditionsHtml(child, [region]), /Inherited from \[TEST\] Region: 2/);
 });

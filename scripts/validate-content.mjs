@@ -42,6 +42,7 @@ import { validateDefinition as validateCinderDefinition, categoriesFor } from '.
 import * as cinderEngine from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
 import { modifierDefinitionChecks, MODIFIER_SCOPES } from '../modules/ashen-gate-manager/scripts/modifier-definitions.js';
 import * as travelEngine from '../modules/ashen-gate-locations/scripts/travel-modifiers.mjs';
+import { CONDITION_IDS as TRAVEL_CONDITION_IDS } from '../modules/ashen-gate-locations/scripts/overland-conditions.mjs';
 import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-cinders/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planShopImport, importItemRefs, SHOP_IMPORT_TYPES } from '../modules/ashen-gate-utilities/scripts/core.mjs';
@@ -206,6 +207,15 @@ function domainChecks(pkg, knownIds = new Set()) {
         const kept = loc.beasts.find(x => x.key === String(b?.key ?? b?.id ?? ''));
         if (!(b && typeof b === 'object') || (!kept && !loc.beasts[i])) errors.push(`${loc.id}: beasts[${i}] dropped (needs a uuid or a sourceId like NPC-* or CRE-*).`);
         else if (b.sourceId !== undefined && b.sourceId !== '' && (kept ?? loc.beasts[i]).sourceId !== b.sourceId) errors.push(`${loc.id}: beasts[${i}].sourceId ${JSON.stringify(b.sourceId)} is not an NPC-* or CRE-* id.`);
+      }
+      // Locations 0.40.0: optional, GM-only overlandConditions {conditionId: 0..3}; only the six ids, whole numbers 0 to 3 (anything else is dropped or held at 3).
+      if (src.overlandConditions !== undefined) {
+        const oc = src.overlandConditions;
+        if (!oc || typeof oc !== 'object' || Array.isArray(oc)) errors.push(`${loc.id}: location.overlandConditions must be an object like {"harsh-weather": 2} (GM only; ids: ${TRAVEL_CONDITION_IDS.join(', ')}).`);
+        else for (const [k, v] of Object.entries(oc)) {
+          if (!TRAVEL_CONDITION_IDS.includes(k)) errors.push(`${loc.id}: location.overlandConditions.${k} is not one of the six condition ids: ${TRAVEL_CONDITION_IDS.join(', ')}.`);
+          else if (!Number.isSafeInteger(v) || v < 0 || v > 3) errors.push(`${loc.id}: location.overlandConditions.${k} ${JSON.stringify(v)} must be a whole number from 0 to 3.`);
+        }
       }
       for (const k of ['threat', 'state', 'parentLocationId', 'placeable', 'passConditions'])
         if (src[k] !== undefined && src[k] !== loc[k]) errors.push(`${loc.id}: location.${k} ${JSON.stringify(src[k])} was changed to ${JSON.stringify(loc[k])}.`);

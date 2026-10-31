@@ -156,3 +156,9 @@ Ask Robb, don't guess. Specifically:
 - Don't invent a format, field, target, prefix or number.
 - If a perk needs something no schema covers, write it as plain GM text in `rules_summary` / the description.
 - Mark the record `draft`, and list the question for Robb.
+
+## Travel conditions: what authors do and do not write (Locations 0.40.0)
+
+- **Never author conditions.** Only the six exist (`harsh-weather`, `hard-ground`, `poor-visibility`, `warped-paths`, `blight-taint`, `ashen-menace`); a record cannot define, rename or add one. The only place a record names a condition is `applies.condition` on a `condition.mitigation` entry.
+- **Mitigation protects the party only.** It never lowers a condition on a place and never changes encounter pressure; for Blight Taint and Ashen Menace it only changes the GM's guidance line. Do not write copy that says an item "reduces the weather" or "removes the Blight"; say it protects the wearer or the party.
+- Severities on places are the GM's, set in the Locations editor (GM only, `overlandConditions` on a Location record, optional, ids limited to the six, values 0 to 3). Do not put them in player-facing text.
