@@ -73,6 +73,10 @@ A `ProfessionPerk` record may be a signature perk: `signature: true`, `tier: "jo
 - A Profession record may carry `recipeLabel` (singular) and `recipeLabelPlural`, 1–30 characters each (otherwise ignored). Display only: types, `REC-*` ids, API names and saved data don't change. Order: GM Setup → Tools and checks → Recipe names, then the imported record, then draft built-in names (Alchemy Formula, Blacksmithing Blueprint, Artistry Composition, awaiting approval), then Recipe. A missing plural is made from the singular.
 - `recipeLabel(professionNameOrId, {plural = false, capitalize = true})` → the word, e.g. `"Formulas"`; unknown professions give `"Recipe"`. No permission needed (feature-detect it).
 
+### 0.42.0 notes
+
+- A Recipe record may carry `additional_gp_flavor` (1 to 40 characters, only with `additional_gp` above 0; see docs/recipe-gold-flavor-schema.md). It is display only: where the Ledger shows the additional gold cost it prints `75 gp (ash and vials)`; with no flavor, a flavor over 40 characters or an amount of 0 it prints what it printed before. Read from the stored definition like `additional_gp` and escaped as plain text. It never changes the cost, payment or awarding.
+
 ### 0.41.1 notes
 
 - A material that is approved and player-visible but whose world Item is not Observer for every player (state `not-visible`) is treated as released in the GM views: no Draft/Unreleased tag, listed under Released in the pickers, and a quiet note in the node editor. Awarding was already unchanged.

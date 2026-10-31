@@ -1,3 +1,13 @@
+## 0.42.0 — 2026-10-31
+
+Recipe gold cost shows what it pays for.
+
+- **Gold cost with a flavor.** A recipe can now carry the optional, display-only `additional_gp_flavor` (General Manager 0.89.0), for example `ash and vials`. Wherever the Ledger shows a recipe's additional gold cost it prints `75 gp (ash and vials)`: the recipe cards (Individual, Party and the GM Recipe Catalog), the Craft, Complete activity and Request enchanting dialogs, the crafted and Complete activity chat cards, the enchanting request card and the GM's Mark enchanting done confirmation. A recipe with no flavor, or with an additional cost of 0, reads exactly as before.
+- The flavor is read from the recipe's stored definition the same way as the amount; a definition without it shows nothing extra. It is shown as plain text (never markup), and text longer than the 40 characters the contract allows is ignored rather than cut.
+- Enchanting request cards now remember the flavor beside the fee. Older cards are unchanged.
+- The Ledger has no history entry that shows a recipe's gold cost (the history list is gathering only), so nothing changed there.
+- Cost maths, payment and awarding are unchanged: gold is still not deducted automatically. No saved world data changes.
+
 ## 0.41.1 — 2026-10-31
 
 Fix: no "Unreleased" tag on released materials.
