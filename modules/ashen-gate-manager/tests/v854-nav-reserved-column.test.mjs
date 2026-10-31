@@ -100,7 +100,7 @@ test('cleanup: undocked, dock off, corner change and GM restore everything, incl
 });
 test('wiring: 0.85.4, changelog names the real cause, 0.x, no status wording',()=>{
   const man=JSON.parse(fs.readFileSync(new URL('../module.json',import.meta.url),'utf8'));
-  assert.equal(man.version,'0.93.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.93.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.94.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.94.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.4 /m);
   const entry=log.slice(log.indexOf('## 0.85.4'),log.indexOf('## 0.85.3'));
   assert.match(entry,/--control-columns/);assert.doesNotMatch(entry,/\b(alpha|beta|preview)\b/i);
