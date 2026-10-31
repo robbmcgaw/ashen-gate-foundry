@@ -27,7 +27,7 @@ export const cleanSort = sort => SORTS.some(s => s.value === sort) ? sort : 'nam
  * records: GM location records (not archived) or the player's views. options: {gm, query, filters, sort, sortDesc,
  * context: {templates, questName(id), materialName(id)}}. Returns the model described in the Locations README (`listModel`).
  */
-export function buildListModel(records, {gm = false, query = '', filters = {}, sort = 'name', sortDesc = false, context = {}} = {}) {
+export function buildListModel(records, {gm = false, query = '', filters = {}, sort = 'name', sortDesc = false, context = {}, personalUserIds = []} = {}) {
   const q = String(query ?? '').trim();
   const f = gm ? cleanFilters(filters) : emptyFilters();
   const key = gm ? cleanSort(sort) : 'name', desc = gm && sortDesc === true;
@@ -54,10 +54,15 @@ export function buildListModel(records, {gm = false, query = '', filters = {}, s
   const refOf = gm ? l => l.id : l => l.id || l.key;
   // 0.36.0 (additive): `hereNow` = this place is where the party is (same as `active`); `containsHere` = something inside this row/folder is. Both are
   // plain booleans from places this user already sees, so a partner can draw a pin on the nearest collapsed folder.
+  // 0.42.0 (additive): `restrictedLabel` is the text for the badge on a restricted row: "Personal" when it is revealed to the player of the character whose
+  // Hub is open (`personalUserIds`, set by the API only for the GM or that character's own player), else "Selected players".
+  const mine = new Set(personalUserIds);
+  const audienceIds = item => (gm ? item.audience?.userIds : item.share?.userIds) ?? [];
   const node = (item, children = []) => {
+    const restricted = gm ? item.audience?.mode === 'selected' : !!item.share;
     const out = {ref: refOf(item), name: item.name, state: item.state ?? '', active: item.active === true, hereNow: item.active === true,
       containsHere: children.some(c => c.hereNow || c.containsHere), isRegion: item.isRegion === true,
-      restricted: gm ? item.audience?.mode === 'selected' : !!item.share, match: !matched || matched.has(access.idOf(item)), children};
+      restricted, restrictedLabel: restricted ? (audienceIds(item).some(u => mine.has(u)) ? 'Personal' : 'Selected players') : '', match: !matched || matched.has(access.idOf(item)), children};
     if (item.type) out.type = item.type;
     return out;
   };

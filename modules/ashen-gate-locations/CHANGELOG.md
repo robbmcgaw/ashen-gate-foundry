@@ -1,3 +1,11 @@
+## 0.42.0 — 2026-10-31
+
+Changed: players are named by their character in "Also known to"; a partner's list can say **Personal** for a place revealed to your own character.
+
+- **Character first names.** *Also known to* (a player's card), *Who Can See It* and its "shared by" badge (the GM's card) now show each player by the first word of their character's name ("Face Stomper" becomes "Face", "Geraint Wynn" becomes "Geraint"; extra spaces are ignored). A player who owns several characters lists each one's first name; a player with no character, or none this viewer may see, shows by user name as before. Display only: reveal records, audiences and exports are still keyed by user id and nothing stored changes. A player is only ever shown a character name they can already see (Limited or better on the character, or the character assigned to that player); otherwise the user name, exactly what they saw before. Who sees the list at all is unchanged.
+- **Personal badge (data for the Hub).** `api.listModel` accepts `actorId` (the character whose Hub is open). A restricted row now carries `restrictedLabel`: `'Personal'` when it is revealed to that character's player, else `'Selected players'`. A player gets `'Personal'` only on their own character; the GM gets it for a player character they are viewing and keeps `'Selected players'` on their own view. Additive: `restricted`, the contract (`ag-locations-list/1`) and every other field are unchanged. The Hub list is drawn by Character Hub, so its badge reads Personal once the Hub passes `actorId` and prints `restrictedLabel`.
+- Docs: README (listModel, Who Can See It), Help (Visibility). Tests are mocked Foundry; they prove the naming rules, the badge label by viewer and that no record changes, not the live Hub or Forge.
+
 ## 0.41.0 — 2026-10-31
 
 New: six **Blight** scene effects for battle maps, picked like Foundry's own snow or leaves.
