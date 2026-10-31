@@ -62,13 +62,13 @@ export function draftErrors(draft) {
 /** Has the draft changed from the stages it started from? */
 export const draftChanged = (draft, start) => JSON.stringify(draft.rows.map(r => [String(r.art).trim(), String(r.at).trim()])) !== JSON.stringify(start.rows.map(r => [String(r.art).trim(), String(r.at).trim()]));
 
-/** The editor's markup. `focus` = a data-agc-sfocus value to give focus to after a re-render. */
+/** The editor's markup. The rows use .agc-stage-row (not .agc-stage, which is the orb stage in the sheet). `focus` = a data-agc-sfocus value to give focus to after a re-render. */
 export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0, definitionHas = false, scope = 'cinder'} = {}) {
   const n = draft.rows.length;
   const err = key => (errors[key] ?? []).join(' ');
   const rows = draft.rows.map((r, i) => {
     const src = cleanArt(String(r.art).trim()), eArt = err(`${i}.art`), eAt = err(`${i}.at`);
-    return `<li class="agc-stage" data-agc-row="${i}">
+    return `<li class="agc-stage-row" data-agc-row="${i}">
       <div class="agc-stage__thumb">${src ? `<img src="${esc(src)}" alt="Stage ${i + 1} preview" loading="lazy">` : '<span class="agc-stage__empty">No image</span>'}</div>
       <div class="agc-stage__fields">
         <p class="agc-stage__title"><strong>Stage ${i + 1}</strong>${i === 0 ? ' <span class="ag-badge">From the bind</span>' : ''}</p>
@@ -86,7 +86,8 @@ export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0,
       </div></li>`;
   }).join('');
   const rowError = err('rows');
-  return `<form class="agc-stages" data-agc-stages novalidate onsubmit="return false">
+  // A div, not a <form>: DialogV2 already wraps the content in its own <form>, and the HTML parser drops a nested <form> tag, which left no element to wire.
+  return `<div class="agc-stages" data-agc-stages>
     <p class="ag-field__hint">${scope === 'kind'
       ? (source === 'definition' ? 'These stages come with the imported Cinder. Saving sets your own for every bearer; a re-import keeps them.' : source === 'cinder' ? 'These stages apply to every bearer of this Cinder, unless a bearer\'s Cinder has its own. A re-import keeps them.' : 'No stages are set yet. They apply to every bearer of this Cinder, unless a bearer\'s Cinder has its own.')
       : (source === 'definition' ? 'These stages come from the Cinder\'s definition. Saving gives this Cinder its own copy.' : 'This Cinder has its own stages.')} Stage 1 applies from the bind; each later stage applies once the bearer has unlocked that many nodes (${unlocked} now). The image order moves the pictures, not the numbers.</p>
@@ -96,7 +97,7 @@ export function editorHtml(draft, {errors = {}, source = 'cinder', unlocked = 0,
       <span class="ag-field__hint">${n} of ${STAGES_MAX} stages</span>
       ${source === 'cinder' ? `<button type="button" class="ag-btn ag-btn--sm" data-agc-sdefault data-agc-sfocus="default"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> ${scope === 'kind' ? (definitionHas ? 'Use the imported stages' : 'Remove these stages') : definitionHas ? 'Use the definition\'s stages' : 'Remove this Cinder\'s stages'}</button>` : ''}</div>
     <p class="agc-stage-status ag-field__hint" data-agc-sstatus role="status" aria-live="polite"></p>
-  </form>`;
+  </div>`;
 }
 
 /**
@@ -132,8 +133,10 @@ export async function openStageEditor({info, art = null, name = 'Cinder', scope 
     }
   };
   function bind() {
-    const form = root.querySelector('[data-agc-stages]');
+    const form = root.querySelector('[data-agc-stages]') ?? root;
     guard.watch(form);
+    // Enter in a field must not submit the window's own form (that would press Save Changes).
+    form.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target?.tagName === 'INPUT') event.preventDefault?.(); });
     form.addEventListener('input', event => {
       const el = event.target;
       if (el?.dataset?.agcSart != null) {
@@ -160,7 +163,7 @@ export async function openStageEditor({info, art = null, name = 'Cinder', scope 
   }
   const content = `<div data-agc-stage-root></div>`;
   await dialog.wait({
-    classes: ['ag-app', 'ag-dialog', 'agc-stage-dialog'], window: {title: `${scope === 'kind' ? 'Stage art' : 'Stages'}: ${name}`, resizable: true}, position: {width: 640}, content, modal: true, rejectClose: false,
+    classes: ['ag-app', 'ag-dialog', 'agc-stage-dialog'], window: {title: `${scope === 'kind' ? 'Stage art' : 'Stages'}: ${name}`, resizable: true}, position: {width: 640, height: 'auto'}, content, modal: false, rejectClose: false,
     render: (event, d) => {
       dlg = d;
       const el = d.element ?? event?.target?.element;
