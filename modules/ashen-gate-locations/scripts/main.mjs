@@ -18,7 +18,7 @@ import {createOverland, useOverland} from './overland.mjs';
 import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.39.0';
+const VERSION = '0.40.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -142,7 +142,7 @@ Hooks.once('ready', () => {
   const travelOn = () => game.settings.get(MODULE_ID, 'travelForPlayers') === true;
   const overland = createOverland({
     isGM, playerTravel: travelOn, read: () => game.settings.get(MODULE_ID, 'overland'), write: state => game.settings.set(MODULE_ID, 'overland', state),
-    readSecret: () => (isGM() ? readOverlandSecret() : {}), writeSecret: writeOverlandSecret,
+    readSecret: () => (isGM() ? readOverlandSecret() : {}), writeSecret: writeOverlandSecret, locations: () => (isGM() ? readAll() : []),
     sendDeclare: action => travel.send(action),
     actors: () => [...(game.actors ?? [])].filter(a => a?.type === 'character' && a.hasPlayerOwner === true),
     mountItems: actor => { const companions = hubCompanions(); if (!companions) return null; const m = companions(actor)?.mount;

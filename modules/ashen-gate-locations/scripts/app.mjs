@@ -22,6 +22,7 @@ import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 import {overland, ACTIONS as ACTION_NAMES} from './overland.mjs';
 import {travelHtml} from './overland-view.mjs';
+import {OVERLAND_CONDITIONS, effectiveLocationConditions} from './overland-conditions.mjs';
 import {actorFacts, npcSuggestions, relinkPlan, applyRelink, shopsHere, shopsForPlayer, shopsApiState} from './people-shops.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
@@ -972,6 +973,7 @@ export class LocationsApp extends Base {
         </div>
         ${order.filter(k => k !== 'scenes').map(k => blocks[k] ?? '').join('')}
         ${this.shopsHereHtml(d)}
+        ${this.overlandConditionsHtml(d, all)}
         <div class="agl-add agl-add-detail">${btn('add-detail', 'Add detail', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
           <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>`,
       visibility: `${this.audienceHtml(d)}${this.placeHtml(d, all, pins)}${this.markerHtml(d, all)}${this.scenesHtml(d)}`,
@@ -1074,6 +1076,24 @@ export class LocationsApp extends Base {
     const r = await api().convertRoutes({apply: true});
     ui.notifications.info(`Made ${r.convert.length} Route location(s). They start Hidden; reveal them when you are ready.`);
     return this.render();
+  }
+
+  /**
+   * 0.40.0, GM only: PERSISTENT travel conditions on this place (Travel's six conditions, 0 to 3). "Inherit" leaves a condition unset here so the nearest
+   * Region above decides; 0 clears whatever a Region sets. Part of the draft (Save Changes); never published, never in a player view or export.
+   */
+  overlandConditionsHtml(d, all = []) {
+    const own = d.overlandConditions ?? {};
+    const inh = d.parentLocationId ? effectiveLocationConditions('LOC-DRAFT-PROBE', [...all, {id: 'LOC-DRAFT-PROBE', parentLocationId: d.parentLocationId}]) : null;
+    const row = c => {
+      const set = c.id in own, value = own[c.id];
+      const note = set ? '' : inh?.sources?.[c.id] ? `Inherited from ${inh.sources[c.id].name}: ${inh.severities[c.id]}` : 'Not set above: 0';
+      const seg = (label, val, on) => `<button type="button" aria-pressed="${on}" data-action="oc-set" data-cond="${c.id}" data-val="${val}" aria-label="${esc(c.label)} ${val === '' ? 'inherit from the Region above' : `persistent severity ${val}`}">${label}</button>`;
+      return `<li class="agl-oc"><span class="agl-oc__name">${esc(c.label)}</span><span class="ag-segmented" role="group" aria-label="${esc(c.label)} persistent severity">${seg('Inherit', '', !set)}${[0, 1, 2, 3].map(n => seg(n, n, set && value === n)).join('')}</span>${note ? `<small class="agl-hint">${esc(note)}</small>` : ''}</li>`;
+    };
+    return `<section class="ag-card agl-section"><header class="ag-card__head"><h3>Travel conditions here</h3><span class="agl-hint">GM only. Players never see these.</span></header>
+      <ul class="agl-oc-list" aria-label="Persistent travel conditions">${OVERLAND_CONDITIONS.map(row).join('')}</ul>
+      <p class="agl-hint">Conditions that belong to this place (a haunted marsh, a blighted pass). The Travel tab combines them with the day's weather: the higher one counts. Places inside a Region inherit its values unless they set their own; the nearest place that sets one wins.</p></section>`;
   }
 
   /** Unidentified label/teaser and pin art. Pins use native Note image/size; edits to a placed Note win. */
@@ -1386,11 +1406,33 @@ export class LocationsApp extends Base {
     try {
       if (!overland()) throw new Error('Travel is unavailable.');
       const o = api().overland;
-      return this.gm ? travelHtml({state: o.state(), mods: o.partyModifiers(), gm: true, userId: game.user?.id ?? '', text: this.travelText ?? ''}, {esc, btn, tip, now: NOW})
-        : travelHtml({state: o.publicState(), gm: false, userId: game.user?.id ?? ''}, {esc, btn, tip, now: NOW});
+      if (this.gm) {
+        // 0.40.0: a Direct button or a request opens the Action preview first; nothing is spent until Resolve.
+        let preview = null;
+        if (this.travelPreview) {
+          try { preview = o.previewAction(this.travelPreviewRequest()); } catch (err) { this.travelPreview = null; ui.notifications?.warn(err?.message ?? String(err)); }
+        }
+        return travelHtml({state: o.state(), mods: o.partyModifiers(), gm: true, userId: game.user?.id ?? '', text: this.travelText ?? '', preview, pv: this.travelPreview ?? {},
+          areas: overland().areas(), scope: this.travelScope ?? 'all'}, {esc, btn, tip, now: NOW});
+      }
+      return travelHtml({state: o.publicState(), gm: false, userId: game.user?.id ?? ''}, {esc, btn, tip, now: NOW});
     } catch (err) {
       return `<div class="ag-empty"><i class="fa-solid fa-person-hiking" aria-hidden="true"></i><p class="ag-empty__title">Travel can't be shown</p><p class="ag-empty__text">${esc(err?.message ?? String(err))}</p></div>`;
     }
+  }
+  /** The request the open Action preview stands for (same shape previewAction and resolveAction take). */
+  travelPreviewRequest() {
+    const p = this.travelPreview;
+    return {action: p.action, destination: p.destination || undefined, terrain: p.terrain || undefined, override: p.override ?? undefined, requestUserId: p.requestUserId ?? undefined,
+      ...(p.reached ? {reached: p.reached} : {})};
+  }
+  /** Opens (or changes) the Action preview; a changed input drops an adjusted cost. */
+  async travelPreviewSet(patch, selector) {
+    const next = {action: 'travel', destination: '', terrain: '', override: null, requestUserId: null, cost: null, ...this.travelPreview, ...patch};
+    const before = this.travelPreview;
+    this.travelPreview = next;
+    try { api().overland.previewAction(this.travelPreviewRequest()); } catch (err) { this.travelPreview = before ?? null; ui.notifications?.warn(err?.message ?? String(err)); }   // the API refuses a non-GM here
+    await this.render(); this.focusBack(selector);
   }
   /** One Travel change (Travel, Scout, Explore, Resolve, Undo, New day, a switch, a journal edit): applies at once, then the tab redraws with focus back on the same control. */
   async travelDo(selector, run) {
@@ -1468,6 +1510,11 @@ export class LocationsApp extends Base {
     root.querySelector('#agl-ov-mounted')?.addEventListener('change', e => this.travelDo('#agl-ov-mounted', s => s.setMounted(e.target.checked)));
     root.querySelector('#agl-ov-announce')?.addEventListener('change', e => this.travelDo('#agl-ov-announce', s => s.setAnnounce(e.target.checked)));
     root.querySelector('#agl-ov-text')?.addEventListener('input', e => { this.travelText = e.target.value; });
+    root.querySelector('#agl-ov-area')?.addEventListener('change', e => this.travelDo('#agl-ov-area', s => s.setArea(e.target.value || null)));
+    root.querySelector('#agl-pv-dest')?.addEventListener('change', e => this.travelPreviewSet({destination: e.target.value, reached: '', terrain: '', cost: null}, '#agl-pv-dest'));
+    root.querySelector('#agl-pv-terrain')?.addEventListener('change', e => this.travelPreviewSet({terrain: e.target.value, cost: null}, '#agl-pv-terrain'));
+    root.querySelector('#agl-pv-reached')?.addEventListener('change', e => this.travelPreviewSet({reached: e.target.value}, '#agl-pv-reached'));
+    root.querySelector('#agl-pv-ovc')?.addEventListener('change', e => this.travelPreviewSet({override: e.target.value ? {condition: e.target.value, severity: this.travelPreview?.override?.severity ?? 1} : null, cost: null}, '#agl-pv-ovc'));
     if (!this.gm) return;
     for (const el of root.querySelectorAll('[data-travel-scene]')) el.addEventListener('change', () => {
       const set = new Set(this.draft.travelSceneUuids ?? []);
@@ -1698,13 +1745,41 @@ export class LocationsApp extends Base {
     if (action === 'ov-declare') return this.travelDo('[data-action="ov-declare"][data-kind="' + el.dataset.kind + '"]', async () => { await api().overland.declare(el.dataset.kind); ui.notifications?.info('Asked the GM.'); });
     // Spending actions: the optional text box goes on the journal card, then empties.
     const spent = async run => { const text = this.travelText ?? ''; await run(text); this.travelText = ''; };
-    if (/^ov-(travel|scout|explore)$/.test(action)) return this.travelDo(`[data-action="${action}"]`, s => spent(text => s.act(action.slice(3), {text})));
-    if (action === 'ov-resolve') return this.travelDo(`[data-action="ov-resolve"][data-user="${el.dataset.user}"]`, s => spent(text => s.resolve(el.dataset.user, {text})));
+    if (/^ov-(travel|scout|explore)$/.test(action)) return this.travelPreviewSet({action: action.slice(3), destination: '', terrain: '', reached: '', override: null, requestUserId: null, cost: null}, `[data-action="${action}"]`);
+    if (action === 'ov-resolve') {
+      let q = null;
+      try { q = api().overland.state().requests.find(x => x.userId === el.dataset.user); } catch (err) { ui.notifications?.warn(err?.message ?? String(err)); }
+      if (!q) return this.render();
+      return this.travelPreviewSet({action: q.action, destination: '', terrain: '', reached: '', override: null, requestUserId: q.userId, cost: null}, `[data-action="ov-resolve"][data-user="${el.dataset.user}"]`);
+    }
+    if (action === 'ov-pv-cancel') { this.travelPreview = null; return this.travelDo('#agl-ov-area', () => {}); }
+    if (action === 'ov-pv-cost') {
+      if (!this.travelPreview) return this.render();
+      const now = this.travelPreview.cost ?? api().overland.previewAction(this.travelPreviewRequest()).cost;
+      return this.travelPreviewSet({cost: Math.max(0, Math.min(5, now + Number(el.dataset.delta)))}, `[data-action="ov-pv-cost"][data-delta="${el.dataset.delta}"]`);
+    }
+    if (action === 'ov-pv-ovsev') return this.travelPreviewSet({override: {...this.travelPreview?.override, severity: Number(el.dataset.sev)}, cost: null}, `[data-action="ov-pv-ovsev"][data-sev="${el.dataset.sev}"]`);
+    if (action === 'ov-pv-resolve') {
+      const p = this.travelPreview ?? {}, text = this.travelText ?? '';
+      try {
+        const r = await api().overland.resolveAction({...this.travelPreviewRequest(), text, ...(p.cost !== null && p.cost !== undefined ? {cost: p.cost} : {})});
+        this.travelPreview = null; this.travelText = '';
+        ui.notifications?.info(r.summary);
+      } catch (err) { ui.notifications?.warn(err?.message ?? String(err)); }
+      await this.render(); return this.focusBack('#agl-ov-area');
+    }
+    if (action === 'ov-scope') { this.travelScope = el.dataset.scope === 'area' ? 'area' : 'all'; await this.render(); return this.focusBack(`[data-action="ov-scope"][data-scope="${this.travelScope}"]`); }
+    if (action === 'ov-open') {
+      const doc = el.dataset.uuid ? await fromUuid(el.dataset.uuid).catch(() => null) : null;
+      if (doc?.sheet) return doc.sheet.render(true);
+      if (el.dataset.uuid) return ui.notifications?.warn('That entry could not be opened.');
+      return api().openLocation(el.dataset.loc);
+    }
     if (action === 'ov-dismiss') return this.travelDo('#agl-ov-text', s => s.dismiss(el.dataset.user));
-    if (action === 'ov-cond') return this.travelDo(`[data-action="ov-cond"][data-cond="${el.dataset.cond}"][data-sev="${el.dataset.sev}"]`, s => s.setCondition(el.dataset.cond, Number(el.dataset.sev)));
+    if (action === 'ov-cond') return this.travelDo(`[data-action="ov-cond"][data-cond="${el.dataset.cond}"][data-sev="${el.dataset.sev}"]`, s => s.setCondition(el.dataset.cond, Number(el.dataset.sev), {scope: el.dataset.scope === 'area' ? 'area' : 'all'}));
     if (action === 'ov-undo') return this.travelDo('[data-action="ov-undo"]', s => s.undo());
     if (action === 'ov-newday') {
-      if (!(await confirmDialog('Start the next day? The party gets its actions back, the day number goes up and every condition goes back to 0. The journal is kept.', {title: 'Start a new day?', yes: 'Start new day'}))) return;
+      if (!(await confirmDialog('Start the next day? The party gets its actions back, the day number goes up and the daily conditions go back to 0. Conditions set on Locations and Regions stay. The journal is kept.', {title: 'Start a new day?', yes: 'Start new day'}))) return;
       return this.travelDo('[data-action="ov-newday"]', s => s.newDay());
     }
     if (action === 'ov-edit') {
@@ -1835,6 +1910,13 @@ export class LocationsApp extends Base {
         const uuid = root.querySelector('#agl-add-scene')?.value;
         if (!uuid || this.draft.sceneUuids.includes(uuid)) return;
         this.draft.sceneUuids.push(uuid); this.dirty = true; return this.render();
+      }
+      case 'oc-set': {
+        const oc = {...(this.draft.overlandConditions ?? {})};
+        if (el.dataset.val === '') delete oc[el.dataset.cond]; else oc[el.dataset.cond] = Number(el.dataset.val);
+        if (Object.keys(oc).length) this.draft.overlandConditions = oc; else delete this.draft.overlandConditions;
+        this.dirty = true; await this.render();
+        return this.focusBack(`[data-action="oc-set"][data-cond="${el.dataset.cond}"][data-val="${el.dataset.val}"]`);
       }
       case 'remove-scene': this.draft.sceneUuids = this.draft.sceneUuids.filter(u => u !== el.dataset.uuid); this.draft.travelSceneUuids = (this.draft.travelSceneUuids ?? []).filter(u => u !== el.dataset.uuid); this.dirty = true; return this.render();
       case 'open-scene': {
@@ -2238,10 +2320,10 @@ export class LocationsApp extends Base {
         'Old routes are kept in the world, unused. <strong>GM Setup → Developer Tools → Convert routes to locations…</strong> (only while the world has some) previews and then makes a Route location for each. Importing a Route record skips it: make a location with type Route instead.']),
       topic('Travel', [
         '<strong>Travel</strong> (the second tab) is a light way to keep days on the road. The party shares <strong>3 actions a day</strong>: <strong>Travel</strong> (one neighbouring map tile, normally no check), <strong>Scout</strong> (roughly which way a known goal lies; a Navigation check can sharpen it) and <strong>Explore</strong> (survey this tile and the ones next to it). Encounters, fights and talking cost none. It is a tally to help you adjudicate, not a tracker.',
-        'Each of the three buttons spends one action and adds a card to the <strong>Journal</strong>; the optional box above them is what the party learns, written on that card. <strong>Undo last</strong> takes back the latest card and gives its action back. <strong>New day…</strong> asks first, then gives the actions back, adds one to the day and sets every condition to 0; the journal is kept.',
+        'Pick the <strong>Current area</strong> (a Location or Region; it defaults to the place marked as where the party is). Each of the three buttons, or <strong>Resolve…</strong> on a request, opens an <strong>Action preview</strong>: the cost the conditions and the party\'s gear work out to, the survey range or Scout precision, the encounter pressure, the conditions that apply, a <em>Calculated</em> line that explains the numbers and <em>GM guidance</em>. Nothing is rolled and nothing is applied to any character. <strong>Resolve</strong> spends the cost in one step, adds a card to the <strong>Journal</strong> (action, area and cost only; the optional box is what the party learns) and clears the request. Travel moves the current area to the destination; use <em>Destination actually reached</em> when Warped Paths displaces the party. <strong>Adjust cost</strong> changes what is spent for special cases; <strong>GM override</strong> replaces one condition\'s severity for that preview only (for a spell, say). <strong>Undo last</strong> gives back the cost on the card and the previous area. <strong>New day…</strong> asks first, then gives the actions back, adds one to the day and clears the daily conditions; conditions set on Locations and Regions stay, and the journal is kept.',
         '<strong>Travel for players</strong> (GM Setup, off by default) shows players the day, the actions left, the journal and three buttons to <em>ask</em> for an action. A request is visible to everyone, with who asked. <strong>Resolve</strong> spends one action and adds the card (with the box\'s text, and who asked); <strong>Dismiss</strong> drops it. Players never see conditions, severities, party modifiers, Mounted or anything under <em>GM only</em>.',
         '<strong>Journal</strong>: one card per day, newest day first. <strong>Edit…</strong> changes a card\'s text, <strong>Delete entry</strong> removes one card, <strong>Clear journal…</strong> removes them all (each asks first; Cancel is the default). Everyone who can see Travel can read the journal.',
-        '<strong>Today\'s conditions</strong> (GM only) keeps six conditions that make days harder (Harsh Weather, Difficult Terrain, Poor Visibility, Warped Paths, Blight Taint, Ashen Menace), set by you from 0 to 3 and applying at once. Beside each is the party\'s mitigation from items, perks and the like (up to 3) and the steps remaining, severity minus mitigation; while any remain, a line reminds you what that usually means. It is a reminder only: nothing is applied for you.',
+        '<strong>Conditions</strong> (GM only): six, each 0 (absent) to 3 (extreme): Harsh Weather, Difficult Terrain, Poor Visibility, Warped Paths, Blight Taint, Ashen Menace. <strong>Daily conditions</strong> (weather and temporary effects) are set in the Travel tab for all areas or for the current area. <strong>Travel conditions here</strong> (location editor, Content) are persistent: the nearest Region that sets one wins, an explicit 0 clears an inherited value, and they never add up. For an action the higher of the place and today counts for each condition. The party\'s mitigation protects the party only: it never lowers a condition on a place and never changes the pressure label.',
         '<strong>Mounted</strong> counts modifiers that need a mount, and gear on a character\'s mount (when Character Hub is active). <strong>Announce to players</strong> posts a short chat line for each action. <strong>Party modifiers</strong> lists the bonus actions, Explore range, Scout precision, terrain efficiency and condition mitigation that items and perks on the party\'s characters carry, with their sources and the cap. Only the best source in a stacking group counts, across the whole party. Equipment counts while equipped. Scout precision is a guide: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is your call.']),
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
