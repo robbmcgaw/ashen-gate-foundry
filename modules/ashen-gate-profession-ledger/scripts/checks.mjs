@@ -165,23 +165,6 @@ export function toolGroupMembers(group){
 /** A tool name as a group key ("Any musical instrument" → music), or null. */
 export const toolGroupOf=name=>{const n=norm(name);return TOOL_GROUP_KEYS.find(k=>k===String(name??'').trim()||TOOL_GROUPS[k].aliases.includes(n)||norm(TOOL_GROUPS[k].label)===n)??null;};
 export const skillLabel=key=>SKILL_LABELS[key]??globalThis.CONFIG?.DND5E?.skills?.[key]?.label??String(key??'');
-/** 0.43.0: a recipe's check name as a dnd5e skill key. Accepts the key ("arc"), the label ("Arcana"), and the label in any case,
- * spacing or punctuation ("sleight-of-hand", "Animal  Handling"), plus the label dnd5e itself shows (CONFIG.DND5E.skills). null when it is not a skill. */
-export function skillKeyOf(value){
-  const t=String(value??'').trim();if(!t)return null;
-  if(SKILL_IDS.includes(t))return t;
-  const flat=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,'');
-  const want=flat(t);if(!want)return null;
-  const cfg=globalThis.CONFIG?.DND5E?.skills??{};
-  return SKILL_IDS.find(k=>flat(k)===want||flat(SKILL_LABELS[k])===want||flat(cfg[k]?.label)===want)??null;
-}
-/** 0.43.0: how proficient a character is in one skill, from system.skills.<key>.value (0, 0.5 half, 1 proficient, 2 expertise),
- * else its `proficient` field. Returns 'expertise' | 'proficient' | 'half' | 'none'. Half proficiency (Jack of All Trades) is not proficiency. */
-export function skillProficiency(actor,key){
-  const sk=actor?.system?.skills?.[key];if(!sk)return 'none';
-  const n=Number(sk.value??sk.proficient??sk.effectValue??0);
-  return n>=2?'expertise':n>=1?'proficient':n>0?'half':'none';
-}
 /** A recipe's tool reference: a dnd5e tool key ("alchemist"), an Item UUID, or a tool Item name. */
 export function toolRef(value){
   if(!value)return null;

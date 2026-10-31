@@ -45,7 +45,7 @@ const locs=[{id:'LOC-B',name:'[TEST] Zeta Marsh',revealed:true,resources:[mk('b1
   {id:'LOC-A',name:'[TEST] Alpha Hills',revealed:false,resources:[mk('a1','[TEST] Bank game','Skinning & Harvesting',1),mk('a2','[TEST] Mid pool','Fishing',3),mk('a3','[TEST] Aaa weed','Herbalism',1)]}];
 const locApi={listLocations:()=>structuredClone(locs),resourcesAt:id=>structuredClone(locs.find(l=>l.id===id)?.resources??[]),markNodeExhausted:async()=>{}};
 const pc={id:'pa',name:'[TEST] Pa',type:'character',hasPlayerOwner:true,items:[],flags:{},system:{skills:{},tools:{},abilities:{}},testUserPermission:()=>true};
-const ledgerModule={active:true,version:'0.43.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.42.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:[gm,alice],get:id=>[gm,alice].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:[],get:()=>null},actors:{contents:[pc],get:id=>id==='pa'?pc:null},journal:journals,
   socket:{emit:(n,m)=>sent.push(m),on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:id==='ashen-gate-locations'?{active:true,version:'0.20.4',api:locApi}:null},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};

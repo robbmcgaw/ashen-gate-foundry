@@ -16,7 +16,7 @@ import {confirmDialog,confirmDanger,formDialog,guardDirty,infoDialog} from './ag
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindRadioGroups,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,looseToolName,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
-  TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups,skillKeyOf,skillProficiency} from './checks.mjs';
+  TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
 import {signatureOf,tiersCrossed,signaturePlan,signatureTierName,signatureTierLevel} from './signature-perks.mjs';
 import {planRefresh,cantTellTokens,REFRESH_SNAPSHOT_SCHEMA,RECIPE_NON_TEXT} from './refresh.mjs';
@@ -29,7 +29,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,exhaustsNode,checkGa
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {advantageText,planRound,catalogPool,nodePool,eligibleRollers,selectionKeys,selectionTiers,tiersText,roundDC,stripLead,needsManual,bestResult} from './round.mjs';
 import {revealHtml} from './reel.mjs';
-import {snapshotItem,readRecipePreviews,storedRecipePreviews,samePreviews,cleanDescription,resolveEnrichers} from './result-preview.mjs';
+import {snapshotItem,readRecipePreviews,storedRecipePreviews,samePreviews} from './result-preview.mjs';
 import {readHistory,storedHistory,upsertEntry,removeEntry,setRowXp,humanWhen,HISTORY_MAX} from './gather-history.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
@@ -37,7 +37,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.43.0';
+const VERSION='0.42.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1217,14 +1217,6 @@ function activityAccess(recipe){
  * 0.28.0: an activity's tools are alternatives, so it says the character has none of them. */
 const lacksText=(req,actor)=>req.anyOf?`${actor.name} carries none of these`:req.activity?(req.tools.length>1?`${actor.name} has none of these`:`${actor.name} doesn’t have this`)
   :req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
-/** 0.43.0: the "Check <skill>" chip. With a character, it turns green with the words Proficient or Expertise (and a tooltip) when the
- * character is proficient in that skill, like the tool's Carried badge; half proficiency (Jack of All Trades) and no proficiency stay neutral. */
-function skillCheckPart(skill,actor){
-  const key=skillKeyOf(skill),name=key?skillLabel(key):String(skill??''),level=actor&&key?skillProficiency(actor,key):'none';
-  const state=level==='expertise'?{word:'Expertise',tip:`Expertise in ${name}`}:level==='proficient'?{word:'Proficient',tip:`Proficient in ${name}`}:null;
-  const badgeHtml=state?`<span class="ag-badge ag-badge--ok agl-skill-state" ${tip(state.tip)}><i class="fa-solid fa-check" aria-hidden="true"></i> ${state.word}</span>`:'';
-  return `<span class="agl-station agl-check${state?' is-proficient':''}" data-skill="${esc(key??'')}"${state?` data-proficiency="${level}"`:''}><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agl-label agl-label--inline">Check</span> <span>${esc(name)}</span>${badgeHtml?` ${badgeHtml}`:''}</span>`;
-}
 function requirementHTML(req,actor){
   const parts=[];
   if(req.tool){
@@ -1234,9 +1226,9 @@ function requirementHTML(req,actor){
     parts.push(`<span class="agl-station"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">${req.activity?'Uses':'Tool'}</span> <span>${esc(text)}</span>${state?` ${state}`:''}</span>`);}
   if(req.workstation)parts.push(`<span class="agl-station"><i class="fa-solid fa-warehouse" aria-hidden="true"></i><span class="agl-label agl-label--inline">Station</span> <span>${esc(req.workstation)}</span></span>`);
   // 0.37.12: no tool and no station, but the profession's check is a skill (GM Setup mapping): say which check, not "None needed".
-  if(!parts.length&&!req.activity&&req.skill)parts.push(skillCheckPart(req.skill,actor));
+  if(!parts.length&&!req.activity&&req.skill)parts.push(`<span class="agl-station"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agl-label agl-label--inline">Check</span> <span>${esc(skillLabel(req.skill))}</span></span>`);
   // 0.38.0: a GM-applied enchantment always names its check (Enchanting rolls the Arcana skill), even with no tool or station.
-  if(req.gmApplied&&req.skill)parts.push(skillCheckPart(req.skill,actor));
+  if(req.gmApplied&&req.skill)parts.push(`<span class="agl-station"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agl-label agl-label--inline">Check</span> <span>${esc(skillLabel(req.skill))}</span></span>`);
   if(!parts.length&&!req.activity)parts.push('<span class="agl-station agl-sub"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i><span class="agl-label agl-label--inline">Tool or station</span> <span>None needed</span></span>');
   return parts.length?`<div class="agl-recipe-station">${parts.join('')}</div>`:'';
 }
@@ -1270,9 +1262,7 @@ function releasedSnapshot(sourceId,entityType){
   if(!sourceId)return null;
   const hit=lookupWorldDefinition(game,sourceId,{entityType});
   if(hit?.status!=='ok'||hit.source?.visibility!=='player'||hit.source?.status!=='approved')return null;
-  const snap=snapshotItem(hit.document.toObject?.()??hit.document);
-  // 0.43.0: the canonical id (never shown), so the viewer's client can open the real sheet when their permission allows it.
-  return snap?{...snap,sourceId:String(sourceId)}:null;
+  return snapshotItem(hit.document.toObject?.()??hit.document);
 }
 /** GM: the preview of one recipe, from the world Items and the recipe definition. */
 function buildRecipePreview(recipe,lib){
@@ -1280,7 +1270,7 @@ function buildRecipePreview(recipe,lib){
   return {result:recipe.resultItemId?releasedSnapshot(recipe.resultItemId,'Item'):null,
     ingredients:(recipe.hasStructuredIngredients?recipe.ingredients:[]).map(ing=>{
       const snap=releasedSnapshot(ing.materialId,'Material');
-      return {name:snap?.name??ingredientName(ing,lib),img:snap?.img??'',type:snap?.type??'Material',text:(snap?.text??'').slice(0,300),html:snap?.html??'',price:'',quantity:ing.quantity,...(snap?.sourceId?{sourceId:snap.sourceId}:{})};}),
+      return {name:snap?.name??ingredientName(ing,lib),img:snap?.img??'',type:snap?.type??'Material',text:(snap?.text??'').slice(0,300),price:'',quantity:ing.quantity};}),
     tools:req.tool?req.toolLabel:'',workstation:recipe.workstation??''};
 }
 /** GM: refresh one character's previews for the recipes it knows (released recipes only). Writes only when something changed. Idempotent. */
@@ -1337,34 +1327,14 @@ function previewButton(actor,recipeId,part,snap,ctx=''){
   if(!snap?.name)return '';
   return `<button type="button" class="ag-link agl-item-link agl-preview-link" data-action="preview-item" data-actor="${esc(actor.id)}" data-key="${esc(ctxKey(recipeId))}" data-part="${esc(part)}" data-ctx="${esc(ctx)}" ${tip('Show details')}>${snap.img?`<img class="agl-item-thumb" src="${esc(snap.img)}" alt="" width="20" height="20"> `:''}${esc(snap.name)}</button>`;
 }
-/** The short line in the read-only popup: the viewer cannot open the real item sheet. */
-const PREVIEW_NOTE='You can only preview this item.';
-/** 0.43.0: a name for a label-less content link, only when this user may see that document (GM, or at least Observer). Never an id. */
-function linkName(ref){
-  try{
-    const doc=globalThis.fromUuidSync?.(String(ref));
-    if(!doc?.name)return null;
-    return game.user?.isGM||doc.testUserPermission?.(game.user,'OBSERVER')===true?doc.name:null;
-  }catch{return null;}
-}
-/** 0.43.0: the popup's body for one snapshot: picture, type and price, the one-line note, then the description as safe HTML
- * (headings, lists and tables kept; @UUID/@AGRef links shown as their names, never as markup). Old snapshots without HTML show their text lines. */
-function previewBodyHtml(p,{note=true}={}){
-  const html=p.html?cleanDescription(p.html,linkName):(p.text?p.text.split('\n').map(l=>`<p>${cleanDescription(l,linkName)}</p>`).join(''):'');
-  return `<div class="agl-preview">${p.img?`<img src="${esc(p.img)}" alt="" width="64" height="64" class="agl-preview__img">`:''}<p class="agl-sub">${esc([p.type,p.price].filter(Boolean).join(' · '))}</p>${note?`<p class="agl-sub agl-preview__note">${PREVIEW_NOTE}</p>`:''}<div class="agl-preview__text">${html||'<p class="agl-sub">No description yet.</p>'}</div></div>`;
-}
 async function openPreview(button){
   const actor=game.actors?.get?.(button.dataset.actor);
   if(!actor||!(game.user.isGM||actor.testUserPermission?.(game.user,'OBSERVER')===true))return say('That item can’t be shown.',true);
   const entry=Object.entries(actorPreviews(actor)).find(([id])=>ctxKey(id)===button.dataset.key)?.[1];
   const part=String(button.dataset.part??''),p=part==='result'?entry?.result:entry?.ingredients?.[Number(part.slice(1))];
   if(!p)return say('That item can’t be shown.',true);
-  // 0.43.0: if this user may open the real item now (permission changed since the card was drawn), open its sheet, not the popup.
-  if(p.sourceId){
-    const access=itemAccess(p.sourceId,/^MAT-/.test(p.sourceId)?'Material':'Item');
-    if(access.state==='ok'&&access.doc?.sheet?.render){await access.doc.sheet.render(true);return;}
-  }
-  await infoDialog(p.name,previewBodyHtml(p));
+  const body=`<div class="agl-preview">${p.img?`<img src="${esc(p.img)}" alt="" width="64" height="64" class="agl-preview__img">`:''}<p class="agl-sub">${esc([p.type,p.price].filter(Boolean).join(' · '))}</p>${p.text?p.text.split('\n').map(l=>`<p>${esc(l)}</p>`).join(''):'<p class="agl-sub">No description yet.</p>'}</div>`;
+  await infoDialog(p.name,body);
   // Put focus back on the button that opened it (the window may have re-rendered meanwhile).
   const again=globalThis.document?.querySelector?.(`[data-action="preview-item"][data-actor="${button.dataset.actor}"][data-key="${button.dataset.key}"][data-part="${part}"][data-ctx="${button.dataset.ctx??''}"]`);
   (again??button).focus?.();
@@ -1515,44 +1485,7 @@ const BIG_FOLDER_ROWS=40;
 const lazyKeyOf=el=>el?.dataset?.lazy??el?.dataset?.tree??'';
 /** 0.41.0: the GM Recipe Catalog builds its recipe cards after the window shows when more than this many recipes are listed (a shorter list is built at once: it is quick, and nothing flashes in). */
 const LAZY_MIN_RECIPES=120;
-/* ---- 0.43.0: collapsible profession headers on the recipe list (Individual, Tidy5e tab, Character Hub embed) ----------------
- * Each header is a real button (aria-expanded, aria-controls) that folds its recipe cards. Open or shut is remembered per user on this
- * device (uiState, never world data), keyed by the profession; the default is open. Toggling changes the DOM in place, so focus stays put. */
-let groupClosedMemory=null;
-const groupClosedState=()=>{if(!groupClosedMemory){let v=null;try{v=uiState(ID).get('recipeGroupsClosed',{});}catch{v=null;}groupClosedMemory=v&&typeof v==='object'&&!Array.isArray(v)?{...v}:{};}return groupClosedMemory;};
-/** A short key for a profession group: safe in a selector, and what is stored. */
-const groupStateKey=key=>String(key??'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60)||'group';
-const groupOpen=key=>groupClosedState()[groupStateKey(key)]!==true;
-function setGroupOpen(key,open){
-  const st=groupClosedState(),k=groupStateKey(key);
-  if(open)delete st[k];else st[k]=true;
-  try{uiState(ID).set('recipeGroupsClosed',st);}catch{}
-}
-/** Shows or hides one group in the DOM and keeps its button in step. */
-function applyGroupState(section,open){
-  const btn=section?.querySelector?.('[data-action="group-toggle"]'),body=section?.querySelector?.('.agl-group__body');
-  if(body)body.hidden=!open;
-  btn?.setAttribute?.('aria-expanded',String(open));
-  section?.classList?.toggle?.('is-closed',!open);
-}
-/** Click on a profession header button (any surface). Returns true when it handled the click. A search in progress opens the matching groups
- * on its own and is not remembered; the click then only changes what the search shows. */
-function groupToggleClick(button){
-  if(button?.dataset?.action!=='group-toggle')return false;
-  const section=button.closest?.('[data-agl-group]');if(!section)return true;
-  const open=button.getAttribute?.('aria-expanded')!=='true';
-  applyGroupState(section,open);
-  if(!section.dataset.searching)setGroupOpen(section.dataset.aglGroup,open);
-  return true;
-}
-/** 0.43.0: one profession group as a header button over its recipe cards. */
-function groupSection(g,word){
-  const id=`agl-grp-${groupStateKey(g.key)}`,open=groupOpen(g.key);
-  return `<section class="agl-group${open?'':' is-closed'}" data-agl-group="${esc(g.key)}">
-    <h4 class="agl-group__head"><button type="button" class="agl-group__toggle" data-action="group-toggle" data-key="${esc(groupStateKey(g.key))}" aria-expanded="${open}" aria-controls="${id}"><i class="fa-solid fa-chevron-down agl-group__chev" aria-hidden="true"></i><strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}${esc(word)}</span></button></h4>
-    <div class="agl-group__body agl-folder-body" id="${id}"${open?'':' hidden'}>${g.rows.map(r=>r.html).join('')}</div></section>`;
-}
-function folders(rows,closed=new Set(),{buttons=false}={}){
+function folders(rows,closed=new Set()){
   if(!rows.length)return '';
   const groups=new Map();
   for(const row of rows){const key=norm(row.group)||'unassigned';if(!groups.has(key))groups.set(key,{key,name:row.group||'Unassigned profession',order:row.order,rows:[]});groups.get(key).rows.push(row);}
@@ -1560,7 +1493,6 @@ function folders(rows,closed=new Set(),{buttons=false}={}){
   // such folders remember being opened as `open:<key>`. Search still opens the folders that match.
   const big=rows.length>BIG_FOLDER_ROWS;
   const isOpen=g=>big?closed.has(`open:${g.key}`):!closed.has(g.key);
-  if(buttons)return [...groups.values()].sort((a,b)=>(a.order??0)-(b.order??0)||a.name.localeCompare(b.name)).map(g=>groupSection(g,folderWord(g))).join('');
   return [...groups.values()].sort((a,b)=>(a.order??0)-(b.order??0)||a.name.localeCompare(b.name)).map(g=>`<details class="agl-folder" data-folder="${esc(g.key)}" ${big?'data-big ':''}${isOpen(g)?'open':''}>
     <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}${esc(folderWord(g))}</span></summary>
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
@@ -1663,7 +1595,7 @@ function favJumpClick(button){
   const row=star?.closest?.('.agl-recipe-row');
   if(!row)return true;
   if(row.hidden){say('That recipe is hidden by the search. Clear the search to see it.',true);return true;}
-  for(let el=row.parentElement;el;el=el.parentElement){if(el.tagName==='DETAILS')el.open=true;else if(el.dataset?.aglGroup!==undefined){applyGroupState(el,true);setGroupOpen(el.dataset.aglGroup,true);}}
+  for(let el=row.parentElement;el;el=el.parentElement)if(el.tagName==='DETAILS')el.open=true;
   row.scrollIntoView?.({block:'center'});
   star.focus?.();
   return true;
@@ -1722,7 +1654,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
       <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
         ${refreshButton||(surface==='app'&&knownRows.length+toLearn.length>1)||(surface==='app'&&canFav&&allKnown.length)?`<div class="ag-btn-group agl-folder-actions">${refreshButton}${surface==='app'&&canFav&&allKnown.length?`<button type="button" class="ag-chip" data-action="fav-only" aria-pressed="${favOnly?'true':'false'}" ${tip('Show only starred recipes')}>Favorites only (${favShown.length})</button>`:''}${surface==='app'&&knownRows.length+toLearn.length>1?`<button type="button" class="ag-btn ag-btn--sm" data-action="details-expand"><i class="fa-solid fa-angles-down" aria-hidden="true"></i> Expand all</button><button type="button" class="ag-btn ag-btn--sm" data-action="details-collapse"><i class="fa-solid fa-angles-up" aria-hidden="true"></i> Collapse all</button>`:''}</div>`:''}${goneNote}${replacedNote}
-        ${folders(knownRows,closed,{buttons:true})||(favOnly&&canFav&&allKnown.length?emptyState('No favorite recipes yet.','Star a recipe, or turn off Favorites only to see them all.'):emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.'))}
+        ${folders(knownRows,closed)||(favOnly&&canFav&&allKnown.length?emptyState('No favorite recipes yet.','Star a recipe, or turn off Favorites only to see them all.'):emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.'))}
         ${hiddenKnown>0?`<p class="agl-sub">${game.user.isGM?`${plural(hiddenKnown,'known recipe is','known recipes are')} not in this world’s recipe catalog, so ${hiddenKnown===1?'it isn’t':'they aren’t'} listed and can’t be crafted. Import ${hiddenKnown===1?'it':'them'} with General Manager.`
           :`${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now: your GM hasn’t released ${hiddenKnown===1?'it':'them'} in this world yet, so ${hiddenKnown===1?'it':'they'} can’t be crafted.`}</p>`:''}
       </div>
@@ -3917,9 +3849,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Recipe Catalog:</strong> recipes your party has found or learned, in folders by profession, each with tier groups from Apprentice to Master (press a tier’s name to collapse it; Expand all and Collapse all are in the toolbar)${game.user.isGM?'. As GM you see every recipe, with drafts marked. <b>Filters</b> opens the filters (each with counts), Sort by with its direction button and Group by; the search also finds ingredients and who knows a recipe, and your choices are remembered on this device':''}.</p>
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Request gather:</strong> when Locations tracks Active places, you can only ask to gather at places your GM has set Active; if there are none, ask your GM where the party is.</p>
-    <p><strong>What a recipe makes:</strong> on a recipe you know, the Makes item and the ingredients are buttons; press one to open the item itself when you are allowed to. When you are not, it shows a read-only preview (picture, type, price and description) with a note saying so. The GM keeps these previews up to date on your character.</p>
-    <p><strong>Profession headers:</strong> each profession above your recipes is a button; press it to fold or unfold its recipe cards. Open or shut is remembered for you on this device, and every profession starts open.</p>
-    <p><strong>Skill checks:</strong> a recipe whose check is a skill shows <em>Proficient</em> (or <em>Expertise</em>) in green when your character is proficient in that skill. Half proficiency does not count.</p>
+    <p><strong>What a recipe makes:</strong> on a recipe you know, the Makes item and the ingredients are buttons; press one to see its picture, type, price and description. The GM keeps these previews up to date on your character, so you do not need to be able to open the item in Foundry.</p>
     <p><strong>Who rolls:</strong> the GM chooses which eligible characters are included in a gather; only included characters are offered a roll, and you may be added or taken out while it is open.</p>
     <p><strong>Gathering:</strong> when the GM opens a gather, every character who holds one of the chosen gathering professions can roll one check (your own skill or tool bonus, advantage preset from the sheet). Roll from the popup or from Gathering. When the GM reveals the results, a slot-machine reel lands on what each successful character found. <em>Skip animation</em> jumps to the result, and with reduced motion on you get a plain list. Nothing is given until the GM presses Give loot; the result is posted in chat. You can also pick a gathering spot at a location your party knows and press <b>Request gather</b>: it waits in the GM’s Requests list until they approve or decline (with a reason).</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
@@ -4365,7 +4295,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         // Gathering nodes shares Gathering's sub-tab row but is its own view (it has an editor and a footer).
         if(game.user.isGM&&sub.id.startsWith('agl-gather-')&&(sub.dataset.tab==='nodes'||this.view==='nodes')){void this._click('gather-tab',sub.dataset.tab);return;}
         this._showSubTab(sub);return;}
-      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
+      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
       // 0.27.0: a Tools and checks cell's checkbox list opens and closes in place (no re-render, the draft is untouched).
       if(b.dataset.action==='map-pick'||b.dataset.action==='map-pick-done'){const picker=b.closest('[data-map-picker]');
         this._toggleMapPicker(picker,b.dataset.action==='map-pick'&&picker?.querySelector('.agl-mpick__pop')?.hidden!==false);return;}
@@ -4500,13 +4430,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       // A match opens its collapsed details (not remembered); clearing the search puts back what was remembered.
       const d=row.querySelector?.('details[data-recipe-details]');
       if(d)d.open=query?!row.hidden:d.dataset.storedOpen!=='0';
-    }
-    // 0.43.0: profession groups: a search shows the groups with a match (not remembered); clearing it puts back what was remembered.
-    for(const g of root.querySelectorAll('[data-agl-group]')){
-      const rows=[...g.querySelectorAll('[data-recipe-search]')];
-      g.hidden=Boolean(query)&&rows.length>0&&rows.every(r=>r.hidden);
-      g.dataset.searching=query?'1':'';
-      applyGroupState(g,query?!g.hidden:groupOpen(g.dataset.aglGroup));
     }
     for(const folder of root.querySelectorAll('[data-folder]')){
       const rows=[...folder.querySelectorAll('[data-recipe-search]')],tree=folder.dataset.tree!==undefined;
@@ -4958,17 +4881,15 @@ function renderSheetTab(params){
   const actor=params?.app?.actor??params?.app?.document??params?.data?.actor;
   if(!target||!actor)return;
   if(!canOpenLedger()){target.innerHTML=emptyState('The GM has hidden the Profession Ledger.');return;}
-  const kept=captureFocus(target);
   target.innerHTML=`<div class="agl-sheet ag-app"><div class="agl-sheet-head"><strong>Professions</strong><button type="button" class="ag-btn ag-btn--sm" data-action="open-ledger">Open Profession Ledger</button></div>${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
   bindFolds(target,uiState(ID));
   bindRadioGroups(target);
-  restoreFocus(target,kept);
   if(target.dataset.aglBound)return;
   target.dataset.aglBound='1';
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
-    if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
       if(b.dataset.action==='fav-recipe'||b.dataset.action==='fav-profession'){const kept=captureFocus(target);await favoriteClick(b);renderSheetTab({...params,tabContentsElement:target});restoreFocus(target,kept);return;}
@@ -5003,18 +4924,17 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
   ctrl.render=()=>{
     if(!ctrl.mounted)return;
     if(element.isConnected===false){ctrl.unmount();return;}
-    const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor),kept=captureFocus(element);
+    const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
     element.innerHTML=refusal?emptyState(esc(refusal))
       :`<div class="agl-sheet agl-embed__body">${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
     if(!refusal){bindFolds(element,uiState(ID));bindRadioGroups(element);}
-    restoreFocus(element,kept);
   };
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agl-embed');};
   element.addEventListener('click',async e=>{
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
-    if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
+    if(xpModeClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
@@ -5243,7 +5163,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(message,html);}catch(err){console.warn(`[${ID}] enchanting card controls`,err);}});
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
-export const _test={groupToggleClick,groupOpen,applyGroupState,requirementHTML,skillCheckPart,previewBodyHtml,openPreview,captureFocus,restoreFocus,materialBadge,materialOptions,favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
+export const _test={materialBadge,materialOptions,favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,presentLedger,resetLastGather:()=>{lastGather=null;lastDismissed=undefined;},getHistory,clearGatherHistory,clearLastGather,gmLastGather,dismissLastGather,refreshSoon,inRenderPass,passMemo,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
