@@ -169,6 +169,6 @@ test('wiring and version', () => {
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   assert.match(tpl, /Make materials visible to players…/);
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.89.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.89.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
-  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.89\.0 /);
+  assert.equal(m.version, '0.90.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.90.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.90\.0 /);
 });

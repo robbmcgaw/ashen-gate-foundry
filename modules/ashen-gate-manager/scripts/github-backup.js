@@ -13,9 +13,11 @@
  *    step leaves the branch as it was; a new branch is only created at the very end, pointing at the finished commit.
  *  - Which types are backed up is the GM's choice (0.87.0). A type left out is not written and is not removed from the branch:
  *    the commit is a tree on top of the branch's tree that replaces only the files that were written, so earlier files stay.
- *  - Each file is in the format the content pack's reconcile script reads: Quests are Quest Log's own Export JSON
+ *  - Each content file is in the format the content pack's reconcile script reads: Quests are Quest Log's own Export JSON
  *    (`ag-quest-source/0.1`), Factions and deities are Renown's own Export (`ag-factions-source-export/0.4`), Locations and
  *    Shops are their modules' export packages, and edited records are Manager's `ag-world-edits/0.1` bundle.
+ *  - Renown standings (0.90.0, `standings.json`) are PLAY STATE, not content: Renown's `api.exportState()` in its own schema
+ *    `ag-factions-state-export/0.1`, which the reconcile script does not read (it lists and skips unknown formats).
  *  - Each module's data comes from its public api (`game.modules.get(id)?.api`), feature-detected. A module that is missing,
  *    inactive or has no such api is skipped with a reason; nothing reaches into another module's internals.
  *
@@ -114,22 +116,28 @@ export const BACKUP_TYPES = Object.freeze([
   {id: 'locations', label: 'Locations', source: 'locations'},
   {id: 'quests', label: 'Quests, Orders and Contracts', source: 'quests'},
   {id: 'factions', label: 'Factions and deities', source: 'factions'},
-  {id: 'shops', label: 'Shops', source: 'shops'}
+  {id: 'shops', label: 'Shops', source: 'shops'},
+  {id: 'standings', label: 'Renown standings and claims', source: 'standings'}
 ]);
 export const ALL_TYPE_IDS = Object.freeze(BACKUP_TYPES.map(t => t.id));
+/** The types that existed before 0.90.0. A selection remembered before then did not know the newer ones, so they start ticked. */
+const LEGACY_TYPE_IDS = Object.freeze(ALL_TYPE_IDS.filter(id => id !== 'standings'));
 const cleanSelection = list => ALL_TYPE_IDS.filter(id => Array.isArray(list) && list.includes(id));
 
 /** The types ticked last time on this device; every type when nothing was remembered. */
 export function loadBackupSelection(user, {store} = {}) {
   if (!isGM(user)) return denied({selection: [...ALL_TYPE_IDS]});
   const stored = readStore(store, 'types', {}) ?? {};
-  return {ok: true, selection: Array.isArray(stored.types) ? cleanSelection(stored.types) : [...ALL_TYPE_IDS]};
+  if (!Array.isArray(stored.types)) return {ok: true, selection: [...ALL_TYPE_IDS]};
+  // A type added after this choice was saved (not in `seen`) is new to the GM: ticked by default, until they untick it once.
+  const seen = Array.isArray(stored.seen) ? stored.seen : LEGACY_TYPE_IDS;
+  return {ok: true, selection: ALL_TYPE_IDS.filter(id => stored.types.includes(id) || !seen.includes(id))};
 }
 /** Remembers the selection on this device only (a client setting). Unknown ids are dropped. */
 export async function saveBackupSelection(user, {store, selection} = {}) {
   if (!isGM(user)) return denied();
   const types = cleanSelection(selection);
-  try { await store.set(BACKUP_SETTINGS.types, {types}); } catch { return {ok: false, message: 'Your choice could not be remembered on this device.'}; }
+  try { await store.set(BACKUP_SETTINGS.types, {types, seen: [...ALL_TYPE_IDS]}); } catch { return {ok: false, message: 'Your choice could not be remembered on this device.'}; }
   return {ok: true, selection: types};
 }
 
@@ -184,7 +192,7 @@ const SOURCES = [
   // Renown's Export (ag-factions-source-export/0.4): faction and deity definitions, no standings.
   {id: 'factions', ids: ['factions'], path: 'factions.json', label: 'Factions and deities (Renown), definitions only',
     module: 'ashen-gate-factions',
-    note: 'Renown standings are not included.',
+    note: 'Definitions only; standings are a separate type.',
     build: (game, now, {api}) => {
       const exportDefinitions = fn(api, 'exportDefinitions');
       if (!exportDefinitions) throw new Skip('this version of Renown has no definitions export; update Renown');
@@ -195,6 +203,15 @@ const SOURCES = [
       const exportShops = fn(api, 'shops', 'exportShops');
       if (!exportShops) throw new Skip('this version of Utilities has no shop export');
       return {data: exportShops.call(api.shops)};
+    }},
+  // Renown's play state (ag-factions-state-export/0.1): standings, claims, requests, reveals, membership, Vows. Not content.
+  {id: 'standings', ids: ['standings'], path: 'standings.json', label: 'Renown standings and claims (Renown), play state',
+    module: 'ashen-gate-factions',
+    note: 'Play state, not content.',
+    build: (game, now, {api}) => {
+      const exportState = fn(api, 'exportState');
+      if (!exportState) throw new Skip('this version of Renown has no standings export; update Renown');
+      return {data: exportState.call(api)};
     }}
 ];
 const labelOf = id => BACKUP_TYPES.find(t => t.id === id)?.label ?? id;

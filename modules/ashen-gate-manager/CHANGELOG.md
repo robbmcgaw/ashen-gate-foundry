@@ -1,3 +1,9 @@
+## 0.90.0 — 2026-10-31
+
+- **Back up world now… can include Renown standings.** New tick box **Renown standings and claims**, ticked by default (a choice you saved earlier keeps its other ticks; only this new box starts ticked). It writes `world-backup/standings.json` from Renown's `exportState()`: each faction's and character's standing and rank, claims, requests, uses and choices, who has discovered what, who is recruited, and Vows, in the schema `ag-factions-state-export/0.1`. This is **play state**, not content; the content reconcile does not read it. It is skipped with a plain reason when Renown is missing, off or older than 0.27.0 ("update Renown"). It uses the same write path as the other types: private repository only, never the default branch, one commit, the token never in any message, and a box you leave unticked is neither written nor removed from the branch. The dialog hint and Help say it holds play state.
+- Needs Renown 0.27.0 for the standings file; every other backup type is unchanged.
+- Tests are mocked Foundry and a mocked GitHub; the live dialog and a real commit have not been seen.
+
 ## 0.89.0 — 2026-10-31
 
 Two small features: imported Materials are readable by players, and a Recipe can say what its extra gold pays for. No stored data is rewritten by an import; the maintenance action below is opt-in.

@@ -14,6 +14,7 @@ const mkStore = (init = {}) => { const data = {backupToken: TOKEN, backupConfig:
 const doc = (id, name, extra = {}) => ({id, name, uuid: `X.${id}`, ...extra});
 const QUEST_PKG = {schema_version: 'ag-quest-source/0.1', domain: 'quests_orders', version: '0.4.0', records: [{id: 'QUEST-TEST', name: '[TEST] Quest'}]};
 const FAC_PKG = {schema_version: 'ag-factions-source-export/0.4', definitions: [{id: 'FAC-TEST'}], note: 'Excludes all mutable campaign state and user discovery state.'};
+const STATE_PKG = {schema_version: 'ag-factions-state-export/0.1', factions: [], personal: []};
 const LOC_PKG = {manifest: {package_id: 'PKG-TEST'}, records: [{id: 'LOC-TEST'}]};
 const SHOP_PKG = {schema_version: 'ag-foundry-import/0.2', records: [{id: 'SHOP-TEST', record_type: 'Shop'}]};
 
@@ -21,7 +22,7 @@ function mkGame(mods = {}) {
   const modules = {
     'ashen-gate-locations': {active: true, api: {exportPackage: () => LOC_PKG}},
     'ashen-gate-quest-manager': {active: true, api: {exportSource: () => QUEST_PKG}},
-    'ashen-gate-factions': {active: true, api: {exportDefinitions: () => FAC_PKG}},
+    'ashen-gate-factions': {active: true, api: {exportDefinitions: () => FAC_PKG, exportState: () => STATE_PKG}},
     'ashen-gate-utilities': {active: true, api: {shops: {exportShops() { return SHOP_PKG; }}}},
     ...mods
   };
@@ -67,7 +68,7 @@ test('Quest Log or Renown too old to export is skipped with a plain reason; the 
   const why = Object.fromEntries(p.skipped.map(s => [s.label.split(/\W/)[0], s.reason]));
   assert.match(why.Quests, /no source export; update Quest Log/);
   assert.match(why.Factions, /no definitions export; update Renown/);
-  assert.deepEqual(p.types.filter(t => !t.available).map(t => t.id), ['quests', 'factions']);
+  assert.deepEqual(p.types.filter(t => !t.available).map(t => t.id), ['quests', 'factions', 'standings']);
 });
 
 test('an export that throws (a player, say) is skipped without leaking its message', () => {
@@ -109,10 +110,10 @@ test('a type left unticked is not written and not removed from the branch', asyn
 test('the selection is remembered per device: all by default, saved, cleaned, GM only', async () => {
   const store = mkStore();
   assert.deepEqual(bk.loadBackupSelection(GM, {store}).selection, bk.ALL_TYPE_IDS);
-  assert.equal(bk.ALL_TYPE_IDS.length, 9);
+  assert.equal(bk.ALL_TYPE_IDS.length, 10);
   const saved = await bk.saveBackupSelection(GM, {store, selection: ['shops', 'Item', 'bogus', 'Item']});
   assert.deepEqual(saved.selection, ['Item', 'shops']);
-  assert.deepEqual(store.data.backupTypes, {types: ['Item', 'shops']});
+  assert.deepEqual(store.data.backupTypes, {types: ['Item', 'shops'], seen: bk.ALL_TYPE_IDS});
   assert.deepEqual(bk.loadBackupSelection(GM, {store}).selection, ['Item', 'shops']);
   assert.equal(bk.BACKUP_SETTINGS.types, 'backupTypes');
   // Garbage in the setting falls back to everything.
@@ -129,7 +130,7 @@ test('the confirmation has one tick box per available type, remembered ones tick
   const plan = bk.collectBackup(g);
   const [field] = confirmFields(plan, {repo: 'owner/priv', branch: 'world-backup'}, ['Item', 'quests']);
   assert.equal(field.type, 'checklist'); assert.equal(field.name, 'types');
-  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro', 'locations', 'quests', 'factions']);
+  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro', 'locations', 'quests', 'factions', 'standings']);
   assert.deepEqual(field.options.filter(o => o.checked).map(o => o.value), ['Item', 'quests']);
   assert.match(field.hint, /unticked is not written/);
   assert.match(field.hint, /private/); assert.match(field.hint, /default branch/);
@@ -146,5 +147,5 @@ test('wiring: dialog is a form dialog with Back up as the action, choice saved o
   assert.match(main, /not written and not removed/);
   assert.match(main, /one tick box per type/);
   assert.doesNotMatch(main, /sends five files/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.89.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.90.0');
 });
