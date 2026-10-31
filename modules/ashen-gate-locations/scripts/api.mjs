@@ -126,6 +126,14 @@ export function createApi(deps) {
     return v?.state === 'revealed' && v.id ? travelOptions(v.travelScenes, {resolve: deps.resolveScene, user}) : [];
   };
 
+  // 0.42.1: the Player Preview's Travel chip. GM only. Counts the scenes a player's view would offer: the draft's travel-switched scenes (`travelScenes` of the
+  // previewed Revealed view), only when Player Access is on, only those that resolve. A player's per-scene viewing permission is not applied (the preview
+  // has no single player to test it for), so a scene a particular player cannot open may still show here. Unlike travelFor it never uses the linked-scene list.
+  const previewTravelFor = uuids => {
+    if (!deps.resolveScene || !deps.playerAccessEnabled()) return [];
+    return travelOptions(uuids, {resolve: deps.resolveScene, user: {isGM: true}});
+  };
+
   const api = {
     version: deps.version,
     GATHERING,
@@ -327,6 +335,11 @@ export function createApi(deps) {
     previewLocation(draft, state) {
       requireGM();
       return previewView(draft, deps.readAll(), state, deps.viewOptions?.());
+    },
+    /** 0.42.1, GM: how many scenes the Player Preview's Travel chip stands for, given a previewed view's `travelScenes`. Names nothing. */
+    previewTravelCount(uuids) {
+      requireGM();
+      return previewTravelFor(uuids).length;
     },
     /** Marks a finite node used up (or restores it with exhausted=false). Returns the GM node. */
     async markNodeExhausted(locationId, nodeId, exhausted = true) {
