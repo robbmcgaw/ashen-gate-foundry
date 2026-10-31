@@ -115,6 +115,24 @@ export async function writeAll(list) {
   return locations;
 }
 
+/**
+ * GM only (0.39.0): Travel's secret part {mounted, announce, conditions}, in the GM Data Journal's `overland` flag (ownership NONE for players).
+ * World settings are readable by every client, so these never go in the `overland` setting. The Journal is created on demand.
+ */
+export function readOverlandSecret() {
+  assertGM();
+  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'overland');
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? structuredClone(raw) : {};
+}
+export async function writeOverlandSecret(secret) {
+  assertGM();
+  const doc = byRole(ROLE_GM);
+  if (doc) await doc.update({[`flags.${MODULE_ID}.overland`]: secret});
+  else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
+    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, overland: secret}}});
+  return secret;
+}
+
 /** GM, read only (0.20.0): the routes Locations 0.19.0 and earlier stored, as plain copies. Never written or deleted. */
 export function readStoredRoutes() {
   assertGM();

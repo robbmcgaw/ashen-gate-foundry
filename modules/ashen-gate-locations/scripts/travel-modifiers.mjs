@@ -1,7 +1,7 @@
 /**
  * The `travel` modifier scope (0.37.0): Locations is its owner. Items (ITEM-*) and perks (PERK-*) carry an `ag-modifiers/0.1` block
  * (docs/modifiers-schema.md); this file checks the entries General Manager hands to api.modifiers.validate, and adds up what the party
- * carries for the Overland tab. Pure data: no Foundry globals, so scripts/validate-content.mjs can import it too.
+ * carries for the Travel tab. Pure data: no Foundry globals, so scripts/validate-content.mjs can import it too.
  * Nothing here is automatic play: the numbers are shown to the GM, who adjudicates.
  */
 import {CONDITION_IDS, unknownConditionMessage} from './overland-conditions.mjs';
@@ -10,7 +10,7 @@ export const MODIFIER_CONTRACT = 'ag-modifier/1';
 export const MODIFIER_SCOPE = 'travel';
 
 export const TERRAINS = Object.freeze(['difficult-terrain', 'marsh', 'forest', 'hills', 'grassland', 'road']);
-/** The six conditions and hazards live in overland-conditions.mjs (0.38.0); this alias keeps the old export name. */
+/** The six conditions live in overland-conditions.mjs (0.38.0); this alias keeps the old export name. */
 export const CONDITIONS = CONDITION_IDS;
 /** Closed set for applies.when. `mounted` follows the GM's Mounted switch; `familiar_terrain` is the GM's call (never added up). */
 export const WHEN = Object.freeze(['mounted', 'familiar_terrain']);
@@ -82,7 +82,7 @@ export function validateModifiers(entries, {recordId = '?'} = {}) {
     const modifier = {...(plain(e?.modifier) ? e.modifier : {}), scope: e?.scope ?? e?.modifier?.scope};
     errors.push(...entryProblems(modifier, at));
     if (plain(modifier.applies) && arr(modifier.applies.when).includes('familiar_terrain'))
-      warnings.push(`${at}: familiar_terrain is the GM's call; it is listed in the Overland tab but never added to the totals.`);
+      warnings.push(`${at}: familiar_terrain is the GM's call; it is listed in the Travel tab but never added to the totals.`);
   }
   return {errors, warnings};
 }

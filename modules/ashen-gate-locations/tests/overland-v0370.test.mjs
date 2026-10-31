@@ -1,10 +1,9 @@
-/** 0.37.0: the `travel` modifier scope and light overland travel. Mocked Foundry data; proves logic and HTML, not the live window. */
+/** 0.37.0: the `travel` modifier scope and light travel's modifier owner check. (The service, tab and window tests moved to travel-v0390.test.mjs.) Mocked Foundry data; proves logic, not the live window. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createApi} from '../scripts/api.mjs';
 import {validateModifiers, combine, blockModifiers, TARGETS, TERRAINS, CONDITIONS} from '../scripts/travel-modifiers.mjs';
-import {createOverland, collectSources, normalizeState, spend, undo, newDay, BASE_ACTIONS} from '../scripts/overland.mjs';
-import {overlandHtml} from '../scripts/overland-view.mjs';
+import {collectSources} from '../scripts/overland.mjs';
 
 const mod = (target, value, extra = {}) => ({target, value, label: '[TEST] x', ...extra});
 const check = (m, id = 'ITEM-TEST-A') => validateModifiers([{index: 0, scope: 'travel', modifier: m}], {recordId: id});
@@ -47,7 +46,7 @@ test('owner check rejects unknown targets, out-of-range values and bad shapes', 
   assert.equal(check(mod('travel.actions', 1, {applies: {when: ['familiar_terrain']}})).warnings.length, 1);
 });
 test('api.modifiers has the contract shape Manager calls', () => {
-  const api = createApi({version: '0.38.0', isGM: () => false, playerAccessEnabled: () => true});
+  const api = createApi({version: '0.39.0', isGM: () => false, playerAccessEnabled: () => true});
   assert.equal(api.modifiers.contract, 'ag-modifier/1'); assert.equal(api.modifiers.scope, 'travel');
   assert.deepEqual(api.modifiers.targets, Object.keys(TARGETS));
   assert.deepEqual(api.modifiers.validate([{index: 0, scope: 'travel', modifier: mod('travel.actions', 1)}], {recordId: 'ITEM-TEST-A', record: {}}), {errors: [], warnings: []});
@@ -132,103 +131,4 @@ test('collectSources: Hub mount items are marked and only count while Mounted; w
   const noHub = collectSources([a], {mountItems: null});
   assert.deepEqual(noHub.map(s => [s.mountItem, s.inactive]), [[false, 'not equipped'], [false, null]]);
   assert.equal(collectSources([a], {mountItems: () => { throw new Error('hub'); }}).length, 2, 'a throwing Hub falls back');
-});
-
-// ---- state ----
-test('state: normalisation, spend, undo, new day', () => {
-  assert.deepEqual(normalizeState(null), {day: 1, used: 0, mounted: false, announce: false, conditions: {'harsh-weather': 0, 'hard-ground': 0, 'poor-visibility': 0, 'warped-paths': 0, 'blight-taint': 0, 'ashen-menace': 0}, log: []});
-  assert.equal(normalizeState({day: -4, used: 'x', log: [{kind: 'fly', day: 1}, {kind: 'scout', day: 2}]}).log.length, 1);
-  let s = normalizeState({});
-  s = spend(s, 'travel', 0); s = spend(s, 'scout', 0); s = spend(s, 'explore', 0);
-  assert.equal(s.used, 3); assert.throws(() => spend(s, 'travel', 0), /No overland actions left/);
-  assert.equal(spend(s, 'travel', 1).used, 4, 'a bonus action allows one more');
-  assert.equal(undo(s).used, 2); assert.throws(() => undo(normalizeState({})), /Nothing to undo/);
-  const next = newDay(s); assert.equal(next.day, 2); assert.equal(next.used, 0); assert.equal(next.log.length, 3);
-  assert.throws(() => undo(next), /Nothing to undo today/);
-  assert.throws(() => spend(s, 'rest', 0), /Unknown/);
-  assert.equal(BASE_ACTIONS, 3);
-});
-
-// ---- service and API: GM only ----
-function boot({gm = true, actors = [], announced = []} = {}) {
-  const box = {gm, store: {}, writes: 0};
-  const service = createOverland({isGM: () => box.gm, read: () => box.store, write: async v => { box.store = structuredClone(v); box.writes++; }, actors: () => actors, announce: async t => announced.push(t)});
-  const api = createApi({version: '0.38.0', isGM: () => box.gm, playerAccessEnabled: () => true, overland: service});
-  return {box, service, api};
-}
-test('GM only: the API and the service refuse players, and nothing is written', async () => {
-  const {box, service, api} = boot({gm: false});
-  assert.throws(() => api.overland.state(), /Only the GM/); assert.throws(() => api.overland.partyModifiers(), /Only the GM/);
-  for (const [fn, arg, arg2] of [['act', 'travel'], ['undo'], ['newDay'], ['setMounted', true], ['setAnnounce', true], ['setCondition', 'harsh-weather', 1]]) await assert.rejects(service[fn](arg, arg2), /Only the GM/, fn);
-  assert.equal(box.writes, 0); assert.equal(Object.isFrozen(api.overland), true);
-  assert.deepEqual(Object.keys(api.overland).sort(), ['contract', 'partyModifiers', 'state']);
-  const noService = createApi({version: '0.38.0', isGM: () => true, playerAccessEnabled: () => true});
-  assert.throws(() => noService.overland.state(), /unavailable/);
-});
-test('service: day and actions, Y includes the capped party bonus, Undo and New day', async () => {
-  const flask = item('ITEM-TEST-FLASK', [mod('travel.actions', 2, {stack: 'a'})]), charm = item('ITEM-TEST-CHARM', [mod('travel.actions', 2, {stack: 'b'})]), tonic = item('ITEM-TEST-TONIC', [mod('travel.actions', 1, {stack: 'c'})]);
-  const {api, service, box} = boot({actors: [actor('[TEST] Ana', [flask, charm, tonic])]});
-  let st = api.overland.state();
-  assert.equal(st.total, 5, '3 + capped +2'); assert.equal(st.left, 5); assert.equal(st.day, 1); assert.equal(st.contract, 'ag-overland/1');
-  st = await service.act('travel'); assert.equal(st.left, 4); assert.deepEqual(st.log.map(l => l.text), ['Day 1: Travel']);
-  await service.act('scout'); await service.act('explore');
-  st = await service.undo(); assert.equal(st.left, 3); assert.equal(st.log.length, 2);
-  st = await service.newDay(); assert.equal(st.day, 2); assert.equal(st.left, 5);
-  await service.setMounted(true); assert.equal(api.overland.state().mounted, true);
-  assert.equal(box.store.day, 2); assert.equal(box.store.mounted, true);
-  const pm = api.overland.partyModifiers(); assert.equal(pm.bonus.actions, 2); assert.equal(pm.rows[0].capped, true); assert.equal(pm.ladder.length, 3);
-  pm.rows[0].total = 99; assert.equal(api.overland.partyModifiers().rows[0].total, 2, 'a copy');
-  for (let i = 0; i < 5; i++) await service.act('travel');
-  await assert.rejects(service.act('travel'), /No overland actions left/);
-});
-test('service: Announce to players posts one short line per action, only when on', async () => {
-  const announced = [], {service} = boot({announced});
-  await service.act('travel'); assert.equal(announced.length, 0);
-  await service.setAnnounce(true); await service.act('scout');
-  assert.equal(announced.length, 1); assert.match(announced[0], /Scout/); assert.doesNotMatch(announced[0], /LOC-|ITEM-/);
-});
-
-// ---- the tab ----
-const h = {esc: v => String(v).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])), tip: () => '', now: '<span>Applies now</span>',
-  btn: (action, label, {kind = ''} = {}) => `<button type="button" class="ag-btn ${kind}" data-action="${action}">${label}</button>`};
-test('Overland tab: day, actions left, three actions, one primary, footer, empty state, sources and ladder', async () => {
-  const {service} = boot({actors: []});
-  let html = overlandHtml(service.state(), service.partyModifiers(), h);
-  assert.match(html, /Day 1/); assert.match(html, /Actions left 3 of 3/);
-  for (const a of ['ov-travel', 'ov-scout', 'ov-explore', 'ov-undo', 'ov-newday']) assert.match(html, new RegExp(`data-action="${a}"`));
-  assert.equal((html.match(/ag-btn primary/g) ?? []).length, 1, 'one primary: New day…'); assert.match(html, /New day…/);
-  assert.match(html, /<footer class="ag-footer">/); assert.match(html, /No travel modifiers yet/); assert.match(html, /Applies now/);
-  assert.match(html, /Announce to players/); assert.match(html, /id="agl-ov-announce" >/); assert.match(html, /named landmark or route/);
-  assert.doesNotMatch(html, /\b(Alpha|Beta|Preview|Experimental)\b/); assert.doesNotMatch(html, /travel\.actions|ITEM-|PERK-/);
-  const a = actor('[TEST] Ana', [item('ITEM-TEST-BOOTS', [mod('travel.efficiency', 1, {applies: {terrain: ['forest']}})], {type: 'equipment', equipped: true}), item('PERK-TEST-X', [mod('condition.mitigation', 1, {applies: {condition: 'warped-paths'}})], {type: 'feat'})]);
-  const b = boot({actors: [a]}); await b.service.act('travel');
-  html = overlandHtml(b.service.state(), b.service.partyModifiers(), h);
-  assert.match(html, /Actions left 2 of 3/); assert.match(html, /Day 1: Travel/); assert.match(html, /Travel efficiency: Forest/); assert.match(html, /Condition mitigation: Warped Paths/);
-  assert.match(html, /\[TEST\] ITEM-TEST-BOOTS|\[TEST\] Ana/); assert.match(html, /Up to \+2/); assert.match(html, /Up to \+3/);
-});
-
-// ---- the window: the tab is GM only and last-but-one ----
-test('window: Overland is a GM-only tab before GM Setup; a player never gets it, even by setting the tab', async () => {
-  const {installFoundry, player} = await import('./foundry-mock.mjs');
-  const {readAll, writeAll, readViews, placeNote} = await import('../scripts/store.mjs');
-  const {useOverland} = await import('../scripts/overland.mjs');
-  globalThis.foundry = {applications: {api: {ApplicationV2: class { constructor(o) { this.options = o; } }}}};
-  globalThis.CSS ??= {escape: v => String(v)};
-  const {LocationsApp} = await import('../scripts/app.mjs');
-  const game = installFoundry();
-  const service = createOverland({isGM: () => game.user.isGM, read: () => ({}), write: async () => {}, actors: () => []});
-  useOverland(service);
-  const m = {version: '0.38.0', active: true};
-  m.api = createApi({version: '0.38.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open() {}, openLocation() {}, overland: service});
-  game.modules = {get: id => id === 'ashen-gate-locations' ? m : null};
-  globalThis.ui = {notifications: {warn() {}, info() {}, error() {}}};
-  const gmApp = new LocationsApp(); gmApp.render = async () => {}; gmApp.tab = 'overland';
-  const html = await gmApp._renderHTML();
-  const tabs = [...html.matchAll(/data-tab="(\w+)"/g)].map(x => x[1]);
-  assert.deepEqual(tabs, ['locations', 'overland', 'setup']); assert.match(html, /ag-tab--gm/);
-  assert.match(html, /Actions left 3 of 3/); assert.doesNotMatch(html, /agl-setup__body[^]*Player Access[^]*Actions left/);
-  game.user = player;
-  const playerApp = new LocationsApp(); playerApp.render = async () => {}; playerApp.tab = 'overland';
-  const p = await playerApp._renderHTML();
-  assert.doesNotMatch(p, /Overland|Actions left|data-tab="overland"/);
 });

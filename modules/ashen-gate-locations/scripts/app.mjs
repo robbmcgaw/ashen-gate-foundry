@@ -20,8 +20,8 @@ import {confirmPlacement} from './pin-verify.mjs';
 import {setDragging} from './canvas-drop.mjs';
 import {captureView, restoreView} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
-import {overland} from './overland.mjs';
-import {overlandHtml} from './overland-view.mjs';
+import {overland, ACTIONS as ACTION_NAMES} from './overland.mjs';
+import {travelHtml} from './overland-view.mjs';
 import {actorFacts, npcSuggestions, relinkPlan, applyRelink, shopsHere, shopsForPlayer, shopsApiState} from './people-shops.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
@@ -115,6 +115,7 @@ const STATE_HINTS = {
   revealed: 'Players see the published card: the name and everything marked visible.'
 };
 const hereNow = v => v?.active ? '<span class="ag-badge ag-badge--ok agl-active"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Here now</span>' : '';
+const travelForPlayers = () => { try { return game.settings.get(MODULE_ID, 'travelForPlayers') === true; } catch { return false; } };
 const showOpens = () => { try { return game.settings.get(MODULE_ID, 'showOpensWindow') !== false; } catch { return true; } };
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; } };
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
@@ -357,8 +358,9 @@ export class LocationsApp extends Base {
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
     // 0.20.0: Routes are retired (a route is a location of type Route): players get Locations only, the GM also GM Setup.
-    const tabs = [['locations', 'Locations', 'fa-map-location-dot'], ...(this.gm ? [['overland', 'Overland', 'fa-person-hiking', true], ['setup', 'GM Setup', 'fa-gears', true]] : [])];   // GM-only tabs last
-    const tab = this.gm && (this.tab === 'setup' || this.tab === 'overland') ? this.tab : 'locations';
+    // 0.39.0: Travel is the second tab for the GM, and for players while Travel for players is on; GM Setup stays last and GM-only.
+    const tabs = [['locations', 'Locations', 'fa-map-location-dot'], ...(this.gm || travelForPlayers() ? [['travel', 'Travel', 'fa-person-hiking']] : []), ...(this.gm ? [['setup', 'GM Setup', 'fa-gears', true]] : [])];
+    const tab = tabs.some(t => t[0] === this.tab) ? this.tab : 'locations';
     // Developer Tools offers "Convert routes to locations" only while the world still holds stored routes.
     if (tab === 'setup') { try { this.convertPlan = await api().convertRoutes(); } catch (err) { console.warn(`${MODULE_ID} | route conversion preview`, err); this.convertPlan = null; } }
     return `<div class="agl-root ag-window">
@@ -366,7 +368,7 @@ export class LocationsApp extends Base {
         <div class="ag-header__meta"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost sm', icon: 'fa-solid fa-circle-question'})}</div></header>
       ${tabs.length > 1 ? `<nav class="ag-tabs ag-tabs--scroll agl-maintabs" role="tablist" aria-label="Locations sections">${tabs.map(([k, l, icon, gmOnly]) =>
         `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" class="${tab === k ? 'active' : ''}${gmOnly ? ' ag-tab--gm' : ''}" aria-controls="agl-pane"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${l}</button>`).join('')}</nav>` : ''}
-      <div class="agl-pane" id="agl-pane">${tab === 'setup' ? this.setupHtml() : tab === 'overland' ? this.overlandPane() : this.locationsHtml(list)}</div>
+      <div class="agl-pane" id="agl-pane">${tab === 'setup' ? this.setupHtml() : tab === 'travel' ? this.travelPane() : this.locationsHtml(list)}</div>
     </div>`;
   }
   _replaceHTML(result, content) {
@@ -1350,6 +1352,9 @@ export class LocationsApp extends Base {
       <section class="ag-card"><h3>Player Access</h3>
         <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-set-access" ${access ? 'checked' : ''}> Players can open Locations</label>
         <p class="agl-hint">Shows the Locations button in the players' Actors sidebar. Players only ever see revealed locations and the parts you mark visible.</p></section>
+      <section class="ag-card"><h3>Travel</h3>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-set-travel" ${travelForPlayers() ? 'checked' : ''}> Travel for players</label>
+        <p class="agl-hint">Shows the Travel tab to players: the day, the actions left, buttons to ask for an action, and the journal. Off by default. Players never see conditions, party modifiers or your notes.</p></section>
       <section class="ag-card"><h3>Unidentified Pins</h3>
         <div class="ag-field agl-field"><label for="agl-set-label">Default unidentified label</label><input id="agl-set-label" type="text" value="${esc(setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL))}"></div>
         <div class="ag-field agl-field"><label for="agl-set-unknown">Default unidentified pin image</label><div class="agl-field__row"><input id="agl-set-unknown" type="text" value="${esc(setting('unknownPinImage', ''))}" placeholder="${PIN_DEFAULTS.unidentifiedImg}">${btn('browse-setup', '', {icon: 'fa-solid fa-folder-open', title: 'Browse for the default pin image'})}</div></div>
@@ -1376,18 +1381,19 @@ export class LocationsApp extends Base {
         ${btn('save-setup', 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</footer>
     </div>`;
   }
-  /** 0.37.0: the Overland tab. The service re-checks the GM on every read and change. */
-  overlandPane() {
+  /** 0.39.0: the Travel tab (0.37.0 to 0.38.0: the GM-only Overland tab). A player's markup is built from publicState() alone; the service re-checks the GM on every GM read and change. */
+  travelPane() {
     try {
-      const service = overland(), state = api().overland.state(), mods = api().overland.partyModifiers();
-      if (!service) throw new Error('Overland travel is unavailable.');
-      return overlandHtml(state, mods, {esc, btn, tip, now: NOW});
+      if (!overland()) throw new Error('Travel is unavailable.');
+      const o = api().overland;
+      return this.gm ? travelHtml({state: o.state(), mods: o.partyModifiers(), gm: true, userId: game.user?.id ?? '', text: this.travelText ?? ''}, {esc, btn, tip, now: NOW})
+        : travelHtml({state: o.publicState(), gm: false, userId: game.user?.id ?? ''}, {esc, btn, tip, now: NOW});
     } catch (err) {
-      return `<div class="ag-empty"><i class="fa-solid fa-person-hiking" aria-hidden="true"></i><p class="ag-empty__title">Overland travel can't be shown</p><p class="ag-empty__text">${esc(err?.message ?? String(err))}</p></div>`;
+      return `<div class="ag-empty"><i class="fa-solid fa-person-hiking" aria-hidden="true"></i><p class="ag-empty__title">Travel can't be shown</p><p class="ag-empty__text">${esc(err?.message ?? String(err))}</p></div>`;
     }
   }
-  /** One Overland change (Travel, Scout, Explore, Undo, New day, a switch): applies at once, then the tab redraws with focus back on the same control. */
-  async overlandDo(selector, run) {
+  /** One Travel change (Travel, Scout, Explore, Resolve, Undo, New day, a switch, a journal edit): applies at once, then the tab redraws with focus back on the same control. */
+  async travelDo(selector, run) {
     try { await run(overland()); } catch (err) { ui.notifications?.warn(err?.message ?? String(err)); }
     await this.render(); this.focusBack(selector);
   }
@@ -1409,6 +1415,8 @@ export class LocationsApp extends Base {
     if (pinName !== readPinLook().nameMode) await game.settings.set(MODULE_ID, 'pinNameMode', pinName);
     const showOpen = root?.querySelector('#agl-set-showopen')?.checked === true;
     if (root?.querySelector('#agl-set-showopen') && showOpen !== showOpens()) await game.settings.set(MODULE_ID, 'showOpensWindow', showOpen);
+    const travelOn = root?.querySelector('#agl-set-travel')?.checked === true;
+    if (root?.querySelector('#agl-set-travel') && travelOn !== travelForPlayers()) await game.settings.set(MODULE_ID, 'travelForPlayers', travelOn);
     ui.notifications.info('Saved GM Setup.');
     await this.render();
     return true;
@@ -1457,8 +1465,9 @@ export class LocationsApp extends Base {
     root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
     // 0.33.0: right-click (or the context-menu key) on a row offers Travel when the API says there is a scene to go to. The button under the name in the detail is the always-visible way.
     for (const row of root.querySelectorAll('.agl-row[data-action="select"]')) row.addEventListener('contextmenu', ev => onRowContextMenu(ev, row.dataset.id));
-    root.querySelector('#agl-ov-mounted')?.addEventListener('change', e => this.overlandDo('#agl-ov-mounted', s => s.setMounted(e.target.checked)));
-    root.querySelector('#agl-ov-announce')?.addEventListener('change', e => this.overlandDo('#agl-ov-announce', s => s.setAnnounce(e.target.checked)));
+    root.querySelector('#agl-ov-mounted')?.addEventListener('change', e => this.travelDo('#agl-ov-mounted', s => s.setMounted(e.target.checked)));
+    root.querySelector('#agl-ov-announce')?.addEventListener('change', e => this.travelDo('#agl-ov-announce', s => s.setAnnounce(e.target.checked)));
+    root.querySelector('#agl-ov-text')?.addEventListener('input', e => { this.travelText = e.target.value; });
     if (!this.gm) return;
     for (const el of root.querySelectorAll('[data-travel-scene]')) el.addEventListener('change', () => {
       const set = new Set(this.draft.travelSceneUuids ?? []);
@@ -1686,12 +1695,32 @@ export class LocationsApp extends Base {
   async onAction(el) {
     const action = el.dataset.action;
     if (action === 'help') return this.help();
-    if (/^ov-(travel|scout|explore)$/.test(action)) return this.overlandDo(`[data-action="${action}"]`, s => s.act(action.slice(3)));
-    if (action === 'ov-cond') return this.overlandDo(`[data-action="ov-cond"][data-cond="${el.dataset.cond}"][data-sev="${el.dataset.sev}"]`, s => s.setCondition(el.dataset.cond, Number(el.dataset.sev)));
-    if (action === 'ov-undo') return this.overlandDo('[data-action="ov-undo"]', s => s.undo());
+    if (action === 'ov-declare') return this.travelDo('[data-action="ov-declare"][data-kind="' + el.dataset.kind + '"]', async () => { await api().overland.declare(el.dataset.kind); ui.notifications?.info('Asked the GM.'); });
+    // Spending actions: the optional text box goes on the journal card, then empties.
+    const spent = async run => { const text = this.travelText ?? ''; await run(text); this.travelText = ''; };
+    if (/^ov-(travel|scout|explore)$/.test(action)) return this.travelDo(`[data-action="${action}"]`, s => spent(text => s.act(action.slice(3), {text})));
+    if (action === 'ov-resolve') return this.travelDo(`[data-action="ov-resolve"][data-user="${el.dataset.user}"]`, s => spent(text => s.resolve(el.dataset.user, {text})));
+    if (action === 'ov-dismiss') return this.travelDo('#agl-ov-text', s => s.dismiss(el.dataset.user));
+    if (action === 'ov-cond') return this.travelDo(`[data-action="ov-cond"][data-cond="${el.dataset.cond}"][data-sev="${el.dataset.sev}"]`, s => s.setCondition(el.dataset.cond, Number(el.dataset.sev)));
+    if (action === 'ov-undo') return this.travelDo('[data-action="ov-undo"]', s => s.undo());
     if (action === 'ov-newday') {
-      if (!(await confirmDialog('Start the next day? The party gets its actions back, the day number goes up and every condition and hazard goes back to 0. The log is kept.', {title: 'Start a new day?', yes: 'Start new day'}))) return;
-      return this.overlandDo('[data-action="ov-newday"]', s => s.newDay());
+      if (!(await confirmDialog('Start the next day? The party gets its actions back, the day number goes up and every condition goes back to 0. The journal is kept.', {title: 'Start a new day?', yes: 'Start new day'}))) return;
+      return this.travelDo('[data-action="ov-newday"]', s => s.newDay());
+    }
+    if (action === 'ov-edit') {
+      const entry = api().overland.state().journal.find(e => e.id === el.dataset.id);
+      if (!entry) return this.render();
+      const r = await formDialog('Edit journal entry', [{name: 'text', label: `What the party learns (${ACTION_NAMES[entry.kind]}, day ${entry.day})`, type: 'textarea', value: entry.text}], {ok: 'Save entry'});
+      if (!r) return;
+      return this.travelDo(`[data-action="ov-edit"][data-id="${el.dataset.id}"]`, s => s.editEntry(el.dataset.id, r.text ?? ''));
+    }
+    if (action === 'ov-delete') {
+      if (!(await confirmDanger('This card is removed from the journal for everyone. It does not give the action back (use Undo last for that).', {title: 'Delete entry?', yes: 'Delete entry'}))) return;
+      return this.travelDo('#agl-ov-text', s => s.deleteEntry(el.dataset.id));
+    }
+    if (action === 'ov-clear') {
+      if (!(await confirmDanger('Every card is removed from the journal for everyone. The day and the actions left do not change.', {title: 'Clear journal?', yes: 'Clear journal'}))) return;
+      return this.travelDo('#agl-ov-text', s => s.clearJournal());
     }
     if (action === 'retry') return this.render();
     if (action === 'clear-filters') return this.clearFilters();
@@ -2207,15 +2236,17 @@ export class LocationsApp extends Base {
         '<strong>Hazards</strong> (Content sub-tab): <strong>Add hazard…</strong> gives a name, a note and an optional roll table. <strong>Open table</strong> opens it; <strong>Roll</strong> draws it to chat. A hazard is GM only until you show it (<i class="fa-solid fa-eye"></i>); players then see its name and note after Publish, never its table.',
         '<strong>Roll Tables</strong>: link world tables (or drop one, from a compendium too). Only you can <strong>Roll</strong>. A shown table lists its name for players, who can open it only if Foundry lets them.',
         'Old routes are kept in the world, unused. <strong>GM Setup → Developer Tools → Convert routes to locations…</strong> (only while the world has some) previews and then makes a Route location for each. Importing a Route record skips it: make a location with type Route instead.']),
-      topic('Overland travel', [
-        '<strong>Overland</strong> (GM only, before GM Setup) is a light way to keep overland days. The party shares <strong>3 actions a day</strong>: <strong>Travel</strong> (one neighbouring map tile, normally no check), <strong>Scout</strong> (roughly which way a known goal lies; a Navigation check can sharpen it) and <strong>Explore</strong> (survey this tile and the ones next to it). Encounters, fights and talking cost none. It is a tally to help you adjudicate, not a tracker.',
-        '<strong>Today\'s conditions</strong> keeps six things that make overland days harder, set by you from 0 to 3 and applying at once. The natural ones are <em>conditions</em> (Harsh Weather, Hard Ground, Poor Visibility); the unnatural ones are <em>hazards</em> (Warped Paths, Blight Taint, Ashen Menace). Beside each is the party\'s mitigation from items, perks and the like (up to 3) and the steps remaining, severity minus mitigation; while any remain, a line reminds you what that usually means. It is a reminder only: nothing is applied for you. <strong>New day…</strong> sets them all back to 0.',
-        'Each button spends one action and adds a line to the short log. <strong>Undo last</strong> takes back the latest one. <strong>New day…</strong> asks first, then gives the actions back and adds one to the day. Everything here applies at once and is saved in the world; players never see it unless you switch on <strong>Announce to players</strong>, which posts a short chat line for each action.',
-        '<strong>Mounted</strong> counts modifiers that need a mount, and gear on a character\'s mount (when Character Hub is active). <strong>Party modifiers</strong> lists the bonus actions, Explore range, Scout precision, terrain efficiency and condition mitigation that items and perks on the party\'s characters carry, with their sources and the cap. Only the best source in a stacking group counts, across the whole party. Equipment counts while equipped. Scout precision is a guide: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is your call.']),
+      topic('Travel', [
+        '<strong>Travel</strong> (the second tab) is a light way to keep days on the road. The party shares <strong>3 actions a day</strong>: <strong>Travel</strong> (one neighbouring map tile, normally no check), <strong>Scout</strong> (roughly which way a known goal lies; a Navigation check can sharpen it) and <strong>Explore</strong> (survey this tile and the ones next to it). Encounters, fights and talking cost none. It is a tally to help you adjudicate, not a tracker.',
+        'Each of the three buttons spends one action and adds a card to the <strong>Journal</strong>; the optional box above them is what the party learns, written on that card. <strong>Undo last</strong> takes back the latest card and gives its action back. <strong>New day…</strong> asks first, then gives the actions back, adds one to the day and sets every condition to 0; the journal is kept.',
+        '<strong>Travel for players</strong> (GM Setup, off by default) shows players the day, the actions left, the journal and three buttons to <em>ask</em> for an action. A request is visible to everyone, with who asked. <strong>Resolve</strong> spends one action and adds the card (with the box\'s text, and who asked); <strong>Dismiss</strong> drops it. Players never see conditions, severities, party modifiers, Mounted or anything under <em>GM only</em>.',
+        '<strong>Journal</strong>: one card per day, newest day first. <strong>Edit…</strong> changes a card\'s text, <strong>Delete entry</strong> removes one card, <strong>Clear journal…</strong> removes them all (each asks first; Cancel is the default). Everyone who can see Travel can read the journal.',
+        '<strong>Today\'s conditions</strong> (GM only) keeps six conditions that make days harder (Harsh Weather, Difficult Terrain, Poor Visibility, Warped Paths, Blight Taint, Ashen Menace), set by you from 0 to 3 and applying at once. Beside each is the party\'s mitigation from items, perks and the like (up to 3) and the steps remaining, severity minus mitigation; while any remain, a line reminds you what that usually means. It is a reminder only: nothing is applied for you.',
+        '<strong>Mounted</strong> counts modifiers that need a mount, and gear on a character\'s mount (when Character Hub is active). <strong>Announce to players</strong> posts a short chat line for each action. <strong>Party modifiers</strong> lists the bonus actions, Explore range, Scout precision, terrain efficiency and condition mitigation that items and perks on the party\'s characters carry, with their sources and the cap. Only the best source in a stacking group counts, across the whole party. Equipment counts while equipped. Scout precision is a guide: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is your call.']),
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed, under the Regions they are in (click a Region\'s name to fold or unfold it; it is remembered for you). An unidentified pin on the map always shows its label. Places under <em>Unidentified</em> show only what you have heard so far. A <i class="fa-solid fa-location-dot"></i> pin after a folder\'s number means your party is somewhere inside it. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). Where your GM has allowed it, right-click a place\'s pin (or its row in the list) and choose <strong>Travel</strong>, or use the <strong>Travel</strong> button under the place\'s name, to view its scene; only you move. A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
+      : '<p>These are the places your GM has revealed, under the Regions they are in (click a Region\'s name to fold or unfold it; it is remembered for you). An unidentified pin on the map always shows its label. Places under <em>Unidentified</em> show only what you have heard so far. A <i class="fa-solid fa-location-dot"></i> pin after a folder\'s number means your party is somewhere inside it. Click a linked quest, faction, person, document or place to open it (a name with no link is one you may not open). Where your GM has allowed it, right-click a place\'s pin (or its row in the list) and choose <strong>Travel</strong>, or use the <strong>Travel</strong> button under the place\'s name, to view its scene; only you move. A <strong>Shops</strong> card appears when your GM has shown you a shop at that place; <strong>Open shop</strong> opens it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>When your GM has turned on <strong>Travel for players</strong>, the <strong>Travel</strong> tab shows the day, the actions the party has left and the journal. <strong>Travel</strong>, <strong>Scout</strong> and <strong>Explore</strong> ask the GM for that action (one request each); the GM decides and writes what the party learns on a journal card.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }

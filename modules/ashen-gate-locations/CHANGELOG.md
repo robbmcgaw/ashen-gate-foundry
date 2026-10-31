@@ -1,3 +1,16 @@
+## 0.39.0 — 2026-10-31
+
+Changed: the GM-only Overland tab is now **Travel**, a tab players can have, with a Journal. Conditions only.
+
+- **Travel tab, second in the window** (Locations, Travel, GM Setup). The GM always sees it; players see it only while the new GM Setup setting **Travel for players** is on (world setting, off by default). The word Overland is gone from the window, Help and README; the internal `api.overland` and `ag-overland/1` names stay.
+- **Players** see Day N, Actions left X of Y (the party's shared pool), three buttons Travel / Scout / Explore that ask the GM for an action (one waiting request per user, visible to everyone with who asked), and the Journal. They never see conditions, severities, party modifiers, mitigation, Mounted, Announce or guidance.
+- **GM** sees the same plus direct Travel / Scout / Explore buttons (each spends one action and adds a Journal card, with an optional box for what the party learns), **Resolve** / **Dismiss** on a request, **Undo last**, **New day…**, and, last and marked GM only: Table settings (Mounted, Announce), Today's conditions and Party modifiers, as in 0.38.0.
+- **Journal** (replaces the short log): one card per day, newest day first. GM: **Edit…**, **Delete entry** (labelled confirm, Cancel is the default) and **Clear journal…**. The journal stays when the day changes.
+- **Conditions only.** The condition/hazard split is gone from every label, doc and fixture: one list called Conditions. The six ids and the cap of 3 are unchanged; `hard-ground` is now labelled **Difficult Terrain**. `kind` stays on the exported objects (always `'condition'`) and is never shown.
+- **No leaks.** The `overland` world setting (readable by every client) now holds only the public part: day, actions used, the day's total, waiting requests and the Journal. Condition severities, Mounted and Announce are stored in the GM Data Journal. Migration (primary GM's client, first load; safe to run again): moves them out of the public setting and clears them there, and turns the old log into Journal cards.
+- **API.** New `api.overland.publicState()` (GM, or a player while Travel for players is on; the public part only) and `api.overland.declare(action)` (players, while on). `state()` and `partyModifiers()` stay GM only and gain `enabled`, `requests` and `journal` (state) and `log` is now derived from the journal. Players are refused in the API and again in the service.
+- Docs: README, Help ("Travel"), `docs/modifiers-schema.md`, `docs/perks-and-modifiers-for-gpt.md`. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.38.0 — 2026-10-31
 
 Changed: overland conditions and hazards are now ONE concept with six fixed ids, set day by day in the Overland tab.

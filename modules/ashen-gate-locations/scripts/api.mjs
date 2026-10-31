@@ -32,7 +32,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        notedIds?() → Set of LOC ids that have Party Notes text (0.26.0: shown in the bulk preview),
  *        resolveScene?(uuid) → Scene|null, currentUser?() → the User (0.33.0: Travel),
  *        listContext?() → {templates, questName(id), materialName(id)} (0.34.0: GM search/group helpers for listModel),
- *        overland?: the overland service (overland.mjs, 0.37.0: api.overland reads it, GM only)}
+ *        overland?: the Travel service (overland.mjs, 0.37.0; internal name kept): api.overland reads it. GM only, except publicState() and declare() (0.39.0),
+ *        which players may call while Travel for players is on}
  * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
@@ -571,14 +572,21 @@ export function createApi(deps) {
      */
     modifiers: Object.freeze({contract: MODIFIER_CONTRACT, scope: MODIFIER_SCOPE, targets: [...TARGET_IDS], validate: validateModifiers}),
     /**
-     * Light overland travel (0.37.0), GM only, read only. state() -> {contract, day, used, base, bonus, total, left, mounted, announce, conditions: {id: 0..3}, log: [{kind, day, text}]};
+     * Travel (0.37.0 as "overland travel"; the api names `overland` and `ag-overland/1` stay). GM only and read only, except the two player calls below.
+     * state() -> {contract, enabled, day, used, base, bonus, total, left, mounted, announce, conditions: {id: 0..3}, requests: [{userId, name, action}], journal: [{id, day, kind, text, by}], log: [{kind, day, text}]};
      * partyModifiers() -> {contract, scope, mounted, bonus: {actions, explore, scout}, ladder, conditions: [{id, label, kind, hits, guidance, severity, mitigation, remaining}], rows: [{key, target, terrain, condition, label, unit, total, cap, capped, severity?, remaining?,
-     * sources: [{name, character, label, value, counted, note}]}]}. Players are refused here, not just in the window.
+     * sources: [{name, character, label, value, counted, note}]}]}. `kind` is always 'condition' (kept for compatibility, never shown).
+     * publicState() (0.39.0; the GM always, a player only while Travel for players is on) -> {contract, enabled, day, total, used, left, requests: [{userId, name, action}], journal: [{id, day, kind, text, by}]}:
+     * the PUBLIC part only, never conditions, Mounted, Announce, party modifiers or guidance.
+     * declare(action) (0.39.0; a player only, while Travel for players is on; 'travel' | 'scout' | 'explore') -> {contract, requested: true, action}: asks the GM; one waiting request per user.
+     * Players are refused here and again in the service, not just in the window.
      */
     overland: Object.freeze({
       contract: OVERLAND_CONTRACT,
-      state() { requireGM(); if (!deps.overland) throw new Error('Overland travel is unavailable.'); return deps.overland.state(); },
-      partyModifiers() { requireGM(); if (!deps.overland) throw new Error('Overland travel is unavailable.'); return deps.overland.partyModifiers(); }
+      state() { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.state(); },
+      partyModifiers() { requireGM(); if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.partyModifiers(); },
+      publicState() { if (!deps.overland) throw new Error('Travel is unavailable.'); return deps.overland.publicState(); },
+      declare(action) { if (!deps.overland) return Promise.reject(new Error('Travel is unavailable.')); return deps.overland.declare(action); }
     }),
 
     playerAccess: Object.freeze({
