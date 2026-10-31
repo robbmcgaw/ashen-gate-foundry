@@ -1,3 +1,14 @@
+## 0.41.0 — 2026-10-31
+
+New: six **Blight** scene effects for battle maps, picked like Foundry's own snow or leaves.
+
+- **Where.** Scene Config → Basics → **Weather** now also lists: *Blight: Ash fall* (slow grey flakes and a few embers, sparse), *Blight: Spore drift* (sickly green-yellow motes drifting sideways and slowly rising, gently pulsing), *Blight: Red rain* (thin rust-red slanted streaks over a faint red tint), *Blight: Blight haze* (low drifting violet-grey fog with a soft vignette), *Blight: Glass motes* (tiny bright points rising and winking out) and *Blight: Warped shimmer* (rippling pale light bands with false lights flickering at the edges). It is a scene setting, so every player sees it on the canvas; only a GM can change it. Muted colours, drawn over the map without hiding it.
+- **Blight strength (GM only, optional).** A new **Blight strength** field sits under Weather in Scene Config: *Default (2, Moderate)*, or 0 to 3 like the overland Blight Taint severity. 0 turns the effect off for that scene (the Weather choice stays); 1 to 3 scale how many particles there are and how strong the colour is. Stored as the Scene flag `flags.ashen-gate-locations.blightStrength`; nothing else on the Scene is written. A non-GM's change is refused in the data layer, not only hidden, and the value is always kept to a whole number from 0 to 3. Changing it redraws only the weather on the viewed scene.
+- **Cost.** At most 160 particles per generator (the real count is also scaled down to the part of the scene on screen); at the default strength ash is 60 flakes and 5 embers, spores 70, glass motes 80. Haze and rain are shaders, not particles, and the haze's fog is skipped by Foundry's own low-performance mode. Particles use Foundry's built-in soft-dot texture; no images ship with the module.
+- **Reduced motion.** When the system's *reduce motion* preference is on, drift slows to a crawl, spores stop pulsing, motes stop winking and the shimmer's bands and lights hold still. Turning the preference on or off redraws the viewed scene's effect.
+- **Fails soft.** Each effect is added only when this Foundry build has what it needs (`CONFIG.weatherEffects`, the particle generator, the weather shader classes); a missing piece skips just those effects, logs one console line and never stops Locations opening. No migration: no Scene is rewritten and scenes that never use these effects are untouched.
+- Docs: README (Scene effects), Help (Scene effects), `docs/scene-effects.md`. Tests are mocked Foundry; they prove registration, the strength mapping, reduced motion and the GM guard, not how the effects look in a live canvas.
+
 ## 0.40.1 — 2026-10-31
 
 Fixed: Travel boxes were drawn as pills. New: GM-only **Reset travel day…** for testing.
