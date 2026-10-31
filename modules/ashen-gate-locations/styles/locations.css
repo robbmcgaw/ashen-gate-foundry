@@ -207,11 +207,21 @@
   background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); }
 .agl-ctx__item { justify-content: flex-start; white-space: nowrap; }
 
-/* ----- Overland tab (0.37.0) ----- */
+/* ----- Travel tab (0.37.0 as Overland; Travel and Journal 0.39.0) ----- */
 .agl-ov-day { margin: 0; font-weight: 600; }
 .agl-ov-left { margin: var(--ag-space-1) 0 var(--ag-space-2); }
 .agl-ov-actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
-.agl-ov-log { margin: 0; padding-left: var(--ag-space-5); }
+.agl-ov-requests, .agl-ov-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-2); }
+.agl-ov-request { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
+.agl-ov-request__tools, .agl-ov-entry__tools, .agl-ov-journal-tools { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
+.agl-ov-daycard { margin: 0 0 var(--ag-space-3); }
+.agl-ov-daycard h4 { margin: 0 0 var(--ag-space-2); }
+.agl-ov-entry { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
+.agl-ov-entry__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-2); }
+.agl-ov-entry__text { margin: 0; overflow-wrap: anywhere; }
+.agl-ov-journal-tools { justify-content: flex-end; margin-top: var(--ag-space-2); }
+.agl-ov-gm { display: grid; gap: var(--ag-space-3); margin-top: var(--ag-space-3); padding-top: var(--ag-space-3); border-top: 2px solid var(--ag-border-strong); }
+#agl-ov-text { width: 100%; box-sizing: border-box; resize: vertical; }
 .agl-ov-conds { list-style: none; margin: 0 0 var(--ag-space-3); padding: 0; display: grid; gap: var(--ag-space-2); }
 .agl-ov-cond { display: grid; grid-template-columns: minmax(10rem, 1fr) auto; gap: var(--ag-space-1) var(--ag-space-3); align-items: center; padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
 .agl-ov-cond__math, .agl-ov-cond__guide { grid-column: 1 / -1; margin: 0; }

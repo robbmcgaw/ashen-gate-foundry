@@ -1,6 +1,7 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, syncSceneCompanions, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore} from './store.mjs';
+  syncSharedNotes, syncSceneCompanions, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore,
+  readOverlandSecret, writeOverlandSecret} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createActiveWatcher} from './active.mjs';
@@ -14,9 +15,10 @@ import {registerPinTravel} from './travel-ui.mjs';
 import {confirmPlacement} from './pin-verify.mjs';
 import {createCanvasDrop} from './canvas-drop.mjs';
 import {createOverland, useOverland} from './overland.mjs';
+import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.38.0';
+const VERSION = '0.39.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -99,10 +101,16 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'showOpensWindow', {
     name: 'Locations — Open the window when the GM shows a location', scope: 'world', config: false, type: Boolean, default: true, restricted: true
   });
-  // 0.37.0: the GM's overland travel state (day, actions spent, switches, a short log). GM write; the api refuses players.
+  // 0.37.0 (public part only since 0.39.0): Travel's day, actions spent, waiting requests and the journal. World settings are readable by every client,
+  // so nothing GM-only lives here: the conditions, Mounted and Announce are in the GM Data Journal (store.mjs readOverlandSecret). GM write.
   game.settings.register(MODULE_ID, 'overland', {
-    name: 'Locations — Overland travel state', scope: 'world', config: false, type: Object, default: {}, restricted: true,
-    onChange: () => { const app = LocationsApp.instance; if (app?.rendered && app.tab === 'overland') app.render().catch(notifyError); }
+    name: 'Locations — Travel state (public part)', scope: 'world', config: false, type: Object, default: {}, restricted: true,
+    onChange: () => { const app = LocationsApp.instance; if (app?.rendered && app.tab === 'travel') app.render().catch(notifyError); }
+  });
+  // 0.39.0: Travel for players (GM Setup). Off: players do not see the Travel tab and the api refuses their calls.
+  game.settings.register(MODULE_ID, 'travelForPlayers', {
+    name: 'Locations — Travel for players', scope: 'world', config: false, type: Boolean, default: false, restricted: true,
+    onChange: () => { const app = LocationsApp.instance; if (app?.rendered) app.render().catch(notifyError); }
   });
   registerPinLook();
   registerPinTravel(); // 0.33.0: right-click > Travel on a pin
@@ -125,19 +133,27 @@ Hooks.once('ready', () => {
     open: ref => LocationsApp.showFromGM(ref), notify: text => ui.notifications?.info(text)});
   game.socket?.on?.(SOCKET, (msg, senderId) => {
     if (msg?.type === 'show-location') { show.onSocket(msg, senderId).catch(err => console.warn(`${MODULE_ID} |`, err)); return; }
+    if (typeof msg?.type === 'string' && msg.type.startsWith('travel-')) { travel.onSocket(msg, senderId).catch(err => console.warn(`${MODULE_ID} |`, err)); return; }
     if (typeof msg?.type === 'string' && msg.type.startsWith('share-')) sharing.onSocket(msg, senderId).catch(notifyError);
     else notes.onSocket(msg, senderId).catch(notifyError);
   });
   // 0.37.0: overland travel. Mount items come from Character Hub's public api.companions when it is there (feature-detected); otherwise every item is "on the character".
   const hubCompanions = () => { const hub = game.modules.get('ashen-gate-character-hub'); return hub?.active && typeof hub.api?.companions === 'function' ? hub.api.companions : null; };
+  const travelOn = () => game.settings.get(MODULE_ID, 'travelForPlayers') === true;
   const overland = createOverland({
-    isGM, read: () => game.settings.get(MODULE_ID, 'overland'), write: state => game.settings.set(MODULE_ID, 'overland', state),
+    isGM, playerTravel: travelOn, read: () => game.settings.get(MODULE_ID, 'overland'), write: state => game.settings.set(MODULE_ID, 'overland', state),
+    readSecret: () => (isGM() ? readOverlandSecret() : {}), writeSecret: writeOverlandSecret,
+    sendDeclare: action => travel.send(action),
     actors: () => [...(game.actors ?? [])].filter(a => a?.type === 'character' && a.hasPlayerOwner === true),
     mountItems: actor => { const companions = hubCompanions(); if (!companions) return null; const m = companions(actor)?.mount;
       return m ? new Set([...(m.perkItemIds ?? []), ...(m.gearItemIds ?? [])]) : new Set(); },
-    announce: text => ChatMessage.create({content: `<p>${String(text).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]))}</p>`, speaker: {alias: 'Overland travel'}})
+    announce: text => ChatMessage.create({content: `<p>${String(text).replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]))}</p>`, speaker: {alias: 'Travel'}})
   });
   useOverland(overland);
+  // 0.39.0: a player's Travel request goes to the primary GM's client over the socket (overland-socket.mjs).
+  const travel = createTravelChannel({users: game.users, currentUser: () => game.user, isPrimaryGM, service: overland, socket: game.socket});
+  // Moves the old secret keys out of the public setting once, on the primary GM's client (safe to run again).
+  if (isPrimaryGM()) overland.migrate().catch(notifyError);
   mod.api = createApi({
     overland,
     embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},

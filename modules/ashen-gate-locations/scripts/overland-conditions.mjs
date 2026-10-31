@@ -1,6 +1,7 @@
 /**
- * Overland conditions and hazards (0.38.0): ONE concept with a classification. Natural ones are "conditions", unnatural ones are "hazards".
- * Exactly six, fixed. This file is the single source of truth: the `travel` owner check (travel-modifiers.mjs), the Overland tab,
+ * Travel conditions (0.38.0; conditions only since 0.39.0): ONE list of exactly six, fixed. The old condition/hazard split is gone from every
+ * label; `kind` stays on the exported objects (always 'condition') for API compatibility and is never shown.
+ * This file is the single source of truth: the `travel` owner check (travel-modifiers.mjs), the Travel tab,
  * scripts/validate-content.mjs and docs/modifiers-schema.md all read it. Pure data: no Foundry globals.
  * `guidance` is display help only; nothing is applied automatically.
  */
@@ -9,20 +10,19 @@ export const MAX_SEVERITY = 3;
 export const OVERLAND_CONDITIONS = Object.freeze([
   Object.freeze({id: 'harsh-weather', label: 'Harsh Weather', kind: 'condition', hits: 'Rain, wind, storm, cold, heat.',
     guidance: 'Each unmitigated step costs the party one daily action.'}),
-  Object.freeze({id: 'hard-ground', label: 'Hard Ground', kind: 'condition', hits: 'Marsh, scree, undergrowth, snow, mud.',
+  Object.freeze({id: 'hard-ground', label: 'Difficult Terrain', kind: 'condition', hits: 'Marsh, scree, undergrowth, snow, mud.',
     guidance: 'Each unmitigated step makes Travel into the affected tile cost one extra step.'}),
   Object.freeze({id: 'poor-visibility', label: 'Poor Visibility', kind: 'condition', hits: 'Mist, haze, dimness, night, dust.',
     guidance: 'Each unmitigated step removes one Explore ring.'}),
-  Object.freeze({id: 'warped-paths', label: 'Warped Paths', kind: 'hazard', hits: 'False trailmarks, misleading lights and sounds.',
+  Object.freeze({id: 'warped-paths', label: 'Warped Paths', kind: 'condition', hits: 'False trailmarks, misleading lights and sounds.',
     guidance: 'Each unmitigated step removes one Scout precision step; at 2 or more the GM may misdirect.'}),
-  Object.freeze({id: 'blight-taint', label: 'Blight Taint', kind: 'hazard', hits: 'Blight-touched ground and weather.',
+  Object.freeze({id: 'blight-taint', label: 'Blight Taint', kind: 'condition', hits: 'Blight-touched ground and weather.',
     guidance: "The GM's call (spoilage, Strain exposure); no travel stat."}),
-  Object.freeze({id: 'ashen-menace', label: 'Ashen Menace', kind: 'hazard', hits: 'Ashen creatures abroad.',
+  Object.freeze({id: 'ashen-menace', label: 'Ashen Menace', kind: 'condition', hits: 'Ashen creatures abroad.',
     guidance: 'The GM raises encounter pressure.'})
 ]);
 export const CONDITION_IDS = Object.freeze(OVERLAND_CONDITIONS.map(c => c.id));
 export const conditionById = id => OVERLAND_CONDITIONS.find(c => c.id === id) ?? null;
-export const KIND_LABEL = Object.freeze({condition: 'Conditions (natural)', hazard: 'Hazards (unnatural)'});
 
 const whole = (v, min, max) => Number.isSafeInteger(v) && v >= min ? Math.min(v, max) : min;
 /** Severity 0 to 3 from whatever is stored. */
