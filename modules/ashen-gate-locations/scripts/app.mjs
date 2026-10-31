@@ -23,6 +23,7 @@ import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 import {overland, ACTIONS as ACTION_NAMES} from './overland.mjs';
 import {travelHtml} from './overland-view.mjs';
 import {resetDayDialog} from './overland-reset.mjs';
+import {namesForUsers} from './who-names.mjs';
 import {OVERLAND_CONDITIONS, effectiveLocationConditions} from './overland-conditions.mjs';
 import {actorFacts, npcSuggestions, relinkPlan, applyRelink, shopsHere, shopsForPlayer, shopsApiState} from './people-shops.mjs';
 
@@ -133,7 +134,9 @@ const worldTables = () => [...(game.tables ?? [])].filter(t => t?.uuid).sort((a,
 /** Threat as a kit badge: Settled plain, Light and Normal ok, Hot warn, Deadly a solid danger fill (agl-threat--deadly). */
 const THREAT_TONES = {light: 'ok', normal: 'ok', hot: 'warn', deadly: 'danger'};
 const threatBadge = value => `<span class="ag-badge${THREAT_TONES[value] ? ` ag-badge--${THREAT_TONES[value]}` : ''} agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
-const userName = id => game.users?.get?.(id)?.name ?? 'A former player';
+/** 0.42.0: who a user is at the table: the first name of each character they own (that this viewer may see), else the user name. Display only. */
+const whoNames = ids => namesForUsers(ids, {users: game.users, actors: game.actors, viewer: game.user});
+const userName = id => whoNames([id]).join(', ');
 /** The world's players (not GMs), by name. */
 const worldPlayers = () => [...(game.users ?? [])].filter(u => u?.id && !u.isGM).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const MOVE_TYPES = new Set(['AshenGateLocation', 'AshenGateLocationMove']);
@@ -785,7 +788,7 @@ export class LocationsApp extends Base {
   /** Players: who else sees a "Selected players" location, and Share with... when the GM allows it. */
   shareHtml(v) {
     if (!v?.share || this.gm) return '';
-    const others = v.share.userIds.filter(u => u !== game.user.id).map(userName);
+    const others = whoNames(v.share.userIds.filter(u => u !== game.user.id));
     return `<p class="agl-meta agl-share"><i class="fa-solid fa-user-lock" aria-hidden="true"></i> ${others.length ? `Also known to ${others.map(esc).join(', ')}.` : 'Only you know this place.'}
       ${v.share.canShare ? btn('share', 'Share with…', {kind: 'sm', icon: 'fa-solid fa-share-nodes', data: {ref: v.key}, title: 'Let other players see this place too'}) : ''}</p>`;
   }
@@ -2292,7 +2295,7 @@ export class LocationsApp extends Base {
         'Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it at once.',
         '<strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Publish all changes…</strong> (top of the list, GM) publishes every revealed or unidentified location that has saved changes in one step, after asking; Hidden and archived locations are skipped. <strong>Player Preview</strong> shows what they would see in the location\'s current state; tick <em>Also show the other states</em> to compare (your choice is remembered on this computer). A state change or Place on Scene with unsaved edits asks <em>Save and …</em> first.',
         'The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.',
-        '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden, unless you tick <em>Everyone else sees it as unidentified</em>: they then see an unidentified marker at the same spot (a second, generic pin that follows the real one; you see both on the scene) and cannot open the real page. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.']),
+        '<strong>Who Can See It</strong> (<em>Applies now</em>): <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden, unless you tick <em>Everyone else sees it as unidentified</em>: they then see an unidentified marker at the same spot (a second, generic pin that follows the real one; you see both on the scene) and cannot open the real page. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone. Players are named by their characters\' first names (a player with no character shows by user name); <em>Also known to</em> on a player\'s card lists only names that player may already see.']),
       topic('Map pins', [
         '<strong>Place on Scene</strong> (in the editor head) or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed, and an unidentified pin\'s label is always drawn under it (not only on hover); set pin art under <em>Unidentified Marker &amp; Pin</em>.',
         '<strong>Default pin for places inside this one</strong> (Visibility &amp; map, GM only): give a Region such as a country or a town a pin image for revealed places, one for hidden / unidentified places, and a pin size, and every place inside it (and inside those) uses them. Order: the place\'s own value, then the nearest place above it that sets one, then <em>GM Setup</em>\'s default unidentified image, then Foundry\'s icons. A place\'s own value is never changed. Placed pins update when you Save; a pin whose image or size you changed in Foundry\'s Note settings keeps your change. The empty boxes show what the place would use now.',

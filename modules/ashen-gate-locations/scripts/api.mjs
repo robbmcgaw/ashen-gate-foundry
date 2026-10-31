@@ -180,13 +180,15 @@ export function createApi(deps) {
      * 0.34.0: the Locations list as data, for a partner that draws its own markup (Character Hub). The same search, filters, sort and nested
      * Region folders the window shows this user (see list-model.mjs and the README). GM: the GM list (records; `revealedOnly` keeps revealed ones).
      * Player: the player list only (published views; hidden never present, unidentified by generic label with no id); filters and sort are
-     * ignored for a player because the window offers none. Plain data, nothing saved. Open a row with `openLocation(row.ref)`.
+     * ignored for a player because the window offers none. 0.42.0: `actorId` (the character whose Hub is open) lets a restricted row say `restrictedLabel: 'Personal'`
+     * when it is revealed to that character's player; only the GM, or that character's own player, gets it. Plain data, nothing saved. Open a row with `openLocation(row.ref)`.
      */
-    listModel({query = '', filters = {}, sort = 'name', sortDesc = false, revealedOnly = false} = {}) {
+    listModel({query = '', filters = {}, sort = 'name', sortDesc = false, revealedOnly = false, actorId = null} = {}) {
       requireAccess();
       const isGM = gm();
       const records = isGM ? live().filter(l => !revealedOnly || l.revealed) : deps.readViews();
-      return buildListModel(clone(records), {gm: isGM, query, filters, sort, sortDesc, context: isGM ? deps.listContext?.() ?? {} : {}});
+      return buildListModel(clone(records), {gm: isGM, query, filters, sort, sortDesc, context: isGM ? deps.listContext?.() ?? {} : {},
+        personalUserIds: typeof actorId === 'string' && actorId ? deps.playersOfActor?.(actorId) ?? [] : []});
     },
     LIST_CONTRACT,
     /** GM: child records. Player: the revealed/unidentified children of a revealed location, as {id?, key, name}. */

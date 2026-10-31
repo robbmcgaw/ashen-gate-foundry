@@ -3,6 +3,7 @@ import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migra
   syncSharedNotes, syncSceneCompanions, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes, pinReport, removeManagedPins, readNotesStore,
   readOverlandSecret, writeOverlandSecret} from './store.mjs';
 import {createApi} from './api.mjs';
+import {playersOfActor} from './who-names.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createActiveWatcher} from './active.mjs';
 import {createShowService} from './show.mjs';
@@ -19,7 +20,7 @@ import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 import {registerSceneEffects, addStrengthField, guardStrengthChange, strengthChanged, refreshWeather} from './scene-effects.mjs';
 
-const VERSION = '0.41.0';
+const VERSION = '0.42.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -173,6 +174,8 @@ Hooks.once('ready', () => {
     overland,
     embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},
     listContext,
+    // 0.42.0: which players count as "this character's player" for the Personal badge in a partner's list (GM: its owners; a player: themself if they own it).
+    playersOfActor: actorId => playersOfActor(actorId, {users: game.users, actors: game.actors, viewer: game.user}),
     version: VERSION, isGM, playerAccessEnabled,
     // 0.33.0 Travel: the current user and a way to find a scene by uuid (null when this client does not hold it).
     currentUser: () => game.user,

@@ -135,7 +135,7 @@ test('player model never leaks: no hidden place, no GM text, unidentified by its
   assert.ok(dark, 'the unidentified place is listed by its generic label');
   assert.equal(dark.state, 'unidentified');
   assert.ok(!dark.ref.startsWith('LOC-'), 'its ref is the pin key, never a LOC id');
-  for (const r of all) assert.deepEqual(Object.keys(r).filter(k => !['ref', 'name', 'state', 'active', 'isRegion', 'restricted', 'match', 'children', 'type', 'hereNow', 'containsHere'].includes(k)), [], 'only list fields');
+  for (const r of all) assert.deepEqual(Object.keys(r).filter(k => !['ref', 'name', 'state', 'active', 'isRegion', 'restricted', 'match', 'children', 'type', 'hereNow', 'containsHere', 'restrictedLabel'].includes(k)), [], 'only list fields');
 });
 
 test('a player cannot read the model while Player Access is off; a GM can; an archived place is not listed', async () => {
