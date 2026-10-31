@@ -4,6 +4,7 @@ import {validateLogicalProjection} from './source-projection.mjs';
 import {validateImportPresentation} from './import-fidelity.js';
 import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-effects.js';
 import {modifierRecordProblems} from './modifier-definitions.js';
+import {recipeGoldFlavorProblems} from './recipe-definitions.js';
 import {validateSupersedes, supersedeMap} from './supersedes.js';
 import {systemWithRelated} from './related-lists.mjs';
 import {withoutActivityEffectRefs} from './activity-effects.js';
@@ -100,6 +101,8 @@ export function validatePackage(input, existingIds = new Set()) {
     if (strict) errors.push(...checkContractRecord(record,label));
     // Record-level modifiers block and implementation field (0.41.0); scope owners check targets and values.
     errors.push(...modifierRecordProblems(record, typeof record.id === 'string' && record.id ? record.id : label));
+    // Recipe gold flavour (0.89.0): optional, display only.
+    errors.push(...recipeGoldFlavorProblems(record, typeof record.id === 'string' && record.id ? record.id : label));
     const id = record.id;
     if (typeof id !== "string" || !(strict ? CONTRACT_ID : SOURCE_ID_PATTERN).test(id)) errors.push(`${label}.id: invalid permanent ID.`);
     if (ids.has(id)) errors.push(`${label}.id: duplicate ID ${id}.`);

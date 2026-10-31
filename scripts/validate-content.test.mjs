@@ -266,6 +266,17 @@ test('Modifier examples: the package passes (a note until the scope owner checks
   assert.ok(bad.errors.some(e => e.includes('op must be "add"')), bad.errors.join('\n'));
 });
 
+test('Recipe gold flavour: the example passes; each documented mistake is rejected with its message; absent is fine', async () => {
+  const {ok, lines} = await validateTargets([path.join(root, 'test-fixtures/recipe-gold-flavor')]);
+  assert.ok(ok, lines.join('\n'));
+  const text = lines.join('\n');
+  for (const name of ['zero-gp', 'no-gp', 'markup', 'too-long', 'empty', 'upper-case', 'not-text']) assert.match(text, new RegExp(`${name}\\.json rejected as expected`));
+  const file = JSON.parse(fs.readFileSync(path.join(root, 'test-fixtures/recipe-gold-flavor/AG_Test_Recipe_Gold_Flavor.json'), 'utf8'));
+  const withoutField = structuredClone(file);
+  delete withoutField.records.find(r => r.entity_type === 'Recipe').additional_gp_flavor;
+  assert.deepEqual((await checkContent(withoutField)).errors, []);
+});
+
 test('quest item rewards: the valid example passes with a note; the note goes when the item is beside it; mistakes are rejected', async () => {
   const fixtures = path.join(root, 'modules/ashen-gate-quest-manager/docs/fixtures/item-rewards');
   const {ok, lines} = await validateTargets([fixtures]);

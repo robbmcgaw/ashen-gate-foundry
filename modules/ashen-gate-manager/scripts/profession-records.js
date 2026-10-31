@@ -17,6 +17,7 @@
  *  - "Any musical instrument" (also "Musical instrument", "music") is a tool group. Manager does not check tool names
  *    (the Ledger resolves them), so a group passes import like any other text.
  */
+import {goldFlavorText} from './recipe-definitions.js';
 export const PROFESSION_CATEGORIES = Object.freeze(['crafting', 'gathering', 'creative']);
 export const RECIPE_KINDS = Object.freeze(['craft', 'activity']);
 const CATEGORY_LABELS = Object.freeze({crafting: 'Crafting', gathering: 'Gathering', creative: 'Creative'});
@@ -98,7 +99,7 @@ export function professionFacts(record) {
     // 0.73.0 (Ledger 0.38.0): a GM-applied enchantment (`gm_applied` on an activity) makes no item; the player brings `bring.text`.
     const applied = gmApplied(record), bring = applied ? bringText(record) : null;
     const fields = [['Recipe kind', label], ['Effort', effort], ['Tier', tier],
-      requirement, applied ? ['Applied by', 'GM'] : null, ['Bring', bring], ['Effect note', note]].filter(f => f && f[1]);
+      requirement, applied ? ['Applied by', 'GM'] : null, ['Bring', bring], ['Effect note', note], ['Additional gold', goldFlavorText(record)]].filter(f => f && f[1]);
     return {label, fields, summary: [label, applied ? 'GM-applied' : null, effort ? `${effort} effort` : null, tier, note ? 'Effect note' : null].filter(Boolean).join(' · '),
       chips: [label, applied ? 'GM-applied' : null, bring ? `Bring: ${bring}` : null, note ? 'Effect note' : null].filter(Boolean), searchText: [label, applied ? 'GM-applied enchantment' : null, bring, note].filter(Boolean)};
   }
