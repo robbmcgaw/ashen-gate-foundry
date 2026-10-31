@@ -7,6 +7,7 @@ import {
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
 import {sanitizePerkHtml} from './perk-html.mjs';
+import {buildPerkCard,groupByTier,unreleasedPerkMessage} from './perk-card.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
 import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
@@ -26,7 +27,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.24.3';
+const VERSION='0.24.4';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -301,13 +302,13 @@ async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
     if(forUser){ // A player may unlock only what the player view shows them, and only on a tree their character holds.
       if(!holdsFor(actor,stored))throw Error('Unknown tree');
       const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
-      if(!pub||!pn||pn.silhouette)throw Error('That node is not released to players');
+      if(!pub||!pn||pn.silhouette)throw Error(unreleasedPerkMessage('',{forPlayer:true}));
       const ok=publicAvailability(pub,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});if(!ok.ok)throw Error(ok.reason);
     }
     let next=purchase(t,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});
     if(stored.provider.kind==='profession')next=withHistory(next,historyEntry('allocate',{nodeId,perkId:n.perkId,level,
       ...(forUser?{by:forUser.id,byName:forUser.name??''}:{})}));
-    if(n.perkId&&!safePublicSource(n))throw Error(`${n.name||perkDoc(n.perkId)?.name||'This perk'} is not an approved, player-visible perk yet`);
+    if(n.perkId&&!safePublicSource(n))throw Error(unreleasedPerkMessage(n.name||perkDoc(n.perkId)?.name,{forPlayer:Boolean(forUser)}));
     const grant=n.perkId?await givePerk(actor,stored,n):null;
     try{await persistAccount(actor,stored,next);}
     catch(error){
@@ -343,7 +344,7 @@ async function overrideNode(actor,treeId,nodeId,{reason=''}={}){
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Unknown node');
     const level=professionLevel(actor,stored);
     const {account,overridden}=overrideGrant(t,readProgress(actor,stored),nodeId,{level,reason,by:game.user.id,at:Date.now(),siblings:privateSiblings(actor,stored)});
-    if(n.perkId&&!safePublicSource(n))throw Error(`${n.name||perkDoc(n.perkId)?.name||'This perk'} is not an approved, player-visible perk yet`);
+    if(n.perkId&&!safePublicSource(n))throw Error(unreleasedPerkMessage(n.name||perkDoc(n.perkId)?.name));
     const next=withHistory(account,historyEntry('override',{nodeId,perkId:n.perkId,level,reason:String(reason).trim().slice(0,200),overridden}));
     const grant=n.perkId?await givePerk(actor,stored,n):null;
     try{await persistAccount(actor,stored,next);}
@@ -1749,7 +1750,13 @@ function embedTreeModel(actor,stored){
   const nodes=asArray(t.nodes).filter(n=>!n.silhouette).map(n=>{
     const unlocked=acc.unlocks.includes(n.id);
     const e=unlocked?{ok:false}:(gm?availability(t,acc,n.id,{level,siblings}):publicAvailability(t,acc,n.id,{level,siblings,access,accessLabel:proficiencyLabel}));
-    return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,text:shortText(n.description),unlocked,available:!unlocked&&e.ok,reason:unlocked?'':String(e.reason??'')};
+    // 0.24.4: the card pieces come from the perk's own table and sections (perk-card.mjs), never from tag-stripped text.
+    const card=buildPerkCard(n.name,n.descriptionHtml,n.description);
+    const available=!unlocked&&e.ok;
+    // A perk the GM has not released (Item default ownership None, not approved) cannot be unlocked: say so on the button instead of after a click.
+    const unreleased=available&&gm&&Boolean(n.perkId)&&!safePublicSource(n);
+    return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,text:card.summary||shortText(n.description),meta:card.meta,tier:card.tier,summary:card.summary,detailsHtml:card.detailsHtml,
+      unlocked,available,unlockable:available&&!unreleased,blocked:unreleased?unreleasedPerkMessage(n.name):'',reason:unlocked?'':String(e.reason??'')};
   });
   const spent=totalSpent(t,acc),profession=t.provider?.kind==='profession';
   const st=profession?professionStatus(t,acc,level,siblings):null;
@@ -1781,12 +1788,28 @@ function embedHTML(ctrl){
   // Kit parts (0.20.0): points as an ag-badge, unlocked perks as ok badges in an ag-chip-group row; no control inside <summary>.
   const pts=m=>m.available===null?'<span class="ag-badge">Points come from the Profession Ledger (not active)</span>'
     :`<span class="ag-badge${m.available?' ag-badge--accent':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
+  // 0.24.4: one card per available perk, grouped under its tier. Title row (name, cost, Unlock), labelled meta chips, a short
+  // effect summary and a Details fold (a button with aria-expanded) holding the rest of the description as safe HTML.
+  const domId=(...p)=>`agst-perk-${p.join('-').replace(/[^A-Za-z0-9_-]/g,'_')}`;
+  const perkCard=(m,n)=>{
+    const key=`${m.id}:${n.id}`,id=domId(ctrl.actorId,m.id,n.id),open=ctrl.openPerks.has(key),why=n.unlockable?'':(n.blocked||n.reason);
+    return `<li class="agst-perk" data-agst-perk="${escape(key)}">
+      <div class="agst-perk__head"><strong class="agst-perk__name">${escape(n.name)}</strong><span class="ag-badge agst-perk__cost">${plural(n.cost,'point')}</span>
+        <button type="button" class="ag-btn ag-btn--sm ag-btn--primary agst-perk__unlock" data-agst-embed="unlock" data-tree="${escape(m.id)}" data-node="${escape(n.id)}" data-agst-focus="unlock|${escape(m.id)}|${escape(n.id)}" aria-label="Unlock ${escape(n.name)}"${n.unlockable?'':` disabled aria-disabled="true" data-tooltip="${escape(why)}" aria-describedby="${id}-why"`}>Unlock</button></div>
+      ${n.unlockable?'':`<p class="agst-perk__why agst-embed__muted" id="${id}-why">${escape(why)}</p>`}
+      ${n.meta.length?`<dl class="agst-perk__meta">${n.meta.map(r=>`<div class="agst-perk__pair"><dt>${escape(r.label)}</dt><dd>${escape(r.value)}</dd></div>`).join('')}</dl>`:''}
+      ${n.summary?`<p class="agst-perk__summary">${escape(n.summary)}</p>`:''}
+      ${n.detailsHtml?`<button type="button" class="ag-btn ag-btn--sm agst-perk__toggle" data-agst-embed="details" data-agst-focus="details|${escape(key)}" data-key="${escape(key)}" aria-expanded="${open}" aria-controls="${id}-details">Details</button>
+      <div class="agst-perk__details" id="${id}-details"${open?'':' hidden'}>${n.detailsHtml}</div>`:''}
+    </li>`;
+  };
+  const perkCards=(m,nodes)=>groupByTier(nodes).map(g=>`<section class="agst-perk-group"${g.tier?` aria-label="${escape(g.tier)}"`:''}>${g.tier?`<h5 class="agst-perk-group__title">${escape(g.tier)}</h5>`:''}
+      <ul class="agst-embed__list agst-perk-list">${g.items.map(n=>perkCard(m,n)).join('')}</ul></section>`).join('');
   const body=m=>{
     const unlocked=m.nodes.filter(n=>n.unlocked),avail=m.nodes.filter(n=>n.available),locked=m.nodes.filter(n=>!n.unlocked&&!n.available);
-    return `<div class="agst-embed__actions"><button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" aria-label="Open tree: ${escape(m.name)}">Open tree</button></div>
+    return `<div class="agst-embed__actions"><button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" data-agst-focus="open|${escape(m.id)}" aria-label="Open tree: ${escape(m.name)}">Open tree</button></div>
       ${m.access?`<p class="agst-embed__muted agst-embed__access">${escape(m.access)}</p>`:''}
-      ${avail.length?`<h4>Available now</h4><ul class="agst-embed__list">${avail.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${plural(n.cost,'point')}</span>
-        <button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-agst-embed="unlock" data-tree="${escape(m.id)}" data-node="${escape(n.id)}" aria-label="Unlock ${escape(n.name)}">Unlock</button>${n.text?`<p class="agst-embed__text">${escape(n.text)}</p>`:''}</li>`).join('')}</ul>`:''}
+      ${avail.length?`<h4>Available now</h4>${perkCards(m,avail)}`:''}
       <h4>Unlocked</h4>${unlocked.length?`<ul class="ag-chip-group agst-embed__chips">${unlocked.map(n=>`<li class="ag-badge ag-badge--ok">${escape(n.name)}</li>`).join('')}</ul>`:'<p class="agst-embed__muted">None yet.</p>'}
       ${locked.length?`<details class="agst-embed__locked"><summary>Locked (${locked.length})</summary><ul class="agst-embed__list">${locked.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${escape(n.reason)}</span></li>`).join('')}</ul></details>`:''}`;
   };
@@ -1832,14 +1855,22 @@ async function embedUnlock(actor,treeId,nodeId){
 function mountEmbed(element,{actorId,mode='character'}={}){
   if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
   if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
-  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),mounted:true,busy:false,tabs:new Map(),unbind:[]};
+  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),openPerks:new Set(),mounted:true,busy:false,tabs:new Map(),unbind:[]};
   const memory=uiState(MODULE); // the tree last shown per profession, per user (0.21.0)
   element.classList?.add('agst-embed');
   ctrl.render=()=>{
     if(!ctrl.mounted)return;
     if(element.isConnected===false){ctrl.unmount();return;}
     for(const fn of ctrl.unbind.splice(0))fn();
+    const focused=typeof document!=='undefined'?document.activeElement?.dataset?.agstFocus:null; // keep focus on the same control (0.24.4)
     element.innerHTML=embedHTML(ctrl);
+    if(focused&&element.querySelectorAll){
+      const all=[...element.querySelectorAll('[data-agst-focus]')];
+      const same=all.find(x=>x.dataset.agstFocus===focused&&!x.disabled);
+      // An unlocked perk's card is gone: land on its tree's Open tree button (or the tree summary) rather than on the page.
+      const tree=focused.split('|')[0]==='unlock'?focused.split('|')[1]:null;
+      (same??all.find(x=>x.dataset.tree===tree&&x.dataset.agstEmbed==='open')??element.querySelector?.(`.agst-embed__tree > summary`))?.focus?.();
+    }
     for(const list of element.querySelectorAll?.('.agst-embed__profession .ag-tabs--sub')??[])ctrl.unbind.push(bindTablist(list));
   };
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();for(const fn of ctrl.unbind.splice(0))fn();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agst-embed');};
@@ -1855,6 +1886,13 @@ function mountEmbed(element,{actorId,mode='character'}={}){
     }
     const b=e.target?.closest?.('[data-agst-embed]');if(!b||!element.contains(b))return;
     e.preventDefault?.();e.stopPropagation?.();
+    if(b.dataset.agstEmbed==='details'){ // toggles in place: no re-render, so focus and scroll stay
+      const key=b.dataset.key,on=b.getAttribute('aria-expanded')!=='true';
+      b.setAttribute('aria-expanded',String(on));
+      const region=b.nextElementSibling;if(region)region.hidden=!on;
+      if(on)ctrl.openPerks.add(key);else ctrl.openPerks.delete(key);
+      return;
+    }
     if(ctrl.busy||b.disabled)return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{

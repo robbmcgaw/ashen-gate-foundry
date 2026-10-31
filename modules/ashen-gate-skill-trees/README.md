@@ -56,6 +56,7 @@ if (api?.embed?.mount) {
 }
 ```
 
+- **Perk cards (0.24.4).** Each available perk is a card: a title row (name, cost chip, **Unlock**), labelled chips from the perk description's own table (Specialty, Tier, Type, Automation, Uses, Tool; Requires only when it is not "Nothing"), the first sentence of Effect & Rules, and a **Details** button (`aria-expanded`) for the full effect, notes and other sections as safe formatted HTML. Cards sit under a heading per tier. If the perk is not released to players, the GM's Unlock is disabled with the reason and a player is told "The GM has not released this perk to players yet." The parsing lives in `scripts/perk-card.mjs`; each node in `embed.data` keeps `text` (now the first sentence) and adds `meta`, `tier`, `summary`, `detailsHtml`, `unlockable`, `blocked`.
 - `element`: a DOM element the caller owns. Skill Trees replaces its contents and adds the class `agst-embed`.
 - `options.actorId`: the character. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when the character, the published trees, Player Access or the Ledger level change, and unmounts itself if the element has left the page.

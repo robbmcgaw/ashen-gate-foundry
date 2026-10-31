@@ -1,3 +1,14 @@
+## 0.24.4 — 2026-10-31
+
+Character Hub: the available-perk cards in the Skill Trees tab are readable now. No saved data changed.
+
+- **Each available perk is a card, not a wall of text.** Before, the embed stripped every tag from the perk's description, so its table and headings ran together ("Margin NotesProfession / TreeArtistry...Specialty..."). Now the card has a title row (perk name, a cost chip such as "1 point", and Unlock at the right), a line of labelled chips taken from the perk's own table (Specialty, Tier, Type, Automation, Uses, Tool; Requires only when it is not "Nothing"), and the first sentence of Effect & Rules.
+- **Details** (a button, `aria-expanded`) opens the full effect, notes and any other sections as formatted text, with tables and headings kept. It stays open when the card redraws, and focus stays on the same control.
+- **Cards are grouped under their tier** (for example "Apprentice (level 1)") in level order. Cards use the standard box corners; only chips and buttons are rounded. They wrap in a narrow Hub panel and never cut off text.
+- **Clearer Unlock errors.** If a perk is not released to players, a player now sees "The GM has not released this perk to players yet." The GM sees the existing message plus a hint that the perk Item's default ownership may be None, and the GM's Unlock button shows as disabled with that reason before any click.
+- Same data in the embed API: each node in `embed.data` keeps `text` (now the clean first sentence) and gains `meta`, `tier`, `summary`, `detailsHtml`, `unlockable` and `blocked`.
+- Check in Forge: Character Hub > Ashen Gate > Skill Trees, open a tree with available perks. Each perk shows name, cost and Unlock on one row, then small Label: value chips, then one sentence. Click Details: the full text appears; click Unlock on another perk: Details on the remaining cards stays as you left it. Narrow the Hub panel: chips and text wrap.
+
 ## 0.24.3 — 2026-10-31
 
 Tooltip fix. No saved data changed.
