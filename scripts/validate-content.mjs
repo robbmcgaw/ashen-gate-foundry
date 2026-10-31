@@ -19,6 +19,8 @@
 //     optional default art, cinder.art, from Cinders 0.9.0; a Cinder's bearer_items and the signature power kinds from Cinders 0.10.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers; scope travel: Locations' travel-modifiers.mjs).
+//   - Recipe records: the optional additional_gp_flavor (Manager 0.89.0; display flavour for the extra gold, 1-40 chars of lower-case letters,
+//     digits, spaces, commas, apostrophes and hyphens; only with additional_gp > 0) is part of Manager's own package validation, so a mistake fails the file.
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 //   - quest files: an item reward (outcomes.item_rewards) whose ITEM-*, REC-* or MAT-* id is not defined in the same file or folder gets a note.
 //   - Shop / Service / MerchantList records: Utilities' own import rules (shop items named by id outside the file get a note).

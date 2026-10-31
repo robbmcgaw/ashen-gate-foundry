@@ -47,6 +47,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A perk a character receives automatically at Journeyman or Expert in a profession (no points, no tree) | A `ProfessionPerk` with `signature: true`, `tier`, `profession_id` and `point_cost: 0` (§3b) | **built** (Profession Ledger 0.31.0) |
 | A hireling perk | An `HPERK-*` record with `contexts`, `conditions`, `stacking`, `implementation` | built (display only) |
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
+| Say what a recipe's extra gold pays for | Optional `additional_gp_flavor` on the `REC-*` recipe, e.g. `"ash and vials"`; only with `additional_gp` above 0; display only (`docs/recipe-gold-flavor-schema.md`) | **built** (Manager 0.89.0 validates and stores it) |
 | A faction or deity reward | A reward entry on the faction or deity (`docs/renown-deity-schema.md`); GM-approved | built |
 | A quest reward | Text in `outcomes.description`; the GM grants it | built |
 | A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built**: Manager 0.41.0 imports it; Cinders checks it, applies a `PERK-*`'s modifiers (0.2.0) and an `ITEM-*`'s while it is in a Cinder socket (0.3.0) |
@@ -146,6 +147,7 @@ Write it as a normal `ProfessionPerk` record plus these fields:
 | Deities | `docs/renown-deity-schema.md`: **built** |
 | Profession crosswalk | `docs/profession-crosswalk-schema.md`: **built** |
 | Routes, NPC Codex, scene moods, organize rules | `docs/routes-schema.md`, `docs/npc-codex-schema.md`, `docs/scene-moods-schema.md`, `docs/organize-rules.md`: **built** |
+| Recipe gold flavour (`additional_gp_flavor`) | `docs/recipe-gold-flavor-schema.md`: **built** (Manager 0.89.0); examples in `test-fixtures/recipe-gold-flavor/` |
 | Signature perks (this brief, §3b) | `docs/perks-and-modifiers-for-gpt.md`: **built** (Profession Ledger 0.31.0) |
 | Perks/modifiers/sockets architecture | `docs/perks-and-modifiers-architecture.md`: **approved** (decisions in §8); Cinder sockets built in Cinders 0.3.0 without a `socketable` block |
 | Check a file before handing it over | `node scripts/validate-content.mjs <file>` in the public repo |

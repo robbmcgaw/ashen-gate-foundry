@@ -36,6 +36,13 @@ let itemsPolicy = 'player';
 export function setItemsPolicy(value) { itemsPolicy = value === 'gm' ? 'gm' : 'player'; return itemsPolicy; }
 export const getItemsPolicy = () => itemsPolicy;
 
+/**
+ * 0.89.0: a Material (entity type Material, or a MAT-* id) is meant to be seen by every player (a gather hands one over, a recipe links
+ * to it), so an approved, player-visible Material is readable (Observer) whatever the Items policy says. The policy keeps governing
+ * every other Item. Works on a source record ({entity_type, id}) or a source flag ({entityType, sourceId}).
+ */
+export const isMaterialSource = source => (source?.entityType ?? source?.entity_type) === 'Material' || /^MAT-/.test(String(source?.sourceId ?? source?.id ?? ''));
+
 /** The raw 0.55.0 test: approved and `player` visibility, on a kind that carries it (ignores the Items policy). */
 export function approvedPlayerSource(source, kind) {
   return RELEASE_KINDS.includes(kind) && source?.status === 'approved' && source?.visibility === 'player';
@@ -43,7 +50,7 @@ export function approvedPlayerSource(source, kind) {
 /** True when a source record is meant to be readable by players now: approved, `player` visibility, and allowed by the Items policy. */
 export function playerVisible(source, kind) {
   if (!approvedPlayerSource(source, kind)) return false;
-  if (kind === 'Item' && itemsPolicy === 'gm' && !PLAYER_FACING_ITEM_TYPES.includes(source?.entityType ?? source?.entity_type)) return false;
+  if (kind === 'Item' && itemsPolicy === 'gm' && !PLAYER_FACING_ITEM_TYPES.includes(source?.entityType ?? source?.entity_type) && !isMaterialSource(source)) return false;
   return true;
 }
 

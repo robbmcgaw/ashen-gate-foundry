@@ -1,3 +1,12 @@
+## 0.89.0 — 2026-10-31
+
+Two small features: imported Materials are readable by players, and a Recipe can say what its extra gold pays for. No stored data is rewritten by an import; the maintenance action below is opt-in.
+
+- **Materials visible to players.** A Material whose record is `approved` with `player` visibility is now created readable by every player (default ownership Observer), even while new Items are GM-only (GM Setup > Items and players), so a player can open one a gather gives them or a recipe links to (the Ledger's "Items players can't open"). A later import or Sync only raises a plain None default to Observer for such a Material: it never lowers a level, never touches a per-player ownership entry, and leaves a Material you hid on purpose alone. GM-only and draft Materials, and every other kind of Item, behave as before.
+- **Make materials visible to players…** (Items > Checks > Materials visible to players; GM only, checked in the data layer). For Materials already in your world. The confirmation says how many Items change; Make N visible is on the right and Cancel on the left. It raises only a default of None to Observer, writes Manager's own ownership bookkeeping flag with it and nothing else, and reports how many were changed, already visible and skipped (not approved, GM-only or revealed later, archived, hidden on purpose). Running it again changes nothing more. Help explains it.
+- **`additional_gp_flavor` on a Recipe** (optional, display only). 1 to 40 characters of lower-case letters, digits, spaces, commas, apostrophes and hyphens, no space at either end, no markup; valid only when `additional_gp` is above 0. The Import preview refuses a bad value with a message and `scripts/validate-content.mjs` does the same. It is stored with the record's definition exactly as written and never applied; the recipe preview and Browse show it as "Additional gold: 75 gp (ash and vials)". Schema note: `docs/recipe-gold-flavor-schema.md`; examples in `test-fixtures/recipe-gold-flavor/`. The Ledger does not show it yet.
+- Tests are mocked Foundry; the live Items > Checks section, the confirmation and a real import have not been seen.
+
 ## 0.88.0 — 2026-10-30
 
 New: Manager knows the `travel` modifier scope. Owner: Ashen Gate | Locations (0.37.0+).
