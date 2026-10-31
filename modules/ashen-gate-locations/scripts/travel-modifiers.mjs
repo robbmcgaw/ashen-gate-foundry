@@ -13,13 +13,13 @@ export const CONDITIONS = Object.freeze(['cold', 'heat', 'rain-and-wind', 'dust-
 /** Closed set for applies.when. `mounted` follows the GM's Mounted switch; `familiar_terrain` is the GM's call (never added up). */
 export const WHEN = Object.freeze(['mounted', 'familiar_terrain']);
 
-/** values: the whole numbers one entry may carry (all positive); cap: the most the total can reach (null: no cap is set). */
+/** values: the whole numbers one entry may carry (all positive); cap: the most the total can reach (null: no cap). */
 export const TARGETS = Object.freeze({
   'travel.actions': Object.freeze({values: [1, 2], cap: 2, label: 'Bonus daily actions'}),
   'travel.efficiency': Object.freeze({values: [1], cap: 2, label: 'Travel efficiency', unit: 'steps of terrain cost removed', applies: 'terrain'}),
   'scout.precision': Object.freeze({values: [1, 2], cap: 2, label: 'Scout precision', unit: 'steps'}),
   'explore.range': Object.freeze({values: [1], cap: 2, label: 'Explore range', unit: 'extra rings of tiles'}),
-  'condition.mitigation': Object.freeze({values: [1, 2, 3], cap: null, label: 'Condition mitigation', unit: 'steps a named penalty is reduced', applies: 'condition'})
+  'condition.mitigation': Object.freeze({values: [1, 2, 3], cap: 3, label: 'Condition mitigation', unit: 'steps a named penalty is reduced', applies: 'condition'})
 });
 export const TARGET_IDS = Object.freeze(Object.keys(TARGETS));
 export const SCOUT_LADDER = Object.freeze(['0: direction only', '1: a named region or quadrant', '2: a named landmark or route']);
@@ -111,7 +111,7 @@ const groupKey = m => m.stack ? `${m.target}|stack:${m.stack}` : `${m.target}|${
  * mounted: the GM's Mounted switch.
  * Returns {mounted, bonus: {actions, explore, scout}, rows: [{key, target, terrain, condition, label, unit, total, cap, capped, sources}]}.
  * Rules: within a stacking group only the highest value counts (the whole party shares the group, so the best source wins);
- * different groups add; travel.actions, explore.range, scout.precision and travel.efficiency (per terrain) stop at +2.
+ * different groups add; travel.actions, explore.range, scout.precision and travel.efficiency (per terrain) stop at +2; condition.mitigation stops at +3 per named condition (0.37.1).
  * A modifier counts when it is not inactive, every `when` it names is met (mounted: the switch is on; familiar_terrain: never, it is the GM's call),
  * and, for an item on the character's mount, the switch is on.
  */

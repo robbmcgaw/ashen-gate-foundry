@@ -1,3 +1,11 @@
+## 0.37.1 — 2026-10-31
+
+Changed: condition mitigation now has a party cap.
+
+- **`condition.mitigation` stops at +3 per named condition.** The party total for one condition (`applies.condition`) is capped at 3 steps, applied after stacking (highest per stack group, groups add), like the other travel targets. Two different conditions each get their own +3. The Overland tab's Party modifiers table shows "Up to +3" for these rows, with "(reached)" when the uncapped sum goes over; a sum of exactly 3 is not flagged. `api.overland.partyModifiers()` rows carry `cap: 3` and `capped` the same way.
+- Docs: `docs/modifiers-schema.md` (The `travel` scope) updated.
+- Nothing stored changes; no migration. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.37.0 — 2026-10-30
 
 New: a light overland travel utility and the `travel` modifier scope. You adjudicate at the table; this keeps a tally and adds up what the party carries.
