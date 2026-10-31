@@ -1,3 +1,11 @@
+## 0.16.3 — 2026-10-31
+
+Fix: the Stages… window (Manage → Cinders → Stage art, and the per-character Stages…) could not be scrolled or clicked.
+
+- **Stage art window works again.** Choose image…, Add stage, Remove, the arrows and the number fields now respond, the window body scrolls when it is taller than the screen, and Save Changes / Cancel stay pinned at the bottom. Two causes: each stage row shared a style name with the orb on the sheet, which made every row a tall square and pushed the buttons off-screen; and the editor's inner form was dropped when the window opened, so its buttons were never connected.
+- **The image picker opens in front of the window.** The window is no longer a locked (modal) window, so the Assets Library picker is usable on top of it. Pressing Enter in a field no longer presses Save Changes.
+- No change to saved stages or any other data. Check in Forge: Cinders → Manage → Cinders → Stage art… on a Cinder with no stages, shrink the browser window, scroll the window, press Choose image…, pick a file, Save Changes.
+
 ## 0.16.2 — 2026-10-26
 
 Narrow-window fix (shared kit 2.4.0).
