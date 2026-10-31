@@ -18,6 +18,9 @@
  *    Shops are their modules' export packages, and edited records are Manager's `ag-world-edits/0.1` bundle.
  *  - Renown standings (0.90.0, `standings.json`) are PLAY STATE, not content: Renown's `api.exportState()` in its own schema
  *    `ag-factions-state-export/0.1`, which the reconcile script does not read (it lists and skips unknown formats).
+ *  - Party characters (0.93.0, `party.json`) are PLAY STATE too: a slim copy of the players' character sheets in the schema
+ *    `ag-party-sheets-export/0.1` (see party-sheets.js), also skipped by the reconcile script. GM only; Ashen Gate module state is read
+ *    through public apis, feature-detected.
  *  - Each module's data comes from its public api (`game.modules.get(id)?.api`), feature-detected. A module that is missing,
  *    inactive or has no such api is skipped with a reason; nothing reaches into another module's internals.
  *
@@ -25,6 +28,7 @@
  */
 import {parseRepo, parseBranch, encodePath, isSha, maskToken, cleanToken, tokenProblem, scrub, mapGithubError} from './github-paths.js';
 import {scanWorldEdits, buildEditsFile, EDIT_TYPES} from './world-edits.js';
+import {buildPartySheets} from './party-sheets.js';
 
 export const GITHUB_API = 'https://api.github.com';
 export const API_VERSION = '2022-11-28';
@@ -117,11 +121,12 @@ export const BACKUP_TYPES = Object.freeze([
   {id: 'quests', label: 'Quests, Orders and Contracts', source: 'quests'},
   {id: 'factions', label: 'Factions and deities', source: 'factions'},
   {id: 'shops', label: 'Shops', source: 'shops'},
-  {id: 'standings', label: 'Renown standings and claims', source: 'standings'}
+  {id: 'standings', label: 'Renown standings and claims', source: 'standings'},
+  {id: 'party', label: 'Party characters', source: 'party'}
 ]);
 export const ALL_TYPE_IDS = Object.freeze(BACKUP_TYPES.map(t => t.id));
-/** The types that existed before 0.90.0. A selection remembered before then did not know the newer ones, so they start ticked. */
-const LEGACY_TYPE_IDS = Object.freeze(ALL_TYPE_IDS.filter(id => id !== 'standings'));
+/** The types that existed before 0.90.0. A selection remembered before then did not know the newer ones (standings 0.90.0, party 0.93.0), so they start ticked. */
+const LEGACY_TYPE_IDS = Object.freeze(ALL_TYPE_IDS.filter(id => id !== 'standings' && id !== 'party'));
 const cleanSelection = list => ALL_TYPE_IDS.filter(id => Array.isArray(list) && list.includes(id));
 
 /** The types ticked last time on this device; every type when nothing was remembered. */
@@ -212,7 +217,11 @@ const SOURCES = [
       const exportState = fn(api, 'exportState');
       if (!exportState) throw new Skip('this version of Renown has no standings export; update Renown');
       return {data: exportState.call(api)};
-    }}
+    }},
+  // Players' character sheets (ag-party-sheets-export/0.1), built from world Actors here; Ashen Gate state through public apis. Play state.
+  {id: 'party', ids: ['party'], path: 'party.json', label: 'Party characters (character sheets), play state',
+    note: 'Holds character sheets; play state, not content.',
+    build: game => ({data: buildPartySheets(game)})}
 ];
 const labelOf = id => BACKUP_TYPES.find(t => t.id === id)?.label ?? id;
 

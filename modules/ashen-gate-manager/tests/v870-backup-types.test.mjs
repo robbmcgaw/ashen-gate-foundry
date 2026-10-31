@@ -64,7 +64,7 @@ test('quests.json and factions.json are byte-identical to the modules\' own expo
 test('Quest Log or Renown too old to export is skipped with a plain reason; the rest is still written', () => {
   const p = bk.collectBackup(mkGame({'ashen-gate-quest-manager': {active: true, api: {listQuests() {}}}, 'ashen-gate-factions': {active: true, api: {getFactions() {}}}}));
   assert.equal(p.ok, true);
-  assert.deepEqual(p.files.map(f => f.path), ['manager-edits', 'locations', 'shops'].map(n => `world-backup/${n}.json`));
+  assert.deepEqual(p.files.map(f => f.path), ['manager-edits', 'locations', 'shops', 'party'].map(n => `world-backup/${n}.json`));
   const why = Object.fromEntries(p.skipped.map(s => [s.label.split(/\W/)[0], s.reason]));
   assert.match(why.Quests, /no source export; update Quest Log/);
   assert.match(why.Factions, /no definitions export; update Renown/);
@@ -110,7 +110,7 @@ test('a type left unticked is not written and not removed from the branch', asyn
 test('the selection is remembered per device: all by default, saved, cleaned, GM only', async () => {
   const store = mkStore();
   assert.deepEqual(bk.loadBackupSelection(GM, {store}).selection, bk.ALL_TYPE_IDS);
-  assert.equal(bk.ALL_TYPE_IDS.length, 10);
+  assert.equal(bk.ALL_TYPE_IDS.length, 11);
   const saved = await bk.saveBackupSelection(GM, {store, selection: ['shops', 'Item', 'bogus', 'Item']});
   assert.deepEqual(saved.selection, ['Item', 'shops']);
   assert.deepEqual(store.data.backupTypes, {types: ['Item', 'shops'], seen: bk.ALL_TYPE_IDS});
@@ -130,7 +130,7 @@ test('the confirmation has one tick box per available type, remembered ones tick
   const plan = bk.collectBackup(g);
   const [field] = confirmFields(plan, {repo: 'owner/priv', branch: 'world-backup'}, ['Item', 'quests']);
   assert.equal(field.type, 'checklist'); assert.equal(field.name, 'types');
-  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro', 'locations', 'quests', 'factions', 'standings']);
+  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro', 'locations', 'quests', 'factions', 'standings', 'party']);
   assert.deepEqual(field.options.filter(o => o.checked).map(o => o.value), ['Item', 'quests']);
   assert.match(field.hint, /unticked is not written/);
   assert.match(field.hint, /private/); assert.match(field.hint, /default branch/);
@@ -147,5 +147,5 @@ test('wiring: dialog is a form dialog with Back up as the action, choice saved o
   assert.match(main, /not written and not removed/);
   assert.match(main, /one tick box per type/);
   assert.doesNotMatch(main, /sends five files/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.92.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.93.0');
 });

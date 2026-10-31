@@ -1,3 +1,12 @@
+## 0.93.0 — 2026-10-31
+
+- **Back up world now… can include Party characters.** New tick box **Party characters**, ticked by default (a choice you saved earlier keeps its other ticks; only this new box starts ticked). It writes `world-backup/party.json`, a slim, readable copy of the players' character sheets so Claude can read them from the backup instead of a hand export. This is **play state** (it holds character sheets), in its own schema `ag-party-sheets-export/0.1`; the content reconcile lists and skips it and it is never imported.
+- **Who:** world characters that a non-GM user owns, sorted by name. GM-owned characters, NPCs and characters nobody plays are left out.
+- **What each character has:** Actor id, name, owner, level, classes (levels and subclass), species and background, ability scores and save proficiency, skill proficiency, HP max and temporary max, AC, speed, initiative bonus, armor, weapon, tool and language proficiencies, currency, features (source, activation and a plain-text description of at most 600 characters), spells (level, prepared, school) and inventory (type, quantity, equipped, attuned, rarity). No biography, notes, private text, effects or flags, and no timestamps.
+- **Ashen Gate state** is read only through the public APIs of Profession Ledger (professions and selected perks), Cinders (bound Cinders and unlocked powers) and Skill Trees (points per tree), and only when that module is active and has the call. Otherwise that part of the file says `skipped` with the reason. Nothing was added to those modules.
+- Same write path and safety as the other types: private repository only, never the default branch, one commit, the token never in any message, and an unticked box is neither written nor removed from the branch. The dialog hint, Help, README and `docs/world-backup.md` say it holds play state.
+- Saved data: nothing changes. Tests are mocked Foundry and a mocked GitHub; a real world's sheets and a real commit have not been seen.
+
 ## 0.92.0 — 2026-10-31
 
 - **Crimson, the tenth Cinder, is recognised in Items > Assets.** Files named like `Crimson_Cinder_Stage_01.webp` to `_05` are grouped as one Crimson row, matched to the Crimson Cinder record by name and linked to the Cinder itself, like the other nine. Zero-padded stage numbers (`_01`) already worked and are now covered by a test.

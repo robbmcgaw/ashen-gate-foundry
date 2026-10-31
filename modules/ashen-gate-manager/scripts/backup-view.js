@@ -46,7 +46,7 @@ export function exportView(state) {
   const m = state.message;
   return `<section class="ag-section" aria-label="Back up world to GitHub">
     <div class="ag-section__head"><h3 class="ag-section__title">Back up world to GitHub</h3></div>
-    <p class="agmanager-tiny">Sends the types you tick (edited Items, Journals, Actors, Roll Tables and Macros, Locations, Quests, Orders and Contracts, Factions and deities, Shops, and Renown standings and claims) to the ${esc(state.target?.branch ?? '')} branch of a private repository, in the same files each module’s own Export writes. A type you leave unticked is not written and its earlier file stays on the branch. Your last choice is remembered on this device. Nothing in your world changes. The repository, branch and token are set in GM Setup, World backup.</p>
+    <p class="agmanager-tiny">Sends the types you tick (edited Items, Journals, Actors, Roll Tables and Macros, Locations, Quests, Orders and Contracts, Factions and deities, Shops, Renown standings and claims, and Party characters) to the ${esc(state.target?.branch ?? '')} branch of a private repository, in the same files each module’s own Export writes. A type you leave unticked is not written and its earlier file stays on the branch. Your last choice is remembered on this device. Nothing in your world changes. The repository, branch and token are set in GM Setup, World backup.</p>
     <div class="ag-cluster">
       <button type="button" class="ag-btn" data-ag-action="backup-run" ${state.busy ? 'disabled' : ''}><i class="fa-brands fa-github" aria-hidden="true"></i> Back up world now…</button>
       ${state.lastLabel ? `<span class="agmanager-tiny">Last backed up on this device: ${esc(state.lastLabel)}</span>` : ''}</div>
@@ -57,7 +57,7 @@ export function exportView(state) {
 /** The words under the tick boxes. */
 export function confirmHint(plan, target) {
   const gone = (plan.types ?? []).filter(t => !t.available);
-  return `This writes the ticked types to the ${target.branch} branch of ${target.repo}. A type you leave unticked is not written, and its earlier file on the branch stays as it is. Renown standings and claims hold play state (who has earned what, and what has been revealed), so they are written to the private repository only. Quest progress is not included, and nothing in your world changes. Before anything is written, GitHub is asked whether the repository is private. A public repository, or the default branch, is refused.${gone.length ? ` Not available now: ${gone.map(t => `${t.label} (${t.reason})`).join('; ')}.` : ''}`;
+  return `This writes the ticked types to the ${target.branch} branch of ${target.repo}. A type you leave unticked is not written, and its earlier file on the branch stays as it is. Renown standings and claims hold play state (who has earned what, and what has been revealed), and Party characters holds character sheets (play state), so both are written to the private repository only. Quest progress is not included, and nothing in your world changes. Before anything is written, GitHub is asked whether the repository is private. A public repository, or the default branch, is refused.${gone.length ? ` Not available now: ${gone.map(t => `${t.label} (${t.reason})`).join('; ')}.` : ''}`;
 }
 
 /** One line per tick box: what it is and what it will write. */
