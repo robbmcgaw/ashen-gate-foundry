@@ -4,12 +4,14 @@
  * carries for the Overland tab. Pure data: no Foundry globals, so scripts/validate-content.mjs can import it too.
  * Nothing here is automatic play: the numbers are shown to the GM, who adjudicates.
  */
+import {CONDITION_IDS, unknownConditionMessage} from './overland-conditions.mjs';
+
 export const MODIFIER_CONTRACT = 'ag-modifier/1';
 export const MODIFIER_SCOPE = 'travel';
 
 export const TERRAINS = Object.freeze(['difficult-terrain', 'marsh', 'forest', 'hills', 'grassland', 'road']);
-export const CONDITIONS = Object.freeze(['cold', 'heat', 'rain-and-wind', 'dust-and-ash', 'darkness', 'difficult-terrain',
-  'mist-and-soft-ground', 'thin-air-quick-weather', 'hissing-grass', 'green-dimness', 'open-haze', 'rising-water']);
+/** The six conditions and hazards live in overland-conditions.mjs (0.38.0); this alias keeps the old export name. */
+export const CONDITIONS = CONDITION_IDS;
 /** Closed set for applies.when. `mounted` follows the GM's Mounted switch; `familiar_terrain` is the GM's call (never added up). */
 export const WHEN = Object.freeze(['mounted', 'familiar_terrain']);
 
@@ -58,14 +60,14 @@ export function entryProblems(m, at) {
       }
       if (a.condition !== undefined) {
         if (def && own !== 'condition') errors.push(`${at}: applies.condition is only for condition.mitigation`);
-        else if (typeof a.condition !== 'string' || !CONDITIONS.includes(a.condition)) errors.push(`${at}: applies.condition must be one id from ${words(CONDITIONS)}`);
+        else if (typeof a.condition !== 'string' || !CONDITIONS.includes(a.condition)) errors.push(`${at}: ${unknownConditionMessage(a.condition)}`);
       }
       if (a.when !== undefined && (!Array.isArray(a.when) || !a.when.length || a.when.some(w => !WHEN.includes(w)) || new Set(a.when).size !== a.when.length))
         errors.push(`${at}: applies.when must list each of ${words(WHEN)} at most once`);
     }
   }
   if (m.target === 'condition.mitigation' && !(plain(m.applies) && m.applies.condition !== undefined))
-    errors.push(`${at}: condition.mitigation needs applies.condition (one condition id; there is no blanket immunity)`);
+    errors.push(`${at}: condition.mitigation needs applies.condition (one of the six condition ids: ${words(CONDITIONS)}; there is no blanket immunity)`);
   return errors;
 }
 

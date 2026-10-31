@@ -1,3 +1,13 @@
+## 0.38.0 — 2026-10-31
+
+Changed: overland conditions and hazards are now ONE concept with six fixed ids, set day by day in the Overland tab.
+
+- **Six conditions and hazards.** Natural ones are *conditions*: Harsh Weather (`harsh-weather`), Hard Ground (`hard-ground`), Poor Visibility (`poor-visibility`). Unnatural ones are *hazards*: Warped Paths (`warped-paths`), Blight Taint (`blight-taint`), Ashen Menace (`ashen-menace`). They replace the old `applies.condition` ids (cold, heat, rain-and-wind, dust-and-ash, darkness, difficult-terrain and the region ids), which the owner check now reports as errors that say to update the pack and re-import. The list is one module, `overland-conditions.mjs`, used by the owner check, `scripts/validate-content.mjs` and the docs.
+- **Today's conditions (Overland tab, GM only).** A severity 0 to 3 for each (applies at once), the party's mitigation from `condition.mitigation` (up to +3), and the steps remaining (severity minus mitigation, never below 0), with a one-line reminder of what that usually means while any remain. Nothing is applied for you. **New day…** clears every severity back to 0 (the confirmation says so).
+- **API.** `overland.state()` has `conditions` (`{id: severity}`); `overland.partyModifiers()` has `conditions` (all six with `severity`, `mitigation`, `remaining`) and `severity`/`remaining` on condition rows. Still GM only, refused in the API and the service.
+- Existing worlds: a saved state without `conditions` reads as all six at 0; no migration. Items imported with old condition ids must be re-imported after the pack is updated (the import is blocked until then).
+- Docs: `docs/modifiers-schema.md`, `docs/perks-and-modifiers-for-gpt.md`, fixtures, Help ("Overland travel") and the README. Tests are mocked Foundry; they do not open the real window.
+
 ## 0.37.1 — 2026-10-31
 
 Changed: condition mitigation now has a party cap.

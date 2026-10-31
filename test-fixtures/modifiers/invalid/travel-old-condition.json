@@ -1,0 +1,52 @@
+{
+  "_expect_error": "older condition id",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-TRAVEL-MODIFIERS",
+    "version": "1.0.0",
+    "description": "Synthetic travel modifiers for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "PERK-TEST-OLD-CONDITION",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Old Condition Id",
+      "implementation": "automatic",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Perks",
+        "data": {
+          "name": "[TEST] Old Condition Id",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      },
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "scope": "travel",
+        "list": [
+          {
+            "target": "condition.mitigation",
+            "value": 2,
+            "label": "[TEST] Old Condition Id",
+            "applies": {"condition": "rain-and-wind"}
+          }
+        ]
+      }
+    }
+  ]
+}

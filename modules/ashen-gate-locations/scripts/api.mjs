@@ -571,8 +571,8 @@ export function createApi(deps) {
      */
     modifiers: Object.freeze({contract: MODIFIER_CONTRACT, scope: MODIFIER_SCOPE, targets: [...TARGET_IDS], validate: validateModifiers}),
     /**
-     * Light overland travel (0.37.0), GM only, read only. state() -> {contract, day, used, base, bonus, total, left, mounted, announce, log: [{kind, day, text}]};
-     * partyModifiers() -> {contract, scope, mounted, bonus: {actions, explore, scout}, ladder, rows: [{key, target, terrain, condition, label, unit, total, cap, capped,
+     * Light overland travel (0.37.0), GM only, read only. state() -> {contract, day, used, base, bonus, total, left, mounted, announce, conditions: {id: 0..3}, log: [{kind, day, text}]};
+     * partyModifiers() -> {contract, scope, mounted, bonus: {actions, explore, scout}, ladder, conditions: [{id, label, kind, hits, guidance, severity, mitigation, remaining}], rows: [{key, target, terrain, condition, label, unit, total, cap, capped, severity?, remaining?,
      * sources: [{name, character, label, value, counted, note}]}]}. Players are refused here, not just in the window.
      */
     overland: Object.freeze({

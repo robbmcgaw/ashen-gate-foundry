@@ -1,16 +1,31 @@
 /** The GM-only Overland tab (0.37.0): markup only. app.mjs wires the buttons. Plain labels, no ids, no status words. */
 import {ACTIONS} from './overland.mjs';
 import {SCOUT_LADDER} from './travel-modifiers.mjs';
+import {conditionById, KIND_LABEL, MAX_SEVERITY} from './overland-conditions.mjs';
 
 const title = id => id.replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
 const TERRAIN_LABEL = {'difficult-terrain': 'Difficult terrain', marsh: 'Marsh', forest: 'Forest', hills: 'Hills', grassland: 'Grassland', road: 'Road'};
-const CONDITION_LABEL = {cold: 'Cold', heat: 'Heat', 'rain-and-wind': 'Rain and wind', 'dust-and-ash': 'Dust and ash', darkness: 'Darkness', 'difficult-terrain': 'Difficult terrain',
-  'mist-and-soft-ground': 'Mist and soft ground', 'thin-air-quick-weather': 'Thin air, quick weather', 'hissing-grass': 'Hissing grass', 'green-dimness': 'Green dimness',
-  'open-haze': 'Open haze', 'rising-water': 'Rising water'};
 export const rowLabel = r => r.terrain !== null ? `${r.label}: ${r.terrain ? TERRAIN_LABEL[r.terrain] ?? title(r.terrain) : 'any terrain'}`
-  : r.condition ? `${r.label}: ${CONDITION_LABEL[r.condition] ?? title(r.condition)}` : r.label;
+  : r.condition ? `${r.label}: ${conditionById(r.condition)?.label ?? title(r.condition)}` : r.label;
 const ICON = {travel: 'fa-solid fa-shoe-prints', scout: 'fa-solid fa-binoculars', explore: 'fa-solid fa-compass'};
 const signed = n => `+${n}`;
+
+/** One condition or hazard: a 0 to 3 severity control (saves at once), the party's mitigation, the steps remaining and, while any remain, the guidance line. */
+function conditionRow(c, {esc}) {
+  const levels = Array.from({length: MAX_SEVERITY + 1}, (_, n) => n);
+  return `<li class="agl-ov-cond" data-cond-row="${esc(c.id)}">
+    <div class="agl-ov-cond__name"><strong>${esc(c.label)}</strong><br><span class="agl-hint">${esc(c.hits)}</span></div>
+    <div class="ag-segmented" role="group" aria-label="${esc(c.label)} severity">${levels.map(n => `<button type="button" aria-pressed="${c.severity === n}" data-action="ov-cond" data-cond="${esc(c.id)}" data-sev="${n}" aria-label="${esc(c.label)} severity ${n}">${n}</button>`).join('')}</div>
+    <p class="agl-ov-cond__math">Party mitigation ${esc(signed(c.mitigation))}. Steps remaining <strong>${esc(c.remaining)}</strong>.</p>
+    ${c.remaining > 0 ? `<p class="agl-ov-cond__guide">${esc(c.guidance)}</p>` : ''}</li>`;
+}
+/** The "Today's conditions" card: Conditions (natural) then Hazards (unnatural). */
+function conditionsCard(list, {esc, now}) {
+  const group = kind => `<h4>${esc(KIND_LABEL[kind])}</h4><ul class="agl-ov-conds" aria-label="${esc(KIND_LABEL[kind])}">${list.filter(c => c.kind === kind).map(c => conditionRow(c, {esc})).join('')}</ul>`;
+  return `<section class="ag-card" aria-labelledby="agl-ov-conds"><h3 id="agl-ov-conds">Today's conditions ${now}</h3>
+    <p class="agl-hint">Set how bad each one is today, 0 (none) to 3. The party's mitigation, from what it carries, is taken off; what is left is shown with a reminder of what it usually means. Nothing is applied for you. New day… clears them all.</p>
+    ${group('condition')}${group('hazard')}</section>`;
+}
 
 /**
  * state: api.overland state(); mods: partyModifiers(); h: {esc, btn, tip, now} from app.mjs.
@@ -40,6 +55,7 @@ export function overlandHtml(state, mods, {esc, btn, tip, now}) {
         <h4>Log</h4>
         ${log.length ? `<ol class="agl-ov-log" aria-label="Recent overland actions">${log.map(e => `<li>${esc(e.text)}</li>`).join('')}</ol>`
           : '<p class="agl-hint">No actions yet. Travel, Scout or Explore adds a line here.</p>'}</section>
+      ${conditionsCard(mods.conditions ?? [], {esc, now})}
       <section class="ag-card" aria-labelledby="agl-ov-mods"><h3 id="agl-ov-mods">Party modifiers</h3>
         ${table}
         <p class="agl-hint">Read only. Within a stacking group only the best source counts, across the whole party; different groups add up to the cap. Gear set to familiar terrain is your call and is never added.</p>

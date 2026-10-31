@@ -61,7 +61,7 @@ Light overland travel, owned by Ashen Gate | Locations (0.37.0+). The GM adjudic
 | `travel.efficiency` | 1 | +2 per terrain | Steps of terrain cost removed for Travel | `terrain` (optional): a list from `difficult-terrain`, `marsh`, `forest`, `hills`, `grassland`, `road`. Left out: every terrain |
 | `scout.precision` | 1 or 2 | +2 | Precision steps for Scout. A guide, not a rule: 0 direction only, 1 a named region or quadrant, 2 a named landmark or route; anything finer is the GM's call | `when` |
 | `explore.range` | 1 | +2 | Extra rings of tiles surveyed by Explore | `when` |
-| `condition.mitigation` | 1 to 3 | +3 per condition | Steps a **named** environmental penalty is reduced. No blanket immunity | `condition` (**required**, one id): `cold`, `heat`, `rain-and-wind`, `dust-and-ash`, `darkness`, `difficult-terrain`, or a region condition `mist-and-soft-ground`, `thin-air-quick-weather`, `hissing-grass`, `green-dimness`, `open-haze`, `rising-water` |
+| `condition.mitigation` | 1 to 3 | +3 per condition | Steps a **named** condition or hazard is reduced. No blanket immunity | `condition` (**required**, one id of the six, see [Conditions and hazards](#conditions-and-hazards-the-six)): `harsh-weather`, `hard-ground`, `poor-visibility`, `warped-paths`, `blight-taint`, `ashen-menace`. Any other id is an error that says to update the pack and re-import |
 
 Every entry is a whole number, not 0, and positive; a value outside its range is refused. `applies.when` is optional on every target and is a list from a closed set: `mounted`, `familiar_terrain` (all listed must hold). Any other `applies` key or value, `applies.terrain` on a target other than `travel.efficiency`, `applies.condition` on a target other than `condition.mitigation`, a missing `applies.condition`, `requires`, or an unknown target is an error. `op` is `add`; `stack` is a short lower-case group name; `label` is 1 to 80 characters.
 
@@ -69,10 +69,25 @@ Every entry is a whole number, not 0, and positive; a value outside its range is
 
 **When an entry counts.** The module reads the imported definition. An `ITEM-*` or `PERK-*` counts while it is on a party character (a player-owned `character` Actor); wearable equipment (an `equipment` Item) also has to be equipped. An entry with `when: mounted` counts only while the GM's **Mounted** switch is on. If Character Hub is active and shows an item assigned to a character's mount (its `api.companions`), that item counts only while Mounted is on; without the Hub every item simply counts when it is on the character. `familiar_terrain` is the GM's call: the entry is listed but never added to the totals. Nothing is applied to a roll or a speed; the numbers inform the GM.
 
+### Conditions and hazards: the six
+
+Conditions and hazards are ONE concept with a classification, and there are exactly six, fixed. **Natural** ones are *conditions*; **unnatural** ones are *hazards*. Their effects are similar; each influences overland travel in its own way, and each can be mitigated by items, perks, spells, mounts and so on through `condition.mitigation`. Nothing else is accepted in `applies.condition`: the old ids (`cold`, `heat`, `rain-and-wind`, `dust-and-ash`, `darkness`, `difficult-terrain` and the region ids such as `mist-and-soft-ground`, `rising-water`) are errors, so update the pack and re-import.
+
+| id | Label | Kind | Covers | Guidance when steps remain (display help only) |
+|---|---|---|---|---|
+| `harsh-weather` | Harsh Weather | condition | rain, wind, storm, cold, heat | Each unmitigated step costs the party one daily action. |
+| `hard-ground` | Hard Ground | condition | marsh, scree, undergrowth, snow, mud | Each unmitigated step makes Travel into the affected tile cost one extra step. |
+| `poor-visibility` | Poor Visibility | condition | mist, haze, dimness, night, dust | Each unmitigated step removes one Explore ring. |
+| `warped-paths` | Warped Paths | hazard | false trailmarks, misleading lights and sounds | Each unmitigated step removes one Scout precision step; at 2 or more the GM may misdirect. |
+| `blight-taint` | Blight Taint | hazard | Blight-touched ground and weather | The GM's call (spoilage, Strain exposure); no travel stat. |
+| `ashen-menace` | Ashen Menace | hazard | Ashen creatures abroad | The GM raises encounter pressure. |
+
+In the Overland tab (0.38.0) the GM sets each one's **severity** today, 0 to 3 (default 0), under *Today's conditions*. The party's **mitigation** for it is the `condition.mitigation` total (stacking as below, capped at +3 per condition) and **steps remaining = max(0, severity - mitigation)**; the guidance line shows while steps remain. Nothing is applied automatically. **New day…** sets every severity back to 0. The list lives in `modules/ashen-gate-locations/scripts/overland-conditions.mjs` (`OVERLAND_CONDITIONS`: `{id, label, kind: 'condition'|'hazard', hits, guidance}`), the single source for the owner check, `scripts/validate-content.mjs` and these docs. `api.overland.state().conditions` is `{id: severity}`; `api.overland.partyModifiers()` adds `conditions: [{id, label, kind, hits, guidance, severity, mitigation, remaining}]` and `severity`/`remaining` on the condition rows.
+
 ```json
 "modifiers": {"schema": "ag-modifiers/0.1", "scope": "travel", "list": [
   {"target": "travel.efficiency", "value": 1, "label": "[TEST] Trail Boots", "applies": {"terrain": ["forest", "hills"]}},
-  {"target": "condition.mitigation", "value": 2, "label": "[TEST] Trail Boots (damp)", "applies": {"condition": "mist-and-soft-ground"}, "stack": "footwear"},
+  {"target": "condition.mitigation", "value": 2, "label": "[TEST] Trail Boots (damp)", "applies": {"condition": "poor-visibility"}, "stack": "footwear"},
   {"target": "travel.actions", "value": 1, "label": "[TEST] Saddle Flask", "applies": {"when": ["mounted"]}}]}
 ```
 

@@ -54,7 +54,7 @@
             "value": 2,
             "label": "[TEST] Trail Boots (damp)",
             "applies": {
-              "condition": "mist-and-soft-ground"
+              "condition": "poor-visibility"
             },
             "stack": "footwear"
           }

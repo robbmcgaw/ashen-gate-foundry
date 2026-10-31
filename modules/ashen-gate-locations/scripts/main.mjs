@@ -16,7 +16,7 @@ import {createCanvasDrop} from './canvas-drop.mjs';
 import {createOverland, useOverland} from './overland.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '0.37.1';
+const VERSION = '0.38.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
