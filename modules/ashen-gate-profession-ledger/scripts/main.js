@@ -1271,8 +1271,8 @@ function releasedSnapshot(sourceId,entityType){
   const hit=lookupWorldDefinition(game,sourceId,{entityType});
   if(hit?.status!=='ok'||hit.source?.visibility!=='player'||hit.source?.status!=='approved')return null;
   const snap=snapshotItem(hit.document.toObject?.()??hit.document);
-  // 0.43.0: the canonical id (never shown), so the viewer's client can open the real sheet when their permission allows it.
-  return snap?{...snap,sourceId:String(sourceId)}:null;
+  // 0.43.0: the Item's world uuid (a local binding, no canonical id), so the viewer's client can open the real sheet if their permission allows it.
+  return snap?{...snap,uuid:hit.document.uuid??''}:null;
 }
 /** GM: the preview of one recipe, from the world Items and the recipe definition. */
 function buildRecipePreview(recipe,lib){
@@ -1280,7 +1280,7 @@ function buildRecipePreview(recipe,lib){
   return {result:recipe.resultItemId?releasedSnapshot(recipe.resultItemId,'Item'):null,
     ingredients:(recipe.hasStructuredIngredients?recipe.ingredients:[]).map(ing=>{
       const snap=releasedSnapshot(ing.materialId,'Material');
-      return {name:snap?.name??ingredientName(ing,lib),img:snap?.img??'',type:snap?.type??'Material',text:(snap?.text??'').slice(0,300),html:snap?.html??'',price:'',quantity:ing.quantity,...(snap?.sourceId?{sourceId:snap.sourceId}:{})};}),
+      return {name:snap?.name??ingredientName(ing,lib),img:snap?.img??'',type:snap?.type??'Material',text:(snap?.text??'').slice(0,300),html:snap?.html??'',price:'',quantity:ing.quantity,...(snap?.uuid?{uuid:snap.uuid}:{})};}),
     tools:req.tool?req.toolLabel:'',workstation:recipe.workstation??''};
 }
 /** GM: refresh one character's previews for the recipes it knows (released recipes only). Writes only when something changed. Idempotent. */
@@ -1360,9 +1360,9 @@ async function openPreview(button){
   const part=String(button.dataset.part??''),p=part==='result'?entry?.result:entry?.ingredients?.[Number(part.slice(1))];
   if(!p)return say('That item can’t be shown.',true);
   // 0.43.0: if this user may open the real item now (permission changed since the card was drawn), open its sheet, not the popup.
-  if(p.sourceId){
-    const access=itemAccess(p.sourceId,/^MAT-/.test(p.sourceId)?'Material':'Item');
-    if(access.state==='ok'&&access.doc?.sheet?.render){await access.doc.sheet.render(true);return;}
+  if(p.uuid){
+    const open=openableItem(p.uuid);
+    if(open.doc?.sheet?.render){await open.doc.sheet.render(true);return;}
   }
   await infoDialog(p.name,previewBodyHtml(p));
   // Put focus back on the button that opened it (the window may have re-rendered meanwhile).
@@ -1383,15 +1383,20 @@ function itemRef(name,sourceId,entityType,ctx='',preview=null){
   return `<span class="agl-item-plain" ${tip('Your GM hasn’t released this item to you yet.')}>${label}</span>`;
 }
 /** 0.32.0: open the world Item behind an item link, re-checking permission now (the markup is never trusted). */
-async function openItemLink(uuid){
+function openableItem(uuid){
   const m=/^Item\.([A-Za-z0-9]{16})$/.exec(String(uuid??''));
   const doc=m?game.items?.get?.(m[1]):null;
   const src=doc?definitionSource(doc):null;
   // Only what a recipe links to: a Material or an Item, never a recipe, profession or other record.
-  if(!doc||!src?.sourceId||!['Material','Item'].includes(src.entityType))return say('That item can’t be opened.',true);
+  if(!doc||!src?.sourceId||!['Material','Item'].includes(src.entityType))return {doc:null,message:'That item can’t be opened.'};
   const access=itemAccess(src.sourceId,src.entityType);
-  if(access.state!=='ok'||access.doc!==doc)return say(game.user?.isGM?'That item can’t be opened.':'You can’t open this item yet.',true);
-  await doc.sheet?.render?.(true);
+  if(access.state!=='ok'||access.doc!==doc)return {doc:null,message:game.user?.isGM?'That item can’t be opened.':'You can’t open this item yet.'};
+  return {doc,message:''};
+}
+async function openItemLink(uuid){
+  const open=openableItem(uuid);
+  if(!open.doc)return say(open.message,true);
+  await open.doc.sheet?.render?.(true);
 }
 /** Click on an item link (any surface: window, Tidy5e tab, Character Hub embed). Returns true when it handled the click. */
 function itemLinkClick(button){

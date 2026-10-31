@@ -32,8 +32,8 @@ const world=[
  worldDoc('wprof00000000000','[TEST] Alchemy — Profession',src('PROF-TEST-ALCHEMY','Profession',{definition:def('PROF-TEST-ALCHEMY','Profession',{name:'[TEST] Alchemy'})}),true)];
 world.get=id=>world.find(x=>x.id===id);
 const previews={schema:'ag-result-previews/0.1',recipes:{'REC-TEST-SALVE':{
-  result:{name:'[TEST] Salve Vial',img:'',type:'Consumable',text:'x',html:'<h3>Effects</h3><table><tr><th>Roll</th><th>Result</th></tr><tr><td>1</td><td>Fine</td></tr></table><p>Recipe: @UUID[Item.kkzdAWEiAHChoSd9]{Braided Metal Bracelet}</p>',price:'5 gp',sourceId:'ITEM-TEST-SALVE'},
-  ingredients:[{name:'[TEST] Leaf',img:'',type:'Material',text:'',price:'',quantity:2},{name:'[TEST] Resin',img:'',type:'Material',text:'Sticky. @UUID[Item.abcdefghijklmnop]',price:'',quantity:1,sourceId:'MAT-TEST-RESIN'}],tools:'',workstation:'[TEST] Laboratory'}}};
+  result:{name:'[TEST] Salve Vial',img:'',type:'Consumable',text:'x',html:'<h3>Effects</h3><table><tr><th>Roll</th><th>Result</th></tr><tr><td>1</td><td>Fine</td></tr></table><p>Recipe: @UUID[Item.kkzdAWEiAHChoSd9]{Braided Metal Bracelet}</p>',price:'5 gp',uuid:'Item.wvial00000000000'},
+  ingredients:[{name:'[TEST] Leaf',img:'',type:'Material',text:'',price:'',quantity:2},{name:'[TEST] Resin',img:'',type:'Material',text:'Sticky. @UUID[Item.abcdefghijklmnop]',price:'',quantity:1,uuid:'Item.wresin0000000000'}],tools:'',workstation:'[TEST] Laboratory'}}};
 const skills={arc:{value:1},med:{value:2},his:{value:0.5},nat:{value:0}};
 const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:true,system:{skills},items:[{id:'bprof',name:'[TEST] Alchemy — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-ALCHEMY','Profession',{definition:def('PROF-TEST-ALCHEMY','Profession',{name:'[TEST] Alchemy'})})}],
   flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-TEST-SALVE'],recipePreviews:previews}},testUserPermission:(u,role)=>u.isGM||u.id==='u1'||role==='LIMITED'};

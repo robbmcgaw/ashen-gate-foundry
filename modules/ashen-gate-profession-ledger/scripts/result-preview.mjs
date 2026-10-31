@@ -77,8 +77,8 @@ const cleanSnap=v=>{
   if(!v||typeof v!=='object')return null;
   const name=String(v.name??'').trim().slice(0,120);if(!name)return null;
   const html=typeof v.html==='string'&&v.html.length<=PREVIEW_HTML_MAX?v.html:''; // cleaned again when shown: a flag is never trusted
-  const sourceId=/^[A-Z]+-[A-Z0-9-]{1,80}$/.test(String(v.sourceId??''))?String(v.sourceId):'';
-  return {name,img:safeImg(v.img),type:String(v.type??'Item').slice(0,40),text:String(v.text??'').slice(0,PREVIEW_TEXT_MAX),html,price:String(v.price??'').slice(0,40),...(sourceId?{sourceId}:{})};
+  const uuid=/^Item\.[A-Za-z0-9]{16}$/.test(String(v.uuid??''))?String(v.uuid):''; // a world-local binding, never a canonical id
+  return {name,img:safeImg(v.img),type:String(v.type??'Item').slice(0,40),text:String(v.text??'').slice(0,PREVIEW_TEXT_MAX),html,price:String(v.price??'').slice(0,40),...(uuid?{uuid}:{})};
 };
 /** 0.37.12: what a character may see about the recipes it knows, stored on the Actor (owners and GMs read it; never a world setting):
  * {[recipeId]: {result: snapshot|null, ingredients:[{name,img,text,quantity}], tools:'text', workstation:'text'}}. Malformed parts are dropped; never throws. */

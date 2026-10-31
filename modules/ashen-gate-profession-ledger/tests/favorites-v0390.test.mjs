@@ -196,7 +196,7 @@ test('markup: Favorites only (n) is a pressed-state chip and filters the Known r
   app.favOnly=true;h=await html('individual');
   assert.match(h,/data-action="fav-only" aria-pressed="true"/);
   assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row"/g)].length,1);assert.match(card(h,'[TEST] Courtyard Jest'),/Courtyard Jest/);
-  assert.match(h,/class="agl-folder"/,'still grouped by profession');
+  assert.match(h,/class="agl-group"/,'still grouped by profession');
   await api.setFavorite(belwar,{kind:'recipe',id:'REC-TEST-JEST',on:false});
   h=await html('individual');assert.match(visible(h),/No favorite recipes yet/);
   app.favOnly=false;

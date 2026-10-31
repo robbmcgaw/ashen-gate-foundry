@@ -388,7 +388,7 @@ test('previews: a player with no permission on any world Item sees previews of t
     const button={dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){focused++;}};
     assert.equal(_test.itemLinkClick(button),true);await flush();await flush();
     assert.equal(prompts.length,1);const body=prompts[0].content;
-    assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores vigor\./);assert.match(body,/Type: Potion/);
+    assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores <b>vigor<\/b>\./);assert.match(body,/<tr><td>Type<\/td><td>Potion<\/td><\/tr>/,"0.43.0: the table is kept, not flattened to Type: Potion");assert.match(body,/You can only preview this item\./);
     assert.doesNotMatch(body,/poisoned|GM:|ITEM-TEST|data-action|<button/);assert.equal(focused,1);
     // Another player cannot open it.
     game.user=bob;prompts.length=0;_test.itemLinkClick({dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){}});await flush();assert.equal(prompts.length,0,'not an owner or observer');
