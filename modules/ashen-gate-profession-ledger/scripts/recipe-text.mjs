@@ -41,3 +41,18 @@ export function recipeTexts({name='',tier='',effort='',description='',effect=nul
   }
   return {summary:normalizeText(summary)?summary:null,effect:effectText};
 }
+
+/** 0.42.0: the optional `additional_gp_flavor` of a recipe, display only ("75 gp (ash and vials)"). Manager only accepts 1-40
+ * characters of lower-case words; here it is read defensively: plain text, whitespace collapsed, 1-40 characters, else null (shown
+ * as no flavor). It is never markup: callers escape it. It never changes a cost. */
+export const GP_FLAVOR_MAX=40;
+export function cleanGpFlavor(value){
+  if(typeof value!=='string')return null;
+  const text=squash(value);
+  return text&&text.length<=GP_FLAVOR_MAX?text:null;
+}
+/** "75 gp (ash and vials)" with a usable flavor, otherwise exactly "75 gp". */
+export function gpText(gp,flavor){
+  const f=cleanGpFlavor(flavor);
+  return f?`${gp} gp (${f})`:`${gp} gp`;
+}

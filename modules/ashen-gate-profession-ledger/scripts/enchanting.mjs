@@ -10,6 +10,7 @@
  *   bring       {text (1 to 80 characters, shown), item_types?, categories?, base_items?}  the lists are a loose, advisory filter
  *   effect_note the effect text (the Ledger already reads it for activities)
  */
+import {cleanGpFlavor} from './recipe-text.mjs';
 export const ENCHANT_FLAG='enchant';
 export const BRING_TEXT_MAX=80;
 /** Printed on the GM card only. Nothing in the Ledger enforces it (Robb, 2026-10-28). */
@@ -72,14 +73,14 @@ export function bringBlocker(bring,candidates,actorName='This character'){
 }
 
 /** The GM card flag written when the player asks. Only plain, bounded values. */
-export function requestRecord({actor,recipe,professionId=null,professionName='',item=null,materials=[],fee=null,effect='',check=null,userId=null,now=Date.now()}){
+export function requestRecord({actor,recipe,professionId=null,professionName='',item=null,materials=[],fee=null,feeFlavor=null,effect='',check=null,userId=null,now=Date.now()}){
   const clip=(v,n)=>squash(v).slice(0,n);
   return {version:1,status:'requested',actorId:String(actor.id),actorName:clip(actor.name,80),recipeId:String(recipe.id),recipeName:clip(recipe.name,100),
     professionId:professionId?String(professionId):null,professionName:clip(professionName,60),tier:recipe.tier?String(recipe.tier):null,effort:recipe.effort?String(recipe.effort):null,
     bringText:clip(recipe.bring?.text,BRING_TEXT_MAX),
     item:item?{id:item.id?String(item.id):null,uuid:item.uuid?String(item.uuid):null,name:clip(item.name,120)}:null,
     materials:materials.map(m=>({materialId:m.materialId?String(m.materialId):null,name:clip(m.name,80),quantity:Math.max(1,Math.floor(Number(m.quantity)||1))})),
-    fee:Number.isFinite(Number(fee))&&Number(fee)>0?Number(fee):null,effect:clip(effect,400),
+    fee:Number.isFinite(Number(fee))&&Number(fee)>0?Number(fee):null,feeFlavor:Number.isFinite(Number(fee))&&Number(fee)>0?cleanGpFlavor(feeFlavor):null,effect:clip(effect,400),
     check:check&&typeof check==='object'?{label:clip(check.label,40),total:Number.isFinite(Number(check.total))?Number(check.total):null,mode:Math.sign(Number(check.mode)||0),unavailable:Boolean(check.unavailable)}:null,
     requesterId:userId?String(userId):null,requestedAt:now};
 }
