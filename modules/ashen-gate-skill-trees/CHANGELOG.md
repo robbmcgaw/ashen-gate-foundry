@@ -1,3 +1,13 @@
+## 0.24.3 — 2026-10-31
+
+Tooltip fix. No saved data changed.
+
+- **The perk card at the top right now goes away when you stop pointing at the node.** Before, it fell back to the last selected node when the pointer left, so on a tree where a node had been selected or pinned (a Cinder power, for example) the card stayed up until you hovered a different node. Now it shows the node under the pointer, or the node you reached with Tab, and nothing otherwise.
+- **It also hides** when focus leaves the node, on Esc, when you scroll, zoom with the wheel, pan or start dragging a node, and when the window re-renders or closes. A node you clicked with the mouse no longer keeps the card up.
+- **A card you pinned on purpose stays.** Right-click, the Menu key or Shift+Enter still pins a node so its card keeps Open perk sheet / Unlock / Refund; Esc, or pinning another node, releases it.
+- **Touch and pen:** a tap shows the card and it stays until you tap somewhere else.
+- Applies to every tree (profession, Cinder, generic). Check in Forge: open a Cinder tree, hover a power, move the pointer to empty canvas: the card disappears. Tab to a node: it appears; Tab away or press Esc: it disappears.
+
 ## 0.24.2 — 2026-10-26
 
 Narrow-window fix (shared kit 2.4.0).

@@ -19,13 +19,14 @@ import {SOURCE_KINDS,sourceRecords,missingSourceMessage} from './source-pick.mjs
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
 import {treePicker,walletLine,professionGroups} from './groups.mjs';
+import {bindNodeTip} from './node-tip.mjs';
 import {holdsTree,cinderSourceIds,EMPTY_PLAYER_TREES} from './visibility.mjs';
 import {buildLibrary,renderLibraryHtml,renderFiltersFold,cleanFilters,validSort,validGroup,libraryCountText,filtersTitle,groupOptions,sortOptions,pickerGroups} from './library.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.24.2';
+const VERSION='0.24.3';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -703,7 +704,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // GM Setup draft (Player Access): "Unsaved changes" in the footer, and a question before a tab switch or close drops it.
     this.guard=guardDirty({status:()=>this.element?.querySelector?.('[data-agst-setup-status]')});}
   /** Close asks first when GM Setup has unsaved changes. */
-  async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;return super.close?.(options);}
+  async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;this._pinned=null;this._tipCtl?.dismiss();this._tipCtl=null;return super.close?.(options);}
   get actor(){return game.actors?.get(this.actorId)??null;}
   /** GM: every private tree. Players, and the GM's Player preview: the published trees that apply to the chosen character. */
   get trees(){
@@ -873,7 +874,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const shell=root.querySelector('.agst-shell');
     this.sidebarOpen=initialSidebar(this.sidebarOpen,shell?.clientWidth);
     this._applySidebar();
-    this._showTip(this.nodeId);
+    this._tipCtl=null;this._showTip(this._pinnedId()); // a re-render never carries a hover preview over
     const viewport=root.querySelector('.agst-viewport');
     if(viewport){
       viewport.addEventListener('pointerdown',e=>this._pointerDown(e),listenerOptions);
@@ -887,10 +888,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       this._fitEdges();
       // Corner tooltip: hover or keyboard focus previews a node; the selected node shows when nothing else does.
       const nodeOf=e=>e.target.closest?.('.agst-node')?.dataset.id??null;
-      board.addEventListener('pointerover',e=>{const id=nodeOf(e);if(id)this._showTip(id);},listenerOptions);
-      board.addEventListener('focusin',e=>{const id=nodeOf(e);if(id)this._showTip(id);},listenerOptions);
-      board.addEventListener('pointerout',e=>{if(nodeOf(e))this._showTip(this.nodeId);},listenerOptions);
-      board.addEventListener('focusout',e=>{if(nodeOf(e))this._showTip(this.nodeId);},listenerOptions);
+      this._tipCtl=bindNodeTip(board,{root,signal:this._listeners.signal,show:id=>this._showTip(id),pinned:()=>this._pinnedId(),unpin:()=>{this._pinned=null;}});
       if(this._refocus&&this.nodeId){board.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});this._focusKey=null;}
       this._refocus=false;
       board.addEventListener('keydown',e=>this._nodeKey(e),listenerOptions);
@@ -901,7 +899,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       board.addEventListener('drop',e=>this._dropped(e),listenerOptions);
     }
     const tip=root.querySelector('.agst-tip');
-    tip?.addEventListener('keydown',e=>{if(e.key==='Escape'&&this.nodeId){e.stopPropagation();root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}},listenerOptions);
+    tip?.addEventListener('keydown',e=>{if(e.key==='Escape'&&this.nodeId){e.stopPropagation();this._pinned=null;root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}},listenerOptions);
     if(this._focusCard){this._focusCard=false;tip?.querySelector('button')?.focus({preventScroll:true});}
     this._fitWatch?.stop();this._fitWatch=null;
     if(viewport&&this.tree&&!this._fitted.has(this.treeId)){ // opens fitted: re-fits after layout / resize until the user takes over the zoom
@@ -1084,8 +1082,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Pin a node: its card offers Open perk sheet / Unlock / Refund, and the Perk tab shows it. Used by right-click and Shift+Enter. */
   _pin(id,{focusCard=false}={}){
     if(this.busy)return;
-    this.nodeId=id;this.sideTab='perk';this._refocus=!focusCard;this._focusCard=focusCard;this.render();
+    this.nodeId=id;this._pinned=id;this.sideTab='perk';this._refocus=!focusCard;this._focusCard=focusCard;this.render();
   }
+  /** The node whose card was pinned on purpose (right-click, Menu key, Shift+Enter), while it is still the selected one in this tree; else null. */
+  _pinnedId(){return this._pinned&&this._pinned===this.nodeId&&this._tips?.[this._pinned]?this._pinned:null;}
   /** Open the perk Item sheet. GM: the world perk. Player: their own copy once learned, else the world perk if they may see it. */
   async _openPerkSheet(id){
     const node=this.tree?.nodes?.find(n=>n.id===id);if(!node)return;
@@ -1668,7 +1668,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const startX=event.clientX,startY=event.clientY;let moved=false;
     const move=e=>{
       const dx=(e.clientX-startX)/this.zoom,dy=(e.clientY-startY)/this.zoom;
-      if(Math.hypot(dx,dy)>4)moved=true;
+      if(Math.hypot(dx,dy)>4&&!moved){moved=true;this._pinned=null;this._tipCtl?.dismiss();}
       if(!moved)return;
       target.style.left=`${Math.max(0,Math.min(6000,original.x+dx))}px`;
       target.style.top=`${Math.max(0,Math.min(6000,original.y+dy))}px`;
