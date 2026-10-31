@@ -204,6 +204,31 @@
 .agst-embed .agst-embed__list>li:hover{background:var(--ag-surface-hover)}
 .agst-embed .agst-embed__name{flex:1 1 10rem;min-width:0;overflow-wrap:anywhere}
 .agst-embed .agst-embed__text{flex-basis:100%;margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+/* 0.24.4: available-perk cards. Box radius (not pill) on the card; pills only on the cost badge, meta labels and buttons. */
+.agst-embed .agst-perk-group{margin-top:var(--ag-space-2)}
+.agst-embed .agst-perk-group__title{margin:0 0 var(--ag-space-1);font-size:var(--ag-text-sm);font-weight:600;color:var(--ag-text)}
+.agst-embed .agst-perk-list{gap:var(--ag-space-2)}
+.agst-embed .agst-perk{display:grid;gap:var(--ag-space-2);align-items:start;padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface)}
+.agst-embed .agst-perk:hover{background:var(--ag-surface)}
+.agst-embed .agst-perk__head{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center}
+.agst-embed .agst-perk__name{flex:1 1 9rem;min-width:0;overflow-wrap:anywhere}
+.agst-embed .agst-perk__unlock{margin-left:auto}
+.agst-embed .agst-perk__why{margin:0}
+.agst-embed .agst-perk__meta{display:flex;flex-wrap:wrap;gap:var(--ag-space-1);margin:0}
+.agst-embed .agst-perk__pair{display:inline-flex;flex-wrap:wrap;gap:var(--ag-space-1);align-items:baseline;max-width:100%;padding:0 var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-sunken);font-size:var(--ag-text-sm)}
+.agst-embed .agst-perk__pair dt{margin:0;color:var(--ag-muted)}
+.agst-embed .agst-perk__pair dt::after{content:":"}
+.agst-embed .agst-perk__pair dd{margin:0;overflow-wrap:anywhere}
+.agst-embed .agst-perk__summary{margin:0;color:var(--ag-text);font-size:var(--ag-text-sm)}
+.agst-embed .agst-perk__toggle{justify-self:start}
+.agst-embed .agst-perk__toggle::before{content:"\25B8";margin-right:var(--ag-space-1)}
+.agst-embed .agst-perk__toggle[aria-expanded="true"]::before{content:"\25BE"}
+.agst-embed .agst-perk__details{padding:var(--ag-space-2);border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken);font-size:var(--ag-text-sm);overflow-wrap:anywhere;overflow-x:auto}
+.agst-embed .agst-perk__details[hidden]{display:none}
+.agst-embed .agst-perk__details :where(h1,h2,h3,h4,h5,h6){margin:var(--ag-space-2) 0 var(--ag-space-1);font-size:var(--ag-text-sm);font-weight:600;text-transform:none;letter-spacing:0;color:var(--ag-text)}
+.agst-embed .agst-perk__details :where(p,ul,ol){margin:0 0 var(--ag-space-1)}
+.agst-embed .agst-perk__details table{border-collapse:collapse;max-width:100%}
+.agst-embed .agst-perk__details :where(th,td){padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border);text-align:left;vertical-align:top}
 .agst-embed .agst-embed__chips{list-style:none;margin:0;padding:0}
 .agst-embed .agst-embed__locked>summary{cursor:pointer;color:var(--ag-muted);font-size:var(--ag-text-sm);margin-top:var(--ag-space-1)}
 /* 0.21.0: trees of one profession (shared wallet) */
