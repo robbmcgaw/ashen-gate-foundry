@@ -47,7 +47,7 @@ test('owner check rejects unknown targets, out-of-range values and bad shapes', 
   assert.equal(check(mod('travel.actions', 1, {applies: {when: ['familiar_terrain']}})).warnings.length, 1);
 });
 test('api.modifiers has the contract shape Manager calls', () => {
-  const api = createApi({version: '0.37.0', isGM: () => false, playerAccessEnabled: () => true});
+  const api = createApi({version: '0.37.1', isGM: () => false, playerAccessEnabled: () => true});
   assert.equal(api.modifiers.contract, 'ag-modifier/1'); assert.equal(api.modifiers.scope, 'travel');
   assert.deepEqual(api.modifiers.targets, Object.keys(TARGETS));
   assert.deepEqual(api.modifiers.validate([{index: 0, scope: 'travel', modifier: mod('travel.actions', 1)}], {recordId: 'ITEM-TEST-A', record: {}}), {errors: [], warnings: []});
@@ -85,6 +85,20 @@ test('travel.efficiency is per terrain and capped at +2 per terrain; condition.m
   assert.equal(row(res, 'travel.efficiency:*').total, 1);
   assert.equal(row(res, 'condition.mitigation:cold').total, 3, 'same group: highest only');
   assert.equal(row(res, 'condition.mitigation:heat').total, 1);
+});
+test('condition.mitigation: party total per named condition is capped at +3 after stacking (0.37.1)', () => {
+  const over = combine([src('Cloak', [mod('condition.mitigation', 2, {stack: 'a', applies: {condition: 'cold'}})]),
+    src('Boots', [mod('condition.mitigation', 2, {stack: 'b', applies: {condition: 'cold'}})]),
+    src('Hat', [mod('condition.mitigation', 1, {stack: 'a', applies: {condition: 'cold'}})])]);
+  const r = row(over, 'condition.mitigation:cold');
+  assert.equal(r.total, 3, 'groups a (2, best) + b (2) = 4, capped'); assert.equal(r.cap, 3); assert.equal(r.capped, true);
+  const exact = combine([src('Cloak', [mod('condition.mitigation', 2, {stack: 'a', applies: {condition: 'cold'}})]), src('Boots', [mod('condition.mitigation', 1, {stack: 'b', applies: {condition: 'cold'}})])]);
+  assert.equal(row(exact, 'condition.mitigation:cold').total, 3); assert.equal(row(exact, 'condition.mitigation:cold').capped, false, 'exactly 3 is not flagged');
+  const two = combine([src('Cloak', [mod('condition.mitigation', 3, {stack: 'a', applies: {condition: 'cold'}}), mod('condition.mitigation', 3, {stack: 'a', applies: {condition: 'heat'}})]),
+    src('Boots', [mod('condition.mitigation', 2, {stack: 'b', applies: {condition: 'cold'}}), mod('condition.mitigation', 1, {stack: 'b', applies: {condition: 'heat'}})])]);
+  assert.equal(row(two, 'condition.mitigation:cold').total, 3); assert.equal(row(two, 'condition.mitigation:cold').capped, true);
+  assert.equal(row(two, 'condition.mitigation:heat').total, 3); assert.equal(row(two, 'condition.mitigation:heat').capped, true, 'each condition has its own cap');
+  assert.equal(row(two, 'condition.mitigation:cold').cap, 3);
 });
 test('counting: inactive (unequipped), Mounted switch, mount items and familiar terrain', () => {
   const sources = [src('Boots', [mod('travel.actions', 1)], {inactive: 'not equipped'}),
@@ -139,7 +153,7 @@ test('state: normalisation, spend, undo, new day', () => {
 function boot({gm = true, actors = [], announced = []} = {}) {
   const box = {gm, store: {}, writes: 0};
   const service = createOverland({isGM: () => box.gm, read: () => box.store, write: async v => { box.store = structuredClone(v); box.writes++; }, actors: () => actors, announce: async t => announced.push(t)});
-  const api = createApi({version: '0.37.0', isGM: () => box.gm, playerAccessEnabled: () => true, overland: service});
+  const api = createApi({version: '0.37.1', isGM: () => box.gm, playerAccessEnabled: () => true, overland: service});
   return {box, service, api};
 }
 test('GM only: the API and the service refuse players, and nothing is written', async () => {
@@ -148,7 +162,7 @@ test('GM only: the API and the service refuse players, and nothing is written', 
   for (const [fn, arg] of [['act', 'travel'], ['undo'], ['newDay'], ['setMounted', true], ['setAnnounce', true]]) await assert.rejects(service[fn](arg), /Only the GM/, fn);
   assert.equal(box.writes, 0); assert.equal(Object.isFrozen(api.overland), true);
   assert.deepEqual(Object.keys(api.overland).sort(), ['contract', 'partyModifiers', 'state']);
-  const noService = createApi({version: '0.37.0', isGM: () => true, playerAccessEnabled: () => true});
+  const noService = createApi({version: '0.37.1', isGM: () => true, playerAccessEnabled: () => true});
   assert.throws(() => noService.overland.state(), /unavailable/);
 });
 test('service: day and actions, Y includes the capped party bonus, Undo and New day', async () => {
@@ -190,7 +204,7 @@ test('Overland tab: day, actions left, three actions, one primary, footer, empty
   const b = boot({actors: [a]}); await b.service.act('travel');
   html = overlandHtml(b.service.state(), b.service.partyModifiers(), h);
   assert.match(html, /Actions left 2 of 3/); assert.match(html, /Day 1: Travel/); assert.match(html, /Travel efficiency: Forest/); assert.match(html, /Condition mitigation: Rising water/);
-  assert.match(html, /\[TEST\] ITEM-TEST-BOOTS|\[TEST\] Ana/); assert.match(html, /Up to \+2/); assert.match(html, /No cap/);
+  assert.match(html, /\[TEST\] ITEM-TEST-BOOTS|\[TEST\] Ana/); assert.match(html, /Up to \+2/); assert.match(html, /Up to \+3/);
 });
 
 // ---- the window: the tab is GM only and last-but-one ----
@@ -204,8 +218,8 @@ test('window: Overland is a GM-only tab before GM Setup; a player never gets it,
   const game = installFoundry();
   const service = createOverland({isGM: () => game.user.isGM, read: () => ({}), write: async () => {}, actors: () => []});
   useOverland(service);
-  const m = {version: '0.37.0', active: true};
-  m.api = createApi({version: '0.37.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open() {}, openLocation() {}, overland: service});
+  const m = {version: '0.37.1', active: true};
+  m.api = createApi({version: '0.37.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open() {}, openLocation() {}, overland: service});
   game.modules = {get: id => id === 'ashen-gate-locations' ? m : null};
   globalThis.ui = {notifications: {warn() {}, info() {}, error() {}}};
   const gmApp = new LocationsApp(); gmApp.render = async () => {}; gmApp.tab = 'overland';
