@@ -147,6 +147,7 @@ Write it as a normal `ProfessionPerk` record plus these fields:
 | Deities | `docs/renown-deity-schema.md`: **built** |
 | Profession crosswalk | `docs/profession-crosswalk-schema.md`: **built** |
 | Routes, NPC Codex, scene moods, organize rules | `docs/routes-schema.md`, `docs/npc-codex-schema.md`, `docs/scene-moods-schema.md`, `docs/organize-rules.md`: **built** |
+| World backup files, incl. Renown standings (play state, `ag-factions-state-export/0.1`) | `docs/world-backup.md`: **built** (Manager 0.90.0, Renown 0.27.0) |
 | Recipe gold flavour (`additional_gp_flavor`) | `docs/recipe-gold-flavor-schema.md`: **built** (Manager 0.89.0); examples in `test-fixtures/recipe-gold-flavor/` |
 | Signature perks (this brief, §3b) | `docs/perks-and-modifiers-for-gpt.md`: **built** (Profession Ledger 0.31.0) |
 | Perks/modifiers/sockets architecture | `docs/perks-and-modifiers-architecture.md`: **approved** (decisions in §8); Cinder sockets built in Cinders 0.3.0 without a `socketable` block |
@@ -164,3 +165,7 @@ Ask Robb, don't guess. Specifically:
 - **Never author conditions.** Only the six exist (`harsh-weather`, `hard-ground`, `poor-visibility`, `warped-paths`, `blight-taint`, `ashen-menace`); a record cannot define, rename or add one. The only place a record names a condition is `applies.condition` on a `condition.mitigation` entry.
 - **Mitigation protects the party only.** It never lowers a condition on a place and never changes encounter pressure; for Blight Taint and Ashen Menace it only changes the GM's guidance line. Do not write copy that says an item "reduces the weather" or "removes the Blight"; say it protects the wearer or the party.
 - Severities on places are the GM's, set in the Locations editor (GM only, `overlandConditions` on a Location record, optional, ids limited to the six, values 0 to 3). Do not put them in player-facing text.
+
+## World backup and Renown standings (Manager 0.90.0, Renown 0.27.0)
+
+Robb's **Back up world now…** writes these files to a private repository branch under `world-backup/`: `manager-edits.json` (`ag-world-edits/0.1`), `locations.json`, `quests.json` (`ag-quest-source/0.1`), `factions.json` (`ag-factions-source-export/0.4`, definitions only), `shops.json`, and `standings.json`. **`standings.json` is play state** in schema `ag-factions-state-export/0.1` (standings and rank, claims, requests, reveals, membership and Vows, per faction, deity and character). It is for reading only: do not write records in that schema, do not import it, and do not treat it as content. The content reconcile skips it. Full shape: `docs/world-backup.md`.

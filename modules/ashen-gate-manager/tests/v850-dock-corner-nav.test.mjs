@@ -216,7 +216,7 @@ test('CSS: the navigation rule exists only under body.agm-nav-offset and uses th
 });
 test('wiring: version 0.85.3, changelog, Help, wording, 0.x',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md'),main=read('../scripts/main.js');
-  assert.equal(man.version,'0.89.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.89.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.90.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.90.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.0 /m);assert.doesNotMatch(log.split('## 0.84.1')[0],/\b(Alpha|Beta|Preview)\b/);
   assert.match(main,/Quest Log, User Settings and Foundry Settings open on the first press and close on the second/);
   assert.match(main,/bottom right/);assert.match(main,/slid to the right of the dock/);

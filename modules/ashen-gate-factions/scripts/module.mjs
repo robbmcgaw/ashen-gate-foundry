@@ -6,6 +6,7 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind,objectiveRecords,objectiveName} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
 import {runSupersede} from './supersede.mjs';
+import {buildStateExport} from './state-export.mjs';
 import {definitionHash,replaceDelta} from './update.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
 import {factionKnockOns,visibleFactionRelations,visibleFactionHistory,FACTION_ID} from './faction-relations.mjs';
@@ -100,6 +101,9 @@ const withFlavor=(m,row)=>{const v=String(row.querySelector?.('[data-field=flavo
 const selectedValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'');
 // 0.26.0, GM only: the file Export downloads (`ag-factions-source-export/0.4`: every faction and deity definition, no standings, claims or discovery). One function serves the Export button and api.exportDefinitions.
 const exportDefinitions=()=>{assertGM();return{schema_version:IMPORT_SCHEMA,definitions:defs().map(d=>withLiveFolder(sourceDefinition(getFaction(d)))),note:'Excludes all mutable campaign state and user discovery state.'};};
+// 0.27.0, GM only: ALL play state as plain JSON (`ag-factions-state-export/0.1`: standings and rank, claims, requests, uses, choices, discovery and field reveals, membership, Vows), read from Renown's own state records. No definition text; that is exportDefinitions. Used by General Manager's world backup.
+const exportState=()=>{assertGM();return buildStateExport({isGM:game.user?.isGM===true,definitions:defs().map(getFaction),groupStates:game.journal.filter(d=>getGroup(d)).map(getGroup),personalStates:game.journal.filter(d=>getPersonal(d)).map(getPersonal),
+  actors:[...(game.actors?.contents??game.actors??[])].map(a=>({id:a.id,name:a.name,vow:a.getFlag?.(MODULE_ID,'vow')??null,vowLog:a.getFlag?.(MODULE_ID,'vowLog')??[]}))});};
 const jsonDownload=(data,file)=>{const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=file;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);};
 async function saveDef(doc,record){
   assertGM();const clean=sourceDefinition(record),f=upgradeFaction(record),faults=validateFaction(clean);
@@ -1261,6 +1265,7 @@ Hooks.once('ready',()=>{
     open:openDashboard,
     embed:Object.freeze({contract:'ag-factions-embed/1',modes:Object.freeze([...EMBED_MODES]),mount:mountEmbed}),
     exportDefinitions:()=>exportDefinitions(),
+    exportState:()=>exportState(),
     getFactions:()=>{requirePlayerAccess();return game.user.isGM?factionDefs().map(d=>withLiveFolder(sourceDefinition(getFaction(d)))):getView(userViewDoc(game.user))?.payload.factions??[];},
     validateFaction,
     // 0.23.0, GM only: Recruit (on:true) or remove from members (on:false) the party ({party:true}) or one character ({actorId}). Recruiting also shows the faction; standing is never deleted.

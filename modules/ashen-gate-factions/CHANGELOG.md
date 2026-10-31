@@ -1,3 +1,7 @@
+## 0.27.0 — 2026-10-31
+
+- **`api.exportState()`** (GM only, refused for players, in the API and in the builder itself): returns all Renown play state as plain JSON, schema `ag-factions-state-export/0.1`, shape `{schema_version, factions, personal}` with no timestamps of its own. `factions` has one row per faction and deity (`id`, `kind`, `name`, track ids) with its `group` state: standing and event history, rank position (`progress`), claims, requests, uses, choices, who has discovered it, per-entry and per-field reveals and recruited members, with an `actor_names` map beside every actor id. `personal` has one row per character (`actor_id`, `actor_name`, Vow and Vow log) with that character's standing, rank position, claims, requests, uses and choices for each faction and deity (deity standing is piety). It reads Renown's own state records and writes nothing. It is not the definitions export (`exportDefinitions`) and is not a format the content reconcile reads. General Manager 0.90.0 uses it for its world backup.
+
 ## 0.26.0 — 2026-10-30
 
 - **`api.exportDefinitions()`** (GM only, refused for players): returns the file **Export** downloads (`schema_version` `ag-factions-source-export/0.4`: every faction and deity definition, no standings, claims or discovery). The Export button now calls the same function, so there is one code path. General Manager's *Back up world now…* uses it for `factions.json`. Feature-detect it (`typeof api.exportDefinitions === 'function'`). Nothing saved is changed.
