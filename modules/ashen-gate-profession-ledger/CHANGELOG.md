@@ -1,3 +1,11 @@
+## 0.41.1 — 2026-10-31
+
+Fix: no "Unreleased" tag on released materials.
+
+- **Fixed: Gathering > Node templates showed an amber "Unreleased" tag beside materials that were approved and player-visible.** When a material's world Item is not Observer for every player (a Foundry permission detail), the GM views called it Unreleased even though it is released and rolling the node awards it correctly. Now no warning tag shows for it: not in the node template list, the node editor's material rows, or the Node test; the material pickers list it with the released materials, unmarked, and the Give loot list no longer says "unreleased" for it. Real states keep their labels: Draft, Unreleased (GM-only), Not imported, Imported twice, Retired.
+- **Node editor note (GM).** When at least one chosen material is in that state, a quiet line under Materials says: "Players cannot open these materials in Foundry, but the Ledger still awards them."
+- Gathering and awarding are unchanged. No saved world data changes.
+
 ## 0.41.0 — 2026-10-30
 
 Roll fix, faster Recipe Catalog, longer reveal, GM Last gather.
