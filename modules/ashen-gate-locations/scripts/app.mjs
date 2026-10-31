@@ -702,8 +702,16 @@ export class LocationsApp extends Base {
   /** 0.35.0: the Travel row directly under a location's name (GM editor and player viewer), or '' when this user has no scene to go to. */
   travelRow(ref) { const t = this.travelBtn(ref); return t ? `<div class="agl-travel">${t}</div>` : ''; }
 
+  /** 0.42.1: the Player Preview's Travel row: what a player's view of this previewed draft would offer (its travel-switched scenes, Revealed only), not the GM's every-linked-scene button. */
+  previewTravelRow(v) {
+    let n = 0;
+    try { n = v?.state === 'revealed' && v.travelScenes?.length ? api().previewTravelCount(v.travelScenes) : 0; } catch { n = 0; }
+    const ref = v?.key || v?.id;
+    return n && ref ? `<div class="agl-travel">${btn('travel', travelLabel(n), {kind: 'sm', icon: 'fa-solid fa-map', data: {ref}, title: n > 1 ? 'Choose a linked scene to view. Only you move.' : 'Views the linked scene. Only you move.'})}</div>` : '';
+  }
+
   // ---------- player viewer ----------
-  viewerHtml(v, {partyNotes = true} = {}) {
+  viewerHtml(v, {partyNotes = true, preview = false} = {}) {
     if (!v) return '<div class="ag-empty"><p class="ag-empty__title">No place selected</p><p class="ag-empty__text">Pick a place from the list.</p></div>';
     const place = r => `${go(r.name, 'select', {id: r.key || r.id})}${r.id ? '' : ' <small>(unidentified)</small>'}`;
     const share = partyNotes ? this.shareHtml(v) : '';
@@ -746,7 +754,7 @@ export class LocationsApp extends Base {
     return `<article class="agl-view">
       ${crumbs.length ? `<nav class="agl-crumbs" aria-label="Where this is">${crumbs.map(c => `${place(c)} <span aria-hidden="true">›</span> `).join('')}<span>${esc(v.name)}</span></nav>` : ''}
       <div class="agl-title"><h2>${esc(v.name)}</h2>${hereNow(v)}</div>
-      ${this.travelRow(v.key || v.id)}${share}
+      ${preview ? this.previewTravelRow(v) : this.travelRow(v.key || v.id)}${share}
       ${v.threat ? `<p class="agl-meta agl-threat-row"><span class="agl-threat-label">Threat Level:</span> ${threatBadge(v.threat)}</p>` : ''}
       ${v.type || v.region ? `<p class="agl-meta">${[v.type, v.region].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
       ${v.parent && !crumbs.length ? `<p class="agl-meta">Part of ${place(v.parent)}</p>` : ''}
@@ -2175,7 +2183,7 @@ export class LocationsApp extends Base {
     const part = st => {
       const v = api().previewLocation(d, st);
       const current = cur === st;
-      return `<section class="agl-preview__part" data-state="${st}"${current ? ' data-current="1"' : showOthers ? '' : ' hidden'}><h3>${STATE_LABELS[st]}${current ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false})}</section>`;
+      return `<section class="agl-preview__part" data-state="${st}"${current ? ' data-current="1"' : showOthers ? '' : ' hidden'}><h3>${STATE_LABELS[st]}${current ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false, preview: true})}</section>`;
     };
     const hiddenCard = cur === 'hidden'
       ? `<section class="agl-preview__part" data-state="hidden" data-current="1"><h3>${STATE_LABELS.hidden} (current)</h3><p>Hidden: players see nothing.${isPlaceable(d) ? ' Its pins on a map are invisible to them too.' : ''}</p></section>` : '';

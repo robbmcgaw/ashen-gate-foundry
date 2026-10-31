@@ -1,3 +1,11 @@
+## 0.42.1 — 2026-10-31
+
+Fixed: the Player Preview no longer shows a Travel button that players would not get.
+
+- **Preview matches players.** The Location editor's *Player Preview* showed a **Travel** button on the Revealed card whenever the location had a linked scene, even with that scene's *Players can travel here* switch off (the preview counted every linked scene, as the GM's own editor button does). It now follows the previewed draft: a Travel button appears on the **Revealed** card only, only for scenes whose switch is ticked in the draft (including unsaved ticks), only when Player Access is on, and only for scenes that still exist. The Unidentified and Hidden cards never show one. One simplification: a player's own permission to view each scene is not checked in the preview, since it shows no single player, so a ticked scene a particular player cannot open may still show the button there.
+- **Unchanged.** The editor's own Travel button for the GM, the list's Travel context action, the pin right-click and the real player view all behave as before.
+- New GM-only `api.previewTravelCount(uuids)` backs the preview; it names nothing. Tests are mocked Foundry; they prove the preview rules and that the other Travel paths are untouched, not the live Forge dialog.
+
 ## 0.42.0 — 2026-10-31
 
 Changed: players are named by their character in "Also known to"; a partner's list can say **Personal** for a place revealed to your own character.
