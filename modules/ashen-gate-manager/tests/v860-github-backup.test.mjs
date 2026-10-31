@@ -46,7 +46,7 @@ const plan = game => bk.collectBackup(game);
 test('collects the five files from public apis, pretty JSON under world-backup/', () => {
   const p = plan(mkGame());
   assert.equal(p.ok, true);
-  assert.deepEqual(p.files.map(f => f.path), ['manager-edits', 'locations', 'quests', 'factions', 'shops'].map(n => `world-backup/${n === 'manager-edits' ? n : n}.json`));
+  assert.deepEqual(p.files.map(f => f.path), ['manager-edits', 'locations', 'quests', 'factions', 'shops', 'party'].map(n => `world-backup/${n === 'manager-edits' ? n : n}.json`));
   assert.match(p.files[1].text, /\n  "manifest"/);
   assert.ok(p.files.every(f => f.bytes === new TextEncoder().encode(f.text).length));
   assert.equal(JSON.parse(p.files[2].text).schema_version, 'ag-quest-source/0.1');
@@ -58,7 +58,7 @@ test('collects the five files from public apis, pretty JSON under world-backup/'
 test('a missing, inactive or export-less module is skipped with a reason', () => {
   const g = mkGame({modules: {'ashen-gate-locations': {active: false, api: {}}, 'ashen-gate-quest-manager': {active: true, api: {}}, 'ashen-gate-factions': {active: true}}});
   const p = plan(g);
-  assert.deepEqual(p.files.map(f => f.path), ['world-backup/manager-edits.json']);
+  assert.deepEqual(p.files.map(f => f.path), ['world-backup/manager-edits.json', 'world-backup/party.json']);
   const why = Object.fromEntries(p.skipped.map(s => [s.label.split(/\W/)[0], s.reason]));
   assert.match(why.Locations, /not active/);
   assert.match(why.Quests, /no source export/);
@@ -67,7 +67,7 @@ test('a missing, inactive or export-less module is skipped with a reason', () =>
   const field = confirmFields(p, {repo: 'owner/priv', branch: 'world-backup'}, bk.ALL_TYPE_IDS)[0];
   assert.match(field.hint, /not installed/);
   assert.match(field.hint, /private/);
-  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro']);
+  assert.deepEqual(field.options.map(o => o.value), ['Item', 'JournalEntry', 'Actor', 'RollTable', 'Macro', 'party']);
   assert.match(field.options[0].label, /manager-edits\.json/);
 });
 
@@ -214,5 +214,5 @@ test('the action lives in the Export area and the settings in GM Setup; help exp
   const view = exportView({target: {branch: 'world-backup'}, lastLabel: '2 hours ago', message: {tone: 'ok', text: 'Done.', url: 'https://github.com/o/r/commit/x'}});
   assert.match(view, /Back up world now…/); assert.match(view, /2 hours ago/); assert.match(view, /rel="noopener/);
   assert.doesNotMatch(settingsView({}) + view + JSON.stringify(confirmFields({types: []}, {repo: 'a/b', branch: 'c'})), /\b(Alpha|Beta|Preview)\b/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.92.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.93.0');
 });
