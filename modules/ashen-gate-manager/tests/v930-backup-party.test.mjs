@@ -216,7 +216,7 @@ test('dialog hint, export text, Help, README, docs and changelog say it holds ch
   assert.match(read('../CHANGELOG.md'), /^## 0\.93\.0 /m);
 });
 
-test('version 0.94.0, 0.x only, download URL agrees', () => {
+test('version 0.95.0, 0.x only, download URL agrees', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.94.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.94.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.95.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.95.0/ashen-gate-manager.zip'));
 });

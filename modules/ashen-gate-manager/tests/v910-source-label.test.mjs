@@ -220,8 +220,8 @@ test('release.js and Organize never write the label: nothing else sets system.so
   for (const f of ['release.js', 'organize.js', 'item-visibility.js', 'bulk.js']) assert.ok(!/source\.custom/.test(read(`../scripts/${f}`)), f);
 });
 
-test('version 0.94.0, 0.x only, changelog entry', () => {
+test('version 0.95.0, 0.x only, changelog entry', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.94.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.94.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.equal(m.version, '0.95.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.95.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
   assert.match(read('../CHANGELOG.md'), /^## 0\.91\.0 /m);
 });

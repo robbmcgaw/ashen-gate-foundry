@@ -421,6 +421,12 @@
       <p class="agmanager-tiny">New approved, player-visible Materials are already created readable by players. This does the same for Materials already in your world, so a player can open one a gather hands them or a recipe links to. It lists how many Items change before anything is written. Only a default of None is raised, to Observer: nothing is ever lowered, GM-only and draft Materials, Materials you hid on purpose and anything you gave a single player stay as they are. Running it again changes nothing more.</p>
       <p class="agmanager-tiny" role="status" data-ag-matvis-status>{{matvis.message}}</p>
     </section>
+    <section class="ag-section aglib-section aginuse" aria-label="Items your players use">
+      <div class="ag-section__head"><h3 class="ag-section__title">Items your players use</h3>
+        <button type="button" class="ag-btn" data-ag-action="inuse-run" {{#if release.running}}disabled{{/if}}><i class="fa-solid fa-user-group" aria-hidden="true"></i> Release items in use…</button></div>
+      <p class="agmanager-tiny">Skill Trees and the Profession Ledger need an Item to be readable by players before they can show it, and imported Items start GM-only. This releases just what your current party uses, one tier at a time: for each character a player owns, the perks and recipes of every profession they hold at their current tier and below (with the materials and output items those recipes need), and for each bound Cinder its signature ability and passive, the core powers they have reached and the enhancements of powers they have unlocked. Professions and Cinders nobody uses, draft and GM-only records stay as they are. It lists what changes for each character before anything is written. Only a default of None is raised, to Observer: nothing is ever lowered, and anything you gave a single player or hid on purpose stays as it is. Run it again after a tier-up. Players still see only the recipes they have learned.</p>
+      <p class="agmanager-tiny" role="status" data-ag-inuse-status>{{inuse.message}}</p>
+    </section>
     <section class="ag-section aglib-section agsrclabel" aria-label="Ashen Gate source label">
       <div class="ag-section__head"><h3 class="ag-section__title">Ashen Gate source label</h3>
         <button type="button" class="ag-btn" data-ag-action="srclabel-run" {{#if release.running}}disabled{{/if}}><i class="fa-solid fa-tag" aria-hidden="true"></i> Set Ashen Gate source label…</button></div>

@@ -28,6 +28,7 @@ import {followHubVisibility} from "./hub-visibility.js";
 import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG, ITEMS_READABLE_SETTING, setItemsPolicy} from "./release.js";
 import {planVisibility, applyVisibility} from "./item-visibility.js";
 import {planMaterialVisibility, applyMaterialVisibility, materialSummary} from "./material-visibility.js";
+import {gatherInUseFacts, planInUseRelease, applyInUseRelease, inUseLines, inUseSummary} from "./in-use-release.js";
 import {planSourceLabel, applySourceLabel, sourceLabelSummary, withSourceLabel, withSourceLabelFields, SOURCE_LABEL} from "./source-label.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
@@ -318,6 +319,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>NPC Codex:</strong> <em>Reveal to…</em> (on every NPC in the list, on the open NPC and in the header menu of an NPC&rsquo;s Actor sheet) picks characters and fields in one small window. On <em>Reveals</em>, tick several fields, choose Hidden, Whole party or chosen characters, then <em>Apply</em>; <em>Reveal basics</em> and <em>Reveal everything player-safe</em> do it in one click, and <em>Undo last reveal</em> puts the last one back. The chips show who can see each field now; per-field controls below fine-tune one field. All of this applies at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can read imported Items (0.72.0):</strong> by default Items are GM-only: GM Setup &gt; Items and players. To hide or release Items already in your world use Items &gt; Checks &gt; Player access to Items. Handout Items always stay readable.</p>',
   '<p><strong>Materials are visible to players (0.89.0):</strong> an approved Material marked <em>player</em> visibility is created readable by players (default ownership Observer) even while new Items are GM-only, so a player can open one a gather gives them or a recipe links to. A re-import or Sync only raises a plain None default to Observer for such a Material, never lowers anything, and never touches per-player ownership. GM-only and draft Materials and every other Item are untouched. For Materials already in your world use <strong>Items → Checks → Materials visible to players → Make materials visible to players…</strong>: the confirmation lists how many Items change, how many are already visible and how many are skipped, with the reason (draft, GM-only, archived, or hidden on purpose); press the button on the right to apply, Cancel on the left to leave everything as it is. Running it again changes nothing more.</p>',
+ '<p><strong>Release items in use (0.95.0):</strong> Skill Trees shows a perk to a player, and the Profession Ledger opens an Item for a player, only when the Item is readable by players, and Manager imports Items GM-only. <strong>Items → Checks → Items your players use → Release items in use…</strong> releases just what the current party uses, one tier at a time: for each character a player owns, the perks and recipes of every profession they hold at their current tier and below (with the materials and output items those recipes need), and for each bound Cinder its signature ability and passive, the core powers whose tier requirement they have reached and the enhancements of powers they have unlocked. Professions and Cinders nobody uses stay GM-only, as do draft, GM-only and revealed-later records. The confirmation lists the Items that would change for each character and profession or Cinder, then <strong>Release N items</strong> on the right and Cancel on the left. Only a default of None is raised, to Observer; nothing is lowered and per-player ownership is untouched. Run it again after a tier-up to release the new tier. Players still see only the recipes they have learned in the Ledger.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
   '<p><strong>Ashen Gate source label (0.91.0):</strong> every Item made from an Ashen Gate record gets the Custom Label <em>Ashen Gate</em> (on the Item sheet, <em>Configure Source</em>), so the sheet header names its source. It is only filled in when the label is empty: a label you typed is never replaced or cleared, and a re-import or Sync fills an empty one but keeps one that is there. Core links keeps the label when it adopts a core item (the core item\u2019s description and source book still replace the Item\u2019s own, as before). For Items already in your world use <strong>Items \u2192 Checks \u2192 Ashen Gate source label \u2192 Set Ashen Gate source label\u2026</strong>: the confirmation says how many Items change and how many already have a label; press the button on the right to apply, Cancel on the left to leave everything as it is. Items that did not come from an Ashen Gate record are never touched, and running it again changes nothing more.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
@@ -455,6 +457,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.itemVisMessage = "";
     this.matVisMessage = "";
     this.srcLabelMessage = "";
+    this.inUseMessage = "";
     this.releasePct = 0;
     this.clPreview = null;
     this.clTicked = new Set();
@@ -1033,6 +1036,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       release: items&&view==='checks'?this.#releaseContext():null,
       itemvis: items&&view==='checks'?this.#itemVisContext():null,
       matvis: items&&view==='checks'?{message:this.matVisMessage}:null,
+      inuse: items&&view==='checks'?{message:this.inUseMessage}:null,
       srclabel: items&&view==='checks'?{message:this.srcLabelMessage,label:SOURCE_LABEL}:null,
       itemsReadable: game.settings.get(MODULE_ID,ITEMS_READABLE_SETTING)==='player',
       assetsActive: items&&view==='assets',
@@ -1499,6 +1503,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "matvis-run": await this.#materialVisAction(); break;
+      case "inuse-run": await this.#inUseReleaseAction(); break;
       case "srclabel-run": await this.#sourceLabelAction(); break;
       case "itemvis-hide-scan": case "itemvis-release-scan": case "itemvis-cancel": case "itemvis-commit": await this.#itemVisAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
@@ -2091,6 +2096,28 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       say(out.message,out.changedSincePreview>0);
     }catch(error){
       console.error(`[${MODULE_ID}] Making materials visible failed`,error);say(`Stopped: ${error.message??error}. Materials already changed stay changed; run it again.`,true);
+    }finally{this.busy=false;}
+    await this.render();
+  }
+  /** 0.95.0: Release items in use (in-use-release.js): the Items the current party uses, one tier at a time. Preview grouped by character, labelled confirmation, then Apply. GM only. */
+  async #inUseReleaseAction() {
+    const say=(text,error=false)=>{this.inUseMessage=text;toast(text,error);};
+    if(!game.user?.isGM)return say('Only the GM can change who can read Items.',true);
+    const sourceOf=doc=>sourceFlag(doc), L=CONST.DOCUMENT_OWNERSHIP_LEVELS;
+    let plan;
+    try{plan=planInUseRelease(allBoundDocuments().filter(d=>d.documentName==='Item'),sourceOf,gatherInUseFacts(game),{user:game.user,levels:L});}
+    catch(error){console.error(`[${MODULE_ID}] Release items in use failed`,error);return say(`Stopped: ${error.message??error}. Nothing changed.`,true);}
+    if(!plan.total){this.inUseMessage=['Nothing to release.',inUseSummary(plan),...plan.notes].join(' ');await this.render();return;}
+    const yes=await confirmDialog([`Release ${plan.total} item${plan.total===1?'':'s'} to players?`,...inUseLines(plan),
+      'Only their default ownership changes, from None to Observer. Nothing is lowered, and per-player ownership and everything else on the Items stay as they are. Professions and Cinders nobody uses stay GM-only. Running it again changes nothing more.'].join('\n'),
+      {title:`Release ${plan.total} item${plan.total===1?'':'s'} to players?`,yes:`Release ${plan.total} item${plan.total===1?'':'s'}`});
+    if(!yes){this.inUseMessage='Cancelled. Nothing changed.';await this.render();return;}
+    this.busy=true;
+    try{
+      const out=await applyInUseRelease(plan,{user:game.user,sourceOf,levels:L,write:updates=>CONFIG.Item.documentClass.updateDocuments(updates)});
+      say([out.message,...out.notes].join(' '),out.changedSincePreview>0);
+    }catch(error){
+      console.error(`[${MODULE_ID}] Release items in use failed`,error);say(`Stopped: ${error.message??error}. Items already released stay released; run it again.`,true);
     }finally{this.busy=false;}
     await this.render();
   }
