@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {parseCinderStageName, groupCinderFiles, stageThresholds, stageCoverage, cinderChoices, planCinderArt, assignCinder, setCinderChoice,
-  setAllCinderChoices, applyCinderArt, cindersApi, cinderCaps, cinderConflicts} from '../scripts/cinder-art.js';
+  setAllCinderChoices, applyCinderArt, cinderNames, worldCinderNames, CINDER_NAMES, cindersApi, cinderCaps, cinderConflicts} from '../scripts/cinder-art.js';
 import {planAssetLinks} from '../scripts/assets.js';
 
 const GM = {isGM: true}, P = 'https://assets.test/u1/art/';
@@ -69,11 +69,11 @@ test('plan: set on the Cinder definition with nobody bearing it; stages in order
   assert.equal(planAssetLinks([npc], files).rows.some(x => x.candidates.some(c => /Cinder_Stage/.test(c.label))), true); // proves the guard matters
 });
 
-test('plan: all nine names match their definitions; only MUT-* records count as Cinders', () => {
-  const names = ['Ember', 'Frost', 'Gale', 'Echo', 'Lumen', 'Root', 'Stone', 'Tide', 'Veil'];
+test('plan: all ten names match their definitions; only MUT-* records count as Cinders', () => {
+  const names = [...CINDER_NAMES];
   const nine = names.map(n => ({sourceId: `MUT-${n.toUpperCase()}`, name: n}));
   const cinders = cinderChoices({docs: [...nine, {sourceId: 'NPC-ECHO', name: 'Echo'}]});
-  assert.equal(cinders.length, 9);
+  assert.equal(cinders.length, 10);
   const {rows} = planCinderArt(names.flatMap(n => [f(`${n}_Cinder_Stage_1.webp`), f(`${n}_Cinder_Stage_2.webp`)]), {user: GM, cinders, caps: CAPS});
   assert.deepEqual(rows.map(r => r.cinderName), names);
   assert.ok(rows.every(r => r.ready && r.mode === 'definition' && r.definitionId === `MUT-${r.word.toUpperCase()}`));
@@ -216,4 +216,52 @@ test('source wiring: the drop and scan paths plan Cinder art first, Link writes 
   assert.match(main, /definitionOf:api\.canDefinition/);
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   assert.doesNotMatch(tpl.slice(tpl.indexOf('Cinder art stages'), tpl.indexOf('assets.linkOverflow')), /[Bb]ound/);
+});
+
+test('Crimson (10th Cinder): zero-padded Crimson_Cinder_Stage_01..05 group and link through the mocked API', async () => {
+  assert.equal(CINDER_NAMES.length, 10);
+  assert.equal(parseCinderStageName('Crimson_Cinder_Stage_01.webp').stage, 1);
+  assert.equal(parseCinderStageName('crimson-cinder-stage05.PNG').cinder, 'Crimson');
+  const crimson = [...docs, {sourceId: 'MUT-CRIMSON', name: 'Crimson Cinder'}];
+  const cinders = cinderChoices({docs: crimson});
+  const files = [1, 2, 3, 4, 5].map(n => f(`Crimson_Cinder_Stage_0${n}.webp`));
+  const {rows, rest} = planCinderArt(files, {user: GM, cinders, caps: CAPS});
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].definitionId, 'MUT-CRIMSON');
+  assert.deepEqual(rows[0].to.map(t => t.stage), [1, 2, 3, 4, 5]);
+  assert.equal(rows[0].ready, true);
+  assert.deepEqual(rest, []);
+  const calls = [];
+  const api = {cinder: {setDefinitionArtStages: async (id, st) => { calls.push([id, st]); return {changed: true}; }, getDefinitionArtStages: () => null}};
+  const out = await applyCinderArt(rows, {user: GM, api: {cinder: api.cinder, canDefinition: true}});
+  assert.ok(out);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'MUT-CRIMSON');
+  assert.equal(calls[0][1].length, 5);
+});
+
+test('names: a Cinder name is whole-word; an unknown name falls to normal record matching', () => {
+  assert.equal(parseCinderStageName('Scarlet_Cinder_Stage_1.webp'), null);
+  assert.equal(parseCinderStageName('crimsonish_Cinder_Stage_1.webp'), null);
+  assert.equal(parseCinderStageName('Crimson_Ember_Stage_1.webp'), null); // two Cinder names: not guessed
+  assert.equal(parseCinderStageName('Crimson_Portrait.webp'), null); // no stage
+  const npc = {uuid: 'Actor.2', documentName: 'Actor', type: 'npc', name: 'Scarlet Vale', sourceId: 'NPC-SCARLET', img: '', tokenImg: '', flags: {}};
+  const files = [f('Scarlet_Cinder_Stage_1.webp'), f('Scarlet_Vale.webp')];
+  const {rows, rest} = planCinderArt(files, {user: GM, cinders: [], caps: CAPS});
+  assert.equal(rows.length, 0);
+  assert.equal(rest.length, 2);
+  assert.ok(planAssetLinks([npc], rest).rows.some(r => r.fileName === 'Scarlet_Vale.webp'));
+});
+
+test('names: the fixed list is the fallback; Cinder records in the world add one-word names (an 11th Cinder needs no code change)', () => {
+  assert.deepEqual(cinderNames(), [...CINDER_NAMES]);
+  assert.deepEqual(worldCinderNames([]), [...CINDER_NAMES]);
+  assert.equal(parseCinderStageName('Scarlet_Cinder_Stage_1.webp', cinderNames()), null);
+  const world = worldCinderNames([{sourceId: 'MUT-SCARLET', name: 'Scarlet Cinder'}, {sourceId: 'MUT-CRIMSON', name: 'Crimson'},
+    {sourceId: 'NPC-DUSK', name: 'Dusk'}, {sourceId: 'MUT-X', name: 'Two Words'}, {sourceId: 'MUT-S', name: 'Stage Cinder'}, {sourceId: 'MUT-N', name: null}]);
+  assert.deepEqual(world, [...CINDER_NAMES, 'Scarlet']); // NPC, multi-word, reserved and empty names are ignored; Crimson is not doubled
+  assert.equal(parseCinderStageName('scarlet_cinder_stage_02.webp', world).cinder, 'Scarlet');
+  const cinders = cinderChoices({docs: [{sourceId: 'MUT-SCARLET', name: 'Scarlet Cinder'}]});
+  const {rows} = planCinderArt([f('Scarlet_Cinder_Stage_1.webp'), f('Scarlet_Cinder_Stage_2.webp')], {user: GM, cinders, caps: CAPS, names: world});
+  assert.equal(rows[0].definitionId, 'MUT-SCARLET');
 });
