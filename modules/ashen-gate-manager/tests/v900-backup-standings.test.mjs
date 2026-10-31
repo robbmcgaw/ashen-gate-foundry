@@ -145,5 +145,5 @@ test('the dialog and Help say standings are play state', () => {
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   assert.match(main, /standings\.json<\/code>[^]*play state/);
   assert.match(main, /ag-factions-state-export\/0\.1/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.90.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.91.0');
 });

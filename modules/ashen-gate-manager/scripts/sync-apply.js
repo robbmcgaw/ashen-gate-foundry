@@ -10,6 +10,7 @@
  */
 import {MODULE_ID, MANAGED_TYPES, baselineFields} from './core.js';
 import {isArtPath, artDecision, liveArt} from './art-fields.js';
+import {withSourceLabel, withSourceLabelFields, customOf, isBlank, SOURCE_PATH} from './source-label.js';
 import {ACTOR_ITEMS_FLAG, ITEM_FLAG, ITEM_PLAY_STATE, itemKeys, itemLeaves, keyOf} from './actor-update.js';
 import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
@@ -57,12 +58,12 @@ export function withoutGmArt(doc, fields, {replaceArt = false} = {}) {
 export async function writeOverwrite(doc, row, {user, flag, extra = {}, replaceArt = false}) {
   assertSyncTarget(doc, user, row.id);
   const ops = row.ops, kind = doc.documentName;
-  const fields = withoutGmArt(doc, ops.fields, {replaceArt});
+  const fields = withSourceLabelFields(doc, withoutGmArt(doc, ops.fields, {replaceArt})); // 0.91.0: fills an empty custom source label on an Item, never replaces one
   if (kind === 'Actor') {
     const {adopt = [], update = [], create = [], delete: del = []} = ops.items ?? {};
     const updates = [...adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...update];
     if (updates.length) await doc.updateEmbeddedDocuments('Item', updates, bulk());
-    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create), bulk());
+    if (create.length) await doc.createEmbeddedDocuments('Item', structuredClone(create).map(withSourceLabel), bulk());
     if (del.length) await doc.deleteEmbeddedDocuments('Item', del, bulk());
   } else if (kind === 'Item' && ops.effects) {
     const {create = [], update = [], delete: del = []} = ops.effects;
@@ -123,6 +124,7 @@ export async function recreateItem(oldDoc, row, {user, adapter, replaceArt = fal
     // Art the GM set stays theirs: not a Foundry default icon, not an icon Manager picked itself, and not the package's own value.
     const gmArt = raw.img && !String(raw.img).startsWith('icons/svg/') && !oldDoc.getFlag?.(MODULE_ID, 'iconSource') && (baseline.img === undefined || raw.img !== baseline.img);
     if (!replaceArt && gmArt) update.img = raw.img;
+    if (!isBlank(customOf(raw))) update[SOURCE_PATH] = customOf(raw); // 0.91.0: a source label the GM set stays
     await fresh.update(update, bulk());
   } catch (error) {
     try { await fresh.delete(bulk()); } catch (rollback) { throw new Error(`${error?.message ?? error}; the new Item could not be removed again (${rollback?.message ?? rollback}). Delete the duplicate by hand.`); }
