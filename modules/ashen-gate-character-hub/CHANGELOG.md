@@ -1,3 +1,13 @@
+## 0.69.0 — 2026-10-31
+
+Effects tab and Locations list tidied.
+
+- **Effects rows** are plain boxes now, not big pills. The name, the on/off switch, Edit and Delete sit together on the first line; the second line holds the source (shown once; for an item's effect it reads "<item> (edit it on the item)") and the time left. Delete is shown only for effects the character owns directly; an item's effect is deleted on the item. Tooltips open above the controls so they no longer cover the help text, which now wraps at a readable width.
+- **Effect groups** (Temporary, Passive, Inactive, Unavailable) fold with a button, remember open or closed on this computer, keep the keyboard focus on the button, and say "None." when empty. Switch, Edit, Add effect and permissions are unchanged.
+- **Locations list** (Ashen Gate > Locations): region, city and ward headings are bold with a rule under them; places are plain buttons that highlight on hover and keyboard focus (no underline), with indent guides on nested groups and places. Folds, "Here now", type chips and the Open buttons are unchanged.
+- **Personal places**: the Hub tells Locations which character it is showing; with Locations 0.42.0 or newer a restricted place reads "Personal" or "Selected players". Older Locations still shows "Selected players".
+- Display only: no stored data changes, no migration. Tests are mocked Foundry; they do not open the real Hub.
+
 ## 0.68.0 — 2026-10-30
 
 A new **Effects** tab, like the Effects tab of the standard dnd5e sheet.

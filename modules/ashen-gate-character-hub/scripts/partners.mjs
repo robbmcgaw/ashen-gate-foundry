@@ -335,7 +335,7 @@ export function ashenGateTab({actor, sheet}) {
     // 0.63.0: Locations offers its list as data (api.listModel): the Hub draws it with its own markup. Older Locations: its embed, else the summary.
     ownList = current.id === LOCATIONS_ID && !!sheet && !!listModelApi(partnerApi);
     embedded = ownList ? null : embedApi(current.id, current.embedMode);
-    state = ownList ? locationsPanelState(sheet, listModelApi(partnerApi), globalThis.game?.user)
+    state = ownList ? locationsPanelState(sheet, listModelApi(partnerApi), globalThis.game?.user, actor)
       : embedded ? {state: 'ok', html: embedSlot(current.id, current.embedMode, actor)} : panelState(current, actor);
     if (gm || !state.refused) break;
     panels = panels.filter(p => p !== current); current = null;
