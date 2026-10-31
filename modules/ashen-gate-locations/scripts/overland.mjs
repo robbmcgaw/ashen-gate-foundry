@@ -107,6 +107,20 @@ export function undo(state) {
 }
 /** A new day gives the actions back, adds one to the day and clears the DAILY conditions (all areas and per area) back to 0. Persistent conditions on Locations and Regions are untouched; the journal and waiting requests stay. */
 export const newDay = state => ({...state, day: state.day + 1, used: 0, conditions: normalizeConditions(null), areaConditions: {}, moves: []});
+/**
+ * Testing aid (0.40.1): sets the day number (a whole number from 1; anything else reads as 1) and, per option, restores today's actions (`clearUsed`),
+ * empties the journal (`clearJournal`), drops the waiting requests (`clearRequests`) and clears the daily condition overlay, all areas and per area (`clearDaily`).
+ * Defaults: clearUsed and clearDaily on, the other two off. The party's current area, mounted, announce and every Location or Region record stay as they are.
+ */
+export function resetDay(state, {day = 1, clearJournal = false, clearUsed = true, clearRequests = false, clearDaily = true} = {}) {
+  const n = typeof day === 'number' || (typeof day === 'string' && day.trim() !== '') ? Math.trunc(Number(day)) : 1;
+  const next = {...state, day: Number.isFinite(n) ? whole(n, 1, 99999) : 1};
+  if (clearUsed) next.used = 0;
+  if (clearJournal) { next.journal = []; next.moves = []; }
+  if (clearRequests) next.requests = [];
+  if (clearDaily) { next.conditions = normalizeConditions(null); next.areaConditions = {}; }
+  return next;
+}
 /** Sets one DAILY condition (one of the six) to severity 0 to 3, for all areas (default) or for one area (`scope: 'area'` with `areaId`). */
 export function setCondition(state, id, severity, {scope = 'all', areaId = ''} = {}) {
   if (!CONDITION_IDS.includes(id)) throw new Error(`Unknown condition "${id}". Use one of: ${CONDITION_IDS.join(', ')}.`);
@@ -364,6 +378,8 @@ export function createOverland(deps) {
     dismiss: userId => edit(s => takeRequest(s, userId).state),
     undo: () => edit(undo),
     newDay: () => edit(newDay),
+    /** GM only (0.40.1), for testing: {day = 1, clearJournal = false, clearUsed = true, clearRequests = false, clearDaily = true}. See resetDay(). Resolves the GM state(). */
+    resetDay: (opts = {}) => edit(s => resetDay(s, obj(opts))),
     setMounted: value => edit(s => ({...s, mounted: value === true})),
     /** GM: a DAILY condition, for all areas (default) or `{scope: 'area'}` for the current area. */
     setCondition: (id, severity, opts = {}) => edit(s => setCondition(s, id, severity, {scope: opts?.scope === 'area' ? 'area' : 'all', areaId: opts?.scope === 'area' ? currentArea(s)?.id ?? '' : ''})),

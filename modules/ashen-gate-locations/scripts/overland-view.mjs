@@ -20,8 +20,8 @@ const off = html => html.replace('<button type="button"', '<button type="button"
 function conditionRow(c, {esc, here, level, scope}) {
   const levels = Array.from({length: MAX_SEVERITY + 1}, (_, n) => n);
   const persist = here?.persistent?.[c.id] ?? 0, source = here?.sources?.[c.id], effective = here?.effective?.[c.id] ?? c.severity;
-  return `<li class="agl-ov-cond" data-cond-row="${esc(c.id)}">
-    <div class="agl-ov-cond__name"><strong>${esc(c.label)}</strong><br><span class="agl-hint">${esc(c.hits)}</span></div>
+  return `<li class="agl-tile agl-ov-cond" data-cond-row="${esc(c.id)}">
+    <div class="agl-ov-cond__name"><span class="agl-ov-cond__label">${esc(c.label)}</span><span class="agl-ov-cond__hits">${esc(c.hits)}</span></div>
     <div class="ag-segmented" role="group" aria-label="${esc(c.label)} daily severity">${levels.map(n => `<button type="button" aria-pressed="${level(c.id) === n}" data-action="ov-cond" data-cond="${esc(c.id)}" data-sev="${n}" data-scope="${esc(scope)}" aria-label="${esc(c.label)} daily severity ${n}">${n}</button>`).join('')}</div>
     <p class="agl-ov-cond__math">Here: ${persist ? `${esc(persist)}${source ? ` from ${esc(source.name)}` : ' on this place'}` : 'none set on the place'}. Effective <strong>${esc(effective)}</strong> (the higher of the place and today). Party mitigation ${esc(signed(c.mitigation))} protects the party only.</p></li>`;
 }
@@ -64,7 +64,7 @@ export function previewCard(pv, ui, {esc, btn, areas = [], now = ''}) {
   const third = pv.action === 'explore' ? {name: 'Survey range', value: plural(pv.rangeRings, 'ring'), note: pv.rangeRings === 0 ? 'Current tile only' : ''}
     : pv.action === 'scout' ? {name: 'Scout precision', value: `Step ${pv.precision}`, note: SCOUT_LADDER[pv.precision]?.replace(/^\d: /, '') ?? ''}
     : {name: 'Destination', value: pv.destination?.name ?? 'Not chosen', note: pv.terrain ? `Terrain: ${TERRAIN_LABEL[pv.terrain] ?? pv.terrain}` : ''};
-  const stat = (name, value, note = '') => `<div class="agl-pv__stat"><dt>${esc(name)}</dt><dd><strong class="agl-pv__num">${esc(value)}</strong>${note ? `<span class="agl-hint">${esc(note)}</span>` : ''}</dd></div>`;
+  const stat = (name, value, note = '') => `<div class="agl-tile agl-pv__stat"><dt>${esc(name)}</dt><dd><strong class="agl-pv__num">${esc(value)}</strong>${note ? `<span class="agl-hint">${esc(note)}</span>` : ''}</dd></div>`;
   const dest = pv.action === 'travel' ? `<div class="ag-form-grid">
       <div class="ag-field agl-field"><label for="agl-pv-dest">Destination</label><select id="agl-pv-dest">${areaOptions(areas, pv.destination ? (pv.destination.kind === 'other' ? 'other' : pv.destination.id) : '', {esc, first: 'Choose a destination…', other: true})}</select></div>
       <div class="ag-field agl-field"><label for="agl-pv-terrain">Destination terrain</label><select id="agl-pv-terrain"><option value="">No terrain bonus</option>${Object.entries(TERRAIN_LABEL).map(([k, v]) => `<option value="${k}"${pv.terrain === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
@@ -75,10 +75,10 @@ export function previewCard(pv, ui, {esc, btn, areas = [], now = ''}) {
   const shortcuts = pv.shortcuts.length ? `<div class="agl-pv__short" role="group" aria-label="Shortcuts for this area"><span class="agl-hint">Open (nothing is rolled or awarded):</span>
       ${pv.shortcuts.map(x => `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="ov-open" data-uuid="${esc(x.uuid)}" data-loc="${esc(x.locationId)}"><i class="${SHORTCUT_ICON[x.kind]}" aria-hidden="true"></i><span>${esc(SHORTCUT_NAME[x.kind])}: ${esc(x.label)}</span></button>`).join('')}</div>` : '';
   const ov = pv.override;
-  const override = `<fieldset class="agl-pv__override"><legend>GM override <span class="agl-hint">this action only</span></legend>
-      <div class="agl-field__row"><label class="ag-sr-only" for="agl-pv-ovc">Condition to override</label><select id="agl-pv-ovc"><option value="">No override</option>${OVERLAND_CONDITIONS.map(c => `<option value="${c.id}"${ov?.condition === c.id ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select>
+  const override = `<fieldset class="agl-tile agl-pv__override"><legend>GM override <span class="agl-pv__legend-note">this action only</span></legend>
+      <div class="agl-pv__ovrow"><label class="ag-sr-only" for="agl-pv-ovc">Condition to override</label><select id="agl-pv-ovc"><option value="">No override</option>${OVERLAND_CONDITIONS.map(c => `<option value="${c.id}"${ov?.condition === c.id ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select>
       ${ov ? `<div class="ag-segmented" role="group" aria-label="Override severity">${[0, 1, 2, 3].map(n => `<button type="button" aria-pressed="${ov.severity === n}" data-action="ov-pv-ovsev" data-sev="${n}" aria-label="${esc(OVERLAND_CONDITIONS.find(c => c.id === ov.condition).label)} override severity ${n}">${n}</button>`).join('')}</div>` : ''}</div>
-      <p class="agl-hint">For a spell or a special circumstance: it replaces that condition's severity for this preview only.</p></fieldset>`;
+      <p class="agl-hint agl-pv__ovhint">For a spell or a special circumstance: it replaces that condition's severity for this preview only.</p></fieldset>`;
   const stepper = `<div class="ag-field agl-field"><span id="agl-pv-cost-l">Adjust cost</span><div class="agl-pv__step" role="group" aria-labelledby="agl-pv-cost-l">
       <button type="button" class="ag-btn ag-btn--sm" data-action="ov-pv-cost" data-delta="-1" aria-label="Lower the cost"${cost <= 0 ? ' disabled' : ''}>−</button>
       <output id="agl-pv-cost" aria-live="polite">${esc(cost)}</output>
@@ -107,7 +107,7 @@ function journalCard(journal, {esc, gm}) {
   const control = (action, label, what, e, extra = '') => `<button type="button" class="ag-btn ag-btn--sm${extra}" data-action="${action}" data-id="${esc(e.id)}"><span>${label}<span class="ag-sr-only"> ${esc(what)}</span></span></button>`;
   const entry = e => {
     const what = `${ACTIONS[e.kind]}, day ${e.day}`;
-    return `<li class="agl-ov-entry"><div class="agl-ov-entry__head"><i class="${ICON[e.kind]}" aria-hidden="true"></i><strong>${esc(ACTIONS[e.kind])}</strong>${e.area ? ` <span class="agl-hint">${esc(e.area)}</span>` : ''}${Number.isSafeInteger(e.cost) ? ` <span class="agl-hint">${esc(e.cost)} ${e.cost === 1 ? 'action' : 'actions'}</span>` : ''}${e.by ? ` <span class="agl-hint">Asked by ${esc(e.by)}</span>` : ''}</div>
+    return `<li class="agl-tile agl-ov-entry"><div class="agl-ov-entry__head"><i class="${ICON[e.kind]}" aria-hidden="true"></i><strong>${esc(ACTIONS[e.kind])}</strong>${e.area ? ` <span class="agl-hint">${esc(e.area)}</span>` : ''}${Number.isSafeInteger(e.cost) ? ` <span class="agl-hint">${esc(e.cost)} ${e.cost === 1 ? 'action' : 'actions'}</span>` : ''}${e.by ? ` <span class="agl-hint">Asked by ${esc(e.by)}</span>` : ''}</div>
       ${e.text ? `<p class="agl-ov-entry__text">${lines(e.text)}</p>` : ''}
       ${gm ? `<div class="agl-ov-entry__tools">${control('ov-edit', 'Edit…', what, e)}${control('ov-delete', 'Delete entry', what, e, ' ag-btn--danger')}</div>` : ''}</li>`;
   };
@@ -128,7 +128,7 @@ export function travelHtml({state, mods = null, gm = false, userId = '', text = 
   const mine = state.requests.find(q => q.userId === userId);
   const rowBtn = (action, label, what, q, kind = '') => `<button type="button" class="ag-btn ag-btn--sm${kind}" data-action="${action}" data-user="${esc(q.userId)}"${action === 'ov-resolve' && none ? ' disabled' : ''}><span>${label}<span class="ag-sr-only"> ${esc(what)}</span></span></button>`;
   const requests = state.requests.length ? `<h4 id="agl-ov-req">${gm ? 'Waiting for you' : 'Waiting for the GM'}</h4>
-    <ul class="agl-ov-requests" aria-labelledby="agl-ov-req">${state.requests.map(q => `<li class="agl-ov-request"><span><strong>${esc(q.name || 'A player')}</strong> asks to ${esc(ACTIONS[q.action])}.</span>
+    <ul class="agl-ov-requests" aria-labelledby="agl-ov-req">${state.requests.map(q => `<li class="agl-tile agl-ov-request"><span><strong>${esc(q.name || 'A player')}</strong> asks to ${esc(ACTIONS[q.action])}.</span>
       ${gm ? `<span class="agl-ov-request__tools">${rowBtn('ov-resolve', 'Resolve…', `${ACTIONS[q.action]} request from ${q.name || 'a player'}`, q)}${rowBtn('ov-dismiss', 'Dismiss', `${ACTIONS[q.action]} request from ${q.name || 'a player'}`, q)}</span>` : ''}</li>`).join('')}</ul>` : '';
   const buttons = gm
     ? `<div class="ag-field agl-field"><label for="agl-ov-area">Current area <span class="ag-badge">GM only</span></label><select id="agl-ov-area">${areaOptions(areas, state.area?.id ?? '', {esc, first: 'Choose an area…'})}</select>
@@ -158,7 +158,7 @@ export function travelHtml({state, mods = null, gm = false, userId = '', text = 
       ${modifiersCard(mods ?? {rows: []}, {esc})}</div>`;
   return `<div class="agl-setup agl-overland">
     <div class="agl-setup__body">${previewHtml}${today}${journal}${gmOnly}</div>
-    <footer class="ag-footer">${btn('ov-undo', 'Undo last', {kind: 'ghost', icon: 'fa-solid fa-rotate-left'})}
+    <footer class="ag-footer"><span class="ag-btn-group">${btn('ov-undo', 'Undo last', {kind: 'ghost', icon: 'fa-solid fa-rotate-left'})}${btn('ov-reset', 'Reset travel day…', {kind: 'ghost', icon: 'fa-solid fa-calendar-xmark'})}</span>
       <span class="ag-footer__status" role="status">${none ? 'No actions left today.' : 'Changes here apply at once.'}</span>
       ${btn('ov-newday', 'New day…', {kind: preview ? '' : 'primary', icon: 'fa-solid fa-sun'})}</footer>
   </div>`;

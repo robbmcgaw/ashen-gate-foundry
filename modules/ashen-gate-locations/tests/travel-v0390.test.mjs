@@ -149,10 +149,10 @@ test('GM only: every read and write other than publicState and declare refuses a
   assert.throws(() => playerApi.overland.state(), /Only the GM/); assert.throws(() => playerApi.overland.partyModifiers(), /Only the GM/);
   assert.throws(() => playerSvc.state(), /Only the GM/); assert.throws(() => playerSvc.partyModifiers(), /Only the GM/);
   for (const [fn, a, b] of [['act', 'travel'], ['resolve', 'p1'], ['dismiss', 'p1'], ['undo'], ['newDay'], ['setMounted', true], ['setAnnounce', true], ['setCondition', 'harsh-weather', 1],
-    ['editEntry', 'e1', 'x'], ['deleteEntry', 'e1'], ['clearJournal'], ['migrate'], ['receiveDeclare', PIA, 'travel']]) await assert.rejects(playerSvc[fn](a, b), /Only the GM/, fn);
+    ['editEntry', 'e1', 'x'], ['deleteEntry', 'e1'], ['clearJournal'], ['migrate'], ['receiveDeclare', PIA, 'travel'], ['resetDay', {day: 2}]]) await assert.rejects(playerSvc[fn](a, b), /Only the GM/, fn);
   assert.deepEqual([world.writes, world.secretWrites], [0, 0]);
   assert.equal(Object.isFrozen(playerApi.overland), true);
-  assert.deepEqual(Object.keys(playerApi.overland).sort(), ['contract', 'declare', 'partyModifiers', 'previewAction', 'publicState', 'resolveAction', 'state']);
+  assert.deepEqual(Object.keys(playerApi.overland).sort(), ['contract', 'declare', 'partyModifiers', 'previewAction', 'publicState', 'resetDay', 'resolveAction', 'state']);
   const none = createApi({version: '0.39.0', isGM: () => true, playerAccessEnabled: () => true});
   assert.throws(() => none.overland.state(), /unavailable/); assert.throws(() => none.overland.publicState(), /unavailable/); await assert.rejects(none.overland.declare('travel'), /unavailable/);
 });

@@ -208,43 +208,75 @@
 .agl-ctx__item { justify-content: flex-start; white-space: nowrap; }
 
 /* ----- Travel tab (0.37.0 as Overland; Travel and Journal 0.39.0) ----- */
+/* Shared box (0.40.1): every bordered tile, row and fieldset inside a Travel or editor card. Containers take the kit's box radius (--ag-radius).
+   --ag-radius-control is 999px (a pill) and belongs to buttons, inputs, chips and segmented controls only: on a tall multi-line box it clips the corners. */
+.agl-tile { box-sizing: border-box; min-width: 0; padding: var(--ag-space-3); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-sunken); color: var(--ag-text); font-weight: 400; }
+.agl-tile :where(p, dl, dd, ul) { margin: 0; }
 .agl-ov-day { margin: 0; font-weight: 600; }
 .agl-ov-left { margin: var(--ag-space-1) 0 var(--ag-space-2); }
 .agl-ov-actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
 .agl-ov-requests, .agl-ov-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-2); }
-.agl-ov-request { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
+.agl-ov-request { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ag-space-2) var(--ag-space-3); }
+.agl-ov-request > span:first-child { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
 .agl-ov-request__tools, .agl-ov-entry__tools, .agl-ov-journal-tools { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
 .agl-ov-daycard { margin: 0 0 var(--ag-space-3); }
 .agl-ov-daycard h4 { margin: 0 0 var(--ag-space-2); }
-.agl-ov-entry { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
-.agl-ov-entry__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-2); }
-.agl-ov-entry__text { margin: 0; overflow-wrap: anywhere; }
+.agl-ov-entry { display: grid; gap: var(--ag-space-2); }
+.agl-ov-entry__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-1) var(--ag-space-2); }
+.agl-ov-entry__head .agl-hint { margin: 0; }
+.agl-ov-entry__text { margin: 0; overflow-wrap: anywhere; line-height: 1.45; }
 .agl-ov-journal-tools { justify-content: flex-end; margin-top: var(--ag-space-2); }
 .agl-ov-gm { display: grid; gap: var(--ag-space-3); margin-top: var(--ag-space-3); padding-top: var(--ag-space-3); border-top: 2px solid var(--ag-border-strong); }
-#agl-ov-text { width: 100%; box-sizing: border-box; resize: vertical; }
+#agl-ov-text { width: 100%; box-sizing: border-box; resize: vertical; min-height: 5.5rem; line-height: 1.45; }
 .agl-ov-conds { list-style: none; margin: 0 0 var(--ag-space-3); padding: 0; display: grid; gap: var(--ag-space-2); }
-.agl-ov-cond { display: grid; grid-template-columns: minmax(10rem, 1fr) auto; gap: var(--ag-space-1) var(--ag-space-3); align-items: center; padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); }
-.agl-ov-cond__math, .agl-ov-cond__guide { grid-column: 1 / -1; margin: 0; }
-.agl-ov-cond__guide { font-weight: 600; }
+/* One condition: name and one-line description on the left, the 0 to 3 control beside it (wrapping under it when narrow), the math line full width below. */
+.agl-ov-cond { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ag-space-2) var(--ag-space-4); }
+.agl-ov-cond__name { flex: 1 1 14rem; min-width: 0; display: grid; gap: var(--ag-space-1); }
+.agl-ov-cond__label { color: var(--ag-text); font-weight: 650; }
+.agl-ov-cond__hits { color: var(--ag-muted); font-size: var(--ag-text-sm); font-weight: 400; line-height: 1.4; overflow-wrap: anywhere; }
+.agl-ov-cond > .ag-segmented { flex: 0 0 auto; }
+.agl-ov-cond__math { flex: 1 1 100%; margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); font-weight: 400; line-height: 1.45; overflow-wrap: anywhere; }
+.agl-ov-cond__math strong { color: var(--ag-text); font-weight: 650; }
 .agl-ov-sources { margin: 0; padding-left: var(--ag-space-4); }
 .agl-ov-table th[scope="row"] { font-weight: 600; text-align: left; }
 
 /* ----- Action preview and persistent conditions (0.40.0) ----- */
 .agl-pv { display: grid; gap: var(--ag-space-3); border-color: var(--ag-accent); }
+.agl-pv > * { min-width: 0; margin-top: 0; margin-bottom: 0; }
 .agl-pv__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-2) var(--ag-space-3); }
 .agl-pv__head h3 { margin: 0; }
-.agl-pv__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--ag-space-2); margin: 0; }
-.agl-pv__stat { padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-raised); }
-.agl-pv__stat dt { color: var(--ag-muted); font-size: var(--ag-text-sm); }
-.agl-pv__stat dd { margin: 0; display: grid; gap: var(--ag-space-1); overflow-wrap: anywhere; }
-.agl-pv__num { font-size: var(--ag-text-lg, 1.25rem); font-variant-numeric: tabular-nums; }
+.agl-pv__head .agl-hint { margin: 0; }
+.agl-pv__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--ag-space-2); margin: 0; }
+.agl-pv__stat { display: grid; align-content: start; gap: var(--ag-space-1); }
+.agl-pv__stat dt { color: var(--ag-muted); font-size: var(--ag-text-sm); font-weight: 400; }
+.agl-pv__stat dd { display: grid; gap: var(--ag-space-1); overflow-wrap: anywhere; }
+.agl-pv__stat dd .agl-hint { margin: 0; font-weight: 400; line-height: 1.4; }
+.agl-pv__num { color: var(--ag-text); font-size: var(--ag-text-lg, 1.25rem); font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.25; }
 .agl-pv__chips { list-style: none; margin: 0; padding: 0; }
-.agl-pv__calc, .agl-pv__guide, .agl-pv__nav, .agl-pv__block { margin: 0; overflow-wrap: anywhere; }
+.agl-pv__calc, .agl-pv__guide, .agl-pv__nav, .agl-pv__block { margin: 0; overflow-wrap: anywhere; line-height: 1.45; }
+.agl-pv__calc, .agl-pv__guide { font-weight: 400; }
+.agl-pv__calc strong, .agl-pv__guide strong { font-weight: 650; }
 .agl-pv__block { color: var(--ag-danger-ink); font-weight: 600; }
 .agl-pv__short, .agl-pv__step, .agl-pv__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.agl-pv__short .agl-hint { margin: 0; }
 .agl-pv__foot { justify-content: space-between; }
 .agl-pv__step output { min-width: 2ch; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
-.agl-pv__override { border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); padding: var(--ag-space-2); margin: 0; }
+.agl-pv__step .agl-hint { margin: 0; }
+.agl-pv .ag-field { margin: 0; }
+.agl-pv .ag-field > :where(label, span) { color: var(--ag-text); font-weight: 600; }
+.agl-pv__override { display: grid; gap: var(--ag-space-2); margin: 0; }
+.agl-pv__override > legend { padding: 0 var(--ag-space-1); color: var(--ag-text); font-size: var(--ag-text-sm); font-weight: 600; }
+.agl-pv__legend-note { color: var(--ag-muted); font-weight: 400; }
+.agl-pv__ovrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2) var(--ag-space-3); }
+.agl-pv__ovrow > select { flex: 1 1 12rem; min-width: 0; }
+.agl-pv__ovrow > .ag-segmented { flex: 0 0 auto; }
+.agl-pv__ovhint { margin: 0; line-height: 1.4; }
 .agl-oc-list { list-style: none; margin: 0 0 var(--ag-space-2); padding: 0; display: grid; gap: var(--ag-space-2); }
-.agl-oc { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); }
-.agl-oc__name { min-width: 8rem; }
+.agl-oc { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); padding-block: var(--ag-space-2); }
+.agl-oc__name { flex: 1 1 8rem; min-width: 0; font-weight: 650; }
+.agl-oc > .agl-hint { flex: 1 1 100%; margin: 0; font-weight: 400; }
+/* Motion: the Travel tab adds none of its own; the kit already turns transitions off for reduced motion. Focus rings come from the kit (:focus-visible, 2px, offset 2px). */
+
+/* ----- Reset travel day… dialog (0.40.1) ----- */
+.agl-reset-opts { display: grid; gap: var(--ag-space-2); }
+.agl-reset-opts > .checkbox { display: flex; align-items: center; gap: var(--ag-space-2); font-weight: 400; color: var(--ag-text); }

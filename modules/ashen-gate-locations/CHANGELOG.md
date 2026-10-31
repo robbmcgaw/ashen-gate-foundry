@@ -1,3 +1,12 @@
+## 0.40.1 — 2026-10-31
+
+Fixed: Travel boxes were drawn as pills. New: GM-only **Reset travel day…** for testing.
+
+- **Root cause.** `locations.css` gave the Action preview's stat tiles and override group, the condition rows, the waiting requests and the Journal cards `border-radius: var(--ag-radius-control)`. That kit token is `999px` (a pill, meant for buttons, inputs, chips and segmented controls), so on tall, multi-line boxes the corners clipped the text and the 0 to 3 control floated in the corner.
+- **Fix.** One shared class, `.agl-tile`, now carries every such box: the kit's box radius (`--ag-radius`), one padding, a sunken surface. Pills stay on buttons, chips and the 0 to 3 / override segmented controls. Condition rows keep the name and its one-line description beside the control and wrap it underneath when narrow; the "Here: … Effective N" line is normal-weight muted text with the value emphasised. The preview's tiles show a muted label over an emphasised value with a normal-weight note, auto-fit to the width; the override select and its control wrap instead of crushing the hint; the text box and the cost stepper have even spacing. The location editor's Travel conditions rows use the same tile. A style test fails if `locations.css` ever uses `--ag-radius-control` or `999px` again.
+- **Reset travel day…** (Travel tab, footer, beside Undo last and New day…). Opens *Reset travel day?* (**Reset day**, danger, Cancel is the default) with a Day number (default 1) and four boxes: *Clear the travel journal* (off), *Clear today's actions used (restore all actions)* (on), *Clear pending requests* (off), *Clear the daily condition overlay* (on). New GM-only `api.overland.resetDay({day, clearJournal, clearUsed, clearRequests, clearDaily})`, refused for players in the API and the service, day held to a whole number from 1. Posts no chat line; Location records, persistent conditions, the current area, Mounted and Announce are never touched. `ag-overland/1` and every other method are unchanged.
+- Docs: README, Help (Travel). Tests are mocked Foundry; they do not open the real window.
+
 ## 0.40.0 — 2026-10-31
 
 New: Travel works out each action for you. The GM sees a calculated cost and result in an Action preview and resolves it in one step. No dice, no automatic encounters, nothing applied to characters.
