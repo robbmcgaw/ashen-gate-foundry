@@ -22,6 +22,12 @@ const PLAYER_SOURCES = [
 const CLAIM_KINDS = new Set(PLAYER_SOURCES.map(p => p.kind));
 const MAX_CLAIMS = 5000;
 
+/** The id of the user who sent a CONFIG.queries call: the User document Foundry passes, else a plain id (older or test callers). */
+export function querySenderId(options) {
+  const id = options?.user?.id ?? options?.userId ?? options?.from;
+  return typeof id === 'string' && id ? id : undefined;
+}
+
 export function createCodexService({game, moduleId}) {
   const isGM = () => Boolean(game.user?.isGM);
   const requireGM = () => { if (!isGM()) throw new Error('Only a GM can see or change the full NPC Codex.'); };
@@ -216,9 +222,13 @@ export function createCodexService({game, moduleId}) {
       if (!result?.ok) throw new Error(result?.message ?? 'The GM could not send the codex.');
       return resolvePlayerLinks(result.entries, names);
     },
-    /** CONFIG.queries handler (registered on every client; only a GM answers). */
-    async handleQuery(data, {userId} = {}) {
-      try { return {ok: true, entries: service.forUser(userId, data)}; }
+    /**
+     * CONFIG.queries handler (registered on every client; only a GM answers). 0.94.0: Foundry V14 calls it as
+     * handler(queryData, {timeout, user}) with `user` the requesting User document (client/documents/collections/users.mjs
+     * #handleUserQuery); it sets no `userId`. The sender is read from options.user.id, then options.userId / options.from.
+     */
+    async handleQuery(data, options) {
+      try { return {ok: true, entries: service.forUser(querySenderId(options), data)}; }
       catch (error) { return {ok: false, message: error.message}; }
     },
     exportAll: () => { requireGM(); return buildCodexExport(npcs()); },

@@ -1,3 +1,14 @@
+## 0.43.0 — 2026-10-31
+
+Recipe list: foldable profession headers, real item sheets, skill proficiency.
+
+- **Profession headers fold.** Each profession above the recipe cards (for example "Inscription · 4 recipes") is now a real button with the count badge; press it, or Enter or Space, to fold or unfold its cards. Open or shut is remembered for you on this device and every profession starts open. A re-render (starring a recipe, a refresh) keeps the focus on the same header. Works in the Ledger window, the Tidy5e tab and Character Hub → Ashen Gate → Professions. While you search, groups with a match open on their own and are not remembered.
+- **Items open their real sheet when you may.** The Needs, Makes and result items open the item's own sheet for the GM and for a player with Observer permission on a released Item. When you cannot, the read-only preview opens and says "You can only preview this item."
+- **Fixed: raw `@UUID[...]` text in the preview.** A description link such as `Recipe: @UUID[Item.…]{Braided Metal Bracelet}` now shows as its name (a link with no label shows the item's name only if you may see that item, else "a linked item"); `@AGRef` links and inline rolls likewise. The preview also keeps the item's headings, lists and tables instead of flattening them to paragraphs; the HTML is allow-listed (no scripts, styles, attributes or secret blocks) and cleaned again on your client.
+- **Skill checks turn green when proficient.** On a recipe whose check is a skill, "Check Arcana" gets a green **Proficient** badge (**Expertise** with Expertise; tooltip "Proficient in Arcana"). Half proficiency (Jack of All Trades) and no proficiency stay plain, not red. Names are matched to the dnd5e skill whatever the case or spacing.
+- **Rounded corners.** Recipe-card badges and the new profession headers use the kit box radius, so a badge that wraps in a narrow Hub column is no longer a clipped pill. Buttons, chips and segmented controls stay pills.
+- Tests are mocked Foundry; they do not open the real window or sheets. No saved world data changes.
+
 ## 0.42.0 — 2026-10-31
 
 Recipe gold cost shows what it pays for.

@@ -101,6 +101,26 @@
 .agl-folder-actions{margin:var(--ag-space-2) 0}
 .agl-folder-body{padding:0 var(--ag-space-2) var(--ag-space-1)}
 
+/* 0.43.0: profession groups on the recipe list. The header is a real button over a box; boxes use the kit box radius, never the control pill. */
+.agl-group{border:1px solid var(--ag-border);border-radius:var(--ag-radius);margin-bottom:var(--ag-space-2);background:var(--ag-surface)}
+.agl-group__head{margin:0;font:inherit}
+.agl-group__toggle{display:flex;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);width:100%;min-height:var(--ag-row-h);padding:var(--ag-space-2) var(--ag-space-3);border:0;border-radius:var(--ag-radius);background:transparent;color:var(--ag-text);font:inherit;text-align:start;cursor:pointer}
+.agl-group__toggle:hover:not(:disabled){background:var(--ag-surface-hover)}
+.agl-group:not(.is-closed)>.agl-group__head>.agl-group__toggle{border-radius:var(--ag-radius) var(--ag-radius) 0 0}
+.agl-group__chev{flex:none;color:var(--ag-muted);transition:transform var(--ag-dur-fast) var(--ag-ease)}
+.agl-group.is-closed .agl-group__chev{transform:rotate(-90deg)}
+@media (prefers-reduced-motion:reduce){.agl-group__chev{transition:none}}
+/* Status badges on a recipe card may wrap in a narrow Hub column: a wrapped badge keeps the box radius instead of clipping as a pill. */
+.agl-recipe-row .ag-badge,.agl-recipe-station .ag-badge{border-radius:var(--ag-radius);white-space:normal}
+.agl-skill-state{vertical-align:middle}
+/* The read-only item popup: the description keeps its headings, lists and tables. */
+.agl-preview__text{display:grid;gap:.4em;overflow-wrap:anywhere}
+.agl-preview__text p,.agl-preview__text h1,.agl-preview__text h2,.agl-preview__text h3,.agl-preview__text h4,.agl-preview__text h5,.agl-preview__text h6{margin:0}
+.agl-preview__text table{border-collapse:collapse;width:100%}
+.agl-preview__text th,.agl-preview__text td{border:1px solid var(--ag-border);padding:var(--ag-space-1) var(--ag-space-2);text-align:start;vertical-align:top}
+.agl-preview__text th{background:var(--ag-surface-sunken)}
+.agl-preview__text ul,.agl-preview__text ol{margin:0;padding-inline-start:1.25em}
+
 /* GM Setup, roster, gathering */
 .agl-gm-setup{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--ag-space-3);max-width:70rem}
 .agl-panel h2{display:flex;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-2);font-size:var(--ag-text-lg);color:var(--ag-text)}

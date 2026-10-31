@@ -15,10 +15,14 @@
   --agm-dock-left: 5rem;
   --agm-dock-bottom: 9rem;
   --agm-dock-top: var(--ag-space-3, 0.5rem);
+  /* 0.94.0 layering (Foundry V14 14.367): windows (ApplicationV2 and Dialogs alike) start at --z-index-window (100) and each
+     bring-to-front adds 1 inline; tooltips are 9999 and notifications 99999; context menus are top-layer popovers. The dock
+     sits in a tier far above any realistic window counter and well below tooltips and notifications. Dialogs are raised one step above it. */
+  --agm-dock-z: 5000;
 }
 .agm-dock {
   position: fixed;
-  z-index: 30;
+  z-index: var(--agm-dock-z, 5000);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -32,6 +36,11 @@
   font-size: var(--ag-text-md);
   box-shadow: var(--ag-shadow);
 }
+/* 0.94.0: minimized keeps the old layering (an open window may cover the small handle). */
+.agm-dock[data-minimized="true"] { z-index: 30; }
+/* Foundry's own dialogs (DialogV2 and Confirm/Prompt, class "dialog") share the window counter, so a tier alone cannot put them
+   above the dock: give them one step above it. Tooltips (9999), notifications (99999) and context menus stay above both. */
+body[data-agm-dock-corner] .application.dialog { z-index: calc(var(--agm-dock-z, 5000) + 1) !important; }
 .agm-dock[data-corner="top-left"] { top: var(--agm-dock-top); left: var(--agm-dock-left); }
 .agm-dock[data-corner="top-right"] { top: var(--agm-dock-top); right: calc(var(--sidebar-width, 18.75rem) + var(--ag-space-4)); }
 body:has(#sidebar-content:not(.expanded)) .agm-dock[data-corner="top-right"] { right: 4rem; }

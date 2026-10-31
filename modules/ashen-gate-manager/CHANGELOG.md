@@ -1,3 +1,9 @@
+## 0.94.0 — 2026-10-31
+
+- **Fix: the NPC Codex no longer says "Unknown user." for players.** Foundry V14 hands a query handler the requesting User document (`options.user`) and sets no `userId`; the GM's client now reads the sender from `options.user.id` (falling back to `userId` / `from`) and only refuses when none resolves. Every GM-side re-check is unchanged: the request is answered only on a GM client, only while player access is on, and only with the reveals for characters that player owns. No other Ashen Gate module registers a query handler.
+- **Player dock stays in front of windows.** The dock now sits in a layer above Ashen Gate and Foundry windows (Character Hub, Skill Trees, Locations, Quest Log, character and item sheets), so a window dragged over it no longer hides it and its buttons keep working while a window sits partly behind. It stays under Foundry's dialogs, tooltips and notifications (tooltips and notifications use higher layers; dialogs are lifted one step above the dock while it is shown), and a minimized dock keeps its previous layering and can still be covered. The dock covers only its own box and passes every click outside it through. The token controls docked under it keep their previous layering.
+- Saved data: nothing changes. Tests are mocked Foundry and a CSS text check; the live V14 stacking and a player's real codex request have not been seen.
+
 ## 0.93.0 — 2026-10-31
 
 - **Back up world now… can include Party characters.** New tick box **Party characters**, ticked by default (a choice you saved earlier keeps its other ticks; only this new box starts ticked). It writes `world-backup/party.json`, a slim, readable copy of the players' character sheets so Claude can read them from the backup instead of a hand export. This is **play state** (it holds character sheets), in its own schema `ag-party-sheets-export/0.1`; the content reconcile lists and skips it and it is never imported.
