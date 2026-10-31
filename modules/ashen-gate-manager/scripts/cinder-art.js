@@ -10,7 +10,7 @@
  */
 import {isImageName, extensionOf, stem, samePath} from './assets.js';
 
-export const CINDER_NAMES = Object.freeze(['Ember', 'Frost', 'Gale', 'Echo', 'Lumen', 'Root', 'Stone', 'Tide', 'Veil']);
+export const CINDER_NAMES = Object.freeze(['Ember', 'Frost', 'Gale', 'Echo', 'Lumen', 'Root', 'Stone', 'Tide', 'Veil', 'Crimson']);
 export const MAX_STAGE = 5;
 export const MIN_STAGES = 2;
 /** Unlocks needed for stages 1 to 5 when the Cinder has no stages of its own (the same defaults Cinders' own editor starts from). */
@@ -23,8 +23,23 @@ const OLD_CINDERS = name => `This version of Ashen Gate | Cinders can only set a
 const isGM = user => Boolean(user?.isGM);
 const EXT_ORDER = ['webp', 'png', 'avif', 'jpg', 'jpeg', 'gif', 'svg'];
 const lc = text => String(text ?? '').toLowerCase();
-const NAME_SET = new Set(CINDER_NAMES.map(lc));
-const pretty = word => CINDER_NAMES.find(n => lc(n) === lc(word)) ?? word;
+const RESERVED = new Set(['cinder', 'stage']);
+/**
+ * The Cinder names to recognise: the fixed list plus any `extra` (names of the Cinder records in the world, from Manager's own imported
+ * records; Cinders exposes no list of its definitions). A trailing " Cinder" is dropped, and only a single plain word is accepted
+ * (letters only, so it can be matched as one file-name token); anything else is ignored. The fixed names keep their order, new ones follow.
+ */
+export function cinderNames(extra = []) {
+  const out = [...CINDER_NAMES], seen = new Set(out.map(lc));
+  for (const raw of Array.isArray(extra) ? extra : []) {
+    const name = String(raw ?? '').trim().replace(/\s+Cinder$/i, '');
+    if (!/^[A-Za-z]{2,24}$/.test(name) || RESERVED.has(lc(name)) || seen.has(lc(name))) continue;
+    seen.add(lc(name)); out.push(name[0].toUpperCase() + name.slice(1).toLowerCase());
+  }
+  return out;
+}
+/** The Cinder names to recognise in a world: the fixed list plus the one-word names of the imported MUT-* records in `docs` (Manager's plain records). */
+export const worldCinderNames = docs => cinderNames((docs ?? []).filter(d => String(d?.sourceId ?? '').startsWith('MUT-')).map(d => d.name));
 
 // ---------- File names ----------
 /**
@@ -33,16 +48,17 @@ const pretty = word => CINDER_NAMES.find(n => lc(n) === lc(word)) ?? word;
  * Returns {cinder: 'Echo', stage: 1, name} or null when the name is not Cinder stage art. A stage outside 1–5 still returns
  * (with `valid: false`) so that file is not offered to other records.
  */
-export function parseCinderStageName(fileName) {
+export function parseCinderStageName(fileName, names = CINDER_NAMES) {
+  const known = new Set(names.map(lc));
   const name = String(fileName ?? '');
   if (!isImageName(name)) return null;
   const tokens = lc(stem(name)).replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2').split(/[^a-z0-9]+/).filter(Boolean);
-  const cinders = [...new Set(tokens.filter(t => NAME_SET.has(t)))];
+  const cinders = [...new Set(tokens.filter(t => known.has(t)))];
   if (cinders.length !== 1) return null;
   const at = tokens.indexOf('stage');
   if (at < 0 || !/^\d{1,3}$/.test(tokens[at + 1] ?? '')) return null;
   const stage = Number(tokens[at + 1]);
-  return {cinder: pretty(cinders[0]), stage, valid: stage >= 1 && stage <= MAX_STAGE, name};
+  return {cinder: names.find(n => lc(n) === cinders[0]) ?? cinders[0], stage, valid: stage >= 1 && stage <= MAX_STAGE, name};
 }
 
 /**
@@ -51,11 +67,11 @@ export function parseCinderStageName(fileName) {
  * Returns {groups: Map(Cinder name → {cinder, stages: Map(n → file), extras:[{name, why}]}), rest:[file]}.
  * Two files for one stage (say .webp and .png): the preferred extension is used and the other is listed in `extras`.
  */
-export function groupCinderFiles(files) {
+export function groupCinderFiles(files, names = CINDER_NAMES) {
   const groups = new Map(), rest = [];
   const rank = f => { const i = EXT_ORDER.indexOf(extensionOf(f.name)); return i < 0 ? 99 : i; };
   for (const file of files ?? []) {
-    const hit = parseCinderStageName(file?.name);
+    const hit = parseCinderStageName(file?.name, names);
     if (!hit) { rest.push(file); continue; }
     const g = groups.get(hit.cinder) ?? groups.set(hit.cinder, {cinder: hit.cinder, stages: new Map(), extras: []}).get(hit.cinder);
     if (!hit.valid) { g.extras.push({name: file.name, why: `Stage ${hit.stage} is outside 1 to ${MAX_STAGE}, so it is not used.`}); continue; }
@@ -192,9 +208,9 @@ export function bindCinder(row, cinder, caps) {
  * Row: {key, word, cinderName, definitionId, instanceIds, bearers, overriddenBy, where, mode: 'definition'|'stages'|'art'|'', stageFiles, to:[{stage, art, at, fileName}],
  *       from:[{stage, art, at}], fromArt, extras, ready, checked, unchanged, problem, note, reason, candidates, needsPick, chosen}.
  */
-export function planCinderArt(files, {user, cinders = [], caps = null} = {}) {
+export function planCinderArt(files, {user, cinders = [], caps = null, names = CINDER_NAMES} = {}) {
   if (!isGM(user)) return {rows: [], rest: [...(files ?? [])]};
-  const {groups, rest} = groupCinderFiles(files);
+  const {groups, rest} = groupCinderFiles(files, names);
   const rows = [];
   for (const g of groups.values()) {
     const word = lc(g.cinder);
@@ -208,7 +224,7 @@ export function planCinderArt(files, {user, cinders = [], caps = null} = {}) {
     if (pool.length > 1) { row.problem = `More than one Cinder fits ${g.cinder}. Pick the right one.`; row.ready = false; row.checked = false; }
     rows.push(row);
   }
-  rows.sort((a, b) => CINDER_NAMES.indexOf(a.word) - CINDER_NAMES.indexOf(b.word));
+  rows.sort((a, b) => names.indexOf(a.word) - names.indexOf(b.word));
   return {rows, rest};
 }
 

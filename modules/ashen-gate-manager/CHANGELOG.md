@@ -1,3 +1,10 @@
+## 0.92.0 — 2026-10-31
+
+- **Crimson, the tenth Cinder, is recognised in Items > Assets.** Files named like `Crimson_Cinder_Stage_01.webp` to `_05` are grouped as one Crimson row, matched to the Crimson Cinder record by name and linked to the Cinder itself, like the other nine. Zero-padded stage numbers (`_01`) already worked and are now covered by a test.
+- **A further Cinder needs no update.** Manager also recognises the one-word name of any Cinder record (a MUT-* record) imported in the world, dropping a trailing " Cinder" (so "Scarlet Cinder" gives `Scarlet_Cinder_Stage_1.webp`). Ashen Gate | Cinders has no public call that lists its Cinders, so the names come from Manager's own imported records; nothing was added to Cinders. Without any such record the fixed ten names are used.
+- A name still has to be a whole word and the only Cinder name in the file, next to the word "stage" and a number; any other file goes to the normal record matching as before.
+- Help and README list the new name. Saved data: nothing changes. Tests are mocked Foundry; the live Assets window has not been seen.
+
 ## 0.91.0 — 2026-10-31
 
 - **Every Ashen Gate Item shows "Ashen Gate" as its source.** Items Manager creates from an Ashen Gate record (import, Sync create or recreate, and the Items it creates on an Actor) get the dnd5e Custom Label `Ashen Gate` (Item sheet > Configure Source > Custom Label, `system.source.custom`), which the sheet header shows. It is filled in only when the label is empty; a label you or a package set is never replaced, and nothing clears it. Book, Page, License, Rules Version and the description are not touched.

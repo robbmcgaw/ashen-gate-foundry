@@ -246,7 +246,7 @@ test('wiring: settings in GM Setup > Player screen, Help, stylesheet, no core ov
   assert.match(main,/startSidebarCollapsed\(/);assert.match(main,/installPlayerDock\(\{game,hooks:Hooks/);
   assert.match(main,/<em>Show the player dock<\/em>/);
   assert.ok(man.styles.includes('styles/player-dock.css'));
-  assert.ok(man.version==='0.91.0'&&man.download.endsWith('/ashen-gate-manager-v0.91.0/ashen-gate-manager.zip'));
+  assert.ok(man.version==='0.92.0'&&man.download.endsWith('/ashen-gate-manager-v0.92.0/ashen-gate-manager.zip'));
   for(const f of ['scene-controls','sidebar-collapse','player-dock','sidebar-tabs']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set/,f);
