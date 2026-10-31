@@ -8,11 +8,12 @@
  * (names ending in 24). Legacy 2014 content is never a candidate.
  *
  * Apply always stores flags[ashen-gate-manager].coreLink. For a HIGH match it also adopts the core item's
- * `img` and `system` (description included) into the world item, keeping its name, type, AG id, Manager
+ * `img` and `system` (description and source book included; the custom source label "Ashen Gate" is kept, 0.91.0) into the world item, keeping its name, type, AG id, Manager
  * source flags, folder and ownership. Adopt falls back to link-only when it would change the item type or
  * drop the stack quantity the Ledger and Utilities rely on. Items embedded on Actors are never touched.
  */
 import {MODULE_ID, getPath, equal, flatten} from './core.js';
+import {adoptedSystem} from './source-label.js';
 
 export const LINK_FLAG = 'coreLink';
 export const SOURCES_SETTING = 'coreSources';
@@ -148,7 +149,7 @@ export function adoptBlockers(doc, core) {
 /** Field-level diff of what Adopt would change (img + system). */
 export function adoptDiff(docData, coreData) {
   const before = flatten({img:docData.img ?? null, system:docData.system ?? {}});
-  const after = flatten({img:coreData.img ?? null, system:coreData.system ?? {}});
+  const after = flatten({img:coreData.img ?? null, system:adoptedSystem(docData.system, coreData.system)});
   const show = v => v === undefined ? '(none)' : typeof v === 'string' ? v : JSON.stringify(v);
   return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
     .filter(path => !equal(before[path], after[path])).map(path => ({path, before:show(before[path]), after:show(after[path])}));
@@ -282,7 +283,7 @@ export function createCoreLinks({game,
           if(!core) throw new Error('core item could not be loaded');
           if(adoptBlockers(doc, core).length) throw new Error('core item changed since preview');
           // recursive:false replaces img and system wholesale; name, type, flags, folder and ownership are not sent.
-          await update(doc, {img:core.img, system:clone(core.system)}, {recursive:false});
+          await update(doc, {img:core.img, system:adoptedSystem(raw.system, core.system)}, {recursive:false});
         }
         const link = {uuid:row.best.uuid, source:row.best.sourceLabel, sourceKind:row.best.kind, packId:row.best.packId, name:row.best.name, type:row.best.type,
           matchedOn:row.best.matchedOn, confidence:row.best.confidence, linkedAt:at, adopted:adopt, adoptedPaths:adopt ? [...ADOPTED_PATHS] : []};

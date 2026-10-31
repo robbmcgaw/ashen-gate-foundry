@@ -28,6 +28,7 @@ import {followHubVisibility} from "./hub-visibility.js";
 import {initialOwnership, releasable, previewRelease, previewText as releasePreviewText, applyRelease, BASELINE_FLAG, ITEMS_READABLE_SETTING, setItemsPolicy} from "./release.js";
 import {planVisibility, applyVisibility} from "./item-visibility.js";
 import {planMaterialVisibility, applyMaterialVisibility, materialSummary} from "./material-visibility.js";
+import {planSourceLabel, applySourceLabel, sourceLabelSummary, withSourceLabel, withSourceLabelFields, SOURCE_LABEL} from "./source-label.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
@@ -203,6 +204,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
   // Only explicit allowlisted fields from validated records are copied to a Foundry Document.
   const data = structuredClone(record.foundry.data);
   if (kind==='Item' && data.system) data.system=withoutActivityEffectRefs(data.system); // raw activity eff_id links are resolved after the effects exist
+  if (kind==='Item') data.system=withSourceLabel(data).system; // 0.91.0: custom source label "Ashen Gate", only when empty
   data.folder = folder.id;
   let icon=null;
   if(ICON_DOCUMENT_TYPES.includes(kind)) {
@@ -227,7 +229,7 @@ async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=n
   if(kind==='Actor') {
     // Mark the package's embedded Items so a later opt-in update can tell them from player-added ones.
     const keys=itemKeys(data.items??[]);
-    data.items=(data.items??[]).map((item,i)=>({...item,...(Array.isArray(item.effects)?{effects:upgradeEffectChanges(item.effects)}:{}),flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
+    data.items=(data.items??[]).map((item,i)=>({...withSourceLabel(item),...(Array.isArray(item.effects)?{effects:upgradeEffectChanges(item.effects)}:{}),flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
     data.flags[MODULE_ID][ACTOR_ITEMS_FLAG]={version:1};
   }
   return cls.create(data, bulk());
@@ -238,6 +240,8 @@ async function updateRecord(record, pkg, doc, patch, availableIds) {
   update[`flags.${MODULE_ID}.source`] = replacingSourceFlag(doc.getFlag?.(MODULE_ID,'source'), source);
   // 0.55.0: a re-import raises a plain None default to Observer when the record is approved and player-visible. Never lowers.
   if(releasable(doc,source,CONST.DOCUMENT_OWNERSHIP_LEVELS)) Object.assign(update,{'ownership.default':CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,[`flags.${MODULE_ID}.${BASELINE_FLAG}`]:CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER});
+  // 0.91.0: an Item with no custom source label gets "Ashen Gate"; a label that is already there is never replaced.
+  if(record.foundry?.document_type==='Item') Object.assign(update,withSourceLabelFields(doc,update));
   await doc.update(update, bulk());
   return doc;
 }
@@ -315,6 +319,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Who can read imported Items (0.72.0):</strong> by default Items are GM-only: GM Setup &gt; Items and players. To hide or release Items already in your world use Items &gt; Checks &gt; Player access to Items. Handout Items always stay readable.</p>',
   '<p><strong>Materials are visible to players (0.89.0):</strong> an approved Material marked <em>player</em> visibility is created readable by players (default ownership Observer) even while new Items are GM-only, so a player can open one a gather gives them or a recipe links to. A re-import or Sync only raises a plain None default to Observer for such a Material, never lowers anything, and never touches per-player ownership. GM-only and draft Materials and every other Item are untouched. For Materials already in your world use <strong>Items → Checks → Materials visible to players → Make materials visible to players…</strong>: the confirmation lists how many Items change, how many are already visible and how many are skipped, with the reason (draft, GM-only, archived, or hidden on purpose); press the button on the right to apply, Cancel on the left to leave everything as it is. Running it again changes nothing more.</p>',
   '<p><strong>Who can see imported records:</strong> since 0.55.0 an Item, Journal entry or Actor whose record is <em>approved</em> and has <em>player</em> visibility is created readable by players (default ownership Observer); GM-only, revealed-later and draft records stay hidden (None). A re-import raises a hidden default to Observer for such a record, never lowers one and never touches a level you set yourself or per-user entries. Worlds imported before 0.55.0 need a one-time fix: <strong>Items → Checks → Release player-visible records…</strong> finds the approved, player-visible records players still cannot read (without it Profession Ledger and other modules show them as <em>Unreleased</em>), lists the counts and a few examples, and releases them in chunks with Cancel. Running it again does nothing. The Pre-session check has a <em>Player visibility</em> line that points here.</p>',
+  '<p><strong>Ashen Gate source label (0.91.0):</strong> every Item made from an Ashen Gate record gets the Custom Label <em>Ashen Gate</em> (on the Item sheet, <em>Configure Source</em>), so the sheet header names its source. It is only filled in when the label is empty: a label you typed is never replaced or cleared, and a re-import or Sync fills an empty one but keeps one that is there. Core links keeps the label when it adopts a core item (the core item\u2019s description and source book still replace the Item\u2019s own, as before). For Items already in your world use <strong>Items \u2192 Checks \u2192 Ashen Gate source label \u2192 Set Ashen Gate source label\u2026</strong>: the confirmation says how many Items change and how many already have a label; press the button on the right to apply, Cancel on the left to leave everything as it is. Items that did not come from an Ashen Gate record are never touched, and running it again changes nothing more.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Looks</em> saves a mood plus layers and applies it to chosen scenes or a folder after a preview; <em>Export &amp; import</em> shares the presets as a file. Live also has a Time of day blend (fills the fine-tune draft), Random weather (a seeded proposal you preview) and a No flashing switch. Nothing changes a scene until you press Apply.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), whether the game pause shows as a small indicator, who can read new Items, and the NPC Codex note. <em>Player screen</em> holds everything about what players see on their own screen; it is all visual only, you always see the normal screen, and nothing is locked, removed or re-permissioned. It has five groups. <strong>Sidebar tabs</strong> is one checklist, <em>Tabs players keep</em>: untick a tab to hide it from players (Chat is always kept; tabs other modules add are listed too), and the remaining tabs close up with no gap; <em>Keep everything</em> and <em>Keep Chat only</em> tick or untick the whole list for you, and nothing changes until Save Changes. A player who had a hidden tab open lands on Chat, and with the player dock on they can still open Combat and Foundry Settings from it. This list replaces the old Hide the Journals tab, Hide the Compendiums tab and Show players only the Chat tab switches: the first time you open the world as GM your old choices are copied into the checklist (nothing else is changed). <strong>Directory filters</strong>: <em>Show players only Player Handouts in the Items tab</em> (the folder named Player Handouts and its subfolders; an empty list if there is none) and <em>Show players only the Players folder in the Actors tab</em> (the same for a folder named Players; the Ashen Gate buttons in that tab stay). Item and Actor access is unchanged. <strong>Scene controls and navigation</strong>: <em>Hide Region Controls and Journal Notes from players\' scene controls</em> and <em>Move players\' scene controls under the player dock</em> (needs the dock; the tools then show as one row of Select, Select Targets, Measure and Find My Token). The scene navigation always stays in its normal top left place; only when the player dock is in the top left corner is it slid to the right of the dock (and of the token controls under it) so nothing overlaps, with no space reserved for its scene list. In any other corner it is not touched. <strong>Player dock</strong>: <em>Show the player dock</em> and <em>Player dock corner</em> (top left, top right, bottom left or bottom right; the dock, the token controls under it and anything docked to it all move with the corner): Combat, <em>Conditions</em> and <em>Quest Log</em> buttons, a <em>User Settings</em> button, a <em>Foundry Settings</em> button, an Ashen Gate menu of the windows that player may open and a minimize button on the top row (beside the character portrait when the Character Hub shows one); top to bottom: Combat, Conditions, Quest Log, User Settings, Foundry Settings, Ashen Gate. Combat, Conditions, Quest Log, User Settings and Foundry Settings open on the first press and close on the second (closing User Settings with its own X also resets the button). Each module button, and each window in the Ashen Gate menu, is shown only while its module is active and its Player Access is on, and appears or disappears as soon as you change Player Access, with no reload. Also here: <em>Hide the players list from players</em>. <strong>Collapse</strong>: <em>Start players with the sidebar collapsed</em> (applied once when a player loads the game; they can expand it afterwards) and <em>Auto-collapse chat and Settings after (seconds)</em> (default 8, 0 is off; the sidebar chat or Settings panel a player opened closes after that long unused, never while they type, hover or have a window open from it; you are never collapsed). <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
@@ -449,6 +454,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.itemVis = null;
     this.itemVisMessage = "";
     this.matVisMessage = "";
+    this.srcLabelMessage = "";
     this.releasePct = 0;
     this.clPreview = null;
     this.clTicked = new Set();
@@ -1027,6 +1033,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       release: items&&view==='checks'?this.#releaseContext():null,
       itemvis: items&&view==='checks'?this.#itemVisContext():null,
       matvis: items&&view==='checks'?{message:this.matVisMessage}:null,
+      srclabel: items&&view==='checks'?{message:this.srcLabelMessage,label:SOURCE_LABEL}:null,
       itemsReadable: game.settings.get(MODULE_ID,ITEMS_READABLE_SETTING)==='player',
       assetsActive: items&&view==='assets',
       assets: items&&view==='assets'?this.#assetsContext():null,
@@ -1492,6 +1499,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "release-scan": case "release-cancel": case "release-commit": await this.#releaseAction(name); break;
       case "matvis-run": await this.#materialVisAction(); break;
+      case "srclabel-run": await this.#sourceLabelAction(); break;
       case "itemvis-hide-scan": case "itemvis-release-scan": case "itemvis-cancel": case "itemvis-commit": await this.#itemVisAction(name); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "assets-up": case "assets-new-folder": case "assets-scan": case "assets-link-apply": case "assets-link-cancel": case "assets-ring-scan": case "assets-ring-apply": case "assets-ring-cancel": await this.#assetsAction(name); break;
@@ -2083,6 +2091,25 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       say(out.message,out.changedSincePreview>0);
     }catch(error){
       console.error(`[${MODULE_ID}] Making materials visible failed`,error);say(`Stopped: ${error.message??error}. Materials already changed stay changed; run it again.`,true);
+    }finally{this.busy=false;}
+    await this.render();
+  }
+  /** 0.91.0: Set Ashen Gate source label (source-label.js): fills an EMPTY custom source label on Manager-imported world Items. Preview count, labelled confirmation, then Apply. GM only. */
+  async #sourceLabelAction() {
+    const say=(text,error=false)=>{this.srcLabelMessage=text;toast(text,error);};
+    if(!game.user?.isGM)return say('Only the GM can set the source label on Items.',true);
+    const sourceOf=doc=>sourceFlag(doc);
+    const plan=planSourceLabel(allBoundDocuments(),sourceOf,{user:game.user});
+    if(!plan.total){this.srcLabelMessage=`Nothing to change. ${sourceLabelSummary(plan)}`;await this.render();return;}
+    const yes=await confirmDialog(`Set the source label "${SOURCE_LABEL}" on ${plan.total} item${plan.total===1?'':'s'}?\n${sourceLabelSummary(plan)}\nOnly an empty Custom Label (Configure Source on the Item sheet) is filled in. A label that is already there, and everything else on the Items, stays as it is. Items that did not come from an Ashen Gate record are not touched. Running it again changes nothing more.`,
+      {title:`Set the source label on ${plan.total} item${plan.total===1?'':'s'}?`,yes:`Set label on ${plan.total}`});
+    if(!yes){this.srcLabelMessage='Cancelled. Nothing changed.';await this.render();return;}
+    this.busy=true;
+    try{
+      const out=await applySourceLabel(plan,{user:game.user,sourceOf,write:updates=>CONFIG.Item.documentClass.updateDocuments(updates,bulkWrite())});
+      say(out.message,out.changedSincePreview>0);
+    }catch(error){
+      console.error(`[${MODULE_ID}] Setting the source label failed`,error);say(`Stopped: ${error.message??error}. Items already labelled stay labelled; run it again.`,true);
     }finally{this.busy=false;}
     await this.render();
   }

@@ -1,4 +1,5 @@
 import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject, baselineFields} from './core.js';
+import {withSourceLabel} from './source-label.js';
 import {canonicalDefinition, replacingSourceFlag} from './source-projection.mjs';
 import {isArtPath, artDecision, artLabel, artSentence} from './art-fields.js';
 /**
@@ -140,7 +141,7 @@ export async function applyActorUpdate(doc, plan, {user, source}) {
   const {fields, items} = plan.patch;
   const updates = [...items.adopt.map(a => ({_id: a._id, [`flags.${MODULE_ID}.${ITEM_FLAG}`]: a.key})), ...items.update];
   if (updates.length) await doc.updateEmbeddedDocuments('Item', updates);
-  if (items.create.length) await doc.createEmbeddedDocuments('Item', items.create);
+  if (items.create.length) await doc.createEmbeddedDocuments('Item', items.create.map(withSourceLabel));
   await doc.update({...fields, [`flags.${MODULE_ID}.source`]: replacingSourceFlag(doc.getFlag?.(MODULE_ID, 'source'), source), [`flags.${MODULE_ID}.${ACTOR_ITEMS_FLAG}`]: {version: 1}});
   return doc;
 }

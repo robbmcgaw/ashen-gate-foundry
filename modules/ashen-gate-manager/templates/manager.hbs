@@ -421,6 +421,12 @@
       <p class="agmanager-tiny">New approved, player-visible Materials are already created readable by players. This does the same for Materials already in your world, so a player can open one a gather hands them or a recipe links to. It lists how many Items change before anything is written. Only a default of None is raised, to Observer: nothing is ever lowered, GM-only and draft Materials, Materials you hid on purpose and anything you gave a single player stay as they are. Running it again changes nothing more.</p>
       <p class="agmanager-tiny" role="status" data-ag-matvis-status>{{matvis.message}}</p>
     </section>
+    <section class="ag-section aglib-section agsrclabel" aria-label="Ashen Gate source label">
+      <div class="ag-section__head"><h3 class="ag-section__title">Ashen Gate source label</h3>
+        <button type="button" class="ag-btn" data-ag-action="srclabel-run" {{#if release.running}}disabled{{/if}}><i class="fa-solid fa-tag" aria-hidden="true"></i> Set Ashen Gate source label…</button></div>
+      <p class="agmanager-tiny">New Items made from Ashen Gate records get the Custom Label "{{srclabel.label}}" (Configure Source on the Item sheet) automatically. This does the same for Items already in your world. It lists how many Items change before anything is written. Only an empty label is filled in: a label you typed is never replaced, nothing else on an Item changes, and Items that did not come from an Ashen Gate record are not touched. Running it again changes nothing more.</p>
+      <p class="agmanager-tiny" role="status" data-ag-srclabel-status>{{srclabel.message}}</p>
+    </section>
     <section class="ag-section aglib-section agicons" aria-label="Improve icons">
       <div class="ag-section__head"><h3 class="ag-section__title">Improve icons</h3>
         <button type="button" class="ag-btn" data-ag-action="icons-scan"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Find placeholder icons</button></div>
