@@ -53,7 +53,7 @@ Independent. General Manager hands faction files to `api.previewFactionsImport(d
 
 ### `embed.mount(element, options)` (0.10.0)
 
-Shows a compact, **read-only** standing list for one character inside another module's window, for example Character Hub's Ashen Gate → Renown. One row per faction the user may see: the party's rank and Renown score, this character's rank and score, the next milestone for each, and **Open** (opens the Renown window on that faction; the Character tab when a character is given).
+Shows a compact, **read-only** standing list for one character inside another module's window, for example Character Hub's Ashen Gate → Renown. Two sub-tabs (0.28.0), **Factions** and **Pantheon**, are always shown; the last one used is remembered per user on this device. The Factions tab has one row per faction the user may see: the party's rank and Renown score, this character's rank and score, the next milestone for each, and **Open** (opens the Renown window on that faction; the Character tab when a character is given).
 
 ```js
 const api = game.modules.get('ashen-gate-factions')?.api;
@@ -66,7 +66,7 @@ if (api?.embed?.mount) {
 - `element`: a DOM element the caller owns. Factions replaces its contents and adds the class `agf-embed`.
 - `options.actorId`: the character whose personal standing is shown. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when Renown's journals or settings change and unmounts itself if the element has left the page.
-- **Pantheon (0.11.0):** when `actorId` is given, a Pantheon section follows with that character's piety with each deity they know (symbol, name, title, rank, score, next rank, **Open**). Same rule as `getPantheon`: players only for characters they own, only revealed deities.
+- **Pantheon (0.11.0, its own sub-tab since 0.28.0):** when `actorId` is given, the Pantheon tab lists that character's piety (an empty tab says "No deities known yet."; the Factions tab likewise says "No factions known yet.") with each deity they know (symbol, name, title, rank, score, next rank, **Open**). Same rule as `getPantheon`: players only for characters they own, only revealed deities.
 - **Permission:** read from the same sources as the Renown window: the GM sees everything; a player sees only their own filtered player view (never undiscovered factions, GM notes or other players' characters), and the character's personal standing only when they own it. Players see "The GM has hidden Renown." while Player Access is off. Claims, requests and Renown awards stay in the Renown window.
 
 ## Deity records

@@ -93,9 +93,9 @@ test('exportState writes nothing and the same state gives the same bytes',()=>{
   const a=JSON.stringify(mod.api.exportState()),b=JSON.stringify(mod.api.exportState());
   assert.equal(a,b);assert.equal(JSON.stringify(journal.map(d=>d.flags)),before);
 });
-test('wiring: version 0.27.0 and the api and README list it',()=>{
+test('wiring: shipped since 0.27.0 and the api and README list it',()=>{
   const m=JSON.parse(fs.readFileSync(new URL('../module.json',import.meta.url),'utf8'));
-  assert.equal(m.version,'0.27.0');assert.ok(m.download.endsWith('/ashen-gate-factions-v0.27.0/ashen-gate-factions.zip'));
+  assert.equal(m.version,'0.28.0');assert.ok(m.download.endsWith('/ashen-gate-factions-v0.28.0/ashen-gate-factions.zip'));
   assert.match(fs.readFileSync(new URL('../README.md',import.meta.url),'utf8'),/exportState\(\)/);
-  assert.match(fs.readFileSync(new URL('../CHANGELOG.md',import.meta.url),'utf8'),/^## 0\.27\.0/);
+  assert.match(fs.readFileSync(new URL('../CHANGELOG.md',import.meta.url),'utf8'),/^## 0\.27\.0/m);
 });

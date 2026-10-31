@@ -1173,33 +1173,59 @@ function standingRows(actorId){
     return {id:f.id,name:f.name,knownOnly:f.member===false,group:f.group?{score:gs,rank:rankOf(gms,gs),next:nextOf(gms,gs)}:null,personal:mine?{score:ps,rank:rankOf(pms,ps),next:nextOf(pms,ps)}:null};});
 }
 const embedVow=(actor,gods)=>{const v=actor?getVow(actor,MODULE_ID):null,g=v&&gods.find(x=>x.id===v.deity_id);return g?`<p class="agf-embed__vow">Vow: ${esc(g.name)}</p>`:'';};
+/* 0.28.0: the embed has two kit sub-tabs, Factions and Pantheon. Both are always present (an empty state, never a hidden tab);
+   the last one used is remembered per user on this device (kit uiState, localStorage with try/catch). */
+const EMBED_TABS=Object.freeze([{id:'factions',label:'Factions',icon:'fa-solid fa-landmark'},{id:'pantheon',label:'Pantheon',icon:'fa-solid fa-sun'}]);
+const EMBED_TAB_IDS=EMBED_TABS.map(t=>t.id);
+const EMBED_GROUP='agf-embed';
 function embedHTML(ctrl){
   if(!playerMayOpen())return '<div class="ag-empty">The GM has hidden Renown.</div>';
   const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null,rows=standingRows(ctrl.actorId);
   // 0.11.0: this character's piety with each deity they know (same permission path as api.getPantheon).
   const gods=actor?pantheonFor(actor):[];
-  if(!rows.length&&!gods.length)return '<div class="ag-empty">No factions or deities known yet.</div>';
   const signed=n=>n>0?`+${n}`:String(n);
   const cell=(label,s)=>s?`<div class="agf-embed__cell"><small>${esc(label)}</small><strong>${esc(s.rank)}</strong><span class="agf-embed__score">${signed(s.score)}</span>${s.next?`<span class="agf-embed__next">Next: ${esc(s.next.name)} at ${s.next.threshold}</span>`:s.limited?`<span class="agf-embed__next">${esc(MORE_TIERS_HINT)}</span>`:'<span class="agf-embed__next">Top rank</span>'}</div>`:'';
   const hidden=!game.user.isGM&&actor&&rows.some(r=>!r.knownOnly)&&rows.every(r=>!r.personal);
-  return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||UNKNOWN_FACTION)}</strong>
+  const selected=EMBED_TAB_IDS.includes(ctrl.tab)?ctrl.tab:EMBED_TAB_IDS[0];
+  const factionsHtml=rows.length?rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||UNKNOWN_FACTION)}</strong>
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open" data-faction="${esc(r.id)}" data-tooltip="Open in Renown" data-tooltip-class="ag-tooltip">Open</button></header>
-      ${r.knownOnly?`<p class="agf-embed__note">${esc(KNOWN_NOT_RECRUITED)}</p>`:`<div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div>`}</section>`).join('')}
-    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}${gods.length?`<h3 class="agf-embed__heading">Pantheon</h3>${embedVow(actor,gods)}${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
+      ${r.knownOnly?`<p class="agf-embed__note">${esc(KNOWN_NOT_RECRUITED)}</p>`:`<div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div>`}</section>`).join('')
+    :'<div class="ag-empty">No factions known yet.</div>';
+  const godsHtml=gods.length?`${embedVow(actor,gods)}${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open-deity" data-deity="${esc(g.id)}" data-tooltip="Open in Renown" data-tooltip-class="ag-tooltip">Open</button></header>
-      <div class="agf-embed__cells">${cell(`${g.tierLabel} deity`,{score:g.score,rank:g.rank,next:g.next,limited:g.limited})}</div></section>`).join('')}`:''}</div>`;
+      <div class="agf-embed__cells">${cell(`${g.tierLabel} deity`,{score:g.score,rank:g.rank,next:g.next,limited:g.limited})}</div></section>`).join('')}`
+    :'<div class="ag-empty">No deities known yet.</div>';
+  const panel=(id,body)=>`<div class="agf-embed__body" ${tabPanelAttrs(EMBED_GROUP,id,{hidden:id!==selected})}>${body}</div>`;
+  return `${subTabs({group:EMBED_GROUP,label:'Renown sections',tabs:EMBED_TABS,selected})}${panel('factions',`${factionsHtml}${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}`)}${panel('pantheon',godsHtml)}`;
 }
+/** Keeps keyboard focus on the same control across a re-render: a tab by its id, an Open button by its record. */
+const focusKeyOf=(element,focus)=>{
+  const q=v=>String(v).replace(/["\\]/g,'\\$&');let at=null;
+  try{at=element.ownerDocument?.activeElement??null;}catch{at=null;}
+  const el=focus??(at&&element.contains?.(at)?at:null);if(!el)return null;
+  const d=el.dataset??{};
+  if(d.tab!==undefined&&el.getAttribute?.('role')==='tab')return `[role="tab"][data-tab="${q(d.tab)}"]`;
+  if(d.agfEmbed==='open'&&d.faction!==undefined)return `[data-agf-embed="open"][data-faction="${q(d.faction)}"]`;
+  if(d.agfEmbed==='open-deity'&&d.deity!==undefined)return `[data-agf-embed="open-deity"][data-deity="${q(d.deity)}"]`;
+  return null;
+};
 /** api.embed.mount(element, {actorId, mode:'character'}) → {unmount, refresh}. Read-only. */
 function mountEmbed(element,{actorId=null,mode='character'}={}){
   if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
   if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
-  const abort=new AbortController(),ctrl={actorId:actorId?String(actorId):null,mounted:true};
+  const abort=new AbortController(),state=uiState('renown-embed',{userId:game.user?.id}),ctrl={actorId:actorId?String(actorId):null,mounted:true,tab:state.get('tab',EMBED_TAB_IDS[0],EMBED_TAB_IDS),unbind:null};
   element.classList?.add('agf-embed');
-  ctrl.render=()=>{if(!ctrl.mounted)return;if(element.isConnected===false){ctrl.unmount();return;}element.innerHTML=embedHTML(ctrl);};
-  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agf-embed');};
+  ctrl.render=(focus=null)=>{if(!ctrl.mounted)return;if(element.isConnected===false){ctrl.unmount();return;}
+    const key=focusKeyOf(element,focus);ctrl.unbind?.();ctrl.unbind=null;
+    element.innerHTML=embedHTML(ctrl);
+    ctrl.unbind=bindTablist(element.querySelector?.('[role="tablist"]'));
+    if(key)try{element.querySelector?.(key)?.focus?.();}catch{/* focus is a courtesy */}};
+  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();ctrl.unbind?.();ctrl.unbind=null;embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agf-embed');};
   // A missing holy-symbol image falls back to the glyph (error events do not bubble, so listen in capture).
   element.addEventListener('error',e=>{if(e.target?.matches?.('img.agf-symbol-img'))e.target.closest('.agf-symbol')?.classList.add('is-missing');},{capture:true,signal:abort.signal});
   element.addEventListener('click',e=>{
+    const tab=e.target?.closest?.('[role="tab"]');
+    if(tab&&element.contains(tab)&&EMBED_TAB_IDS.includes(tab.dataset?.tab)){e.preventDefault?.();ctrl.tab=state.set('tab',tab.dataset.tab);ctrl.render(tab);return;}
     const d=e.target?.closest?.('[data-agf-embed="open-deity"]');
     if(d&&element.contains(d)){e.preventDefault?.();e.stopPropagation?.();try{openDashboard({deityId:d.dataset.deity,actorId:ctrl.actorId,tab:'pantheon'});}catch(err){notifyError(err);}return;}
     const b=e.target?.closest?.('[data-agf-embed="open"]');if(!b||!element.contains(b))return;
