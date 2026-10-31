@@ -1,3 +1,10 @@
+## 0.28.0 — 2026-10-31
+
+- **Character Hub embed: Factions and Pantheon are two sub-tabs.** In Character Hub → Ashen Gate → Renown, the one long scroll is now **Factions** and **Pantheon** (the kit's sub-tabs: one Tab stop, Left/Right/Home/End move between them, Enter or Space opens one). Both tabs are always there; with nothing to show they say "No factions known yet." or "No deities known yet." instead of disappearing. The last tab you used is remembered per user on this device. Keyboard focus stays on the same tab or **Open** button when the view redraws.
+- Nothing else about the content changes: the same Open buttons, ranks, scores, next milestones and Vow line, and the same permission rules (players see only what their view holds, the Pantheon only for characters they own and only revealed deities, the GM sees everything).
+- The embed's empty state uses the kit box radius (it was the larger card radius). The rows and cells were already on box and well radii; pill radius stays on buttons only.
+- Tests are mocked Foundry and a mocked DOM: they prove the markup, keys, memory and permissions, not the live window.
+
 ## 0.27.0 — 2026-10-31
 
 - **`api.exportState()`** (GM only, refused for players, in the API and in the builder itself): returns all Renown play state as plain JSON, schema `ag-factions-state-export/0.1`, shape `{schema_version, factions, personal}` with no timestamps of its own. `factions` has one row per faction and deity (`id`, `kind`, `name`, track ids) with its `group` state: standing and event history, rank position (`progress`), claims, requests, uses, choices, who has discovered it, per-entry and per-field reveals and recruited members, with an `actor_names` map beside every actor id. `personal` has one row per character (`actor_id`, `actor_name`, Vow and Vow log) with that character's standing, rank position, claims, requests, uses and choices for each faction and deity (deity standing is piety). It reads Renown's own state records and writes nothing. It is not the definitions export (`exportDefinitions`) and is not a format the content reconcile reads. General Manager 0.90.0 uses it for its world backup.
