@@ -116,7 +116,7 @@ const H=['herbalism','[TEST] Herbalism'],M=['mining','[TEST] Mining'],F=['fishin
 const ana=makeActor('ana','[TEST] Ana','u1',[H,M]),bo=makeActor('bo','[TEST] Bo','u2',[H]),cy=makeActor('cy','[TEST] Cy','u3',[M]),dee=makeActor('dee','[TEST] Dee','u1',[]),
   eli=makeActor('eli','[TEST] Eli','u2',[A]),fay=makeActor('fay','[TEST] Fay','u3',[H]),gus=makeActor('gus','[TEST] Gus','u2',[F]);
 const all=[ana,bo,cy,dee,eli,fay,gus];
-const ledgerModule={active:true,version:'0.41.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.41.1',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
  actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:(name,msg)=>sent.push(msg),on:()=>{}},
  modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -710,4 +710,52 @@ test('include: the setup form lists everyone with an Included box, Include all /
  assert.match(app.notice,/Gather open: \[TEST\] Bo can roll\./);
  _test.cancelRound(_test.openRound().id);
  await app._click('gather-setup-include','all');assert.equal(app.gather.excluded.size,0);
+});
+
+// 0.41.1: a released material whose world Item is not Observer for every player ('not-visible') is not labelled Unreleased.
+test('0.41.1: the GM badge is empty for ok and not-visible; draft, gm-only, missing, duplicate and retired keep their labels',async()=>{
+ game.user=gm;
+ const ok=matDoc('MAT-TG-B1','[TEST] Ok Moss',{}),nv=matDoc('MAT-TG-B2','[TEST] Hidden Moss',{});nv.testUserPermission=u=>u.isGM;
+ const draft=matDoc('MAT-TG-B3','[TEST] Draft Moss',{},{status:'draft'}),gmOnly=matDoc('MAT-TG-B4','[TEST] Secret Moss',{},{visibility:'gm'});
+ const d1=matDoc('MAT-TG-B5','[TEST] Twin',{}),d2=matDoc('MAT-TG-B5','[TEST] Twin again',{});d2.id='wdup-b5';
+ const retired=matDoc('MAT-TG-B6','[TEST] Old Moss',{},{status:'retired'});
+ await withWorld([ok,nv,draft,gmOnly,d1,d2,retired],async()=>{
+  const label=id=>(_test.materialBadge(id).match(/>([^<]+)<\/(?:span|b)>/)??[])[1]?.trim()??'';
+  assert.equal(_test.materialState('MAT-TG-B2').state,'not-visible');
+  assert.equal(_test.materialBadge('MAT-TG-B1'),'');assert.equal(_test.materialBadge('MAT-TG-B2'),'','not-visible is released: no warning');
+  assert.equal(_test.materialBadge(''),'');
+  assert.equal(label('MAT-TG-B3'),'Draft');assert.equal(label('MAT-TG-B4'),'Unreleased');assert.equal(label('MAT-TG-NOPE'),'Not imported');
+  assert.equal(label('MAT-TG-B5'),'Imported twice');assert.equal(label('MAT-TG-B6'),'Retired');
+  // Option labels: the not-visible one sits with the released materials, unmarked; the draft and GM-only ones stay marked.
+  const opts=_test.materialOptions('',{blank:'Choose…'});
+  const released=opts.slice(opts.indexOf('<optgroup label="Released">'),opts.indexOf('<optgroup label="Draft'));
+  assert.match(released,/Hidden Moss · Common Tier 1<\/option>/,'unmarked and in Released');
+  assert.doesNotMatch(opts,/not visible to every player/);
+  assert.match(opts,/Draft Moss[^<]*— draft \(draft\)/);assert.match(opts,/Secret Moss[^<]*— GM-only/);
+ });
+});
+
+test('0.41.1: the node editor shows the quiet permission line only when a material is not-visible; awarding is unchanged',async()=>{
+ game.user=gm;_test.setExoticRoll(dice(50));
+ const nv=matDoc('MAT-TG-B2','[TEST] Hidden Moss',{prof:'PROF-TG-FISHING'});nv.testUserPermission=u=>u.isGM;
+ const ok=matDoc('MAT-TG-B1','[TEST] Ok Moss',{prof:'PROF-TG-FISHING'});
+ const LINE='Players cannot open these materials in Foundry, but the Ledger still awards them.';
+ const editor=async ids=>{app.nodeDraft=null;await app._click('node-new');
+  ids.forEach((id,i)=>{app.nodeDraft.data.common[i]={materialId:id,quantity:'1',chance:''};});
+  app.view='nodes';return (await app._prepareContext({})).html;};
+ await withWorld([nv,ok],async()=>{
+  const both=await editor(['MAT-TG-B1','MAT-TG-B2']);
+  assert.ok(both.includes(LINE));assert.doesNotMatch(both,/Unreleased|Draft<|ag-badge--warn/,'no warning label for it');
+  assert.doesNotMatch(LINE,/MAT-/);
+  const onlyOk=await editor(['MAT-TG-B1']);assert.ok(!onlyOk.includes(LINE),'not shown when no material is not-visible');
+  app.nodeDraft=null;
+  const round=await _test.startRound({node:nodeOf('adhoc-b2'),professions:['fishing'],tiers:[1],dc:10});
+  _test.recordRoll(round.id,{actorId:'gus',total:14});
+  const out=_test.revealRound(round.id);
+  assert.equal(out.rows[0].drops.length,1);
+  await _test.giveRound(round.id);assert.equal(of(gus,out.rows[0].drops[0].materialId),1,'still awarded');
+ });
+ // A gm-only material in the editor does not get the line.
+ const gmOnly=matDoc('MAT-TG-B4','[TEST] Secret Moss',{},{visibility:'gm'});
+ await withWorld([gmOnly],async()=>{const h=await editor(['MAT-TG-B4']);assert.ok(!h.includes(LINE));assert.match(h,/Unreleased/);app.nodeDraft=null;});
 });

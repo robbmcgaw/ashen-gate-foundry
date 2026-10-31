@@ -73,6 +73,10 @@ A `ProfessionPerk` record may be a signature perk: `signature: true`, `tier: "jo
 - A Profession record may carry `recipeLabel` (singular) and `recipeLabelPlural`, 1–30 characters each (otherwise ignored). Display only: types, `REC-*` ids, API names and saved data don't change. Order: GM Setup → Tools and checks → Recipe names, then the imported record, then draft built-in names (Alchemy Formula, Blacksmithing Blueprint, Artistry Composition, awaiting approval), then Recipe. A missing plural is made from the singular.
 - `recipeLabel(professionNameOrId, {plural = false, capitalize = true})` → the word, e.g. `"Formulas"`; unknown professions give `"Recipe"`. No permission needed (feature-detect it).
 
+### 0.41.1 notes
+
+- A material that is approved and player-visible but whose world Item is not Observer for every player (state `not-visible`) is treated as released in the GM views: no Draft/Unreleased tag, listed under Released in the pickers, and a quiet note in the node editor. Awarding was already unchanged.
+
 ### 0.41.0 notes
 
 - **Roll from the gather pop-up.** The Ledger opens on Gathering after the roll as a separate, guarded step: if showing the window fails, it is logged (`console.warn`) and the roll still counts; the player never sees an error for it.

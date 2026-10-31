@@ -37,7 +37,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.41.0';
+const VERSION='0.41.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -2159,6 +2159,9 @@ function materialState(id){
   return {state:'not-visible',status:src.status};
 }
 const usableAnyway=state=>DRAFT_STATES.includes(state);
+/** 0.41.1: the states that really are unreleased (draft, GM-only). 'not-visible' is released (approved and player-visible); only the world Item's
+ * Foundry permission differs, so it never carries a Draft/Unreleased label. */
+const unreleasedState=state=>state==='draft'||state==='gm-only';
 /** GM: the one active world Material of a draft/unreleased id (for "use anyway"), else null. Never for players. */
 function draftMaterial(id){
   if(!game.user?.isGM||!usableAnyway(materialState(id).state))return null;
@@ -2190,7 +2193,7 @@ function materialCatalog(){
   for(const item of game.items?.contents??[]){
     const id=agSourceId(item);if(!id?.startsWith('MAT-')||out.has(id))continue;
     const meta=metaOfItem(item);
-    if(meta){const s=materialState(id);out.set(id,{...meta,unavailable:materialUnavailable(id),state:s.state,status:s.status,draft:usableAnyway(s.state)});}
+    if(meta){const s=materialState(id);out.set(id,{...meta,unavailable:materialUnavailable(id),state:s.state,status:s.status,draft:unreleasedState(s.state)});}
   }
   return [...out.values()];
 }
@@ -2206,22 +2209,23 @@ function gmMaterialList(){
   }
   return [...out.values()].sort((a,b)=>a.name.localeCompare(b.name));
 }
-const draftText=m=>m.state==='draft'?`draft (${m.status})`:m.state==='gm-only'?'GM-only':'not visible to every player';
+const draftText=m=>m.state==='draft'?`draft (${m.status})`:m.state==='gm-only'?'GM-only':'';
 /** GM select options: released materials, then draft/unreleased ones in their own group, marked. A stored id that is not imported stays selectable and says so. */
 function materialOptions(selected,{blank='',quality=null}={}){
   const list=gmMaterialChoices().filter(m=>!quality||norm(m.quality)===norm(quality));
   // With hundreds of materials the name alone is ambiguous (Mining Master Common / Rare): say the quality and tier too.
   const kind=m=>[m.quality,m.tier!=null?`Tier ${m.tier}`:''].filter(Boolean).join(' ');
-  const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${!quality&&kind(m)?` · ${esc(kind(m))}`:''}${m.state==='ok'?'':` — ${esc(draftText(m))}`}</option>`;
-  const released=list.filter(m=>m.state==='ok'),drafts=list.filter(m=>m.state!=='ok');
+  const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${!quality&&kind(m)?` · ${esc(kind(m))}`:''}${draftText(m)?` — ${esc(draftText(m))}`:''}</option>`;
+  const released=list.filter(m=>!unreleasedState(m.state)),drafts=list.filter(m=>unreleasedState(m.state));
   return `${blank?`<option value="">${esc(blank)}</option>`:''}${selected&&!list.some(m=>m.id===selected)?`<option value="${esc(selected)}" selected>${esc(humanizeId(selected))} — ${esc(materialState(selected).state==='missing'?'not imported':materialState(selected).state)}</option>`:''}${released.length?`<optgroup label="Released">${released.map(opt).join('')}</optgroup>`:''}${drafts.length?`<optgroup label="Draft / unreleased (GM only)">${drafts.map(opt).join('')}</optgroup>`:''}`;
 }
-/** GM badge beside a chosen material: nothing when it is released; "Draft", "Unreleased" or "Not imported" otherwise. */
+/** GM badge beside a chosen material: nothing when it is released (ok, or not-visible: approved and player-visible, only the world Item's
+ * permission differs); "Draft", "Unreleased" (GM-only), "Not imported", "Imported twice" or "Retired" otherwise. */
 function materialBadge(id){
   if(!id)return '';
   const s=materialState(id);
-  if(s.state==='ok')return '';
-  const label=s.state==='missing'?'Not imported':s.state==='draft'?'Draft':usableAnyway(s.state)?'Unreleased':s.state==='duplicate'?'Imported twice':'Retired';
+  if(releasedState(s.state))return '';
+  const label=s.state==='missing'?'Not imported':s.state==='draft'?'Draft':s.state==='gm-only'?'Unreleased':s.state==='duplicate'?'Imported twice':'Retired';
   return `<span ${tip(materialUnavailable(id))}>${badge(label,'warn')}</span>`;
 }
 /** GM: the first material problem of a node (its common table), as startBlocker/nodeBlocker options. */
@@ -2285,7 +2289,7 @@ function findNode(locationId,nodeId){
 /** GM only: each configured Exotic candidate with its name and eligibility at this node. */
 const exoticRows=(node,{allowDraft=false}={})=>normalizeExotics(node?.exotics).map(e=>{const meta=metaFor(allowDraft)(e.materialId),check=exoticEligibility(e,node,meta,{keyOf:professionKeyOfId});
   const name=meta?.name??materialCatalog().find(m=>m.id===e.materialId)?.name??materialName(e.materialId);
-  return {...e,name,meta,eligible:check.eligible,reason:skipReason(e.materialId,check.reason),draft:usableAnyway(materialState(e.materialId).state)};});
+  return {...e,name,meta,eligible:check.eligible,reason:skipReason(e.materialId,check.reason),draft:unreleasedState(materialState(e.materialId).state)};});
 const exoticRule=e=>e.mode==='designated'?`designated: ${e.chance==null?'no chance set':`${e.chance}%`} · ${DESIGNATED_CONDITIONS[e.condition]??''}`:'random discovery';
 /** GM-only one-line summary of a node's Exotic candidates. */
 function exoticSummary(node,{allowDraft=false}={}){
@@ -3972,7 +3976,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="node-row-add" data-id="${t}"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add ${t} material</button></div></fieldset>`).join('');
     const used=[...new Set(TABLES.flatMap(t=>d[t].map(e=>e.materialId)).filter(Boolean))];
     const test=used.length?`<ul class="ag-rows">${used.map(id=>{const s=materialState(id),m=gmMaterialChoices().find(x=>x.id===id);
-      return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??humanizeId(id))}</span><span class="ag-row__meta">${s.state==='ok'?'Can be awarded':esc(materialUnavailable(id))}</span></span><span class="ag-row__end">${s.state==='ok'?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
+      return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??humanizeId(id))}</span><span class="ag-row__meta">${releasedState(s.state)?'Can be awarded':esc(materialUnavailable(id))}</span></span><span class="ag-row__end">${releasedState(s.state)?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
       :'<p class="agl-sub">No materials yet.</p>';
     // Basics, Check and Materials open; Node test closed (each remembered per user once toggled). No fold inside a fold.
     const basics=`<div class="agl-gather-form">
@@ -3998,11 +4002,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Check tool${sel('checkTool',[['','The profession’s (GM Setup)'],...toolKeys().map(k=>[k,toolLabel(k)])],d.checkTool)}</label>
       </div>`;
     const count=TABLES.reduce((n,t)=>n+d[t].filter(e=>e.materialId).length,0);
+    // 0.41.1: a quiet note (no warning styling, no ids) when a chosen material is released but its world Item is not Observer for every player.
+    const permNote=used.some(id=>materialState(id).state==='not-visible')?'<p class="agl-sub agl-node-perm-note">Players cannot open these materials in Foundry, but the Ledger still awards them.</p>':'';
     return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||'gathering node')}`}</h2>
       ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
       ${fold({key:'node-basics',title:'Basics',open:true,body:basics})}
       ${fold({key:'node-check',title:'Check',open:true,body:check})}
-      ${fold({key:'node-materials',title:'Materials',count,open:true,body:tables})}
+      ${fold({key:'node-materials',title:'Materials',count,open:true,body:permNote+tables})}
       ${fold({key:'node-details',title:'Details',body:details})}
       ${fold({key:'node-test',title:'Node test',hint:'can each material be awarded now?',body:`<p class="agl-sub">Whether each material can be awarded now. A draft or unreleased one is awarded only when you tick “Use draft materials anyway” on the Gathering tab.</p>${test}`})}
     </section>`;
@@ -5153,7 +5159,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(message,html);}catch(err){console.warn(`[${ID}] enchanting card controls`,err);}});
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
-export const _test={favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
+export const _test={materialBadge,materialOptions,favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,presentLedger,resetLastGather:()=>{lastGather=null;lastDismissed=undefined;},getHistory,clearGatherHistory,clearLastGather,gmLastGather,dismissLastGather,refreshSoon,inRenderPass,passMemo,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
