@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.42.0',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.43.0',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -388,7 +388,7 @@ test('previews: a player with no permission on any world Item sees previews of t
     const button={dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){focused++;}};
     assert.equal(_test.itemLinkClick(button),true);await flush();await flush();
     assert.equal(prompts.length,1);const body=prompts[0].content;
-    assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores vigor\./);assert.match(body,/Type: Potion/);
+    assert.match(prompts[0].window.title,/\[TEST\] Bright Tonic/);assert.match(body,/Consumable · 25 gp/);assert.match(body,/Restores <b>vigor<\/b>\./);assert.match(body,/<tr><td>Type<\/td><td>Potion<\/td><\/tr>/,"0.43.0: the table is kept, not flattened to Type: Potion");assert.match(body,/You can only preview this item\./);
     assert.doesNotMatch(body,/poisoned|GM:|ITEM-TEST|data-action|<button/);assert.equal(focused,1);
     // Another player cannot open it.
     game.user=bob;prompts.length=0;_test.itemLinkClick({dataset:{action:'preview-item',actor:'maker',key,part:'result',ctx:''},focus(){}});await flush();assert.equal(prompts.length,0,'not an owner or observer');

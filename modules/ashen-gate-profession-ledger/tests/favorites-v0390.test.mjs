@@ -37,7 +37,7 @@ const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:t
 const herbsDef=def('PROF-TEST-HERBS','Profession',{name:'[TEST] Herbalism'});
 belwar.items.push({id:'bprof2',name:'[TEST] Herbalism — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-HERBS','Profession',{definition:herbsDef})});
 belwar.items.get=id=>belwar.items.find(i=>i.id===id)??null;
-const moduleObj={active:true,version:'0.42.0',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.43.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar],get:id=>id==='belwar'?belwar:undefined},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -196,7 +196,7 @@ test('markup: Favorites only (n) is a pressed-state chip and filters the Known r
   app.favOnly=true;h=await html('individual');
   assert.match(h,/data-action="fav-only" aria-pressed="true"/);
   assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row"/g)].length,1);assert.match(card(h,'[TEST] Courtyard Jest'),/Courtyard Jest/);
-  assert.match(h,/class="agl-folder"/,'still grouped by profession');
+  assert.match(h,/class="agl-group"/,'still grouped by profession');
   await api.setFavorite(belwar,{kind:'recipe',id:'REC-TEST-JEST',on:false});
   h=await html('individual');assert.match(visible(h),/No favorite recipes yet/);
   app.favOnly=false;

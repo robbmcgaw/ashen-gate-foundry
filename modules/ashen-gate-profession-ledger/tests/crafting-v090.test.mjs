@@ -111,7 +111,7 @@ test('player Individual view: own materials, professions with XP, known recipes 
  assert.doesNotMatch(h,/Secret Ore/,'GM-only materials stay hidden');
  assert.match(h,/<strong>\[TEST\] Alchemy<\/strong>/);assert.match(h,/Level 1/);assert.match(h,/0 XP · 5 XP to level 2/);
  assert.match(h,/XP is stored on \[TEST\] Belwar by the Profession Ledger/);
- assert.match(h,/data-folder="testalchemy"/,'known recipes foldered by profession');
+ assert.match(h,/data-agl-group="testalchemy"/,'known recipes foldered by profession');
  assert.match(h,/\[TEST\] Salve/);assert.match(h,/Also costs 20 gp \(not deducted automatically\)/);
  assert.match(h,/data-action="craft" data-id="REC-TEST-SALVE"/);assert.match(h,/Craft — ask the party/,'Belwar has 1 of 2 leaves; Tarra has more');
  assert.match(h,/data-action="learn-recipe" data-id="belwar:btea"/,'recipe items have a Learn button');
