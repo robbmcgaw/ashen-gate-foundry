@@ -32,7 +32,7 @@ test('thresholds come from the perk tier; minLevel only raises them',()=>{
 test('level gates, points and prerequisites are enforced; never negative',()=>{
   const t=tree();
   assert.match(availability(t,{},byTier('journeyman')[0],{level:3}).reason,/Needs profession level 4 \(now 3\)/);
-  assert.match(availability(t,{},id(1),{level:5}).reason,/prerequisite/i);
+  assert.match(availability(t,{},id(1),{level:5}).reason,/^Needs .+/,'0.27.0: a locked perk names what it needs');
   let a=allocate(t,{},[id(0),id(1),id(2),id(3)],4);
   assert.match(availability(t,a,id(4),{level:4}).reason,/No perk points left \(4 of 4 used at level 4\)/);
   assert.throws(()=>purchase(t,a,id(4),{level:4}),/No perk points left/);

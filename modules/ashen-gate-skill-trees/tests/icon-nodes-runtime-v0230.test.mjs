@@ -31,14 +31,17 @@ const api=game.modules.get(MOD).api;
 const app=api.open();app.treeId='IC-TREE';app.actorId='A1';
 const click=(act,id,extra={})=>app._clicked({target:{closest:sel=>sel==='[data-act]'?{dataset:{act,id},closest:()=>null}:null}, ...extra});
 
-test('a plain click on a node opens the perk Item sheet and never learns or refunds',async()=>{
+test('a plain click on a node only selects it; Open sheet… opens the sheet; nothing learns or refunds',async()=>{
   await api.grantPoints(actor,'IC-TREE',5,'Start');
   sheets.length=0;notes.length=0;
   await click('open-perk','NODE-A');
-  assert.deepEqual(sheets,[['WA',true]],'the GM gets the world perk sheet');
+  assert.equal(app.nodeId,'NODE-A','0.27.0: a click selects');assert.deepEqual(sheets,[],'and opens no sheet');
   assert.equal(actor.items.length,0);assert.deepEqual(actor.flags[MOD].progressV2['tree:IC-TREE'].unlocks??[],[]);
-  await click('open-perk','NODE-T');assert.match(notes.at(-1),/no perk sheet to open/);assert.equal(sheets.length,1,'a custom node has no sheet');
-  app._dragged=true;await click('open-perk','NODE-B');assert.equal(sheets.length,1,'the click that ends a drag opens nothing');assert.equal(app._dragged,false);
+  await click('open-sheet','NODE-A');
+  assert.deepEqual(sheets,[['WA',true]],'the GM gets the world perk sheet from the panel button');
+  await click('open-sheet','NODE-T');assert.match(notes.at(-1),/no perk sheet to open/);assert.equal(sheets.length,1,'a custom node has no sheet');
+  app.nodeId='NODE-A';app._dragged=true;await click('open-perk','NODE-B');assert.equal(app.nodeId,'NODE-A','the click that ends a drag selects nothing');assert.equal(app._dragged,false);
+  app.nodeId=null;
 });
 
 test('Edit layout: a click selects the node (for editing); Open perk sheet on its card opens the sheet',async()=>{
@@ -48,41 +51,48 @@ test('Edit layout: a click selects the node (for editing); Open perk sheet on it
   app.editMode=false;app.nodeId=null;
 });
 
-test('right-click / Shift+Enter pins a node; only the pinned card offers Open, Unlock and Remove, and hovered cards offer none',async()=>{
-  app._pin('NODE-A');assert.equal(app.nodeId,'NODE-A');assert.equal(app.sideTab,'perk');
-  const ctx=await SkillTreeContext();
+test('hover only previews: the corner card has no buttons and never pins; right-click / Shift+Enter selects the node and jumps to its panel button',async()=>{
+  app._jumpToAction('NODE-A');assert.equal(app.nodeId,'NODE-A');assert.equal(app.sideTab,'perk');assert.equal(app._focusAction,true);
+  app._focusAction=false;
+  const ctx=await prepare();
+  assert.equal(ctx.selected.id,'NODE-A');
+  assert.equal(ctx.panel.unlock.show,true);assert.equal(ctx.panel.unlock.enabled,true);assert.equal(ctx.panel.unlock.act,'purchase');
+  assert.match(ctx.panel.unlock.label,/^Unlock \(1 point\)/);assert.equal(ctx.panel.primary,'unlock');assert.equal(ctx.panel.refund.show,false);
   const card={hidden:true,className:'',children:[],replaceChildren(...c){this.children=c;},append(...c){this.children.push(...c);}};
   app.element={querySelector:s=>s==='.agst-tip'?card:null};
-  app._tips=ctx.tips;
+  app._tips=app._tips;
   app._showTip('NODE-A');
-  const buttons=()=>card.children.at(-1).children?.map?.(b=>b.attrs['data-act'])??[];
-  assert.equal(card.className,'agst-tip agst-tip-live');
-  assert.deepEqual(buttons(),['open-sheet','purchase']);
-  const desc=card.children.find(c=>c.className==='agst-tip-desc');assert.match(desc.innerHTML,/<table>.*Rules text/);
-  app._showTip('NODE-B');assert.equal(card.className,'agst-tip','a node that is only hovered takes no pointer events and has no buttons');
+  assert.equal(card.className,'agst-tip','the card is a preview, never a control surface');
   assert.ok(!card.children.some(c=>c.className==='agst-tip-actions'));
-  assert.ok(card.children.some(c=>/Click to open the perk sheet/.test(c.textContent)));
-  // learned: the card offers Remove, not Unlock
+  const desc=card.children.find(c=>c.className==='agst-tip-desc');assert.match(desc.innerHTML,/<table>.*Rules text/);
+  assert.ok(card.children.some(c=>/Click, or press Enter, to select this perk/.test(c.textContent)));
+  assert.equal(app._pinned,undefined,'nothing is pinned any more');
+  // learned: the panel offers Refund, not Unlock
   await api.unlock(actor,'IC-TREE','NODE-A');
-  const after=await SkillTreeContext();app._tips=after.tips;app._showTip('NODE-A');
-  assert.deepEqual(buttons(),['open-sheet','refund']);
+  const after=await prepare();
+  assert.equal(after.panel.unlock.show,false);assert.equal(after.panel.refund.show,true);assert.equal(after.panel.refund.enabled,true);assert.equal(after.panel.refund.act,'refund');
+  app.nodeId=null;
 });
 
-async function SkillTreeContext(){await SkillTreeApp_prepare();return {tips:app._tips};}
-async function SkillTreeApp_prepare(){await app.constructor.prototype._prepareContext.call(app,{});}
+async function prepare(){return app.constructor.prototype._prepareContext.call(app,{});}
+async function SkillTreeApp_prepare(){await prepare();}
 
-test('permissions: a player has no Unlock-for-others, no Remove, and opens only the copy on their own sheet',async()=>{
+test('permissions: a player has no Unlock-for-others, no Refund, and opens only the copy on their own sheet',async()=>{
   game.user=gm;await click('publish');game.user=player;app.playerPreview=false;
-  await SkillTreeApp_prepare();
+  app.nodeId='NODE-A';
+  let ctx=await prepare();
+  assert.equal(ctx.panel.refund.show,true);assert.equal(ctx.panel.refund.enabled,false,'players never refund');assert.match(ctx.panel.refund.reason,/Only the GM can refund/);
+  assert.equal(ctx.panel.sheet.enabled,true,'learned: the copy on the sheet');
+  app.nodeId='NODE-B';ctx=await prepare();
+  assert.equal(ctx.panel.unlock.act,'request','a player asks (the GM client unlocks)');assert.equal(ctx.panel.unlock.enabled,true);
+  assert.equal(ctx.panel.sheet.enabled,false);assert.match(ctx.panel.sheet.reason,/Learn this perk/);
   const tips=app._tips;
-  assert.equal(tips['NODE-A'].actions.refund,false,'players never get Remove');
-  assert.equal(tips['NODE-B'].actions.learn,'request','a player asks (the GM client unlocks)');
   assert.equal(tips['NODE-A'].canOpen,true,'learned: the copy on the sheet');assert.equal(tips['NODE-B'].canOpen,false,'not learned: no world id to open');
   sheets.length=0;notes.length=0;
-  await click('open-perk','NODE-A');assert.equal(sheets.length,1);assert.notEqual(sheets[0][0],'WA','the player opens their own copy, not the world perk');
-  await click('open-perk','NODE-B');assert.match(notes.at(-1),/Learn this perk to open its sheet/);assert.equal(sheets.length,1);
-  await click('open-perk','NODE-T');assert.match(notes.at(-1),/not been revealed/);
-  game.user=gm;
+  await click('open-sheet','NODE-A');assert.equal(sheets.length,1);assert.notEqual(sheets[0][0],'WA','the player opens their own copy, not the world perk');
+  await click('open-sheet','NODE-B');assert.match(notes.at(-1),/Learn this perk to open its sheet/);assert.equal(sheets.length,1);
+  await click('open-sheet','NODE-T');assert.match(notes.at(-1),/not been revealed/);
+  game.user=gm;app.nodeId=null;
 });
 
 test('refunding a node that another node requires is refused until the dependent is refunded first (runtime)',async()=>{

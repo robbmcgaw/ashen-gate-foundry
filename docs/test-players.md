@@ -34,6 +34,6 @@ Each module's Player Access decision becomes: GM, **or** its own setting is on, 
 
 ## Modules
 
-Character Hub 0.71.0, Cinders 0.18.0, Renown (ashen-gate-factions) 0.29.0, Headquarters 0.17.0, Locations 0.43.0, General Manager 0.98.0 (NPC Codex, player dock), Profession Ledger 0.45.0, Quest Log (ashen-gate-quest-manager) 0.32.0, Skill Trees 0.26.0, Utilities 0.37.0.
+Character Hub 0.71.0, Cinders 0.18.0, Renown (ashen-gate-factions) 0.29.0, Headquarters 0.17.0, Locations 0.43.0, General Manager 0.98.0 (NPC Codex, player dock), Profession Ledger 0.45.0, Quest Log (ashen-gate-quest-manager) 0.32.0, Skill Trees 0.27.0, Utilities 0.37.0.
 
 Tests are mocked Foundry only. To verify live, see the Forge steps in the pull request.

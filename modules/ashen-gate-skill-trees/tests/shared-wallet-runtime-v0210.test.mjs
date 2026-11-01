@@ -166,8 +166,10 @@ test('embed: one entry per profession with tree sub-tabs and the shared wallet; 
     assert.equal((el.innerHTML.match(/agst-embed__profession/g)??[]).length,1,'one Artistry entry, not four');
     assert.match(el.innerHTML,/<summary><strong>\[TEST\] Artistry<\/strong><span class="ag-badge ag-badge--accent">4 points to spend<\/span><span class="agst-embed__muted">1 of 5 spent · level 5<\/span><\/summary>/);
     assert.match(el.innerHTML,/role="tablist" aria-label="\[TEST\] Artistry trees"/);
-    assert.equal((el.innerHTML.match(/role="tabpanel"/g)??[]).length,4);
-    assert.match(el.innerHTML,/Needs calligrapher or Performance proficiency/,'the gate shows on the gated tree');
+    assert.equal((el.innerHTML.match(/role="tabpanel"/g)??[]).length,3,'0.27.0: the gated tree is hidden from a player who lacks the proficiency and owns nothing in it');
+    assert.doesNotMatch(el.innerHTML,/data-agst-panel="TEST-LIT"/);
+    assert.match(el.innerHTML,/1 tree hidden until you have the right tool proficiency/);
+    assert.match(el.innerHTML,/Needs calligrapher or Performance proficiency/,'the hint lists the tree and what it needs');
     assert.doesNotMatch(el.innerHTML,/data-agst-embed="unlock" data-tree="TEST-LIT"/,'no Unlock on a tree the player cannot use');
     assert.match(el.innerHTML,/data-agst-embed="unlock" data-tree="TEST-PRF"/);
   }finally{game.user=gm;}
@@ -188,7 +190,7 @@ test('window: the tree picker shows Artistry once with sub-tabs; the Character p
   app.treeId='TEST-LIT';app.nodeId=node('LIT',0);
   let c=await app._prepareContext({});
   assert.equal(c.accessGate.text,'Needs calligrapher or Performance proficiency');assert.equal(c.accessGate.gmNote,true);
-  assert.equal(c.canBuy,true,'GM is not blocked by the gate');
+  assert.equal(c.panel.unlock.enabled,true,'GM is not blocked by the gate');
   // Tree Library: one Artistry heading with the wallet line for the picked character.
   app.activeTab='library';
   c=await app._prepareContext({});

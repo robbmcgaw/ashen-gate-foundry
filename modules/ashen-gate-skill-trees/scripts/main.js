@@ -3,14 +3,17 @@ import {
   availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport,
   resolveTree,perkCost,refund,resetUnlocks,grantTag,isGrantFor,missingGrants,savedDataReport,dependentsBlockingRefund,
   professionStatus,overrideGrant,reconcile,withHistory,reviewCandidates,removalOrder,planLedgerImport,CINDER_MAX_POINTS,
-  sharedWalletKey,walletGroups,groupName,memberName,accessText,cleanAccess,PROFESSION_MAX_LEVEL
+  sharedWalletKey,walletGroups,groupName,memberName,accessText,cleanAccess,PROFESSION_MAX_LEVEL,perkLabel
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
 import {sanitizePerkHtml} from './perk-html.mjs';
 import {buildPerkCard,groupByTier,unreleasedPerkMessage} from './perk-card.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
-import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
+import {requirementText,rivalLine,tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
 import {isTestPlayer} from './ag-test-players.mjs';
+import {perkPanelBody,panelActions,sheetAction,lockReason,listNote} from './perk-panel.mjs';
+import {TREE_TABS,DEFAULT_TREE_TAB,isTreeTab,tabOfTree,treesInTab,openTab,chooseActor,emptyTabText} from './tree-tabs.mjs';
+import {VISIBILITY_CONTRACT,classifyTree,hiddenHint,visibilitySummary} from './tree-access.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,buildDefinitionIndex} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -29,7 +32,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.26.0';
+const VERSION='0.27.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -146,6 +149,51 @@ async function accessCheck(actor,tree){try{return accessAnswer(await accessCheck
 function accessCheckNow(actor,tree){const r=accessCheckRaw(actor,tree);return typeof r?.then==='function'?null:accessAnswer(r);}
 /** "Needs … proficiency" for a tree's gate (with its note), or '' when the tree has none or the Ledger cannot check it. */
 const accessLine=tree=>cleanAccess(tree?.access)&&ledgerMeetsProficiency()?[accessText(tree.access,proficiencyLabel),cleanAccess(tree.access).note].filter(Boolean).join('. '):'';
+/**
+ * 0.27.0 (synchronous): one row per tree for one character: {tree, owned, check, visible, hiddenFromPlayers, reason, note}. `trees` are the trees to look at
+ * (the GM's private trees, or the published trees the character holds). The proficiency gate is per tree; players never lose a tree they own perks in.
+ */
+function visibilityRows(actor,{asGM=false,trees=[]}={}){
+  const rows=[];
+  for(const tree of trees){
+    const gated=Boolean(cleanAccess(tree.access));
+    const check=gated?accessCheckNow(actor,tree):null; // a Promise answer counts as unknown: nothing is hidden on a guess
+    const owned=readProgress(actor,tree).unlocks.length>0;
+    rows.push({tree,owned,check,...classifyTree({tree,check,owned,asGM,line:gated?accessLine(tree):''})});
+  }
+  return rows;
+}
+/**
+ * 0.27.0 api.treeVisibility({actorId|actor, forUser?}): which trees this character can see (the window's rule, for the Character Hub to reuse).
+ * Players get their own characters only, as themselves. A GM may pass forUser (a User or id) to ask what that player would see. Read-only.
+ */
+function treeVisibility(input={}){
+  checkTreePlayerAccess();
+  const {actorId=null,actor=null,forUser=null}=typeof input==='string'?{actorId:input}:(input&&typeof input==='object'&&typeof input.documentName==='string'?{actor:input}:input??{});
+  const target=actor&&typeof actor==='object'?actor:(typeof actorId==='string'?game.actors?.get?.(actorId)??null:null);
+  if(!target)throw Error('No Actor given');
+  if(isLevelBackup(target))throw Error(LEVEL_BACKUP_REFUSAL);
+  if(!hasOwner(target))throw Error('Actor access denied');
+  let viewer=game.user;
+  if(forUser!=null&&forUser!==''){
+    const u=typeof forUser==='string'?game.users?.get?.(forUser)??null:forUser;
+    if(!u?.id)throw Error('Unknown user');
+    if(u.id!==game.user.id){
+      if(!game.user.isGM)throw Error('Actor access denied');
+      if(u.isGM!==true&&target.testUserPermission?.(u,'OWNER')!==true)throw Error('Actor access denied');
+      viewer=u;
+    }
+  }
+  const asGM=viewer.isGM===true;
+  const pool=asGM?readPrivate():readPublic().filter(t=>holdsFor(target,t));
+  const rows=visibilityRows(target,{asGM,trees:pool});
+  const summary=visibilitySummary(rows);
+  return {contract:VISIBILITY_CONTRACT,actorId:target.id,viewer:{id:viewer.id??null,isGM:asGM},
+    trees:rows.map(r=>({treeId:r.tree.id,name:r.tree.name,kind:r.tree.provider?.kind??'generic_points',sourceRef:r.tree.sourceRef??null,
+      visible:r.visible,hiddenFromPlayers:r.hiddenFromPlayers,reason:r.reason,note:r.note,owned:r.owned})),
+    hiddenTreeIds:rows.filter(r=>!r.visible).map(r=>r.tree.id),visibleTreeIds:rows.filter(r=>r.visible).map(r=>r.tree.id),
+    hiddenCount:summary.hiddenCount,hiddenFromPlayersCount:rows.filter(r=>r.hiddenFromPlayers).length,hint:summary.hint};
+}
 /**
  * Shared profession wallet for one character (0.21.0): {sourceRef, level, earned, spent, available, overSpent, overAllocated, trees:[{id,name,spent}]}.
  * earned/available are null when the Ledger is unavailable; available never goes below 0 (overSpent says by how much). Trees: those this user may see.
@@ -719,45 +767,66 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(key)this._focusKey={act:key.dataset.act??null,id:key.dataset.id??key.dataset.tree??null,tab:key.dataset.tab??null};
     return super.render(options);
   }
-  constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this._fitted=new Set();this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};
+  constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this._fitted=new Set();this._hidden=new Set();this._vis=new Map();this._lastTree={};this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};
     // 0.20.0: remembered per user (kit uiState): the sidebar and Tree Library sub-tabs and the open folds.
-    this.ui=uiState(MODULE);this.sideTab=this.ui.get('sideTab','perk',SIDE_TABS.map(t=>t.id));this.libraryTab=this.ui.get('libraryTab','trees',LIBRARY_TABS.map(t=>t.id));
+    this.ui=uiState(MODULE);this.sideTab=this.ui.get('sideTab','perk',SIDE_TABS.map(t=>t.id));this.treeTab=this.ui.get('treeTab',DEFAULT_TREE_TAB,TREE_TABS.map(t=>t.id));this.libraryTab=this.ui.get('libraryTab','trees',LIBRARY_TABS.map(t=>t.id));
     // 0.22.0: Tree Library sort, grouping and filters are remembered per user; the search text is not.
     this.lib={query:'',sort:validSort(this.ui.get('libSort','name')),groupBy:validGroup(this.ui.get('libGroup','type')),filters:cleanFilters(this.ui.get('libFilters',{}))};this._libraryTrees=[];this._libraryUnbind=null;
     this._unbind=[];this._pendingMove=null;this._moveTimer=null;
     // GM Setup draft (Player Access): "Unsaved changes" in the footer, and a question before a tab switch or close drops it.
     this.guard=guardDirty({status:()=>this.element?.querySelector?.('[data-agst-setup-status]')});}
   /** Close asks first when GM Setup has unsaved changes. */
-  async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;this._pinned=null;this._tipCtl?.dismiss();this._tipCtl=null;return super.close?.(options);}
+  async close(options){if(!(await this.guard?.confirm()??true))return this;this._fitWatch?.stop();this._fitWatch=null;this._tipCtl?.dismiss();this._tipCtl=null;return super.close?.(options);}
   get actor(){return game.actors?.get(this.actorId)??null;}
-  /** GM: every private tree. Players, and the GM's Player preview: the published trees that apply to the chosen character. */
-  get trees(){
+  /** GM: every private tree. Players, and the GM's Player preview: the published trees that apply to the chosen character (before the proficiency gate and the tab). */
+  get allTrees(){
     const all=readSelectedTrees(this.playerPreview);
     if(game.user.isGM&&!this.playerPreview)return all;
     const actor=this.actor;if(!actor||!actorChoices().some(a=>a.id===actor.id))return [];
     const cinderIds=boundCinders(actor);
     return all.filter(t=>holdsFor(actor,t,cinderIds));
   }
+  /** The trees this user may pick from under the current top tab (0.27.0): the proficiency gate hides a player's tree they cannot use and own nothing in. */
+  get trees(){return treesInTab(this.allTrees.filter(t=>!this._hidden.has(t.id)),this.treeTab);}
   /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
   get storedTree(){return game.user.isGM?readPrivate().find(t=>t.id===this.treeId)??null:null;}
   /** Display tree: GM sees it resolved from world perks; players (and preview) see the published projection. */
   get tree(){const t=this.trees.find(t=>t.id===this.treeId)??null;return t&&game.user.isGM&&!this.playerPreview?resolved(t):t;}
+  /** Character to show: the chosen one, else the first that has a tree under the current tab (so Cinders opens on the bearer). */
+  _defaultActor(){
+    const actors=actorChoices(),tab=this.treeTab,gm=game.user.isGM&&!this.playerPreview;
+    const pool=gm?readPrivate():readPublic();
+    this.actorId=chooseActor(actors,this.actorId,a=>pool.some(t=>tabOfTree(t)===tab&&(gm?(tab!=='cinders'||boundCinders(a)?.has(t.sourceRef)):holdsFor(a,t))));
+  }
+  /** Which of this character's trees the proficiency gate hides (players and the GM's Player preview), and which the GM would see marked. */
+  _refreshVisibility(){
+    this._hidden=new Set();this._vis=new Map();
+    const actor=this.actor;if(!actor)return;
+    const raw=game.user.isGM&&!this.playerPreview;
+    for(const row of visibilityRows(actor,{asGM:raw,trees:this.allTrees})){this._vis.set(row.tree.id,row);if(!row.visible)this._hidden.add(row.tree.id);}
+  }
   _defaults(){
-    const actors=actorChoices();if(!actors.some(a=>a.id===this.actorId))this.actorId=actors[0]?.id??null;
+    this._defaultActor();
     const trees=this.trees;
-    if(!trees.some(t=>t.id===this.treeId))this.treeId=trees[0]?.id??null;
+    if(!trees.some(t=>t.id===this.treeId)){const last=this._lastTree[this.treeTab];this.treeId=trees.some(t=>t.id===last)?last:trees[0]?.id??null;}
+    if(this.treeId)this._lastTree[this.treeTab]=this.treeId;
     if(!this.tree?.nodes?.some(n=>n.id===this.nodeId))this.nodeId=null;
     if(!game.user.isGM){this.editMode=false;this.playerPreview=false;this.activeTab='trees';}
   }
+  /** Show one tree: its own top tab comes with it. */
+  _focusTree(treeId){
+    const t=[...readSelectedTrees(false),...(game.user.isGM?readPrivate():[])].find(x=>x.id===treeId);
+    this.treeId=treeId;this.nodeId=null;if(t)this.treeTab=tabOfTree(t);
+  }
   async _prepareContext(options){
     checkTreePlayerAccess();
-    const ctx=await super._prepareContext(options);this._defaults();
+    const ctx=await super._prepareContext(options);this._defaultActor();this._refreshVisibility();this._defaults();
     const gm=game.user.isGM,preview=gm&&this.playerPreview,raw=gm&&!preview;
     const t=this.tree,actor=this.actor,acc=t&&actor?readProgress(actor,t):cleanAccount();
     const profession=t?.provider?.kind==='profession';
     const level=profession&&actor?professionLevel(actor,t):null;
     // 0.21.0: the profession's other trees share the wallet; players (and preview) also meet the tree's proficiency gate.
-    const siblings=profession&&actor?walletSiblings(actor,t,{trees:this.trees,resolve:raw}):[];
+    const siblings=profession&&actor?walletSiblings(actor,t,{trees:this.allTrees,resolve:raw}):[];
     const access=!raw&&actor&&t?await accessCheck(actor,t):null;
     const gate=t?accessLine(t):'';
     const prof=profession?professionStatus(t,acc,actor?level:null,siblings):null;
@@ -768,16 +837,24 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         (raw?availability(t,acc,n.id,{level,siblings}):publicAvailability(t,acc,n.id,{level,siblings,access,accessLabel:proficiencyLabel})):{ok:false,reason:'Choose a character'};
       const rel=relationsOf(base,n),flag=unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED',state=STATE_VIEW[flag];
       const overLevel=unlocked&&above.has(n.id),kept=unlocked&&Boolean(acc.kept[n.id]);
-      return {...n,unlocked,eligible:!unlocked&&e.ok,overLevel,kept,reason:unlocked?(overLevel?`Unlocked, but needs level ${n.requiredLevel} (now ${level})`:kept?`Unlocked (kept by the GM at level ${acc.kept[n.id].level})`:'Unlocked'):e.reason,
+      const lockText=lockReason({flag,reason:e.reason});
+      return {...n,unlocked,eligible:!unlocked&&e.ok,overLevel,kept,lockText,listNote:listNote({flag,reason:e.reason,relText:relationText(rel,n.name),rivalText:rivalLine(n.name,rel),requirement:requirementText(rel)}),reason:unlocked?(overLevel?`Unlocked, but needs level ${n.requiredLevel} (now ${level})`:kept?`Unlocked (kept by the GM at level ${acc.kept[n.id].level})`:'Unlocked'):e.reason,
         levelText:profession&&Number.isSafeInteger(n.requiredLevel)?`Level ${n.requiredLevel}`:'',
         selected:n.id===this.nodeId,flag,stateText:state.text,badgeClass:state.badge,rel,relText:relationText(rel,n.name),rival:isRival(n,rel),crossroads:isCrossroads(n),lane:n.lane??'',
-        actions:{learn:!unlocked&&e.ok&&actor?(raw?'purchase':!gm?'request':null):null,learnLabel:raw?`Unlock for ${actor?.name??'character'}…`:`Unlock (${n.cost??1} pt)…`,refund:raw&&unlocked&&!!actor,refundLabel:profession?'Remove (point returned)…':'Refund (removes perk from sheet)…'},
         placeholder:n.status==='placeholder',silhouette:n.silhouette??false,img:n.silhouette?null:n.img??null,
         statusText:labelOf(NODE_STATUS_LABELS,n.status),visibilityText:labelOf(NODE_VISIBILITY_LABELS,n.visibility),displayText:labelOf(NODE_DISPLAY_LABELS,n.display),
         label:[`${n.name}: ${state.text}`,(n.silhouette?'':tierText(n)),`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel,n.name),isCrossroads(n)?'Crossroads':''].filter(Boolean).join('. '),
         blocked:!unlocked&&!e.ok,style:`left:${n.x}px;top:${n.y}px;`};
     });
     const selected=nodes.find(n=>n.id===this.nodeId)??null;
+    // 0.27.0 selected-perk panel: facts, effect and notes as structure; Unlock / Refund / Open sheet with their states and reasons.
+    const mode=raw?'gm':preview?'preview':'player';
+    let panel=null;
+    if(selected){
+      const body=selected.silhouette?{facts:'',body:'',tier:''}:perkPanelBody(selected.name,selected.descriptionHtml,selected.description);
+      panel={...body,...panelActions({unlocked:selected.unlocked,available:selected.eligible,reason:selected.reason,cost:selected.cost??1,mode,hasActor:!!actor,silhouette:selected.silhouette}),
+        sheet:sheetAction({gm:raw,hasPerk:Boolean(selected.perkId)&&!selected.perkMissing,learnedCopy:!raw&&actor?grantedItems(actor,t,selected.id).length>0:false,silhouette:selected.silhouette})};
+    }
     const onTree=new Set(asArray(t?.nodes).map(n=>n.perkId).filter(Boolean));
     const size=nodeSizeOf(t),dim=NODE_SIZES[size];
     const maxX=Math.max(420,...nodes.map(n=>n.x+dim.w+40)),maxY=Math.max(520,...nodes.map(n=>n.y+dim.h+60),...asArray(t?.tiers).map(x=>x.y+80));
@@ -800,6 +877,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const libraryModel=this._libraryModel();
     const picker=treePicker(this.trees,this.treeId,ref=>this.ui.get(`profTree:${ref}`,null));
     if(picker.tabs)this.ui.set(`profTree:${picker.tabs.sourceRef}`,picker.tabs.selected); // the tree last open in this profession, per user
+    // 0.27.0: the GM's Cinders list says which Cinder trees are bound to the chosen character, and any tree players would not see is marked.
+    const bound=raw&&actor&&this.treeTab==='cinders'?boundCinders(actor):null,treeById=new Map(this.trees.map(x=>[x.id,x]));
+    const treeOptions=picker.options.map(o=>{const tr=treeById.get(o.value);let label=o.label;
+      if(bound&&tr&&bound.has(tr.sourceRef))label+=' (bound)';
+      if(raw&&this._vis.get(o.value)?.hiddenFromPlayers)label+=' (hidden from players)';
+      return {...o,label,rank:bound&&tr&&bound.has(tr.sourceRef)?0:1};});
+    if(this.treeTab==='cinders')treeOptions.sort((a,b)=>a.rank-b.rank||String(a.label).localeCompare(String(b.label)));
     const side=subTabView('agst-side','Skill tree menu sections',sideTabsFor(gm),this.sideTab);this.sideTab=side.pick;
     const library=subTabView('agst-library','Tree Library sections',LIBRARY_TABS,this.libraryTab);this.libraryTab=library.pick;
     const missing=gm&&!preview&&this.activeTab==='library'?missingGrantCount():0;
@@ -807,12 +891,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryLink:linkButton('Tree Library',{data:{act:'tab-library'}}),
       canUndoEdit:this.undo.length>0,canRedoEdit:this.redo.length>0,
       linkFromName:this.linkFrom?nodes.find(n=>n.id===this.linkFrom)?.name??'':'',gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryCountText:libraryCountText(libraryModel.shown,libraryModel.total),libraryHtml:renderLibraryHtml(libraryModel,{openByDefault:libraryTrees.length<=12}),libraryFilters:renderFiltersFold(this.lib.filters),libraryQuery:this.lib.query,libraryGroupOptions:groupOptions(this.lib.groupBy),librarySortOptions:sortOptions(this.lib.sort),libraryHasTrees:libraryTrees.length>0,playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
-      hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level,siblings}).ok,
-      canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level,siblings,access,accessLabel:proficiencyLabel}).ok,
+      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryCountText:libraryCountText(libraryModel.shown,libraryModel.total),libraryHtml:renderLibraryHtml(libraryModel,{openByDefault:libraryTrees.length<=12}),libraryFilters:renderFiltersFold(this.lib.filters),libraryQuery:this.lib.query,libraryGroupOptions:groupOptions(this.lib.groupBy),librarySortOptions:sortOptions(this.lib.sort),libraryHasTrees:libraryTrees.length>0,playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeProfessions:this.activeTab==='trees'&&this.treeTab==='professions',activeCinders:this.activeTab==='trees'&&this.treeTab==='cinders',treeLabel:this.treeTab==='cinders'?'Cinder':'Tree',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
+      hasTree:!!t,tree:t,selected,panel,
       // The requirement line, unless it is already the Unlock reason shown just above it.
       accessGate:gate&&(raw||!(selected?.reason&&gate.startsWith(selected.reason)))?{text:gate,met:access?.ok===true,gmNote:raw}:null,
-      canRefund:raw&&!!selected?.unlocked&&!!actor,
       canReset:raw&&!!actor&&!!t&&acc.unlocks.length>0,
       canOverride:raw&&profession&&!!actor&&!!selected&&!selected.unlocked&&!selected.perkMissing,
       canKeep:raw&&profession&&!!actor&&!!selected?.overLevel,
@@ -827,10 +909,15 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         canUndo:Boolean(h.id)&&!h.undone&&['allocate','override','remove','keep'].includes(h.kind)})):[],
       professionReport:gm&&!preview&&this.activeTab==='library'?professionReconcile().filter(r=>r.issues.length):[],
       actorName:actor?.name??'',
+      // 0.27.0 proficiency gate: players get one collapsed hint line (and the names inside it); the GM sees a mark on trees players would not see.
+      hiddenTrees:!raw?[...this._vis.values()].filter(r=>!r.visible).map(r=>({name:r.tree.name,note:r.note})):[],
+      hiddenHint:!raw?hiddenHint(this._hidden.size):'',
+      treeNote:t?(this._vis.get(t.id)?.note??''):'',
+      treeHiddenFromPlayers:Boolean(raw&&t&&this._vis.get(t.id)?.hiddenFromPlayers),
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
-      emptyText:EMPTY_PLAYER_TREES,
-      trees:picker.options,treeGroups:pickerGroups(picker.options,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
+      emptyText:emptyTabText(this.treeTab,{gm,actorName:actor?.name??''})??EMPTY_PLAYER_TREES,emptyTitle:this.treeTab==='cinders'?'No Cinder tree yet':'No skill trees yet',
+      trees:treeOptions,treeGroups:this.treeTab==='cinders'?null:pickerGroups(treeOptions,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
       treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
       nodes,sizeClass:`agst-size-${size}`,nodeSize:size,lanes:laneLabels(nodes,dim),bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
@@ -898,7 +985,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const shell=root.querySelector('.agst-shell');
     this.sidebarOpen=initialSidebar(this.sidebarOpen,shell?.clientWidth);
     this._applySidebar();
-    this._tipCtl=null;this._showTip(this._pinnedId()); // a re-render never carries a hover preview over
+    this._tipCtl=null;this._showTip(null); // a re-render never carries a stale preview over (hover is picked up again below)
     const viewport=root.querySelector('.agst-viewport');
     if(viewport){
       viewport.addEventListener('pointerdown',e=>this._pointerDown(e),listenerOptions);
@@ -912,19 +999,22 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       this._fitEdges();
       // Corner tooltip: hover or keyboard focus previews a node; the selected node shows when nothing else does.
       const nodeOf=e=>e.target.closest?.('.agst-node')?.dataset.id??null;
-      this._tipCtl=bindNodeTip(board,{root,signal:this._listeners.signal,show:id=>this._showTip(id),pinned:()=>this._pinnedId(),unpin:()=>{this._pinned=null;}});
+      this._tipCtl=bindNodeTip(board,{root,signal:this._listeners.signal,show:id=>this._showTip(id),pinned:()=>null});
+      this._tipCtl.seedHover(); // the pointer may already rest on a node after a re-render
       if(this._refocus&&this.nodeId){board.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});this._focusKey=null;}
       this._refocus=false;
       board.addEventListener('keydown',e=>this._nodeKey(e),listenerOptions);
-      // 0.23.0: right-click (or the Menu key / Shift+Enter) pins a node so its card offers Unlock / Refund; a plain click opens the perk sheet.
-      board.addEventListener('contextmenu',e=>{const id=nodeOf(e);if(!id)return;e.preventDefault();this._pin(id,{focusCard:e.button!==2});},listenerOptions);
-      board.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.shiftKey){const id=nodeOf(e);if(id){e.preventDefault();this._pin(id,{focusCard:true});}}},listenerOptions);
+      // 0.27.0: a click (or Enter) only selects a node; right-click, the Menu key or Shift+Enter selects it and jumps to its Unlock / Refund button in the panel.
+      board.addEventListener('contextmenu',e=>{const id=nodeOf(e);if(!id)return;e.preventDefault();this._jumpToAction(id);},listenerOptions);
+      board.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.shiftKey){const id=nodeOf(e);if(id){e.preventDefault();this._jumpToAction(id);}}},listenerOptions);
       board.addEventListener('dragover',e=>{if(game.user.isGM&&this.editMode&&!this.playerPreview)e.preventDefault();},listenerOptions);
       board.addEventListener('drop',e=>this._dropped(e),listenerOptions);
     }
-    const tip=root.querySelector('.agst-tip');
-    tip?.addEventListener('keydown',e=>{if(e.key==='Escape'&&this.nodeId){e.stopPropagation();this._pinned=null;root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}},listenerOptions);
-    if(this._focusCard){this._focusCard=false;tip?.querySelector('button')?.focus({preventScroll:true});}
+    if(this._focusAction){ // Shift+Enter / right-click: land on the panel's Unlock or Refund button
+      this._focusAction=false;
+      const target=root.querySelector('.agst-inspector-actions [data-primary]')??root.querySelector('.agst-inspector-actions button:not([disabled])');
+      if(target)target.focus({preventScroll:false});else root.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId??'')}"]`)?.focus({preventScroll:true});
+    }
     this._fitWatch?.stop();this._fitWatch=null;
     if(viewport&&this.tree&&!this._fitted.has(this.treeId)){ // opens fitted: re-fits after layout / resize until the user takes over the zoom
       this._fitWatch=watchFit(viewport,()=>Number(board?.style?.width?.replace('px',''))||0,z=>this._setZoom(z,{exact:true}));
@@ -1082,8 +1172,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     card.hidden=!tip;
     if(!tip){card.replaceChildren();card.className='agst-tip';return;}
     const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=text;return e;};
-    const pinned=id===this.nodeId&&Boolean(tip.actions?.learn||tip.actions?.refund||tip.canOpen);
-    card.className=pinned?'agst-tip agst-tip-live':'agst-tip';
+    card.className='agst-tip';
     const head=make('div','agst-tip-head','');head.append(make('strong','',tip.name),make('span',`ag-badge ${TIP_BADGE[tip.statusKey]??''}`.trim(),tip.status));
     card.replaceChildren(head);
     const meta=[tip.tier,tip.costText].filter(Boolean).join(' · ');
@@ -1091,35 +1180,26 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(tip.kind==='rival'||tip.kind==='crossroads')card.append(make('div','agst-tip-line agst-tip-kind',tip.kind==='rival'?'Rival perks':'Crossroads'));
     if(tip.rival)card.append(make('div','agst-tip-line agst-tip-req',tip.rival));
     if(tip.prerequisites)card.append(make('div','agst-tip-line agst-tip-req',tip.prerequisites));
-    else if(tip.reason)card.append(make('div','agst-tip-line agst-tip-req',tip.reason));
+    if(tip.reason&&tip.reason!==tip.prerequisites)card.append(make('div','agst-tip-line agst-tip-req',tip.reason));
     if(tip.html){const d=make('div','agst-tip-desc','');d.innerHTML=tip.html;card.append(d);} // tip.html comes only from sanitizePerkHtml
     else if(tip.fullText||tip.text)card.append(make('p','agst-tip-text',tip.fullText||tip.text));
-    if(pinned){
-      const row=make('div','agst-tip-actions','');
-      const button=(label,act,cls)=>{const b=make('button',`ag-btn ag-btn--sm ${cls}`.trim(),label);b.type='button';b.setAttribute('data-act',act);b.setAttribute('data-id',id);return b;};
-      if(tip.canOpen)row.append(button('Open perk sheet','open-sheet',''));
-      if(tip.actions?.learn)row.append(button(tip.actions.learnLabel||'Unlock…',tip.actions.learn,'ag-btn--primary'));
-      if(tip.actions?.refund)row.append(button(tip.actions.refundLabel||'Refund…','refund','ag-btn--danger'));
-      card.append(row);
-    }else if(tip.canOpen)card.append(make('div','agst-tip-line agst-tip-hint',`Click to open the perk sheet. Right-click, or press Shift+Enter, to ${tip.actions?.learn||tip.actions?.refund?'unlock or refund':'pin this card'}.`));
+    card.append(make('div','agst-tip-line agst-tip-hint','Click, or press Enter, to select this perk.'));
   }
-  /** Pin a node: its card offers Open perk sheet / Unlock / Refund, and the Perk tab shows it. Used by right-click and Shift+Enter. */
-  _pin(id,{focusCard=false}={}){
+  /** Select a node and move to its Unlock / Refund button (right-click, the Menu key, Shift+Enter). The tooltip stays hover / focus only. */
+  _jumpToAction(id){
     if(this.busy)return;
-    this.nodeId=id;this._pinned=id;this.sideTab='perk';this._refocus=!focusCard;this._focusCard=focusCard;this.render();
+    this.nodeId=id;this.sideTab='perk';this.sidebarOpen=true;this._refocus=false;this._focusAction=true;this.render();
   }
-  /** The node whose card was pinned on purpose (right-click, Menu key, Shift+Enter), while it is still the selected one in this tree; else null. */
-  _pinnedId(){return this._pinned&&this._pinned===this.nodeId&&this._tips?.[this._pinned]?this._pinned:null;}
   /** Open the perk Item sheet. GM: the world perk. Player: their own copy once learned, else the world perk if they may see it. */
   async _openPerkSheet(id){
     const node=this.tree?.nodes?.find(n=>n.id===id);if(!node)return;
     if(node.silhouette){notify('This perk has not been revealed yet.');return;}
     let doc=null;
-    if(game.user.isGM)doc=node.perkId?perkDoc(node.perkId):null;
+    if(game.user.isGM&&!this.playerPreview)doc=node.perkId?perkDoc(node.perkId):null;
     else{
       doc=this.actor?(grantedItems(this.actor,this.tree,id)[0]??null):null; // the player view carries no world id or UUID, so only the learned copy can open
     }
-    if(!doc?.sheet){notify(game.user.isGM?'This node has no perk sheet to open; its text is in the tooltip.':'Learn this perk to open its sheet. Its full text is in the tooltip.');return;}
+    if(!doc?.sheet){notify(game.user.isGM&&!this.playerPreview?'This node has no perk sheet to open; its text is in the panel.':'Learn this perk to open its sheet. Its full text is in the panel.');return;}
     doc.sheet.render(true);
   }
   /** The user took the zoom (buttons, ctrl-wheel, pan, fit button): stop auto-fitting this tree. */
@@ -1135,20 +1215,23 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(this._pendingMove)await this._commitMove(); // save a keyboard move before anything else changes the tree or the mode
     const action=el.dataset.act,id=el.dataset.id;
     if(action.startsWith('tab-')){
-      if(action===`tab-${this.activeTab}`)return;
+      const to=action.slice(4),treeTab=isTreeTab(to);
+      if(treeTab?(this.activeTab==='trees'&&this.treeTab===to):action===`tab-${this.activeTab}`)return;
       // Leaving GM Setup with unsaved changes asks first (kit guardDirty); Keep editing stays put.
       if(this.activeTab==='setup'&&!(await this.guard.confirm()))return;
       this._setupDraft=null;this.guard.markClean();
     }
-    if(action==='tab-trees'){this.activeTab='trees';this.render();return;}
+    if(action==='tab-trees'||action==='tab-professions'||action==='tab-cinders'){
+      // Professions and Cinders are the same window with a different set of trees; each remembers the tree last open in it.
+      const to=action==='tab-trees'?this.treeTab:action.slice(4);
+      this.activeTab='trees';this.treeTab=to;this.ui.set('treeTab',to);this.nodeId=null;this.linkFrom=null;this.undo=[];this.redo=[];
+      this.treeId=this._lastTree[to]??null;this.render();return;
+    }
     if(action==='tab-library'){if(!game.user.isGM){notify('Tree Library is restricted to the GM.',true);return;}this.activeTab='library';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
-    if(action==='open-perk'||action==='open-sheet'){
-      if(action==='open-perk'&&this._dragged){this._dragged=false;return;}
-      // Edit layout is for building the tree, so there a click still selects the node (use Open perk sheet on its card to read it).
-      const editing=game.user.isGM&&this.editMode&&!this.playerPreview;
-      if(action==='open-sheet'||!editing){await this._openPerkSheet(id);return;}
-    }
+    if(action==='open-sheet'){await this._openPerkSheet(id);return;}
+    if(action==='open-perk'&&this._dragged){this._dragged=false;return;}
+    // 0.27.0: a click (or Enter) on a node only selects it; the sheet opens from the panel's Open sheet… button.
     if(action==='select'||action==='open-perk'){
       if(this.linkFrom&&game.user.isGM&&this.editMode){try{await this._linkTo(id);}catch(e){notify(e.message,true);}return;}
       this.nodeId=id;this.sideTab='perk';this._refocus=true;this.render();return;
@@ -1182,7 +1265,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'undo-history':await this._undoHistory(id);break;
         case 'ledger-import':await this._ledgerImport();break;
         case 'pick-actor':this.actorId=id;break;
-        case 'open-row':this.treeId=el.dataset.tree;this.actorId=el.dataset.actor??this.actorId;this.nodeId=null;this.activeTab='trees';break;
+        case 'open-row':this._focusTree(el.dataset.tree);this.actorId=el.dataset.actor??this.actorId;this.activeTab='trees';break;
         case 'reset-tree':await this._resetTree();break;
         case 'give-missing':await this._giveMissing();break;
         case 'edit-node':await this._editNode();break;
@@ -1208,8 +1291,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _help(){
     await infoDialog('Skill Trees help',`
-      <h3>Skill Trees</h3><p>Shows a character’s tree. Each node is a perk’s picture. Its ring shows the state: grey is locked, gold is available, bright green is learned. A dashed outer ring is a rival pair (choose one of the two) and a double outer ring is a crossroads. Names above the columns are the tree’s specialties. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked Choose one joins rival perks. A tree opens fitted to the window; the fit button next to the zoom controls fits it again.</p>
-      <p><strong>Reading and using a perk.</strong> Hover a node, or Tab to it, to see the whole perk in the card at the top right: tier and level, point cost, its description, what it needs and who its rivals are. <strong>Click</strong> a node to open the perk’s Item sheet (a player opens the copy on their own sheet once they have learned it). <strong>Right-click</strong>, the Menu key or <strong>Shift+Enter</strong> pins the node: its card then offers Open perk sheet, Unlock and, for the GM, Remove. A plain click never unlocks or refunds. In Edit layout a click selects the node for editing instead; Open perk sheet is on its card. The menu beside the canvas has three tabs:</p>
+      <h3>Skill Trees</h3><p>The <strong>Professions</strong> and <strong>Cinders</strong> tabs show a character’s trees (Cinders: the Cinder trees of the chosen character; a tree you cannot use because of a missing tool proficiency is hidden until you have it). Each node is a perk’s picture. Its ring shows the state: grey is locked, gold is available, bright green is learned. A dashed outer ring is a rival pair (choose one of the two) and a double outer ring is a crossroads. Names above the columns are the tree’s specialties. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked Choose one joins rival perks. A tree opens fitted to the window; the fit button next to the zoom controls fits it again.</p>
+      <p><strong>Reading and using a perk.</strong> Hover a node, or Tab to it, to see the whole perk in the card at the top right: tier and level, point cost, its description, what it needs and who its rivals are. <strong>Click</strong> a node (or press Enter) to select it: the Selected perk panel in the menu then shows its details and three buttons, <strong>Unlock</strong>, <strong>Refund</strong> (GM) and <strong>Open sheet</strong> (a player opens the copy on their own sheet once they have learned it). A button that cannot be used says why underneath. <strong>Right-click</strong>, the Menu key or <strong>Shift+Enter</strong> selects the node and moves to its Unlock or Refund button. A plain click never unlocks or refunds. The menu beside the canvas has three tabs:</p>
       <ul><li><strong>Perk</strong>: the selected perk, what it needs and what it opens, and its actions (Unlock, Remove, Grant). Selecting a node opens this tab. “Tree as a list” selects nodes from the keyboard.</li>
       <li><strong>Character</strong>: points, Award points, the characters on a profession tree, the character’s History (every change can be undone) and Reset this tree.</li>
       <li><strong>Edit</strong> (GM): with Edit layout on, Tree settings, Appearance, Undo/Redo and the Perks list.</li></ul>
@@ -1236,7 +1319,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const actor=await Actor.create(qaActorData());if(!actor)throw Error('QA Actor creation did not return a document');created.push(actor);
       for(const data of qaSourceItems()){const item=await Item.create(data);if(!item)throw Error('QA Item creation did not return a document');created.push(item);}
       await saveTrees([...existing,...layouts]);
-      this.treeId=QA_TREES.generic;this.actorId=actor.id;this.nodeId=null;this.activeTab='trees';
+      this._focusTree(QA_TREES.generic);this.actorId=actor.id;this.activeTab='trees';
       notify(`Installed ${created.length} native QA documents and ${layouts.length} test tree layouts. Give a test player Owner permission to the [AG QA] Actor.`);
     }catch(error){
       // Source writes and the public projection are separate Foundry operations.
@@ -1283,7 +1366,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const kind=f.kind||'generic_points';const t={id:newKey('LOCAL-TREE'),name:String(f.name??'').trim(),description:'New draft tree.',sourceRef:String(f.sourceRef??'').trim()||null,
       provider:{kind,maxPoints:kind==='cinder_milestone'?CINDER_MAX_POINTS:kind==='profession'?null:Number(f.maxPoints)},status:'draft',visibility:'gm',nodes:[]};
     const v=validateTree(t);if(v.errors.length)throw Error(v.errors.join('; '));
-    await saveTrees([...readPrivate(),t]);this.treeId=t.id;this.activeTab='trees';this.editMode=true;this.sideTab='edit';this.nodeId=null;notify('Draft tree created.');
+    await saveTrees([...readPrivate(),t]);this._focusTree(t.id);this.activeTab='trees';this.editMode=true;this.sideTab='edit';this.nodeId=null;notify('Draft tree created.');
   }
   async _saveEdited(t,{recordHistory=true}={}){
     const old=readPrivate(),prior=old.find(o=>o.id===t.id);if(!prior)throw Error('Selected tree is missing');
@@ -1692,7 +1775,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const startX=event.clientX,startY=event.clientY;let moved=false;
     const move=e=>{
       const dx=(e.clientX-startX)/this.zoom,dy=(e.clientY-startY)/this.zoom;
-      if(Math.hypot(dx,dy)>4&&!moved){moved=true;this._pinned=null;this._tipCtl?.dismiss();}
+      if(Math.hypot(dx,dy)>4&&!moved){moved=true;this._tipCtl?.dismiss();}
       if(!moved)return;
       target.style.left=`${Math.max(0,Math.min(6000,original.x+dx))}px`;
       target.style.top=`${Math.max(0,Math.min(6000,original.y+dy))}px`;
@@ -1755,6 +1838,7 @@ function wireChatButtons(_message,html){
    Players see the published projection only; Unlock uses the same checks and GM-client request as the window. ---- */
 const EMBED_MODES=new Set(['character']);
 const embeds=new Set();
+let embedSeq=0;
 // Perk text as plain words, never cut (0.20.0): it wraps instead.
 const shortText=x=>String(x??'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
 /** Why this user may not see the character's trees here, or '' (GM, or the Actor's owner, with Player Access on). */
@@ -1778,7 +1862,10 @@ function embedTreeModel(actor,stored){
     const available=!unlocked&&e.ok;
     // A perk the GM has not released (Item default ownership None, not approved) cannot be unlocked: say so on the button instead of after a click.
     const unreleased=available&&gm&&Boolean(n.perkId)&&!safePublicSource(n);
-    return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,text:card.summary||shortText(n.description),meta:card.meta,tier:card.tier,summary:card.summary,detailsHtml:card.detailsHtml,
+    // 0.27.0: what the perk needs, by perk name (never ids), so a partner can say it too.
+    const label=id=>perkLabel(t.nodes.find(x=>x.id===id));
+    return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,requiresAll:asArray(n.requiresAll).map(label),requiresAny:asArray(n.requiresAny).map(g=>asArray(g).map(label)).filter(g=>g.length),
+      text:card.summary||shortText(n.description),meta:card.meta,tier:card.tier,summary:card.summary,detailsHtml:card.detailsHtml,
       unlocked,available,unlockable:available&&!unreleased,blocked:unreleased?unreleasedPerkMessage(n.name):'',reason:unlocked?'':String(e.reason??'')};
   });
   const spent=totalSpent(t,acc),profession=t.provider?.kind==='profession';
@@ -1788,12 +1875,24 @@ function embedTreeModel(actor,stored){
     ...(st?.trees?{sourceRef:t.sourceRef,wallet:sharedWalletKey(t),treeSpent:st.treeSpent}:{}),
     ...(profession&&accessLine(stored)?{access:accessLine(stored)}:{})};
 }
+/** The character's trees as the embed lists them: the GM sees all of them; a player's trees exclude the ones the proficiency gate hides (0.27.0). */
+function embedTrees(actor){
+  const mine=treesForActor(actor);
+  if(game.user.isGM)return mine;
+  const hidden=new Set(visibilityRows(actor,{asGM:false,trees:mine}).filter(r=>!r.visible).map(r=>r.tree.id));
+  return mine.filter(t=>!hidden.has(t.id));
+}
+/** The trees the gate hides from this player's embed: [{name, note}] (empty for the GM). */
+function embedHidden(actor){
+  if(game.user.isGM)return [];
+  return visibilityRows(actor,{asGM:false,trees:treesForActor(actor)}).filter(r=>!r.visible).map(r=>({name:r.tree.name||'Unnamed tree',note:r.note}));
+}
 /**
  * 0.21.0 embed data: the character's trees grouped by wallet. A profession with several trees is one group with the shared
  * wallet once ({shared:true, name, sourceRef, level, earned, spent, available, trees:[model…]}); every other tree is a group of one.
  */
 function embedData(actor){
-  const mine=treesForActor(actor),models=new Map(mine.map(t=>[t.id,embedTreeModel(actor,t)]));
+  const mine=embedTrees(actor),models=new Map(mine.map(t=>[t.id,embedTreeModel(actor,t)]));
   return professionGroups(mine).map(g=>{
     const trees=g.trees.map(t=>({...models.get(t.id),label:g.members.find(m=>m.id===t.id)?.label??t.name}));
     const first=trees[0];
@@ -1813,7 +1912,7 @@ function embedHTML(ctrl){
     :`<span class="ag-badge${m.available?' ag-badge--accent':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
   // 0.24.4: one card per available perk, grouped under its tier. Title row (name, cost, Unlock), labelled meta chips, a short
   // effect summary and a Details fold (a button with aria-expanded) holding the rest of the description as safe HTML.
-  const domId=(...p)=>`agst-perk-${p.join('-').replace(/[^A-Za-z0-9_-]/g,'_')}`;
+  const domId=(...p)=>`agst-perk-${ctrl.uid}-${p.join('-').replace(/[^A-Za-z0-9_-]/g,'_')}`; // ctrl.uid: ids stay unique when the same character is on screen twice
   const perkCard=(m,n)=>{
     const key=`${m.id}:${n.id}`,id=domId(ctrl.actorId,m.id,n.id),open=ctrl.openPerks.has(key),why=n.unlockable?'':(n.blocked||n.reason);
     return `<li class="agst-perk" data-agst-perk="${escape(key)}">
@@ -1843,16 +1942,18 @@ function embedHTML(ctrl){
   const profession=g=>{
     const pick=g.trees.some(m=>m.id===ctrl.tabs.get(g.key))?ctrl.tabs.get(g.key)
       :(g.trees.find(m=>m.nodes.some(n=>n.available))??g.trees.find(m=>m.nodes.some(n=>n.unlocked))??g.trees[0]).id;
-    const tabGroup=`agst-embed-${ctrl.actorId}-${g.key}`;
+    const tabGroup=`agst-embed-${ctrl.uid}-${ctrl.actorId}-${g.key}`;
     return `<details class="agst-embed__tree agst-embed__profession" data-tree="${escape(g.key)}" data-agst-wallet="${escape(g.key)}" ${ctrl.closed.has(g.key)?'':'open'}><summary><strong>${escape(g.name)}</strong>${pts(g)}</summary>
       <p class="agst-embed__muted">One wallet shared by ${g.trees.length} trees: ${g.trees.map(m=>`${escape(m.label)} ${m.treeSpent??0}`).join(' · ')}</p>
       ${subTabs({group:tabGroup,label:`${g.name} trees`,tabs:g.trees.map(m=>({id:m.id,label:m.label})),selected:pick})}
-      ${g.trees.map(m=>`<section class="agst-embed__panel" ${tabPanelAttrs(tabGroup,m.id,{hidden:m.id!==pick})}>${body(m)}</section>`).join('')}
+      ${g.trees.map(m=>`<section class="agst-embed__panel" data-agst-panel="${escape(m.id)}" ${tabPanelAttrs(tabGroup,m.id,{hidden:m.id!==pick})}>${body(m)}</section>`).join('')}
     </details>`;
   };
   const others=groups.length-shown.length;
+  const gated=embedHidden(actor);
+  const gateHint=gated.length?`<details class="agst-embed__hidden"><summary>${escape(hiddenHint(gated.length))}</summary><ul class="agst-embed__list">${gated.map(x=>`<li><span class="agst-embed__name">${escape(x.name)}</span>${x.note?` <span class="agst-embed__muted">${escape(x.note)}</span>`:''}</li>`).join('')}</ul></details>`:'';
   return `<div class="agst-embed__body">${shown.map(g=>g.shared?profession(g):tree(g.trees[0])).join('')||'<div class="ag-empty"><p class="ag-empty__title">No points or perks yet</p></div>'}
-    ${others?`<p class="agst-embed__muted">${plural(others,'other tree')} with nothing to spend yet. <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open">Open Skill Trees</button></p>`:''}</div>`;
+    ${others?`<p class="agst-embed__muted">${plural(others,'other tree')} with nothing to spend yet. <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open">Open Skill Trees</button></p>`:''}${gateHint}</div>`;
 }
 /** Unlock from the embed: the same confirm, checks and route as the window (GM unlocks here; a player asks the GM client). */
 async function embedUnlock(actor,treeId,nodeId){
@@ -1878,7 +1979,7 @@ async function embedUnlock(actor,treeId,nodeId){
 function mountEmbed(element,{actorId,mode='character'}={}){
   if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
   if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
-  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),openPerks:new Set(),mounted:true,busy:false,tabs:new Map(),unbind:[]};
+  const abort=new AbortController(),ctrl={uid:`m${++embedSeq}`,actorId:String(actorId??''),closed:new Set(),openPerks:new Set(),mounted:true,busy:false,tabs:new Map(),unbind:[]};
   const memory=uiState(MODULE); // the tree last shown per profession, per user (0.21.0)
   element.classList?.add('agst-embed');
   ctrl.render=()=>{
@@ -1903,8 +2004,9 @@ function mountEmbed(element,{actorId,mode='character'}={}){
     if(tab&&element.contains(tab)){
       const box=tab.closest('[data-agst-wallet]'),key=box?.dataset.agstWallet;if(!key)return;
       ctrl.tabs.set(key,tab.dataset.tab);memory.set(`embedTree:${key}`,tab.dataset.tab);
-      for(const b of box.querySelectorAll('[role="tab"]')){const on=b===tab;b.setAttribute('aria-selected',String(on));b.setAttribute('tabindex',on?'0':'-1');
-        const panel=box.querySelector(`#${CSS.escape(b.getAttribute('aria-controls')??'')}`);if(panel)panel.hidden=!on;}
+      // 0.27.0: the panels are found inside this block by their tree (data-agst-panel), never by a document-wide id, so a second copy of the same character cannot answer for this one.
+      for(const b of box.querySelectorAll('[role="tab"]')){const on=b===tab;b.setAttribute('aria-selected',String(on));b.setAttribute('tabindex',on?'0':'-1');}
+      for(const panel of box.querySelectorAll('[data-agst-panel]'))panel.hidden=panel.dataset.agstPanel!==tab.dataset.tab;
       return;
     }
     const b=e.target?.closest?.('[data-agst-embed]');if(!b||!element.contains(b))return;
@@ -1938,7 +2040,11 @@ function mountEmbed(element,{actorId,mode='character'}={}){
 /** Redraw embeds (all, or those showing one character). */
 function refreshEmbeds(actorId=null){for(const e of [...embeds])if(!actorId||e.actorId===actorId)e.render();}
 
-function open({treeId=null,actorId=null,resolve=false}={}){
+/**
+ * api.open({actorId?, treeId?, tab?, resolve?}) (0.27.0 adds tab). tab is 'professions' or 'cinders'; a known treeId decides its own
+ * tab, an unknown tab value is ignored, and with neither the window keeps the tab it had (first time: Professions). Every earlier call works.
+ */
+function open({treeId=null,actorId=null,resolve=false,tab=null}={}){
   checkTreePlayerAccess();
   // A player can open only a tree their character holds; an unrelated or unknown id is answered the same way.
   if(treeId&&!game.user.isGM){
@@ -1947,9 +2053,17 @@ function open({treeId=null,actorId=null,resolve=false}={}){
     if(!known)throw Error('Unknown tree');
   }
   if(!instance)instance=new SkillTreeApp();
-  if(treeId)instance.treeId=treeId;
   if(actorId)instance.actorId=actorId;
-  if(treeId||actorId)instance.activeTab='trees';
+  if(treeId||actorId||isTreeTab(tab))instance.activeTab='trees';
+  const known=treeId?[...readSelectedTrees(false),...(game.user.isGM?readPrivate():[])]:[];
+  const wanted=openTab({tab,treeId},{trees:known,current:instance.treeTab});
+  if(treeId||isTreeTab(tab)){
+    if(instance.treeId)instance._lastTree[instance.treeTab]=instance.treeId; // leaving a tab remembers its tree
+    if(wanted!==instance.treeTab){instance.treeTab=wanted;instance.nodeId=null;}
+    instance.treeId=treeId??instance._lastTree[wanted]??null;
+    if(treeId)instance._lastTree[wanted]=treeId;
+    if(!treeId)instance.nodeId=null;
+  }
   const rendered=instance.render({force:true});
   // From the GM's Review whisper: go straight to the review dialog.
   if(resolve&&game.user.isGM)Promise.resolve(rendered).then(()=>instance._resolve()).then(()=>instance.render())
@@ -1976,6 +2090,12 @@ Hooks.once('ready',()=>{
   void migrateFolders().catch(e=>console.warn(`${MODULE} | could not file the journal under Ashen Gate`,e));
   mod.api={
     version:VERSION,open,
+    /**
+     * 0.27.0: which of a character's trees the proficiency gate hides, for the Character Hub to reuse. treeVisibility(actorId) or
+     * treeVisibility({actorId|actor, forUser?}) → {contract, actorId, viewer:{id,isGM}, trees:[{treeId,name,kind,sourceRef,visible,hiddenFromPlayers,reason,note,owned}],
+     * hiddenTreeIds, visibleTreeIds, hiddenCount, hiddenFromPlayersCount, hint}. The GM sees every tree (hiddenTreeIds is empty; hiddenFromPlayers marks them).
+     */
+    treeVisibility,
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},
     listTrees:()=>{checkTreePlayerAccess();return copy(readSelectedTrees(false));},
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=treesForActor(actor).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
@@ -2056,6 +2176,8 @@ Hooks.once('ready',()=>{
   Hooks.on('updateActor',(actor,...rest)=>{if(isBulk(...rest))return;refreshEmbeds(actor.id);if(instance?.rendered && instance.actorId===actor.id)instance.render();});
   // Profession Ledger (optional partner): its hook only says "look again"; the level is read through its API.
   Hooks.on('ashenGateLedger.progressionChanged',data=>void onProgressionChanged(data));
+  // 0.27.0: a GM adding or removing a Test player changes that user's access at once (launcher and open window), without a reload.
+  Hooks.on('updateSetting',setting=>{if(setting?.key==='ashen-gate-manager.testPlayers')syncTreePlayerAccess(playerAccessEnabled());});
   Hooks.on('renderChatMessageHTML',wireChatButtons);
   if(game.user.isGM){
     // World perks feed node names/text; an Item on a character sheet does not change the published view.

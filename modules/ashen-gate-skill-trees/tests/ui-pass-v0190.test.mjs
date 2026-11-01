@@ -12,7 +12,7 @@ const store={flags:{[MODULE]:{privateStore:true,payload:{schema:'ag-skill-trees/
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:()=>{}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{}}},utils:{escapeHTML:x=>x,randomID:()=>'r'}};
 globalThis.document={documentElement:{dataset:{agSize:'comfortable'}},createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);}})};
-globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.26.0'}]]),settings:{
+globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.27.0'}]]),settings:{
   register:(_m,key,def)=>defs.set(key,def),registerMenu:()=>{},
   get:(_m,key)=>values.has(key)?values.get(key):({treeData:{schema:'ag-skill-trees/0.1',trees:[{id:'OLD',name:'[TEST] Old tree',nodes:[]}]},publicTreesV2:{schema:'ag-skill-trees/0.2',trees:[]}})[key]??defs.get(key)?.default,
   set:async(_m,key,value)=>{writes.push([key,value]);values.set(key,value);return value;}
@@ -109,7 +109,7 @@ test('header, tabs and toolbar follow the standard',async()=>{
   assert.match(tpl,/<header class="ag-header">\s*<div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate<\/span> \| Skill Trees<\/h1><\/div>\s*<div class="ag-header__meta"><span class="ag-version">v\{\{moduleVersion\}\}<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="help">/);
   assert.match(tpl,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
   const tabs=[...tpl.matchAll(/<button type="button" role="tab" data-act="(tab-[a-z]+)" class="([^"]*)" aria-selected=/g)].map(m=>[m[1],m[2].includes('ag-tab--gm')]);
-  assert.deepEqual(tabs,[['tab-trees',false],['tab-library',true],['tab-setup',true]]);
+  assert.deepEqual(tabs,[['tab-professions',false],['tab-cinders',false],['tab-library',true],['tab-setup',true]]);
   const lib=tpl.slice(tpl.indexOf('{{#if activeLibrary}}\n'),tpl.indexOf('{{#if activeSetup}}\n'));
   const bar=lib.slice(lib.indexOf('<div class="ag-toolbar">'),lib.indexOf('<section'));
   const order=['class="ag-search"','class="ag-toolbar__count"','class="ag-toolbar__end"','data-act="create-tree"'].map(x=>bar.indexOf(x));
