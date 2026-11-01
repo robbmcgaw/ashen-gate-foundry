@@ -1182,7 +1182,7 @@
               {{#if moods.regions.darkness}}<span class="ag-badge" data-tooltip="Core Adjust Darkness Level region behaviours change darkness inside those areas" data-tooltip-class="ag-tooltip">{{moods.regions.darkness}} region(s) adjust darkness</span>{{/if}}
               {{#if moods.darknessLock}}<span class="ag-badge ag-badge--warn">Darkness locked</span>{{/if}}
               <label class="agmanager-tiny">Transition <select data-ag-mood-transition>{{#each moods.transitions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-              <label class="agmanager-tiny" data-tooltip="Blocks any mood or layer marked as flashing, and keeps it out of Random weather. None of the shipped ones flash." data-tooltip-class="ag-tooltip"><input type="checkbox" data-ag-calm {{#if moods.calm}}checked{{/if}}> No flashing <span class="ag-badge">Applies now</span></label>
+              <label class="agmanager-tiny" data-tooltip="Blocks any mood or layer marked as flashing, and keeps it out of Random weather. Only Glass motes and Warped shimmer are marked; they wink or flicker." data-tooltip-class="ag-tooltip"><input type="checkbox" data-ag-calm {{#if moods.calm}}checked{{/if}}> No flashing <span class="ag-badge">Applies now</span></label>
             </div>
           </div>
           <h4 class="agscenes-sect">Base mood</h4>

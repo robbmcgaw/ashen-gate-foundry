@@ -1,4 +1,5 @@
 /** Scene layers, fine-tune, favourites and moods file (0.35.0). Proves logic with mocked Foundry globals, not native Foundry rendering. */
+import {EFFECT_IDS as BLIGHT_IDS} from '../scripts/blight-weather.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -41,7 +42,7 @@ test('default layers are valid, use only V14 fields and core weather ids, and ma
   for(const p of [...DEFAULT_LAYERS, ...DEFAULT_MOODS]) {
     assert.deepEqual(validatePreset(p), [], p.id);
     for(const path of Object.keys(p.set)) assert.ok(V14_PATHS.includes(path), path);
-    if(p.set.weather) assert.ok(CORE_WEATHER.includes(p.set.weather), p.set.weather);
+    if(p.set.weather) assert.ok(CORE_WEATHER.includes(p.set.weather) || Object.values(BLIGHT_IDS).includes(p.set.weather), p.set.weather); // 0.99.0: plus Manager's own Blight weather
   }
   for(const f of MOOD_FIELDS) assert.ok(V14_PATHS.includes(f.path), f.path);
 });

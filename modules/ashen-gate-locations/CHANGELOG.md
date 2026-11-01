@@ -1,3 +1,12 @@
+## 0.44.0 — 2026-11-01
+
+Changed: the six **Blight** weather effects (0.41.0) are no longer part of Locations. They are scene moods, not locations, and now live in **General Manager 0.99.0** (Scenes tab and Scene Config > Basics > Weather) with the same six ids and labels. Update both together.
+
+- **Removed from Locations:** the six `Blight:` entries in Scene Config's Weather list, the **Blight strength** field in Scene Config, the Scene update guard for it, the reduce-motion redraw hook, the *Scene effects* Help topic and the README section. Locations no longer reads or writes `flags.ashen-gate-locations.blightStrength`; an old value is left in the scene, ignored.
+- **A scene that used one of the effects keeps its weather setting.** It draws again once General Manager 0.99.0 is active. Until then (Locations updated first) the scene shows no weather; with General Manager 0.99.0 updated first and Locations not yet, both register the same ids and the later one simply replaces the earlier entry.
+- **Public API unchanged:** no function on `api` ever exposed these effects.
+- Locations still opens and works on its own; it never needed General Manager. Tests are mocked Foundry; they prove nothing here registers weather and the API builds without a weather registry, not a live Forge world.
+
 ## 0.43.1 — 2026-11-01
 
 Fixed: choosing something in the Travel tab no longer throws the window back to the top.

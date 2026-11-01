@@ -222,6 +222,6 @@ test('release.js and Organize never write the label: nothing else sets system.so
 
 test('version 0.96.0, 0.x only, changelog entry', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.98.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.98.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.equal(m.version, '0.99.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.99.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
   assert.match(read('../CHANGELOG.md'), /^## 0\.91\.0 /m);
 });

@@ -1,26 +1,24 @@
 /**
- * Blight scene effects (0.41.0): six weather ambiences a GM can pick in Scene Config (Basics > Weather),
- * like Foundry's own snow or leaves. They register in CONFIG.weatherEffects; Foundry draws them for every
- * client, so players see them without any permission. Nothing here touches scene data except one optional
- * module flag, `flags.ashen-gate-locations.blightStrength` (0 to 3), which only a GM may change.
+ * Blight weather (Manager 0.99.0): six scene moods a GM can pick in Scene Config (Basics > Weather) or add as
+ * one-click layers in Scenes > Moods & layers. They register in CONFIG.weatherEffects on every client; Foundry
+ * draws them for every client, so players see them with no permission. Nothing here writes scene data.
+ *
+ * They moved here from Locations 0.41.0 to 0.42.x with the same six ids (a scene that already uses one keeps it).
+ * Each effect has ONE fixed look: the one the old default strength (2, "Moderate") drew. There is no strength control
+ * and the old `flags.ashen-gate-locations.blightStrength` flag is ignored.
  *
  * Built for Foundry V14 (build 367): a weather entry is {id, label, filter?, effects: [...]}. An effect is either
  * `particles: [ParticleGenerator config]` (the V14 generator) or `effectClass` + `shaderClass` (a shader quad).
- * `effects` and each effect's `config` are read when the canvas draws, so they are getters here: the current
- * scene's strength and the reduced-motion preference are applied then, with no per-scene registration.
+ * `effects` is a getter, read when the canvas draws, so the reduced-motion preference and the world "No flashing"
+ * switch apply then, with no per-scene registration.
  *
  * Everything is feature-detected and fails soft: a missing CONFIG.weatherEffects, particle generator or shader
  * base class skips just what needs it, logs once and never throws.
  */
-import {MODULE_ID} from './model.mjs';
+import {MODULE_ID} from './core.js';
 
-export const STRENGTH_FLAG = 'blightStrength';
-/** Used when a scene has no strength stored: the look each effect is tuned to. */
-export const DEFAULT_STRENGTH = 2;
-export const STRENGTH_LABELS = ['Off', 'Light', 'Moderate', 'Heavy'];
-/** Strength 0 to 3 mirrors the overland Blight Taint severity. Density scales particle counts; opacity scales alpha. */
-export const DENSITY = Object.freeze([0, 0.5, 1, 1.6]);
-export const OPACITY = Object.freeze([0, 0.7, 1, 1.25]);
+/** The one look: what Locations drew at strength 2 (density x1, opacity x1). */
+export const LOOK = Object.freeze({density: 1, opacity: 1});
 /** Hard cap on one particle generator's count (an ambient count is scaled down further by the visible area). */
 export const MAX_PARTICLES = 160;
 
@@ -40,31 +38,31 @@ export const EFFECT_LABELS = Object.freeze({
   [EFFECT_IDS.glass]: 'Blight: Glass motes',
   [EFFECT_IDS.shimmer]: 'Blight: Warped shimmer'
 });
+/** Effects whose look winks or flickers; they are marked `flashing` in the layers and calmed by "No flashing". */
+export const FLICKERING = Object.freeze([EFFECT_IDS.glass, EFFECT_IDS.shimmer]);
 export const isBlightEffect = id => Object.values(EFFECT_IDS).includes(id);
-
-/** A scene's strength, 0 to 3 (a whole number). Missing or unreadable values read as the default. */
-export function strengthOf(scene) {
-  let raw;
-  try { raw = scene?.getFlag?.(MODULE_ID, STRENGTH_FLAG); } catch { raw = undefined; }
-  if (raw === undefined || raw === null || raw === '') return DEFAULT_STRENGTH;
-  const n = Number(raw);
-  return Number.isFinite(n) ? Math.min(3, Math.max(0, Math.round(n))) : DEFAULT_STRENGTH;
-}
 
 export const prefersReducedMotion = () => {
   try { return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true; } catch { return false; }
 };
 
-/** What an effect builder needs: strength mapped to density and opacity, and the motion preference. */
-export function contextFor(scene, reduced = prefersReducedMotion()) {
-  const level = strengthOf(scene);
-  return {level, density: DENSITY[level], opacity: OPACITY[level], reduced: reduced === true, motion: reduced === true ? 0 : 1,
+/**
+ * What an effect builder needs. `reduced` is the system motion preference; `calm` is the world "No flashing" switch.
+ * Reduced motion slows everything and stills the pulse, wink and flicker; "No flashing" removes only the wink and flicker.
+ */
+export function contextFor(reduced = prefersReducedMotion(), calm = false) {
+  const r = reduced === true, c = calm === true;
+  return {density: LOOK.density, opacity: LOOK.opacity, reduced: r, calm: c,
+    /** 0 holds the overlay shader's time term (no flicker, bands stand still). */
+    motion: r || c ? 0 : 1,
+    /** Whether the wink / flicker is drawn at all. */
+    winks: !(r || c),
     /** A speed multiplier: reduced motion keeps things nearly still. */
-    pace: reduced === true ? 0.15 : 1};
+    pace: r ? 0.15 : 1};
 }
 
 const clamp01 = n => Math.min(1, Math.max(0, n));
-const count = (base, ctx) => (ctx.density > 0 ? Math.min(MAX_PARTICLES, Math.max(1, Math.round(base * ctx.density))) : 0);
+const count = (base, ctx) => (Math.min(MAX_PARTICLES, Math.max(1, Math.round(base * ctx.density))));
 const alphaRange = (lo, hi, ctx) => [clamp01(lo * ctx.opacity), clamp01(hi * ctx.opacity)];
 const SOFT_DOT = 'ui/particles/snow.png';
 /** Foundry's name for a particle's (and a weather shader's) opacity. Joined from parts only so the suite's UI lint, which reads
@@ -102,10 +100,10 @@ function sporeParticles(ctx) {
 }
 
 function glassParticles(ctx) {
-  const wink = ctx.reduced ? {} : {
+  const wink = ctx.winks ? {
     onSpawn: p => { phaseOf(p); },
     onUpdate: p => { p[FADE] *= 0.2 + 0.8 * Math.abs(Math.sin(seconds() * 4 + phaseOf(p))); }
-  };
+  } : {};
   return [ambient({count: count(80, ctx), lifetime: [2500, 5000], fade: {in: 0.25, out: 0.45}, tint: 0xdce8ee,
     velocity: {x: [-6 * ctx.pace, 6 * ctx.pace], y: [-30 * ctx.pace, -12 * ctx.pace]}, [FADE]: alphaRange(0.5, 0.95, ctx), scale: [0.03, 0.08], ...wink})];
 }
@@ -187,20 +185,20 @@ export const resetWarnings = () => warned.clear();
 
 /**
  * Add the six Blight effects to CONFIG.weatherEffects. Returns {registered, skipped}; never throws.
- * @param {object} [env] globals, injectable for tests: config, canvas, foundry, PIXI, scene(), reduced(), log
+ * @param {object} [env] globals, injectable for tests: config, canvas, foundry, reduced(), calm(), log
  */
-export function registerSceneEffects(env = {}) {
+export function registerBlightWeather(env = {}) {
   const result = {registered: [], skipped: []};
   try {
     const config = env.config ?? globalThis.CONFIG;
     const cv = env.canvas ?? globalThis.canvas;
     const fnd = env.foundry ?? globalThis.foundry;
     const log = env.log ?? console.warn;
-    const currentScene = env.scene ?? (() => globalThis.canvas?.scene);
     const reduced = env.reduced ?? prefersReducedMotion;
+    const calm = env.calm ?? (() => false);
     const target = config?.weatherEffects;
     if (!target || typeof target !== 'object') {
-      warnOnce(log, 'no-weather', 'CONFIG.weatherEffects is not available, so the Blight scene effects were not added.');
+      warnOnce(log, 'no-weather', 'CONFIG.weatherEffects is not available, so the Blight weather effects were not added.');
       result.skipped.push(...Object.values(EFFECT_IDS));
       return result;
     }
@@ -208,7 +206,11 @@ export function registerSceneEffects(env = {}) {
     const hasParticles = typeof fnd?.canvas?.animation?.ParticleGenerator === 'function';
     const hasShaders = typeof shaders?.WeatherShaderEffect === 'function' && typeof shaders?.AbstractWeatherShader === 'function';
     const Overlay = hasShaders ? createOverlayShader(shaders.AbstractWeatherShader) : null;
-    const ctx = () => contextFor(currentScene(), reduced());
+    const ctx = () => {
+      let c = false;
+      try { c = calm() === true; } catch { c = false; }
+      return contextFor(reduced(), c);
+    };
     const shaderEntry = (id, shaderClass, c, extra = {}) => ({id, effectClass: shaders.WeatherShaderEffect, shaderClass, ...extra, config: c});
 
     const definitions = [
@@ -234,17 +236,14 @@ export function registerSceneEffects(env = {}) {
       const ok = def.needs === 'particles' ? hasParticles : (hasShaders && !!shaders.RainShader && !!shaders.FogShader);
       if (!ok) {
         result.skipped.push(def.id);
-        warnOnce(log, `missing-${def.needs}`, `This Foundry build has no ${def.needs === 'particles' ? 'particle generator' : 'weather shader classes'}, so the Blight effects that need it were not added.`);
+        warnOnce(log, `missing-${def.needs}`, `This Foundry build has no ${def.needs === 'particles' ? 'particle generator' : 'weather shader classes'}, so the Blight weather effects that need it were not added.`);
         continue;
       }
       const entry = {id: def.id, label: EFFECT_LABELS[def.id]};
       if (def.filter) entry.filter = def.filter;
-      // Read when the canvas draws: the effect list for this scene's strength (none at 0) and motion preference.
+      // Read when the canvas draws: the motion preference and the "No flashing" switch apply then.
       Object.defineProperty(entry, 'effects', {enumerable: true, configurable: true, get() {
-        try {
-          const c = ctx();
-          return c.level === 0 ? [] : def.build(c);
-        } catch (err) {
+        try { return def.build(ctx()); } catch (err) {
           warnOnce(log, `build-${def.id}`, `The "${EFFECT_LABELS[def.id]}" effect could not be built and draws nothing: ${err?.message ?? err}`);
           return [];
         }
@@ -253,42 +252,12 @@ export function registerSceneEffects(env = {}) {
       result.registered.push(def.id);
     }
   } catch (err) {
-    try { (env.log ?? console.warn)(`${MODULE_ID} | Blight scene effects could not be added: ${err?.message ?? err}`); } catch { /* nothing more to do */ }
+    try { (env.log ?? console.warn)(`${MODULE_ID} | Blight weather effects could not be added: ${err?.message ?? err}`); } catch { /* nothing more to do */ }
   }
   return result;
 }
 
-/* -------------------------------------------- */
-/*  Per-scene strength: data layer and form      */
-/* -------------------------------------------- */
-
-const changedStrength = changes => {
-  const flat = changes?.[`flags.${MODULE_ID}.${STRENGTH_FLAG}`];
-  if (flat !== undefined) return {has: true, value: flat, set: v => { changes[`flags.${MODULE_ID}.${STRENGTH_FLAG}`] = v; }};
-  const bag = changes?.flags?.[MODULE_ID];
-  if (bag && Object.hasOwn(bag, STRENGTH_FLAG)) return {has: true, value: bag[STRENGTH_FLAG], set: v => { bag[STRENGTH_FLAG] = v; }};
-  return {has: false};
-};
-
-/**
- * preUpdateScene guard. Only a GM may change the strength: any other user's change is refused (returns false).
- * The stored value is always null (unset, default) or a whole number 0 to 3. Returns true when nothing is wrong.
- */
-export function guardStrengthChange(changes, isGMUser) {
-  const c = changedStrength(changes);
-  if (!c.has) return true;
-  if (isGMUser !== true) return false;
-  const raw = c.value;
-  if (raw === null || raw === '' || raw === undefined) { c.set(null); return true; }
-  const n = Number(raw);
-  c.set(Number.isFinite(n) ? Math.min(3, Math.max(0, Math.round(n))) : null);
-  return true;
-}
-
-/** True when a scene update changes the strength (so a viewed Blight scene should redraw its effect). */
-export const strengthChanged = changes => changedStrength(changes).has;
-
-/** Redraw the viewed scene's weather without redrawing the canvas. Fails soft. */
+/** Redraw the viewed scene's weather without redrawing the canvas (used when the motion preference changes). Fails soft. */
 export function refreshWeather(env = {}) {
   try {
     const cv = env.canvas ?? globalThis.canvas;
@@ -298,47 +267,7 @@ export function refreshWeather(env = {}) {
     cv.weather.initializeEffects(config?.weatherEffects?.[scene.weather]);
     return true;
   } catch (err) {
-    try { (env.log ?? console.warn)(`${MODULE_ID} | The scene effect could not be refreshed: ${err?.message ?? err}`); } catch { /* ignore */ }
-    return false;
-  }
-}
-
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-
-/** The Blight strength field, as Scene Config's own form-group markup. */
-export function strengthFieldHtml(scene) {
-  const stored = scene?.getFlag?.(MODULE_ID, STRENGTH_FLAG);
-  const current = stored === undefined || stored === null || stored === '' ? '' : String(strengthOf(scene));
-  const options = [['', `Default (${DEFAULT_STRENGTH}, ${STRENGTH_LABELS[DEFAULT_STRENGTH]})`],
-    ...STRENGTH_LABELS.map((label, i) => [String(i), `${i}, ${label}`])]
-    .map(([v, label]) => `<option value="${v}"${v === current ? ' selected' : ''}>${esc(label)}</option>`).join('');
-  const id = `ag-blight-strength-${scene?.id ?? 'scene'}`;
-  return `<div class="form-group" data-ag-blight-strength>
-    <label for="${id}">Blight strength</label>
-    <div class="form-fields"><select id="${id}" name="flags.${MODULE_ID}.${STRENGTH_FLAG}">${options}</select></div>
-    <p class="hint">Applies to the Blight: effects. 0 turns the effect off for this scene; 1 to 3 mirror Blight Taint (light to heavy).</p>
-  </div>`;
-}
-
-/**
- * renderSceneConfig: add the Blight strength field under the Weather field, for a GM, once per render.
- * @returns {boolean} whether the field was added
- */
-export function addStrengthField(root, scene, isGMUser) {
-  try {
-    if (isGMUser !== true || !root?.querySelector) return false;
-    if (root.querySelector('[data-ag-blight-strength]')) return false;
-    const select = root.querySelector('select[name="weather"]');
-    const group = select?.closest?.('.form-group');
-    if (!group) return false;
-    const holder = globalThis.document.createElement('div');
-    holder.innerHTML = strengthFieldHtml(scene);
-    const field = holder.firstElementChild;
-    if (!field) return false;
-    group.after(field);
-    return true;
-  } catch (err) {
-    console.warn(`${MODULE_ID} |`, err);
+    try { (env.log ?? console.warn)(`${MODULE_ID} | The weather effect could not be refreshed: ${err?.message ?? err}`); } catch { /* ignore */ }
     return false;
   }
 }
