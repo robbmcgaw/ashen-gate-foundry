@@ -104,7 +104,7 @@
 /* 0.43.0: profession groups on the recipe list. The header is a real button over a box; boxes use the kit box radius, never the control pill. */
 .agl-group{border:1px solid var(--ag-border);border-radius:var(--ag-radius);margin-bottom:var(--ag-space-2);background:var(--ag-surface)}
 .agl-group__head{margin:0;font:inherit}
-.agl-group__toggle{display:flex;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);width:100%;min-height:var(--ag-row-h);padding:var(--ag-space-2) var(--ag-space-3);border:0;border-radius:var(--ag-radius);background:transparent;color:var(--ag-text);font:inherit;text-align:start;cursor:pointer}
+.agl-group__toggle{display:flex;justify-content:flex-start;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);width:100%;min-height:var(--ag-row-h);padding:var(--ag-space-2) var(--ag-space-3);border:0;border-radius:var(--ag-radius);background:transparent;color:var(--ag-text);font:inherit;text-align:start;cursor:pointer}
 .agl-group__toggle:hover:not(:disabled){background:var(--ag-surface-hover)}
 .agl-group:not(.is-closed)>.agl-group__head>.agl-group__toggle{border-radius:var(--ag-radius) var(--ag-radius) 0 0}
 .agl-group__chev{flex:none;color:var(--ag-muted);transition:transform var(--ag-dur-fast) var(--ag-ease)}
@@ -279,3 +279,14 @@
 .agl-ctl{margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
 .agl-ctl select{width:auto;max-width:14rem}
 .agl-no-matches .ag-btn{margin-top:var(--ag-space-2)}
+
+/* 0.46.0: Known-recipes cards fold: the expand button holds the name; the head keeps the star, tags and main button. */
+.agl-recipe-toggle{display:inline-flex;align-items:center;gap:var(--ag-space-2);justify-content:flex-start;min-height:var(--ag-row-h);padding:0 var(--ag-space-1);border:0;border-radius:var(--ag-radius);background:transparent;color:var(--ag-text);font:inherit;text-align:start;cursor:pointer}
+.agl-recipe-toggle:hover:not(:disabled){background:var(--ag-surface-hover)}
+.agl-recipe-toggle:focus-visible{outline:2px solid var(--ag-focus);outline-offset:2px}
+.agl-recipe-chev{flex:none;color:var(--ag-muted);transition:transform var(--ag-dur-fast) var(--ag-ease)}
+.agl-recipe-card.is-collapsed .agl-recipe-chev{transform:rotate(-90deg)}
+.agl-recipe-full{display:flex;flex-direction:column;gap:var(--ag-space-2)}
+.agl-recipe-full[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.agl-recipe-chev{transition:none}}
+.agl-recipe-card .agl-recipe-title{align-items:center}

@@ -36,7 +36,7 @@ R('REC-TEST-R2','[TEST] Rune','ARTISTRY',{kind:'activity',gm_applied:true,tier:'
 const actor=(id,name,known)=>({id,name,type:'character',hasPlayerOwner:true,items:Object.assign([],{get:()=>undefined}),flags:{'ashen-gate-profession-ledger':{knownRecipes:known}},testUserPermission:()=>true,setFlag:async()=>{}});
 const alpha=actor('a1','[TEST] Alpha',['REC-TEST-A1','REC-TEST-A2','REC-TEST-H1']),bravo=actor('a2','[TEST] Bravo',['REC-TEST-A1']);
 const journal={id:'j1',flags:{'ashen-gate-profession-ledger':{role:'gm-data'}},getFlag(m,k){return this.flags[m]?.[k];},async update(){}};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.45.0'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.46.0'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},journal:[journal],
   actors:{contents:[alpha,bravo],get:id=>[alpha,bravo].find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};

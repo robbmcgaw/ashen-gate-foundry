@@ -34,7 +34,7 @@ world.get=id=>world.find(x=>x.id===id);
 const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:true,items:[{id:'bprof',name:'[TEST] Alchemy — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-ALCHEMY','Profession',{definition:def('PROF-TEST-ALCHEMY','Profession',{name:'[TEST] Alchemy'})})}],flags:{'ashen-gate-profession-ledger':{knownRecipes:['REC-TEST-SALVE','REC-TEST-JEST']}},
   testUserPermission:(u,role)=>u.isGM||u.id==='u1'||role==='LIMITED'};
 belwar.items.get=id=>belwar.items.find(i=>i.id===id)??null;
-const moduleObj={active:true,version:'0.45.0',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.46.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar],get:id=>id==='belwar'?belwar:undefined},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -137,7 +137,7 @@ test('Individual card: the head, the tool or station line (with its warning) and
 
 test('search matches words inside the details (ingredients, summary) and opens a collapsed match; clearing it puts back what was remembered',async()=>{
  const h=await html('individual');
- const search=name=>h.match(new RegExp(`<article class="ag-card agl-recipe-row" data-recipe-search="([^"]*)">[^]*?<strong>${name.replace(/[[\]]/g,'\\$&')}</strong>`))[1];
+ const search=name=>h.match(new RegExp(`<article class="ag-card agl-recipe-row[^"]*" data-recipe-search="([^"]*)"[^]*?<strong>${name.replace(/[[\]]/g,'\\$&')}</strong>`))[1];
  const salve=search('[TEST] Salve');
  assert.match(salve,/leaf/,'an ingredient name');assert.match(salve,/heals a little/,'the summary text');assert.match(salve,/laboratory/,'the station');
  const d1=fakeDetails('a',false),d2=fakeDetails('b',false);d2.dataset.storedOpen='0';
