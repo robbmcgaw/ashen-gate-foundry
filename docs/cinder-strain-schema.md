@@ -202,6 +202,8 @@ These fields go in the existing Skill Trees file:
 
 Each node's `perkId` is a `POWER-*` id, and a node costs its power's `point_cost`. There is one tree per Cinder; two trees cannot share a `sourceRef`.
 
+Optional tree field, `reveal` (Skill Trees 0.28.0): `"progressive"`, or leave it out for the old behaviour (every released node is shown). Any other value is ignored with a warning. With `"progressive"` a player sees, for their own character: the nodes they have unlocked, the nodes with no prerequisites, and the nodes available now (shown); one step beyond those as nameless "Undiscovered" silhouettes; and nothing further. Use it on Cinder trees so a bearer sees the first power before unlocking anything while later tiers stay hidden until reached. Because the rule decides what players see, give every node of a progressive tree `visibility: "player"` and `display: "shown"` (a stored `hidden` or `teaser` node is simply not published). The GM sees the whole tree. The GM can set this on every Cinder tree at once with Skill Trees > Tree Library > Checks & maintenance > Show Cinder trees to their bearers… (or `api.showCinderTrees()`).
+
 ## Strain config — `ag-strain-config/0.1`
 
 Every field except `schema` is optional; missing fields use the defaults shown. An unknown field is ignored with a warning. Importing a config replaces the whole current config (fields left out go back to the defaults, not to the current values); character Strain is not changed.

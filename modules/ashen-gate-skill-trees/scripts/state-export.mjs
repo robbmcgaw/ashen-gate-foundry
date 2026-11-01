@@ -17,6 +17,7 @@ function layout(tree){
   const row={tree_id:tree.id,name:tree.name??'',kind:tree.provider?.kind??'generic_points',status:tree.status??null,visibility:tree.visibility??null,
     source_ref:tree.sourceRef??null,provider:structuredClone(tree.provider??{}),
     access:tree.access?structuredClone(tree.access):null,
+    reveal:tree.reveal==='progressive'?'progressive':null,
     appearance:{node_size:tree.nodeSize??null,background:tree.background?structuredClone(tree.background):null,tiers:Array.isArray(tree.tiers)?structuredClone(tree.tiers):[]},
     nodes:(Array.isArray(tree.nodes)?tree.nodes:[]).map(layoutNode).sort((a,b)=>byText(a.id,b.id))};
   return row;

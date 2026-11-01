@@ -121,7 +121,7 @@ GM-only, read-only play state from Skill Trees `api.exportState()` (optional: fe
   "trees": [
     {
       "tree_id": "TREE-TEST", "name": "[TEST] Tree", "kind": "generic_points", "status": "draft", "visibility": "gm", "source_ref": null,
-      "provider": {"kind": "generic_points", "maxPoints": 10}, "access": null,
+      "provider": {"kind": "generic_points", "maxPoints": 10}, "access": null, "reveal": null,
       "appearance": {"node_size": "compact", "background": null, "tiers": []},
       "nodes": [{"id": "NODE-TEST-1", "perk_id": "PERK-TEST", "x": 10, "y": 20, "cost": 1, "requires_all": [], "requires_any": [["NODE-TEST-2", "NODE-TEST-3"]], "excludes": [], "status": "draft", "visibility": "gm", "display": "hidden", "content_ref": null, "lane": null}]
     }

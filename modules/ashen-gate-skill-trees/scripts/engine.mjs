@@ -1,6 +1,7 @@
 /** Ashen Gate shared visual tree — isolated data/eligibility rules, no Foundry globals. */
 import {applyAppearance,appearanceWarnings} from './appearance.mjs';
 import {sanitizePerkHtml} from './perk-html.mjs';
+import {cleanReveal,isProgressive} from './reveal.mjs';
 export const SCHEMA = 'ag-skill-trees/0.3';
 /** 0.2 files (free-text nodes, contentRef links) are still read; 0.3 nodes name a perk by perkId. */
 export const READABLE_SCHEMAS = ['ag-skill-trees/0.2', SCHEMA];
@@ -195,6 +196,8 @@ export function normalizeTree(raw) {
   tree.provider=tree.provider??{kind:'generic_points',maxPoints:10};
   // 0.21.0: optional proficiency gate; dropped when it lists nothing usable (validateTree reports why).
   if('access' in tree){const access=cleanAccess(tree.access);if(access)tree.access=access;else delete tree.access;}
+  // 0.28.0: optional reveal mode; only the known value survives (validateTree reports anything else).
+  if('reveal' in tree){const reveal=cleanReveal(tree.reveal);if(reveal)tree.reveal=reveal;else delete tree.reveal;}
   // Cinder wallets are always CINDER_MAX_POINTS. A tree saved with the old 13 reads as 16 here; the saved data is not rewritten.
   if(tree.provider.kind==='cinder_milestone')tree.provider={...tree.provider,maxPoints:CINDER_MAX_POINTS};
   tree.nodes=asArray(tree.nodes).map(n=>{
@@ -249,6 +252,11 @@ export function validateTree(input) {
   if(t.provider.kind==='profession' && !/^PROF-[A-Z0-9-]+$/.test(t.sourceRef??''))errors.push('Profession trees need a PROF-* identity');
   if(t.provider.kind==='cinder_milestone' && input?.provider?.maxPoints!=null && !CINDER_MAX_POINTS_ACCEPTED.includes(input.provider.maxPoints))errors.push(`Cinder wallet limit must be ${CINDER_MAX_POINTS}`);
   errors.push(...accessErrors(input.access));
+  if(input.reveal!=null&&!cleanReveal(input.reveal))warnings.push(`reveal: unknown value ${JSON.stringify(input.reveal)}; ignored (use "progressive", or leave it out to show every node)`);
+  if(t.reveal==='progressive'){
+    const off=nodes.filter(n=>n.status!=='placeholder'&&(n.visibility!=='player'||n.display!=='shown')).length;
+    if(off)warnings.push(`reveal progressive: ${off} node${off===1?'':'s'} not player-visible with display shown; they stay hidden from players (the reveal rule decides what players see, so nodes should be shown)`);
+  }
   if(t.provider.kind==='generic_points' && (t.provider.maxPoints!=null && (!Number.isSafeInteger(t.provider.maxPoints)||t.provider.maxPoints<1||t.provider.maxPoints>999)))errors.push('Invalid generic maximum points');
   if(nodes.length>300)errors.push('Maximum 300 nodes per layout');
   const by=new Map();
@@ -532,23 +540,35 @@ export function treeStatsText(stats) {
   return [plural(stats.nodes,'node'),plural(stats.exclusivePairs,'rival pair'),
     stats.maxTogether!=null?`up to ${stats.maxTogether} can be taken together`:`${stats.reachable} reachable`].join(', ');
 }
-/** Safe-for-all-clients public projection. No GM-only names, text, references or prereq references. */
-export function publicTree(tree) {
+/**
+ * Safe-for-all-clients public projection. No GM-only names, text, references or prereq references.
+ * 0.28.0: a tree with reveal 'progressive' publishes the full text of nodes with no prerequisites only; every other node goes out as a
+ * silhouette (layout and prerequisite ids, no name, text, picture or real cost). {full:true} is for the GM client only: it keeps the
+ * text of every node so the per-character record and the authoritative unlock check can use it. It is never written to the shared setting.
+ */
+export function publicTree(tree,{full=false}={}) {
   const t=normalizeTree(tree);
   if(t.visibility!=='player'||t.status==='draft')return null;
-  const allowed=n=>n.status!=='placeholder'&&n.status!=='draft'&&n.visibility==='player'&&n.display!=='hidden';
+  const progressive=isProgressive(t);
+  // A progressive tree needs shown nodes: a stored 'hidden' or 'teaser' is not a floor there, such a node is simply not published.
+  const allowed=n=>n.status!=='placeholder'&&n.status!=='draft'&&n.visibility==='player'&&(progressive?n.display==='shown':n.display!=='hidden');
   const visible=t.nodes.filter(allowed);
   const visibleIds=new Set(visible.map(n=>n.id));
+  const masked=n=>progressive&&!full&&(n.requiresAll.length>0||n.requiresAny.length>0);
   return {
     id:t.id,name:t.name,description:t.description,sourceRef:t.sourceRef??null,
     provider:{kind:t.provider.kind,maxPoints:t.provider.kind==='profession'?null:t.provider.maxPoints??null},
     status:t.status,visibility:'player',
+    ...(progressive?{reveal:'progressive'}:{}),
     ...(t.access?{access:clone(t.access)}:{}),
     ...(t.nodeSize?{nodeSize:t.nodeSize}:{}),...(t.background?{background:t.background}:{}),...(t.tiers?{tiers:t.tiers}:{}),
     nodes:visible.map(n=> {
-      if(n.display==='teaser')return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:n.cost??1,
-        silhouette:true,requiresAll:[],requiresAny:[],excludes:[],unrevealedPrerequisite:true};
       const missing=n.requiresAll.some(id=>!visibleIds.has(id))||n.requiresAny.some(g=>g.some(id=>!visibleIds.has(id)));
+      if(masked(n))return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:1,silhouette:true,
+        requiresAll:n.requiresAll.filter(id=>visibleIds.has(id)),requiresAny:n.requiresAny.map(g=>g.filter(id=>visibleIds.has(id))).filter(g=>g.length),
+        excludes:[],unrevealedPrerequisite:missing};
+      if(!progressive&&n.display==='teaser')return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:n.cost??1,
+        silhouette:true,requiresAll:[],requiresAny:[],excludes:[],unrevealedPrerequisite:true};
       const html=sanitizePerkHtml(n.descriptionHtml);
       return {id:n.id,name:n.name,description:n.description,...(html?{descriptionHtml:html}:{}),...(n.lane?{lane:n.lane}:{}),img:typeof n.img==='string'?n.img:null,x:n.x,y:n.y,cost:n.cost??1,
         silhouette:false,requiresAll:n.requiresAll.filter(id=>visibleIds.has(id)),
