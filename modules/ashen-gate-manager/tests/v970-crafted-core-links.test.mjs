@@ -289,7 +289,7 @@ test('Sync label fill is described in the result line, Help, README and CHANGELO
   const read = p => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.match(read('../scripts/main.js'), /source label\$\{k\.labelled===1\?'':'s'\} set/);
   const log = read('../CHANGELOG.md');
-  assert.match(log, /^## 0\.97\.0 /);
+  assert.match(log, /^## 0\.98\.0 /);
   assert.match(log, /Link only: this is an Ashen Gate crafted item/);
   assert.match(log, /Restore Ashen Gate text on linked crafted items/);
   assert.match(log, /Sync[^\n]*source label/i);

@@ -1,3 +1,10 @@
+## 0.37.0 — 2026-11-01
+
+**New: Test players.** The Utilities launcher, conditions overlay, shops and party stash treat a Test player as if Player Access were on (the stash and shops switches still apply). Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.36.1 — 2026-10-30
 
 Fixed: a player the GM has hidden Utilities from could leave the Conditions overlay switched on without it opening.

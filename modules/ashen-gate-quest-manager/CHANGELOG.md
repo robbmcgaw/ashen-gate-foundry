@@ -1,3 +1,10 @@
+## 0.32.0 — 2026-11-01
+
+**New: Test players.** The Quest Log launcher, window, tracker, Game Journal and objective lookups treat a Test player as if Player Access were on. "Show to players" from the GM still needs Player Access on for the world. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.31.0 — 2026-10-30
 
 - **`api.exportSource()`** (GM only, refused for players): returns the package the **Export JSON** button downloads (`schema_version` `ag-quest-source/0.1`, every quest, order and contract, definitions only, no play state). The button now calls the same function, so there is one code path. General Manager's *Back up world now…* uses it for `quests.json`. Feature-detect it (`typeof api.exportSource === 'function'`). Nothing saved is changed.

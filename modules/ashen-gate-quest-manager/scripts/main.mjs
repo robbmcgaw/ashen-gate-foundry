@@ -13,6 +13,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,planRevealTracker,validTrackedId,trackingState,overlayState,clampOpacity,clampPosition} from './tracking.mjs';
 import {captureView,restoreView} from './view-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,bindTablist,bindSplitNav,bindFolds,bindFileButtons,linkButton,refPicker,refList,readRefList,bindRefPickers,bindRefLists,generateId} from './ag-html.mjs';
 import {KIND_PREFIX,newQuestId,readLinks,applyLinks,rememberLinkNames,locationRecords,npcRecords,factionRecords,questRecords,linkOptions} from './quest-links.mjs';
@@ -23,13 +24,15 @@ import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 import {createShowToPlayers,showQuestFlow,revealFlow,hideFlow,SHOW_SOCKET_TYPE} from './show-to-players.mjs';
 
-const VERSION='0.31.0';
+const VERSION='0.32.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
 const E=cleanText;
 const appBase=()=>foundry?.applications?.api?.ApplicationV2;
-const openAllowed=()=>game.user?.isGM||game.settings.get(MOD,'playerAccessEnabled');
+/** Player Access as `user` (default: this client) sees it: the world setting, or ON for a Test player (ag-test-players/1, set in General Manager). */
+const accessFor=(user=game.user)=>game.settings.get(MOD,'playerAccessEnabled')===true||isTestPlayer(user,game);
+const openAllowed=()=>game.user?.isGM||accessFor();
 const hasGM=()=>!!game.user?.isGM;
 // Character pickers: player characters only (core.mjs isPlayerCharacter); a player sees their own.
 function actorsOwned(){return [...game.actors].filter(a=>isPlayerCharacter(a,hasGM()?[...game.users]:[game.user])).sort((a,b)=>String(a.name).localeCompare(String(b.name)));}
@@ -294,7 +297,7 @@ function hubShowsQuests(){
 }
 const journalStore=createJournalStore({moduleId:MOD,users:()=>game.users,me:()=>game.user,entries:()=>game.journal??[],
  createEntry:data=>JournalEntry.create(data,{renderSheet:false}),folderId:()=>ensureFolder('Game Journal'),
- access:()=>game.settings.get(MOD,'playerAccessEnabled')===true,hubShown:hubShowsQuests,
+ access:accessFor,hubShown:hubShowsQuests,
  nextNumberSetting:()=>game.settings.get(MOD,'nextSessionNumber'),setNextNumber:n=>game.settings.set(MOD,'nextSessionNumber',n),
  isPrimaryGM:()=>!!game.user?.isGM&&(game.users?.activeGM?.isSelf??true),get socket(){return game.socket;}});
 const journalAllowed=()=>{try{return journalStore.allowed();}catch{return false;}};
@@ -828,7 +831,7 @@ async function popTracker(viewId){
 }
 const openShown=viewId=>popTracker(viewId);
 const showToPlayers=createShowToPlayers({moduleId:MOD,user:()=>game.user,users:()=>game.users,get socket(){return game.socket;},
- access:()=>game.settings.get(MOD,'playerAccessEnabled')===true,now:()=>Date.now(),sleep:ms=>new Promise(r=>setTimeout(r,ms)),
+ access:accessFor,now:()=>Date.now(),sleep:ms=>new Promise(r=>setTimeout(r,ms)),
  projection:id=>findProjection(id),visibleViews:()=>visibleViews(),journalDoc:key=>game.journal?.get?.(key)??null,
  autoOpen:()=>game.settings.get(MOD,'showOpensWindow')!==false,
  busy:()=>{const a=editableFocus();return !!(a&&instance?.rendered&&instance.element?.contains?.(a));},

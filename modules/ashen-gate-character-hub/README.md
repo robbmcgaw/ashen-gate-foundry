@@ -237,3 +237,11 @@ To restore, put each archived scope back on the document its id names and remove
 Items and effects on both sides are replaced in place by id; the rest are created with their ids or deleted. The live character records `flags['ashen-gate-character-hub'].levelRestore = {opId, backupId, backupName, levelBefore, levelAfter, safetyId, date, by}`; the same opId again does nothing. The copy is not changed. Players are refused in the data layer (`api.levelBackups.restore`), not only by the hidden button. There is no cleanup tool: delete old copies by hand.
 
 API: `api.levelBackups.list(actor)` (copies' ids, names and markers, newest first) and `api.levelBackups.restore(backupActor, {opId})`.
+
+## Test players
+
+General Manager (0.98.0+) can list "Test players" (GM Setup > General). A Test player sees every Hub tab and button backed by a partner module as if that module's Player Access were on (a part switched off in the Hub's own Player visibility stays off). Real players keep following each partner module's Player Access setting.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (an array of User ids) through this module's own copy of `ag-test-players.mjs`; it never imports Manager code. No Manager, an unregistered setting or a malformed value means no Test players, and it never throws.
+- It grants no GM power: GM-only actions stay GM-only, and document permissions (Actor ownership, Item and journal permissions) are checked as for any player.
+- Contract (`ag-test-players/1`) and the full list of modules: [docs/test-players.md](../../docs/test-players.md).

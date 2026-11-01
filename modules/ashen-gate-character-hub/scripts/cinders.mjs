@@ -11,6 +11,7 @@
  */
 import {MODULE_ID, esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 
 export const CINDERS_ID = 'ashen-gate-cinders';
 const cindersApi = () => {const m = globalThis.game?.modules?.get?.(CINDERS_ID);return m?.active ? m.api ?? null : null;};
@@ -88,7 +89,7 @@ export function socketHosts(actor, api) {
   try { return new Map((s.hosts(actor) ?? []).map(h => [h.instanceId, h])); } catch { return new Map(); }
 }
 /** Cinders' Player Access is on (an older Cinders without the state counts as on; its API still refuses players when it is off). */
-const playerAccessOn = api => { try { return api?.playerAccess?.getState?.()?.playerAccessEnabled !== false; } catch { return false; } };
+const playerAccessOn = api => { try { return api?.playerAccess?.getState?.()?.playerAccessEnabled !== false || isTestPlayer(globalThis.game?.user); } catch { return false; } };
 /** Who may change this Cinder's sockets from the Hub: the GM always; the owner while Player Access is on and the GM has not locked it. Cinders checks again. */
 export const canChangeSockets = (host, api) => Boolean(host) && (isGM() || (host.canEdit === true && !host.locked && playerAccessOn(api)));
 

@@ -10,6 +10,7 @@ import {sanitizePerkHtml} from './perk-html.mjs';
 import {buildPerkCard,groupByTier,unreleasedPerkMessage} from './perk-card.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
 import {tooltipModel,tierText,relationSentence,isCrossroads,isRival,laneLabels,fitZoom,watchFit,MIN_ZOOM,MAX_ZOOM,initialSidebar,toggledSidebar,isNarrow,nudged,snapPos,prereqGroups,labelOf,NODE_STATUS_LABELS,NODE_VISIBILITY_LABELS,NODE_DISPLAY_LABELS} from './layout.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,buildDefinitionIndex} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -28,7 +29,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.25.0';
+const VERSION='0.26.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -50,7 +51,7 @@ const playerAccessEnabled=()=>game.settings.get(MODULE,PLAYER_ACCESS_SETTING)!==
 function syncTreePlayerAccess(enabled){
   refreshEmbeds();
   if(game.user?.isGM && instance?.rendered)instance.render();
-  if(!game.user?.isGM && enabled!==true){
+  if(!game.user?.isGM && enabled!==true && !isTestPlayer(game.user,game)){
     const windows=new Set([...openTreeWindows,...(instance?[instance]:[])]);
     for(const window of windows)if(window?.rendered)Promise.resolve(window.close?.({animate:false}))
       .catch(err=>console.error(`[${MODULE}] Could not close hidden player window`,err));
@@ -659,7 +660,7 @@ async function handleUnlockRequest(message,senderId){
   try{
     const user=game.users?.get(userId),actor=game.actors?.get(message.actorId);
     if(!user||user.isGM)throw Error('Unknown player');
-    if(!playerAccessEnabled())throw Error('Skill Trees is hidden from players right now');
+    if(!playerAccessEnabled()&&!isTestPlayer(user,game))throw Error('Skill Trees is hidden from players right now');
     if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
     assertNotLevelBackup(actor);
     const {node}=await unlockNode(actor,message.treeId,message.nodeId,{forUser:user});

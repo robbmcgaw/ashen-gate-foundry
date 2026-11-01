@@ -22,7 +22,7 @@ import {planBulk, applyArchive, applyRestore, applyDelete, idsWithPrefix} from '
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
 /**
- * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
+ * deps: {isGM(), playerAccessEnabled(user?) (Player Access as that user sees it, Test players included), playerAccessSetting?() (the world setting alone; what getState reports), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
  *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
  *        sharing?: {request({ref, userIds})}, show?: {send(ref)}, playerIds?(), pinsOf?(loc),
@@ -616,7 +616,7 @@ export function createApi(deps) {
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,
       getState: () => ({contract: PLAYER_ACCESS_CONTRACT, moduleId: MODULE_ID, audience: 'player',
-        playerAccessEnabled: deps.playerAccessEnabled() === true, configurable: true}),
+        playerAccessEnabled: (deps.playerAccessSetting ?? deps.playerAccessEnabled)() === true, configurable: true}),
       async setEnabled(enabled) {
         requireGM();
         if (typeof enabled !== 'boolean') throw new TypeError('Player Access requires a Boolean value.');

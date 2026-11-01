@@ -825,7 +825,7 @@ export function createCinders(deps){
     try{
       const user=game.users?.get(userId),actor=actorById(message.actorId);
       if(!user||user.isGM)throw Error('Unknown player');
-      if(!deps.playerAccess())throw Error('Cinders is hidden from players right now');
+      if(!deps.playerAccess(user))throw Error('Cinders is hidden from players right now');
       if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
       notBackup(actor);
       if(message.type==='cinder-socket'){reply(true,await socketOp(actor,String(message.instanceId??''),cleanSocketOp(message.op),{user}));return;}

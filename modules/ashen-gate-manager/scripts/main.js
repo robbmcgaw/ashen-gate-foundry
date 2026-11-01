@@ -74,6 +74,8 @@ import * as backup from './github-backup.js';
 import {settingsView as backupSettingsView, exportView as backupExportView, confirmFields as backupConfirmFields} from './backup-view.js';
 import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup, applyTabPreset, describeTabChoice} from './gm-setup.js';
+import {registerTestPlayersSetting, readTestPlayers, testPlayerRows, testPlayersApi, guardTestPlayersWrite, TEST_PLAYERS_HINT} from './test-players.js';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename, sortBundleFiles} from './zip-import.js';
@@ -947,7 +949,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
-      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows).map(c=>({...c,slug:c.id})),
+      launcherRows, launcherCount:launcherRows.length, moduleCards:moduleCards(launcherRows,playerAccessRows,readTestPlayers(game).length).map(c=>({...c,slug:c.id})),
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
       libraryInScope:libraryInScope.length, libraryNarrowed:libraryInScope.length!==library.length,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
@@ -1003,6 +1005,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerDockCorner: this.tab === "setup" ? String(this.setupDraft?.playerDockCorner ?? appearanceController?.getState?.()?.playerDockCorner ?? "top-left") : "top-left",
       dockCornerChoices: Object.entries(DOCK_CORNERS).map(([value,label])=>({value,label,selected:value===String(this.setupDraft?.playerDockCorner ?? appearanceController?.getState?.()?.playerDockCorner ?? "top-left")})),
       codexPlayerAccess: Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),
+      testPlayerRows: this.tab === "setup" ? testPlayerRows(game.users,readTestPlayers(game),this.setupDraft?.testPlayers) : [],
+      testPlayersHint: TEST_PLAYERS_HINT,
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
       specialistLabel: this.specialist ? SPECIALISTS[this.specialist.kind].label : '',
@@ -4886,7 +4890,7 @@ async function openQuestLog(id){
 }
 const refLinks=()=>refLinksApi??=createReferenceLinks({game,moduleId:MODULE_ID,
   getDocs:()=>[...(game.items?.contents??[]),...(game.journal?.contents??[]),...(game.actors?.contents??[]),...(game.tables?.contents??[])],
-  codexNames:async()=>{if(!game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))return null;
+  codexNames:async()=>{if(!game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)&&!isTestPlayer(game.user,game))return null;
     return new Map((await codexService().forPlayer()).map(e=>[e.id,e.name]));},
   openCodex:id=>openCodexPlayerView(id),
   questName:questLogName,openQuest:openQuestLog,
@@ -5041,6 +5045,11 @@ Hooks.once("init",()=>{
   setItemsPolicy("gm");
   try{setItemsPolicy(game.settings.get(MODULE_ID,ITEMS_READABLE_SETTING));}catch{/* the GM-only default stays */}
   game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false,onChange:value=>syncCodexMenu(value)});
+  // Test players (ag-test-players/1): User ids that see every Ashen Gate module as if Player Access were on. World scope so every
+  // client can read it; config:false keeps it out of Game Settings; only the GM can write it (GM Setup > General, or api.testPlayers).
+  registerTestPlayersSetting(game,MODULE_ID,{onChange:()=>refreshForTestPlayers()});
+  Hooks.on?.("preCreateSetting",(setting,_data,_options,userId)=>guardTestPlayersWrite(setting,userId,game)?undefined:false);
+  Hooks.on?.("preUpdateSetting",(setting,_change,_options,userId)=>guardTestPlayersWrite(setting,userId,game)?undefined:false);
   // 0.45.0: one-time folder renames already run in this world ({cinderPowers:true}).
   // 0.45.0: Import tab folds and message drawer, per device (presentation only).
   // 0.59.0 Pull from GitHub. All three are CLIENT scope on purpose: a world setting is readable by every connected player,
@@ -5084,7 +5093,14 @@ Hooks.once("init",()=>{
   });
 });
 /** Shows the player NPC Codex menu in Game Settings only while the GM shares the Codex (Foundry reads `restricted` when it draws the list). */
+/** The list of Test players changed: every client redraws what Player Access decides (launchers; open windows re-check on their next render). */
+function refreshForTestPlayers() {
+  try{syncCodexMenu(Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)));}catch{/* the menu stays as it was */}
+  try{globalThis.ui?.actors?.render?.();}catch(error){console.warn(`[${MODULE_ID}] Could not redraw the Actors launchers`,error);}
+}
 function syncCodexMenu(enabled) {
+  // A Test player (ag-test-players/1) opens the NPC Codex as if Player Access were on.
+  enabled=Boolean(enabled)||isTestPlayer(game.user,game);
   const menus=game.settings?.menus, key=`${MODULE_ID}.npcCodex`;
   const entry=menus?.get?.(key);
   if(!entry||typeof menus.set!=='function') return;
@@ -5245,6 +5261,8 @@ Hooks.once("ready",()=>{
     }),
     // ag-player-access/1 for the one player-facing part of Manager, its read-only NPC Codex (0.46.0; the Manager window
     // itself stays GM-only). State is the existing Codex access setting, so the Modules tab's card and Hide all cover it.
+    // ag-test-players/1: who counts as a Test player (read by every module through its own ag-test-players.mjs).
+    testPlayers:testPlayersApi(game,MODULE_ID),
     playerAccess:{contract:"ag-player-access/1",surface:CODEX_SURFACE,
       getState:()=>({contract:"ag-player-access/1",moduleId:MODULE_ID,audience:"player",playerAccessEnabled:Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),configurable:Boolean(game.user?.isGM)}),
       setEnabled:async enabled=>{

@@ -8,6 +8,7 @@
  * ag-player-access/1) and, for the party stash, Utilities' api.stash.isEnabled(); never its settings or flags.
  */
 import {MODULE_ID, esc} from './constants.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 
 export const SETTING = 'playerVisibility';
 
@@ -79,14 +80,15 @@ export function applyPreset(id, user = globalThis.game?.user) {
  * a Player Access state that is off, or a getState() that throws all hide it. A module without playerAccess
  * (older versions) is not hidden here; its own checks still apply.
  */
-export function partnerHiddenReason(id, label = id) {
+export function partnerHiddenReason(id, label = id, user = globalThis.game?.user) {
   const m = globalThis.game?.modules?.get?.(id);
   if (!m?.active || !m.api) return `${label} is not active`;
   const access = m.api.playerAccess;
   if (typeof access?.getState === 'function') {
     let state = null;
     try { state = access.getState(); } catch { return `${label} refuses player access`; }
-    if (state?.playerAccessEnabled !== true) return `${label} Player Access is off`;
+    // A Test player (ag-test-players/1, set in General Manager) sees every module as if its Player Access were on.
+    if (state?.playerAccessEnabled !== true && !isTestPlayer(user)) return `${label} Player Access is off`;
   }
   if (id === 'ashen-gate-utilities' && typeof m.api.stash?.isEnabled === 'function') {
     let on = true;
@@ -97,19 +99,19 @@ export function partnerHiddenReason(id, label = id) {
 }
 
 /** Why players don't see this part, or null when they do (independent of who is asking). */
-export function hiddenReason(key, toggles = readVisibility()) {
+export function hiddenReason(key, toggles = readVisibility(), user = globalThis.game?.user) {
   const part = BY_KEY.get(key);
   if (!part) return null;
   if (toggles[key] === false) return 'turned off in GM Setup';
-  return part.partner ? partnerHiddenReason(part.partner, part.partnerLabel) : null;
+  return part.partner ? partnerHiddenReason(part.partner, part.partnerLabel, user) : null;
 }
 /** True when this user sees the part: always for the GM, else when nothing hides it from players. */
-export const canSee = (key, user = globalThis.game?.user) => isGM(user) || !hiddenReason(key);
+export const canSee = (key, user = globalThis.game?.user) => isGM(user) || !hiddenReason(key, undefined, user);
 
 /** For Hub-owned actions: a refusal when the part is hidden from this (non-GM) user, else null. */
 export function requirePart(key, user = globalThis.game?.user) {
   if (isGM(user)) return null;
-  const reason = hiddenReason(key);
+  const reason = hiddenReason(key, undefined, user);
   return reason ? refuse(`The GM hasn't shared ${BY_KEY.get(key)?.label ?? key} with players yet.`) : null;
 }
 

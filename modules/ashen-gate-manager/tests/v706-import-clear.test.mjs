@@ -54,7 +54,7 @@ test('0.70.7 declutter: no inner scroll boxes on the Import tab, three steps, on
 });
 
 test('0.70.7 version, CHANGELOG, README and Help', () => {
-  assert.equal(JSON.parse(read('../module.json')).version, '0.97.0');
+  assert.equal(JSON.parse(read('../module.json')).version, '0.98.0');
   assert.match(read('../CHANGELOG.md'), /^## 0\.70\.7 /m);
   assert.match(read('../README.md'), /Clear inputs…/); assert.match(main, /Clear inputs…<\/strong> empties the Import page/);
 });

@@ -1,8 +1,10 @@
 /** ag-player-access/1, DEC-0072 — pure access-policy helpers. */
 export const ACCESS_CONTRACT='ag-player-access/1';
-export function canOpenPlayerInterface(user,enabled){return Boolean(user?.isGM || enabled===true);}
-export function requireInterfaceAccess(user,enabled){
- if(!user || !canOpenPlayerInterface(user,enabled))throw Error('Headquarters Player Access is hidden by the GM.');
+import {isTestPlayer} from './ag-test-players.mjs';
+/** A Test player (ag-test-players/1, set in General Manager) counts as Player Access ON. `g` is the Foundry game (default: the global). */
+export function canOpenPlayerInterface(user,enabled,g=globalThis.game){return Boolean(user?.isGM || enabled===true || isTestPlayer(user,g));}
+export function requireInterfaceAccess(user,enabled,g=globalThis.game){
+ if(!user || !canOpenPlayerInterface(user,enabled,g))throw Error('Headquarters Player Access is hidden by the GM.');
  return true;
 }
 export function requireGMToSetAccess(user,enabled){

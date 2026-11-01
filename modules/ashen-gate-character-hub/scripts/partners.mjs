@@ -9,6 +9,7 @@ import {displayProfessionName} from './profession-name.mjs';
 import {btn} from './buttons.mjs';
 import {coinChip} from './coins.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {cindersSummary, skillTreeBtn} from './cinders.mjs';
 import {linkButton, subTabs, tabPanelAttrs} from './ag-html.mjs';
 import {LOCATIONS_ID, listModelApi, locationsPanelState} from './locations-list.mjs';
@@ -415,7 +416,7 @@ export function partyStashUsable(user = globalThis.game?.user) {
   if (typeof api?.stash?.deposit !== 'function') return false;
   if (user?.isGM) return true;
   if (!canSee('partyStash', user)) return false;
-  try { return api.playerAccess?.getState?.()?.playerAccessEnabled === true && api.stash.isEnabled?.() === true; } catch { return false; }
+  try { return (api.playerAccess?.getState?.()?.playerAccessEnabled === true || isTestPlayer(user)) && api.stash.isEnabled?.() === true; } catch { return false; }
 }
 
 /**

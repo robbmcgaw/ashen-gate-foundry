@@ -87,7 +87,7 @@ const ench=makeActor('ench','[TEST] Enchanter','u1',[profItem('eprof','[TEST] En
 const poor=makeActor('poor','[TEST] Poor','u2',[profItem('pprof','[TEST] Enchanting','PROF-TEST-ENCH'),weapon('pdag','Dagger','dagger')],['REC-TEST-GLOW'],{skills:{arc:{value:0,total:1}},tools:{},abilities:{int:{mod:1}}});
 const bare=makeActor('bare','[TEST] Bare','u2',[profItem('bprof','[TEST] Enchanting','PROF-TEST-ENCH'),held('bdust','[TEST] Dust',src('MAT-TEST-DUST','Material'),1)],['REC-TEST-GLOW'],{skills:{arc:{value:0,total:1}},tools:{},abilities:{int:{mod:1}}});
 const actors=[ench,poor,bare];
-const mod={active:true,version:'0.44.0',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.45.0',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id===ID?mod:undefined},settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
 await import(pathToFileURL(path.resolve(here,'../scripts/main.js')));hooks.init();hooks.ready();

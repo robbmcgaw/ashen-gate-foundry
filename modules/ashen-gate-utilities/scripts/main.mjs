@@ -6,7 +6,7 @@ import {readDrop,resolveItemDrop,grantBundle} from './ag-item-drop.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks,shopsDirty} from './shops.mjs';
 import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus,refocusSoon,guardKeys,stopActivationKeys} from './ui-parts.mjs';
 import {pickStashDeposit} from './keyboard-add.mjs';
-import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,bindPlayerShops,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows,postTradeCard} from './shop-buy.mjs';
+import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,bindPlayerShops,accessFor,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows,postTradeCard} from './shop-buy.mjs';
 import {executeSell} from './shop-sell.mjs';
 import {servicesApi,executeServiceUse} from './services.mjs';
 import {merchantsApi,migrateLists} from './merchant-lists.mjs';
@@ -26,7 +26,7 @@ let sessionQueue=Promise.resolve();
 let lastPromptedSession=null;
 function queueSession(task){const next=sessionQueue.then(task);sessionQueue=next.catch(()=>{});return next;}
 const isGM=()=>Boolean(game.user?.isGM);
-const permitted=()=>isGM()||game.settings.get(ID,'playerAccessEnabled')===true;
+const permitted=()=>isGM()||accessFor();
 // 0.13.2 GM Setup "Use electrum": off (the default) leaves ep out of every Utilities coin choice and display.
 const electrumEnabled=()=>game.settings.get(ID,'electrumEnabled')===true;
 const getSession=()=>game.settings.get(ID,'activeSession')||{};
@@ -576,7 +576,7 @@ async function applyCondition(actorId,statusId){
  return isGM()?executeApply(actor,statusId,game.user):requestGM('apply-status',{actorId,statusId});
 }
 /** 0.29.2: whether `userId` (default: you) may apply (or remove) `statusId` on this Actor document, a world character or an unlinked token's Actor. Player Access included. */
-function canChangeActor(actor,statusId,apply=true,userId=game.user?.id){const user=game.users.get(userId);if(!user||!actor)return false;if(!user.isGM&&game.settings.get(ID,'playerAccessEnabled')!==true)return false;statusId=resolveStatusId(statusId,nativeIds());return (apply?applyDecision:removalDecision)({user,actor,statusId,...conditionRules()}).ok;}
+function canChangeActor(actor,statusId,apply=true,userId=game.user?.id){const user=game.users.get(userId);if(!user||!actor)return false;if(!user.isGM&&!accessFor(user))return false;statusId=resolveStatusId(statusId,nativeIds());return (apply?applyDecision:removalDecision)({user,actor,statusId,...conditionRules()}).ok;}
 async function removeFromUI(actor,statusId){
  if(!actor)throw Error('Character not found.');
  if(isGM()&&!statusConfig(statusId)&&!await confirmDanger(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`,{title:'Remove this condition?',yes:'Remove condition'}))return;
@@ -594,8 +594,8 @@ function requestGM(type,data,timeout=15000,{timeoutMessage='The GM client did no
  });
 }
 const gmHandlers={
- 'remove-status':async(msg,user)=>{if(!user.isGM&&game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');return executeRemoval(game.actors.get(msg.actorId),String(msg.statusId??''),user);},
- 'apply-status':async(msg,user)=>{if(!user.isGM&&game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');return executeApply(game.actors.get(msg.actorId),String(msg.statusId??''),user);},
+ 'remove-status':async(msg,user)=>{if(!user.isGM&&!accessFor(user))throw Error('Utilities is hidden for players.');return executeRemoval(game.actors.get(msg.actorId),String(msg.statusId??''),user);},
+ 'apply-status':async(msg,user)=>{if(!user.isGM&&!accessFor(user))throw Error('Utilities is hidden for players.');return executeApply(game.actors.get(msg.actorId),String(msg.statusId??''),user);},
  'stash-deposit':async(msg,user)=>executeDeposit(String(msg.itemUuid??''),user),
  'stash-withdraw':async(msg,user)=>executeWithdraw(String(msg.itemId??''),String(msg.actorId??''),user),
  'stash-delete':async(msg,user)=>executeDelete(String(msg.itemId??''),msg.quantity,user),
@@ -653,7 +653,7 @@ function overlayFadeHTML(){const tipText='Overlay background opacity (only for y
 function overlayState(app){
  const cards=overlayCards(partyCharacters(),{users:[...game.users]}),actor=cards.some(c=>c.actorId===app?.selectedId)?game.actors.get(app.selectedId):null;
  const choices=conditionChoices(),pick=choices.some(x=>x.id===app?.statusPick)?app.statusPick:choices[0]?.id;
- const ctl=overlayControlState({actor,user:game.user,playerAccess:isGM()||game.settings.get(ID,'playerAccessEnabled')===true,controllers:getControllers(),users:[...game.users]});
+ const ctl=overlayControlState({actor,user:game.user,playerAccess:isGM()||accessFor(),controllers:getControllers(),users:[...game.users]});
  let applyOk=false,reason=ctl.reason;
  if(ctl.enabled&&pick){const d=applyDecision({user:game.user,actor,statusId:pick,...conditionRules()});applyOk=d.ok;if(!d.ok)reason=d.reason;}
  return {actor,choices,pick,enabled:ctl.enabled,applyOk,reason};
@@ -1049,7 +1049,7 @@ async function moveItem(item,target){
  }
  return {made:target.items.get(data[0]._id),contents};
 }
-function playerStashGate(user){if(user.isGM)return;if(game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');if(!stashEnabled())throw Error('The GM has turned the party stash off.');}
+function playerStashGate(user){if(user.isGM)return;if(!accessFor(user))throw Error('Utilities is hidden for players.');if(!stashEnabled())throw Error('The GM has turned the party stash off.');}
 async function executeDeposit(uuid,user){
  playerStashGate(user);
  const stash=stashActor();if(!stash)throw Error('There is no party stash yet.');

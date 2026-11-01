@@ -19,7 +19,7 @@ export class JournalConflict extends Error{constructor(current){super('Someone e
 
 /**
  * deps: {moduleId, users() (iterable with get(id)), me(), entries() (iterable JournalEntry), createEntry(data),
- *        folderId() → Promise<id|null>, access() → Player Access, hubShown() → Character Hub shows 'quests',
+ *        folderId() → Promise<id|null>, access(user) → Player Access as that user sees it (Test players count as on), hubShown() → Character Hub shows 'quests',
  *        isPrimaryGM(), socket?: {emit,on}, now?(), timeout?, randomId?()}
  */
 export function createJournalStore(deps){
@@ -33,7 +33,7 @@ export function createJournalStore(deps){
  const players=()=>usersList().filter(u=>u&&!u.isGM);
  const flagOf=(doc,key)=>{try{return doc?.getFlag?.(MOD,key)??null;}catch{return null;}};
 
- function allowed(user=deps.me()){return canUseJournal(user,{access:deps.access(),hubShown:deps.hubShown()});}
+ function allowed(user=deps.me()){return canUseJournal(user,{access:deps.access(user),hubShown:deps.hubShown()});}
  function assertAllowed(user=deps.me()){if(!allowed(user))throw new Error('The Game Journal is hidden by the GM.');}
  const assertGM=(user=deps.me())=>{if(!user?.isGM)throw new Error('GM permission required.');};
 

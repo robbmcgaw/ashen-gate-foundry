@@ -73,7 +73,7 @@ export function createPlayerIntentBridge({
        if(!requester||!requester.active||requester.isGM)throw Error('Requester unavailable or not a player');
        if(!actor || !isOwner(actor,requester))throw Error('Actor ownership verification failed');
        if(!(await isGuildMember(requester,actor)))throw Error('Player is not a Guildhall member');
-       if(!playerAccessEnabled())throw Error('Headquarters Player Access is hidden');
+       if(!playerAccessEnabled(requester))throw Error('Headquarters Player Access is hidden');
        const age=now()-intent.createdMs;
        if(age < -30000 || age > maxAgeMs)throw Error('Request expired or has an invalid clock');
        // Do not permit userId, principal, GM role, or Actor identity in payload
@@ -95,7 +95,7 @@ export function createPlayerIntentBridge({
    /** Player sends only an intent using an Actor they already own in Foundry. */
    async submit(actor,intent){
      checkIntent(intent);
-     if(!playerAccessEnabled()&&!game.user?.isGM)throw Error('Player Access hidden');
+     if(!playerAccessEnabled(game.user)&&!game.user?.isGM)throw Error('Player Access hidden');
      if(!isOwner(actor,game.user))throw Error('Player does not own this Actor');
      if(!(await isGuildMember(game.user,actor)))throw Error('Not a Guildhall member');
      // updateActor on the GM receives actual serverUserId, not intent.from.

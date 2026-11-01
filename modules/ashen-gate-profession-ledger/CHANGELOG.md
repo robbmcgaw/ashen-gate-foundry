@@ -1,3 +1,10 @@
+## 0.45.0 — 2026-11-01
+
+**New: Test players.** The Profession Ledger launcher, window and sheet tab treat a Test player as if Player Access were on. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.44.0 — 2026-11-01
 
 **New (GM only): `api.exportState()` so General Manager's world backup can save professions, recipes, favourites, the party roster and your gathering nodes.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-profession-ledger').api.exportState()`; it returns `{schema_version: 'ag-ledger-state-export/0.1', roster, characters, gathering_nodes}`. As a player the same call is refused ("Only the GM can export the Ledger state").

@@ -1,3 +1,10 @@
+## 0.17.0 — 2026-11-01
+
+**New: Test players.** The Headquarters launcher, player view and the player requests the GM client processes treat a Test player as if Player Access were on. Guildhall membership and Actor ownership still apply. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.16.0 — 2026-11-01
 
 **GM only: `api.exportState()` is now a proper backup export for General Manager's world backup.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-headquarters').api.exportState()`; it returns `{schema_version: 'ag-headquarters-state-export/0.1', format, active, state_revision, guild, config, headquarters, inventory, personal_layouts, facilities, hirelings}`. As a player the same call is refused ("Headquarters export is GM-only.").

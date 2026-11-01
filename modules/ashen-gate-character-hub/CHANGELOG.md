@@ -1,3 +1,10 @@
+## 0.71.0 — 2026-11-01
+
+**New: Test players.** Hub tabs, buttons and the party stash treat a Test player as if each partner module's Player Access were on (a part you turned off in the Hub's own GM Setup stays off). Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.70.0 — 2026-11-01
 
 Add several from the compendium at once.

@@ -8,6 +8,7 @@ import {SETUP_FORM,setupChanges} from './setup-form.mjs';
 import {windowSize,uiState,bindTablist,fold,bindFolds,fileButton,bindFileButtons,refPicker,pickerOptions,bindRefPickers} from './ag-html.mjs';
 import {guildhallRecords,locationPickRecords,defaultCampaignKey} from './activation-links.mjs';
 import {idDetails,plainToken} from './id-details.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {ACCESS_CONTRACT,accessStatus,canOpenPlayerInterface,requireGMToSetAccess,requireInterfaceAccess} from './access.mjs';
 import {createPlayerIntentBridge,REQUEST_PATH,RECEIPT_FLAG,checkIntent} from './player-intent-bridge.mjs';
 import {createHQAuthoritativeWriter} from './hq-authoritative-writer.mjs';
@@ -752,14 +753,14 @@ Hooks.once('ready',async()=>{
  const writer=createHQAuthoritativeWriter({readState:read,saveState:s=>privateStore.save(s),applyOperation});
  playerBridge=createPlayerIntentBridge({
   game,hooks:Hooks,
-  playerAccessEnabled:accessEnabled,
+  playerAccessEnabled:user=>accessEnabled()===true||isTestPlayer(user,game),
   isGuildMember:(user,actor)=>!!read().active && !!site(read())?.rooms?.some(r=>r.kind==='personal'&&r.owner_user_id===user.id),
   alreadyProcessed:writer.alreadyProcessed,
   apply:(context)=>{
    // Serialize BOTH GM edits and authenticated player requests through one
    // writer queue so a simultaneous GM edit cannot overwrite the player save.
    const step=sequence.then(()=>{
-    if(!accessEnabled())throw Error('Headquarters Player Access is hidden by the GM.');
+    if(accessEnabled()!==true&&!isTestPlayer(context?.user,game))throw Error('Headquarters Player Access is hidden by the GM.');
     return writer.apply(context);
    });
    sequence=step.catch(()=>{});

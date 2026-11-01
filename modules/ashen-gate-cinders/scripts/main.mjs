@@ -7,6 +7,7 @@ import {isLevelBackup,CINDER_WALLET_CAP} from './cinder.mjs';
 import {migrateFolders,SETTING as FOLDER_SETTING} from './folder-nesting.mjs';
 import {MAX_SOCKETS} from './sockets.mjs';
 import {CHIP_SETTING} from './strain-chip.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -19,7 +20,7 @@ import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.17.0';
+const VERSION='0.18.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -42,7 +43,8 @@ function trees(){
 }
 /** The whole module stays off next to an older Skill Trees, so the two never both handle Strain. */
 const blocked=()=>{const t=trees();return t.status==='old'?t.message:null;};
-const playerAccess=()=>game.settings.get(MODULE,PLAYER_ACCESS_SETTING)!==false;
+/** The setting the GM edits is the world value; a Test player (ag-test-players/1) sees Player Access as ON. */
+const playerAccess=(user=game.user)=>game.settings.get(MODULE,PLAYER_ACCESS_SETTING)!==false||isTestPlayer(user,game);
 const rotateWorld=()=>game.settings.get(MODULE,ROTATE_SETTING)!==false;
 const rotateLocal=()=>game.settings.get(MODULE,ROTATE_LOCAL_SETTING)!==false;
 const offerWorld=()=>game.settings.get(MODULE,PUSH_OFFER_SETTING)!==false;
