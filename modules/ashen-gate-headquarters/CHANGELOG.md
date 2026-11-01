@@ -1,3 +1,10 @@
+## 0.16.0 — 2026-11-01
+
+**GM only: `api.exportState()` is now a proper backup export for General Manager's world backup.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-headquarters').api.exportState()`; it returns `{schema_version: 'ag-headquarters-state-export/0.1', format, active, state_revision, guild, config, headquarters, inventory, personal_layouts, facilities, hirelings}`. As a player the same call is refused ("Headquarters export is GM-only.").
+
+- Before, it returned an unmarked copy of the whole private save: no schema name, rows in stored order, the editing lease and request nonces included, and every facility definition in full.
+- Now it names its schema, lists rows sorted by key (rooms with the owner's name, installed facilities, staffing, personal layouts, inventory, Hirelings with the GM's notes), and lists the catalog as id, name, category, status and version only. The editing lease and the processed-request nonces are left out. There are no timestamps of its own. It only reads.
+
 ## 0.15.1 — 2026-10-26
 
 Narrow-window fix (shared kit 2.4.0).

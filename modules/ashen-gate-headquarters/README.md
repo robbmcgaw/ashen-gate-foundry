@@ -31,7 +31,9 @@ Independent. General Manager hands facility files to `api.previewFacilityImport`
 
 ## Public API
 
-`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `playerView`, `embed.mount`, `inspectFacilityRef`, and GM-only `getState`, `exportState`, `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
+`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `playerView`, `embed.mount`, `inspectFacilityRef`, and GM-only `getState`, `exportState` (0.16.0: `ag-headquarters-state-export/0.1`, see below), `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
+
+`api.exportState()` (GM only, read-only, writes nothing; optional: feature-detect it) returns the GM's Headquarters state as plain JSON, schema `ag-headquarters-state-export/0.1`: `{schema_version, format, active, state_revision, guild, config, headquarters, inventory, personal_layouts, facilities, hirelings}`. Before 0.16.0 it returned a raw copy of the private save with no schema, in stored order, including the editing lease and request nonces. Now rows are sorted by key, there are no timestamps of its own, facility definitions are reduced to id, name, category, status and version (the content pack holds them), and the lease and nonces are left out. General Manager's world backup uses it; see `docs/world-backup.md`.
 
 ### `playerView(actor)` (0.9.0)
 
