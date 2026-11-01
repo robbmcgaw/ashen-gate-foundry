@@ -1,3 +1,11 @@
+## 0.27.1 — 2026-11-01
+
+**Fix: clicking a perk no longer breaks the Skill Trees window.** Selecting a perk whose description came in a wrapper (every profession perk) put a stray closing tag in the Selected perk panel. It closed the panel's own section early, the window then had two top-level pieces, and Foundry refused to draw it ("Template part main must render a single HTML element"), so the window would not open again.
+
+- The pieces the perk card splits out of a description are now balanced: a closing tag with no opener is dropped and anything left open is closed. The same text is used by the panel, the Details fold in the Character Hub embed and the hover card, so all three are covered.
+- New test checks the card and the panel stay balanced for wrapped descriptions. No saved data changes.
+- Tests are mocked Foundry, not the live window.
+
 ## 0.27.0 — 2026-11-01
 
 **New: Professions and Cinders tabs, a readable Selected perk panel with Unlock / Refund / Open sheet buttons, locked perks that say what they need, and trees you cannot use are hidden. Hub embed fixes.** Tests are mocked Foundry; the live window was not run, so the steps to check in Forge are below.

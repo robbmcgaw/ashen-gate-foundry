@@ -20,7 +20,7 @@ const gm={id:'gm',isGM:true,name:'GM'},owner={id:'u1',isGM:false,name:'Owner'};
 const hero={id:'hero',name:'[TEST] Hero',type:'character',flags:{[MOD]:{progressV2:{'tree:TREE-TP-PROF':{unlocks:['NODE-P1'],history:[]}}}},items:[],
   async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);},get isOwner(){return true;},testUserPermission:()=>true};
 const ledger={active:true,api:{progression:{contract:'ag-ledger-progression/1',level:()=>({profId:PROF,xp:5,level:3,tier:'Apprentice'})}}};
-globalThis.game={modules:new Map([[MOD,{id:MOD,active:true,version:'0.27.0'}],['ashen-gate-profession-ledger',ledger]]),
+globalThis.game={modules:new Map([[MOD,{id:MOD,active:true,version:'0.27.1'}],['ashen-gate-profession-ledger',ledger]]),
   settings:{register:()=>{},registerMenu:()=>{},get:(_m,k)=>saved.get(k)??(k==='playerAccessEnabled'?true:undefined),set:async(_m,k,v)=>{saved.set(k,v);return v;}},
   journal:{contents:[journal]},items:{contents:[perk('P1'),perk('P2')]},actors:{contents:[hero],get:id=>id==='hero'?hero:null},
   user:gm,users:{contents:[gm,owner],get:id=>[gm,owner].find(u=>u.id===id),activeGM:gm},socket:{on:()=>{},emit:()=>{}}};

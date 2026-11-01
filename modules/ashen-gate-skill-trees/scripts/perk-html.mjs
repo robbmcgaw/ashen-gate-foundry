@@ -51,3 +51,26 @@ export function sanitizePerkHtml(html, {max = MAX_PERK_HTML} = {}) {
   const result = out.join('').replace(/<(p|div|span|li|td|th)>\s*<\/\1>/g, '').trim();
   return result.length > max ? '' : result;
 }
+
+/** Makes sanitised markup well formed: drops closing tags that have no opener and closes anything left open. The sanitiser
+ *  output has no attributes and only allow-listed tags, so a simple tag stack is enough. Used on every piece the card
+ *  splits out of a description, because a piece can start or end inside the wrapper the description came in. */
+export function balanceHtml(html) {
+  const src = String(html ?? '');
+  const out = [], open = [];
+  let last = 0;
+  for (const m of src.matchAll(/<(\/?)([a-z][a-z0-9]*)>/g)) {
+    out.push(src.slice(last, m.index));
+    last = m.index + m[0].length;
+    const closing = m[1] === '/', name = m[2];
+    if (VOID.has(name)) { if (!closing) out.push(m[0]); continue; }
+    if (closing) {
+      const i = open.lastIndexOf(name);
+      if (i < 0) continue; // no opener in this piece: drop it
+      while (open.length > i) out.push(`</${open.pop()}>`);
+    } else { open.push(name); out.push(m[0]); }
+  }
+  out.push(src.slice(last));
+  while (open.length) out.push(`</${open.pop()}>`);
+  return out.join('');
+}

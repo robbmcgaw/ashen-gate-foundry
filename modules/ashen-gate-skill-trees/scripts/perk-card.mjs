@@ -7,6 +7,8 @@
  * returns the pieces separately: labelled meta pairs, a short effect summary, and the remaining description as safe HTML for a
  * Details fold. Plain text (a perk with no HTML description) falls back to a summary and one escaped paragraph.
  */
+import {balanceHtml} from './perk-html.mjs';
+
 const ENTITIES = {'&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' '};
 const decode = s => s.replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, m => ENTITIES[m]);
 const escapeText = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -71,7 +73,7 @@ export function buildPerkCard(name, html, plain = '') {
   const tierRow = rows.find(r => /^tier$/i.test(r.label));
   // Details: every kept section as headed, safe HTML; the effect first, then notes and the rest in their own order.
   const ordered = effect ? [effect, ...kept.filter(s => s !== effect)] : kept;
-  const detailsHtml = ordered.map(s => `${s.title && norm(s.title) !== norm(name) ? `<h5>${escapeText(s.title)}</h5>` : ''}${s.html.trim()}`).join('');
+  const detailsHtml = ordered.map(s => `${s.title && norm(s.title) !== norm(name) ? `<h5>${escapeText(s.title)}</h5>` : ''}${balanceHtml(s.html.trim())}`).join('');
   const needsFold = detailsHtml && !(ordered.length === 1 && !ordered[0].title && textOf(ordered[0].html) === summary);
   return {meta: rows.filter(showRow), tier: tierRow?.value ?? '', summary, detailsHtml: needsFold ? detailsHtml : ''};
 }
