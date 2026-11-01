@@ -37,7 +37,7 @@ const belwar={id:'belwar',name:'[TEST] Belwar',type:'character',hasPlayerOwner:t
 const herbsDef=def('PROF-TEST-HERBS','Profession',{name:'[TEST] Herbalism'});
 belwar.items.push({id:'bprof2',name:'[TEST] Herbalism — Profession',type:'feat',system:{quantity:1,description:{value:''}},flags:src('PROF-TEST-HERBS','Profession',{definition:herbsDef})});
 belwar.items.get=id=>belwar.items.find(i=>i.id===id)??null;
-const moduleObj={active:true,version:'0.45.0',set api(v){api=v},get api(){return api}};
+const moduleObj={active:true,version:'0.46.0',set api(v){api=v},get api(){return api}};
 globalThis.game={user:alice,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:[belwar],get:id=>id==='belwar'?belwar:undefined},
   socket:{emit:()=>{},on:()=>{}},modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
@@ -171,7 +171,7 @@ test('markup: star buttons are real buttons with a stable label, aria-pressed, t
 test('markup: favorite recipes sort first, favorite professions first, and the sidebar lists the starred recipes',async()=>{
   reset();
   let h=await html('individual');
-  const order=x=>[...x.matchAll(/<article class="ag-card agl-recipe-row"[^>]*>\s*<div class="agl-recipe-head">\s*<div class="agl-recipe-title"><button[^>]*data-action="fav-recipe" data-id="([^"]+)"/g)].map(m=>m[1]);
+  const order=x=>[...x.matchAll(/<article class="ag-card agl-recipe-row[^"]*"[^>]*>\s*<div class="agl-recipe-head">\s*<div class="agl-recipe-title"><button[^>]*data-action="fav-recipe" data-id="([^"]+)"/g)].map(m=>m[1]);
   const before=order(h);
   assert.match(h,/Favorite recipes <span class="ag-badge">0<\/span>/);assert.match(h,/Star a recipe under Known recipes/);
   await api.setFavorite(belwar,{kind:'recipe',id:before[1],on:true});
@@ -192,10 +192,10 @@ test('markup: Favorites only (n) is a pressed-state chip and filters the Known r
   reset();await api.setFavorite(belwar,{kind:'recipe',id:'REC-TEST-JEST',on:true});
   app.favOnly=false;let h=await html('individual');
   assert.match(h,/<button type="button" class="ag-chip" data-action="fav-only" aria-pressed="false"[^>]*>Favorites only \(1\)<\/button>/);
-  assert.match(h,/data-recipe-search/);assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row"/g)].length,2);
+  assert.match(h,/data-recipe-search/);assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row[ "]/g)].length,2);
   app.favOnly=true;h=await html('individual');
   assert.match(h,/data-action="fav-only" aria-pressed="true"/);
-  assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row"/g)].length,1);assert.match(card(h,'[TEST] Courtyard Jest'),/Courtyard Jest/);
+  assert.equal([...h.matchAll(/<article class="ag-card agl-recipe-row[ "]/g)].length,1);assert.match(card(h,'[TEST] Courtyard Jest'),/Courtyard Jest/);
   assert.match(h,/class="agl-group"/,'still grouped by profession');
   await api.setFavorite(belwar,{kind:'recipe',id:'REC-TEST-JEST',on:false});
   h=await html('individual');assert.match(visible(h),/No favorite recipes yet/);

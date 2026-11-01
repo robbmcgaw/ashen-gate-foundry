@@ -39,7 +39,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.45.0';
+const VERSION='0.46.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -1435,7 +1435,31 @@ const recipeDetailsKey=id=>{let h=5381;for(const c of String(id??''))h=((h*33)^c
 const recipeDetailsOpen=id=>recipeDetailsState()[recipeDetailsKey(id)]!==false;
 function flushRecipeDetails(){clearTimeout(recipeDetailsTimer);recipeDetailsTimer=null;try{uiState(ID).set('recipeDetails',recipeDetailsState());}catch{}}
 function setRecipeDetails(entries){const st=recipeDetailsState();for(const [id,open] of entries){if(open)delete st[id];else st[id]=false;}if(!recipeDetailsTimer)recipeDetailsTimer=setTimeout(flushRecipeDetails,200);}
-function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true,favorite=null,knownCount=false}={}){
+/* 0.46.0: each Known-recipes card folds. It starts collapsed (head only: star, name, tags and the main button); open cards are remembered
+ * per character and per user on this device (uiState, never world data), keyed by actor + a short recipe key. Default collapsed. */
+let recipeCardMemory=null;
+const recipeCardState=()=>{if(!recipeCardMemory){let v=null;try{v=uiState(ID).get('recipeCardsOpen',{});}catch{v=null;}recipeCardMemory=v&&typeof v==='object'&&!Array.isArray(v)?{...v}:{};}return recipeCardMemory;};
+const recipeCardKey=(actorId,recipeId)=>`${String(actorId??'').replace(/[^A-Za-z0-9]/g,'')}.${recipeDetailsKey(recipeId)}`;
+const recipeCardOpen=(actorId,recipeId)=>recipeCardState()[recipeCardKey(actorId,recipeId)]===true;
+function setRecipeCards(entries){const st=recipeCardState();let changed=false;for(const [k,open] of entries){if(open&&st[k]!==true){st[k]=true;changed=true;}else if(!open&&k in st){delete st[k];changed=true;}}if(!changed)return;try{uiState(ID).set('recipeCardsOpen',st);}catch{}}
+/** Opens or shuts one card in the DOM and keeps its button in step. */
+function applyRecipeCard(card,open){
+  const btn=card?.querySelector?.('[data-action="recipe-toggle"]'),body=card?.querySelector?.('.agl-recipe-full');
+  if(body)body.hidden=!open;
+  btn?.setAttribute?.('aria-expanded',String(open));
+  card?.classList?.toggle?.('is-collapsed',!open);
+}
+/** Click on a card's expand button (any surface). Toggles in place, so focus and scroll stay put. While a search is on, the open state is not remembered. */
+function recipeToggleClick(button){
+  if(button?.dataset?.action!=='recipe-toggle')return false;
+  const card=button.closest?.('[data-recipe-card]');if(!card)return true;
+  const open=button.getAttribute?.('aria-expanded')!=='true';
+  applyRecipeCard(card,open);
+  card.dataset.storedOpen=open?'1':'0';
+  setRecipeCards([[card.dataset.recipeCard,open]]);
+  return true;
+}
+function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true,favorite=null,knownCount=false,collapsible=false}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
   const ctx=ctxKey(recipe.id);
@@ -1512,15 +1536,30 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     ${recipeTextHtml(recipe,{gmNote:Boolean(craft)&&!gmApplied})}`;
   // 0.37.2: on the Individual tab the details fold like the Party's, but the tool or station line (with any "missing" warning) stays visible beside the head.
   const requirementLine=craft||learnItem?requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null):'';
-  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
+  const tags=`<span class="agl-recipe-badges">${gmApplied?badge('Enchantment'):activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span>`;
+  const star=favorite&&actor?favButton({kind:'recipe',id:recipe.id,actor,name:recipe.name,on:favorite.on}):'';
+  const detailsHtml=compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`
+    :`${requirementLine}<details class="agl-recipe-more" data-recipe-details="${recipeDetailsKey(recipe.id)}" data-stored-open="${recipeDetailsOpen(recipe.id)?1:0}" ${recipeDetailsOpen(recipe.id)?'open':''}><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`;
+  const statusHtml=status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:'';
+  if(collapsible&&actor){
+    const ck=recipeCardKey(actor.id,recipe.id),open=recipeCardOpen(actor.id,recipe.id),fid=`agl-rc-${ck.replace(/\./g,'-')}`;
+    return `<article class="ag-card agl-recipe-row agl-recipe-card${open?'':' is-collapsed'}" data-recipe-search="${esc(search)}" data-recipe-card="${ck}" data-stored-open="${open?1:0}">
     <div class="agl-recipe-head">
-      <div class="agl-recipe-title">${favorite&&actor?favButton({kind:'recipe',id:recipe.id,actor,name:recipe.name,on:favorite.on}):''}${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
-        <span class="agl-recipe-badges">${gmApplied?badge('Enchantment'):activity?badge('Activity'):''}${tierBadge(tierLabel(recipe.tier),esc)}${effort?`<span class="ag-badge agl-effort"><i class="fa-regular fa-clock" aria-hidden="true"></i> ${esc(effort)}</span>`:''}</span></div>
+      <div class="agl-recipe-title">${star}<button type="button" class="agl-recipe-toggle" data-action="recipe-toggle" aria-expanded="${open}" aria-controls="${fid}"><i class="fa-solid fa-chevron-down agl-recipe-chev" aria-hidden="true"></i><strong>${esc(recipe.name)}</strong></button>
+        ${tags}</div>
       <div class="agl-recipe-actions">${actions}</div>
     </div>
-    ${compact?`<details class="agl-recipe-more"><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`
-      :`${requirementLine}<details class="agl-recipe-more" data-recipe-details="${recipeDetailsKey(recipe.id)}" data-stored-open="${recipeDetailsOpen(recipe.id)?1:0}" ${recipeDetailsOpen(recipe.id)?'open':''}><summary>Details</summary><div class="agl-recipe-body">${bodyHtml}</div></details>`}
-    ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
+    <div class="agl-recipe-full" id="${fid}"${open?'':' hidden'}>${detailsHtml}${statusHtml}</div>
+  </article>`;
+  }
+  return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
+    <div class="agl-recipe-head">
+      <div class="agl-recipe-title">${star}${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
+        ${tags}</div>
+      <div class="agl-recipe-actions">${actions}</div>
+    </div>
+    ${detailsHtml}
+    ${statusHtml}
   </article>`;
 }
 function learnControl(actor,item,{available=true}={}){
@@ -1689,6 +1728,7 @@ function favJumpClick(button){
   if(!row)return true;
   if(row.hidden){say('That recipe is hidden by the search. Clear the search to see it.',true);return true;}
   for(let el=row.parentElement;el;el=el.parentElement){if(el.tagName==='DETAILS')el.open=true;else if(el.dataset?.aglGroup!==undefined){applyGroupState(el,true);setGroupOpen(el.dataset.aglGroup,true);}}
+  if(row.dataset?.recipeCard!==undefined){applyRecipeCard(row,true);row.dataset.storedOpen='1';setRecipeCards([[row.dataset.recipeCard,true]]);}
   row.scrollIntoView?.({block:'center'});
   star.focus?.();
   return true;
@@ -1713,7 +1753,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   const allKnown=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
   const favShown=allKnown.filter(r=>favRec.has(r.id));
   const knownRows=filterFavorites(favoritesFirst(allKnown,favRec,r=>r.id),favRec,favOnly&&canFav,r=>r.id).map(recipe=>({group:professionLabel(recipe),recipe,order:favProf.has(recipe.professionId)?-1:0,
-    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM,favorite:canFav?{on:favRec.has(recipe.id)}:null})}));
+    html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),knownBy:[actor],showStatus:game.user.isGM,favorite:canFav?{on:favRec.has(recipe.id)}:null,collapsible:true})}));
   const hiddenKnown=known.length-allKnown.length;
   // 0.36.0: entries of the known-recipes list that the catalog no longer has (everyone sees the count; only the GM gets the button).
   const gone=missingRecipeCount({known,knownRaw:Array.isArray(actor.flags?.[ID]?.knownRecipes)?actor.flags[ID].knownRecipes:null,recipes:lib.recipes,exactCatalog:game.user.isGM});
@@ -4390,7 +4430,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         // Gathering nodes shares Gathering's sub-tab row but is its own view (it has an editor and a footer).
         if(game.user.isGM&&sub.id.startsWith('agl-gather-')&&(sub.dataset.tab==='nodes'||this.view==='nodes')){void this._click('gather-tab',sub.dataset.tab);return;}
         this._showSubTab(sub);return;}
-      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
+      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b)||groupToggleClick(b)||recipeToggleClick(b)||itemLinkClick(b)||skillTreeClick(b))return;
       // 0.27.0: a Tools and checks cell's checkbox list opens and closes in place (no re-render, the draft is untouched).
       if(b.dataset.action==='map-pick'||b.dataset.action==='map-pick-done'){const picker=b.closest('[data-map-picker]');
         this._toggleMapPicker(picker,b.dataset.action==='map-pick'&&picker?.querySelector('.agl-mpick__pop')?.hidden!==false);return;}
@@ -4525,6 +4565,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       // A match opens its collapsed details (not remembered); clearing the search puts back what was remembered.
       const d=row.querySelector?.('details[data-recipe-details]');
       if(d)d.open=query?!row.hidden:d.dataset.storedOpen!=='0';
+      // 0.46.0: a collapsed card opens for a match (not remembered); clearing the search puts back what was remembered.
+      if(row.dataset?.recipeCard!==undefined)applyRecipeCard(row,query?!row.hidden:row.dataset.storedOpen==='1');
     }
     // 0.43.0: profession groups: a search shows the groups with a match (not remembered); clearing it puts back what was remembered.
     for(const g of root.querySelectorAll('[data-agl-group]')){
@@ -4575,7 +4617,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='details-expand'||action==='details-collapse'){
         const on=action==='details-expand',list=[...(this.element?.querySelectorAll?.('details[data-recipe-details]')??[])];
         for(const d of list){d.dataset.storedOpen=on?'1':'0';if(d.open!==on)d.open=on;}
-        setRecipeDetails(list.map(d=>[d.dataset.recipeDetails,on]));return;}
+        setRecipeDetails(list.map(d=>[d.dataset.recipeDetails,on]));
+        const cards=[...(this.element?.querySelectorAll?.('[data-recipe-card]')??[])];
+        for(const c of cards){c.dataset.storedOpen=on?'1':'0';applyRecipeCard(c,on);}
+        setRecipeCards(cards.map(c=>[c.dataset.recipeCard,on]));return;}
       if(action==='tier-toggle'){
         const group=[...(this.element?.querySelectorAll?.('[data-tier-group]')??[])].find(g=>g.dataset.tierGroup===id);
         if(group){const open=toggleTierGroup(group);if(!this.query){group.dataset.storedOpen=open?'1':'0';this._setTree(`t:${id}`,open);}return;}
@@ -4993,7 +5038,7 @@ function renderSheetTab(params){
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
-    if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
+    if(xpModeClick(b)||groupToggleClick(b)||recipeToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
       if(b.dataset.action==='fav-recipe'||b.dataset.action==='fav-profession'){const kept=captureFocus(target);await favoriteClick(b);renderSheetTab({...params,tabContentsElement:target});restoreFocus(target,kept);return;}
@@ -5039,7 +5084,7 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
-    if(xpModeClick(b)||groupToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
+    if(xpModeClick(b)||groupToggleClick(b)||recipeToggleClick(b)||itemLinkClick(b)||skillTreeClick(b)||favJumpClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
@@ -5270,7 +5315,7 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateEnchantCard(message,html);}catch(err){console.warn(`[${ID}] enchanting card controls`,err);}});
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
-export const _test={groupToggleClick,groupOpen,applyGroupState,requirementHTML,skillCheckPart,previewBodyHtml,openPreview,captureFocus,restoreFocus,materialBadge,materialOptions,favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
+export const _test={recipeToggleClick,recipeCardOpen,applyRecipeCard,groupToggleClick,groupOpen,applyGroupState,requirementHTML,skillCheckPart,previewBodyHtml,openPreview,captureFocus,restoreFocus,materialBadge,materialOptions,favoriteClick,favJumpClick,craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   recipeDetails:{key:recipeDetailsKey,isOpen:recipeDetailsOpen,flush:flushRecipeDetails,reset:()=>{recipeDetailsMemory=null;}},refreshRecipes,recipeRefreshParty,recipeRefreshPlanFor,actionDialog,poolReason,presetOfProjection,advantageMarker,startRound,startGather:startRound,recordRoll,rollForRound,revealRound,giveRound,giveByHand,cancelRound,roundView,handoutRows,giveChoices,openHandoutDialog,openGiveDialog,gatherRounds,incomingRounds,playerResults,openRound,roundSummary,
   setReducedMotion:v=>{reducedMotionOverride=v;},reelSkipped,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,publishActorPreviews,publishAllPreviews,unreadableItemsReport,previewOf,itemLinkClick,setIncluded,setAllIncluded,showPlayerGathering,presentLedger,resetLastGather:()=>{lastGather=null;lastDismissed=undefined;},getHistory,clearGatherHistory,clearLastGather,gmLastGather,dismissLastGather,refreshSoon,inRenderPass,passMemo,syncHistory,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,decorateChatCard,decorateEnchantCard,requestEnchanting,resolveEnchantRequest,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,

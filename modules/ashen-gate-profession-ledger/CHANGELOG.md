@@ -1,3 +1,11 @@
+## 0.46.0 — 2026-11-01
+
+Known recipes: every card folds, and profession headers sit on the left.
+
+- **Recipe cards start collapsed.** On Known recipes (Ledger window, Tidy5e Professions tab, Character Hub → Ashen Gate → Professions) each card shows the star, the recipe name, its Activity / tier / effort tags and the main button (Complete activity, Craft…), so you can act without opening it. Press the name (or Enter or Space on it) to show the rest: the tool or station line, Details, cost note and Effect. Open or shut is remembered for each character and user on this device and a recipe with nothing remembered is collapsed. Toggling keeps your scroll position and focus; starring a recipe or refreshing keeps the card as you left it. Searching opens the cards that match without remembering it; Expand all / Collapse all and the Favorite recipes list also open cards.
+- **Fixed: profession headers were centered.** "Artistry 4 compositions" and the others now sit on the left with the count chip beside the title, like the other folds. Folding a header works as before.
+- Tests are mocked Foundry and a tiny fake DOM; they prove the markup and logic, not the live Foundry UI. No saved world data changes. The Character Hub is unchanged (it draws this list through the Ledger).
+
 ## 0.45.0 — 2026-11-01
 
 **New: Test players.** The Profession Ledger launcher, window and sheet tab treat a Test player as if Player Access were on. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
