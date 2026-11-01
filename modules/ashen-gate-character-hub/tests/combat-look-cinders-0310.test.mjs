@@ -220,7 +220,7 @@ test('Cinders panel head: Open skill tree next to the title opens Skill Trees at
   const {sheet, html} = await render('ashen-gate', hero(), s => { s.agTab = 'ashen-gate-cinders'; });
   assert.match(html, /<span class="agch-panel__title"><h3><i class="fa-solid fa-fire" aria-hidden="true"><\/i> Cinders<\/h3><button type="button" class="ag-btn ag-btn--sm" data-action="cinder-tree" data-tree="TREE-TEST-EMBER"/);
   assert.equal((await ACTIONS['cinder-tree'](sheet, {dataset: {tree: 'TREE-TEST-EMBER'}})).ok, true);
-  assert.deepEqual(calls, [{actorId: 'actor1', treeId: 'TREE-TEST-EMBER'}]);
+  assert.deepEqual(calls, [{actorId: 'actor1', treeId: 'TREE-TEST-EMBER', tab: 'cinders'}]);
   installGlobals({user: users.owner, modules: {'ashen-gate-cinders': cindersMod(), 'ashen-gate-skill-trees': treesMod(calls)}, settings: {playerVisibility: {perks: false}}});
   assert.equal(skillTreeBtn(makeActor(), {canSeePerks: false}), '');
   assert.equal((await ACTIONS['cinder-tree'](sheet, {dataset: {}})).ok, false);

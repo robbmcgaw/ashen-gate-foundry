@@ -131,7 +131,7 @@ test('Open buttons deep-link to the owning module with the character or record',
   await openPartner(actor, 'ashen-gate-quest-manager', 'Q-MINE');
   await openPartner(actor, 'ashen-gate-locations', 'LOC-TEST-MILL');
   await openPartner(actor, 'ashen-gate-utilities');
-  assert.deepEqual(calls, [['ledger.open', {actorId: 'actor1', view: 'individual'}], ['trees.open', {actorId: 'actor1'}],
+  assert.deepEqual(calls, [['ledger.open', {actorId: 'actor1', view: 'individual'}], ['trees.open', {actorId: 'actor1', tab: 'professions'}],
     ['quest.openObjective', 'Q-MINE'], ['loc.openLocation', 'LOC-TEST-MILL'], ['stash.open']]);
   installGlobals({modules: {}});
   assert.equal((await openPartner(actor, 'ashen-gate-factions')).ok, false);

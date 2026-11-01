@@ -207,11 +207,19 @@ export function skillTreeBtn(actor, {canSeePerks = true} = {}) {
   return btn('cinder-tree', 'Open skill tree', {kind: 'sm', icon: 'fa-solid fa-diagram-project', data: tree ? {tree} : {}, always: true,
     title: tree ? `Open ${list[0].name}'s skill tree in Skill Trees` : 'Open Skill Trees for this character'});
 }
-/** Opens Skill Trees for this character (at one tree when given). Skill Trees checks its own permissions. */
-export async function openSkillTree(actor, treeId = null) {
+/**
+ * Opens Skill Trees for this character (at one tree when given). Skill Trees checks its own permissions.
+ * 0.72.0: `tab` ('cinders' | 'professions') asks Skill Trees to open on that tab. An older Skill Trees ignores the extra field and
+ * opens as before; one that refuses the call because of it is asked again without it, so the button never does less than it did.
+ */
+export async function openSkillTree(actor, treeId = null, {tab = null} = {}) {
   const api = globalThis.game?.modules?.get?.('ashen-gate-skill-trees');
   if (!api?.active || typeof api.api?.open !== 'function') return refuse('Ashen Gate | Skill Trees is not active.');
-  try { return {ok: true, result: await api.api.open({actorId: actor.id, ...(treeId ? {treeId} : {})})}; } catch (error) { return refuse(String(error?.message ?? error)); }
+  const base = {actorId: actor.id, ...(treeId ? {treeId} : {})};
+  try { return {ok: true, result: await api.api.open(tab ? {...base, tab} : base)}; } catch (error) {
+    if (!tab) return refuse(String(error?.message ?? error));
+    try { return {ok: true, result: await api.api.open(base)}; } catch (again) { return refuse(String(again?.message ?? again)); }
+  }
 }
 
 /** Detaching is the GM's (0.58.4): reversible (the item stays in the inventory) so it asks nothing, but players can't do it. */

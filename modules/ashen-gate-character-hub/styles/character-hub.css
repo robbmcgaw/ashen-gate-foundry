@@ -500,7 +500,11 @@
 .agch-app .agch-plist > li { overflow-wrap: anywhere; }
 /* 0.35.0: a profession with several skill trees (Skill Trees summary): shared points, then its trees as sub-tabs. */
 .agch-app .agch-stgroup { display: grid; gap: var(--ag-space-1); }
-.agch-app .agch-stgroup > [role="tabpanel"] p { margin: 0; }
+.agch-app .agch-stgroup [role="tabpanel"] p { margin: 0; }
+.agch-app .agch-stblock__body { display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-sthint { margin: var(--ag-space-1) 0 0; }
+.agch-app .agch-stcinders > li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.agch-app .agch-sec--parent > .agch-sec__body > .agch-sec { margin-inline-start: var(--ag-space-2); }
 .agch-app .agch-objectives { margin: var(--ag-space-1) 0 0 var(--ag-space-5); padding: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
 .agch-app .agch-embed { min-width: 0; }
 /* An embedded partner view brings its own cards: the panel around it drops its own card look */
