@@ -14,6 +14,34 @@ General Manager, Items > Export > **Back up world now…** (GM only). It writes 
 | Renown standings and claims | `standings.json` | `ag-factions-state-export/0.1` (Renown `api.exportState()`, Renown 0.27.0+) | **play state** |
 | Party characters | `party.json` | `ag-party-sheets-export/0.1` (built by Manager from world Actors; Manager 0.93.0+) | **play state** |
 
+## Headquarters state (`ag-headquarters-state-export/0.1`, Headquarters 0.16.0)
+
+GM-only, read-only play state from Headquarters `api.exportState()` (optional: feature-detect it). General Manager will write it as its own file when it is wired in; it is never imported. It is not the module's own `aghq-state/0.1` save.
+
+```json
+{
+  "schema_version": "ag-headquarters-state-export/0.1",
+  "format": "aghq-state/0.1", "active": true, "state_revision": 12,
+  "guild": {"campaign_key": "test", "guild_key": "primary", "rank": 1, "shared_defaults": {"orders_per_downtime": 2, "shared_facility_slots": 2}, "unlocked_facility_refs": ["FAC-TEST-FORGE"]},
+  "config": {"name": "Guildhall", "bounds": {"width": 24, "height": 18}, "cell_px": 44, "background": "", "rank_rules": [], "manual_unlock_refs": [], "decoration_art": []},
+  "headquarters": [
+    {
+      "hq_ref": "HQ-TEST-001", "location_ref": "LOC-TEST-001", "shared_revision": 3,
+      "rooms": [{"key": "room_p1", "kind": "personal", "owner_user_id": "(world-local id)", "owner_user_name": "[TEST] Player", "revision": 0}],
+      "installations": [{"key": "forge_copy", "facility_ref": "FAC-TEST-FORGE", "room_key": "common", "placement": {"x": 1, "y": 1, "rotation": 0, "width": 4, "height": 3}}],
+      "staffing_slots": [{"key": "forge_copy_slot_1", "room_key": "common", "installation_key": "forge_copy", "occupant_hireling_ref": "HIRE-TEST-A"}]
+    }
+  ],
+  "inventory": [{"key": "forge_copy", "facility_ref": "FAC-TEST-FORGE", "stage_key": "base"}],
+  "personal_layouts": [{"room_key": "room_p1", "bounds": {"width": 12, "height": 9}, "background": "", "decorations": []}],
+  "facilities": [{"id": "FAC-TEST-FORGE", "name": "[TEST] Forge", "category": "Profession", "status": "draft", "version": "0.1.0"}],
+  "hirelings": [{"hireling_ref": "HIRE-TEST-A", "working": true, "employment_status": "active", "history": []}]
+}
+```
+
+- Before Headquarters 0.16.0 `exportState` returned a raw copy of the private save (no schema name, stored order, editing lease and request nonces included, full facility definitions). It now sorts every list by key, names its schema, and leaves out the lease and nonces. `facilities` carries no definition text (the content pack holds it). `hirelings` keeps the GM's notes and history as stored.
+- Room owners are world-local user ids; the name sits beside each. Facility, Hireling, location and HQ refs are permanent. No timestamps of its own.
+
 The edits file also carries, from Manager 0.96.0, an additive top-level `npc_codex` array (written with the Edited Actors tick): the NPC Codex layer per NPC with saved state, `{id, name, pack_name, status, edits, learned, notes, links, discovery, reveals, actor_names}` (see `docs/npc-codex-schema.md`). The schema string stays `ag-world-edits/0.1`; the layer is world-local play and edit state, so a reader that merges content should ignore `npc_codex` unless it knows it.
 
 The content files are formats the content pack's reconcile script reads. **`standings.json` and `party.json` are play state** and deliberately use their own schema strings: the reconcile lists unknown formats and skips them, so they are never merged into content. Skipped with the reason "update Renown" when Renown is missing, off or older than 0.27.0.

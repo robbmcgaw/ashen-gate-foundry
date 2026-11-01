@@ -1,5 +1,6 @@
 import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,planFacilityImport,freeSpot} from './logic.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,choiceDialog,formDialog} from './ag-dialogs.mjs';
+import {buildStateExport} from './state-export.mjs';
 import {createVaultRecovery} from './vault-recovery.mjs';
 import {facilitiesPanel,facilityRow,listFacilitiesTab,plural,SUB_TABS,DEFAULT_VIEW as FAC_VIEW} from './facilities-tab.mjs';
 import {rosterGroups,stationLabels,employmentLabel,perkStatus,historyEvent,localDate,STATUS_FILTERS,DEPARTURE_REASONS,DEFAULT_VIEW as HIRE_VIEW} from './hirelings-tab.mjs';
@@ -681,7 +682,8 @@ Hooks.once('init',()=>{
  const mod=game.modules.get(MODULE_ID);
  if(mod)mod.api={apiVersion:'0.2',open,
   getState:()=>{if(!game.user.isGM)throw Error('Headquarters campaign-state API is GM-only.');return structuredClone(read());},
-  exportState:()=>{if(!game.user.isGM)throw Error('Headquarters export is GM-only.');return structuredClone(read());},
+  // 0.16.0: plain JSON for General Manager's world backup (`ag-headquarters-state-export/0.1`): sorted, no timestamps, no facility text. See state-export.mjs.
+  exportState:()=>{if(!game.user.isGM)throw Error('Headquarters export is GM-only.');return buildStateExport({isGM:game.user.isGM===true,state:read(),userNames:Object.fromEntries([...(game.users?.values?.()??game.users?.contents??[])].map(u=>[u.id,u.name]))});},
   playerAccess:{contract:ACCESS_CONTRACT,getState:playerAccessState,setEnabled:setPlayerAccess},
   reconcileDepartures,
   // 0.9.0: player-safe, read-only Guildhall view for one character (GM or the Actor's owner; Player Access applies). See player-view.mjs.
