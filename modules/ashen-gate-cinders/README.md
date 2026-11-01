@@ -43,7 +43,9 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
 
 ## Public API
 
-`game.modules.get('ashen-gate-cinders').api`: `open`, `playerAccess` (`ag-player-access/1`), `status()`, `strain`, `cinder`, `adoptLegacy()`.
+`game.modules.get('ashen-gate-cinders').api`: `open`, `playerAccess` (`ag-player-access/1`), `status()`, `strain`, `cinder`, `adoptLegacy()`, and GM-only `exportState()` (0.17.0, optional: feature-detect it).
+
+`api.exportState()` (GM only, read-only, writes nothing) returns the Cinders' play state as plain JSON, schema `ag-cinders-state-export/0.1`: `{schema_version, config, cinders, stage_art, strain}`. `config` holds the rule settings (Cinders per character, starting points, sockets per Cinder, the Strain config). `cinders` has every instance (ids, definition id, name, bearer id and name or none, points, unlocked node ids, powers and enhancements, art and stage state, sockets and attached items). `stage_art` is the GM's world stage art keyed by definition id. `strain` has each character with Strain: value, band and history length. Rows are sorted, no timestamps, no definition text. General Manager's world backup uses it; see `docs/world-backup.md`.
 
 ### `api.strain` (contract `ag-strain/1`)
 
