@@ -16,6 +16,33 @@ General Manager, Items > Export > **Back up world now…** (GM only). It writes 
 
 The content files are formats the content pack's reconcile script reads. **`standings.json` and `party.json` are play state** and deliberately use their own schema strings: the reconcile lists unknown formats and skips them, so they are never merged into content. Skipped with the reason "update Renown" when Renown is missing, off or older than 0.27.0.
 
+## Profession Ledger state (`ag-ledger-state-export/0.1`, Profession Ledger 0.44.0)
+
+GM-only, read-only play state from Profession Ledger `api.exportState()` (optional: feature-detect it). General Manager will write it as its own file when it is wired in; it is never imported. It is not the node file format (`ag-gathering-nodes/1`).
+
+```json
+{
+  "schema_version": "ag-ledger-state-export/0.1",
+  "roster": [{"actor_id": "(world-local id)", "actor_name": "[TEST] Hero"}],
+  "characters": [
+    {
+      "actor_id": "(world-local id)", "actor_name": "[TEST] Hero",
+      "professions": [{"profession_id": "PROF-TEST", "name": "[TEST] Profession", "level": 2, "xp": 5, "tier": "Apprentice", "tracked": true, "selected_perk_ids": ["PERK-TEST"], "unspent_perk_choices": 1, "history_length": 2}],
+      "known_recipe_ids": ["REC-TEST"],
+      "favorites": {"professions": ["PROF-TEST"], "recipes": ["REC-TEST"]}
+    }
+  ],
+  "gathering_nodes": {
+    "templates": [{"id": "NODE-TEST-REEDS", "name": "[TEST] River Reeds", "activity": "herbalism", "professions": ["herbalism"], "tier": {"min": 1, "max": 2}, "dcVisible": false, "finite": true, "materials": {"common": [{"materialId": "MAT-TEST", "quantity": 2, "chance": null}], "rare": [], "exotic": []}, "origin": "gm", "edited": true}],
+    "retired_ids": ["NODE-TEST-OLD"]
+  }
+}
+```
+
+- `characters` lists characters (not NPCs or level-backup copies) with a profession, a known recipe or a favourite. `tracked` is false for a profession on the sheet with no XP stored yet (shown as level 1). XP history keeps its last 50 entries on the character; only the count is exported.
+- `gathering_nodes.templates` are the GM-edited node templates held in the Ledger's GM-only journal (the data that otherwise only leaves the world through the Nodes tab's Export). Template fields are those of the node file; `origin` is `gm`, `import` or `migration`, and `edited` is true once the GM has changed it.
+- Actor ids are world-local; the name sits beside each. Profession, perk, recipe, material and node ids are permanent. Rows are sorted. No timestamps and no recipe or profession text.
+
 ## `standings.json` (`ag-factions-state-export/0.1`)
 
 ```json
