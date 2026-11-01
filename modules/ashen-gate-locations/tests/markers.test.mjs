@@ -48,7 +48,8 @@ test('1.2.x records migrate on read: revealed -> Revealed (content stays publish
 test('Unidentified view is the label and teaser only; Hidden is nothing', () => {
   const all = world().map(normalizeLocation);
   const vault = playerView(all[1], all);
-  assert.deepEqual(Object.keys(vault).sort(), ['key', 'name', 'state', 'teaser']);
+  assert.deepEqual(Object.keys(vault).sort(), ['key', 'name', 'parent', 'state', 'teaser'], '0.45.0: parent only because the Town is revealed and visible');
+  assert.deepEqual(vault.parent, {id: 'LOC-TEST-TOWN', key: all[0].pinKey, name: '[TEST] Town'});
   assert.deepEqual([vault.name, vault.state, vault.key], ['[TEST] Strange door', 'unidentified', all[1].pinKey]);
   assert.doesNotMatch(JSON.stringify(vault) + viewHtml(vault), SECRET);
   assert.equal(playerView(all[2], all), null);

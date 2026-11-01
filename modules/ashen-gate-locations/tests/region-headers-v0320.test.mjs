@@ -180,7 +180,7 @@ test('players: nested Region headers over what they can see; a hidden Region is 
   const html = await app._renderHTML();
   const pane = listPane(html);
   const labels = [...pane.matchAll(/class="agl-group__head[^"]*"[^>]*data-action="region-fold"[^>]*>\s*<i[^>]*><\/i><span>([^<]*)<\/span><span class="agl-count"[^>]*>(\d+)</g)].map(m => [m[1], Number(m[2])]);
-  assert.deepEqual(labels, [['[TEST] Frontier', 1], ['[TEST] Fosstryn', 1], ['Trackless Country', 1], ['No region', 1]]);
+  assert.deepEqual(labels, [['[TEST] Frontier', 2], ['[TEST] Fosstryn', 1], ['Trackless Country', 1], ['No region', 1]]); // 0.45.0: the unidentified Region now sits under Frontier, so its Road counts there
   assert.match(pane, /\[TEST\] Frontier/); assert.match(pane, /\[TEST\] Fosstryn/); assert.match(pane, /\[TEST\] Muster/);
   assert.match(pane, /Trackless Country/, 'an unidentified Region shows its generic label');
   assert.match(pane, /\[TEST\] Road/);

@@ -160,8 +160,8 @@ export function pageData(loc, all, opts = presentationOptions(), notes = null) {
   };
 }
 /** 0.28.0: the page data for a location's companion, or null when it has none. Carries the unidentified label and the opaque key only. */
-export function companionPageData(loc, opts = presentationOptions()) {
-  const view = companionView(loc, opts);
+export function companionPageData(loc, opts = presentationOptions(), all = []) {
+  const view = companionView(loc, {...opts, all});
   if (!view) return null;
   return {
     name: view.name, type: 'text', text: {content: viewHtml(view), format: htmlFormat()},
@@ -191,7 +191,7 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
   const companions = new Map();
   for (const p of journal.pages) { const key = p.getFlag(MODULE_ID, 'companionKey'); if (key && !companions.has(key)) companions.set(key, p); }
   for (const loc of locations) {
-    const cdata = companionPageData(loc, opts);
+    const cdata = companionPageData(loc, {...opts, normalized}, locations);
     if (!cdata) continue;
     const page = companions.get(loc.companionKey);
     if (!page) { create.push(cdata); continue; }

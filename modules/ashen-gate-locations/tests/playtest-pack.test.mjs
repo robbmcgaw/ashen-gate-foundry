@@ -28,7 +28,7 @@ test("players see none of the pack's hidden location content", () => {
   const revealed = views.filter(v => v.state === 'revealed').map(v => v.id).sort();
   assert.deepEqual(revealed, ['LOC-PT-CHAPEL-CRYPT', 'LOC-PT-CINDER-QUARRY', 'LOC-PT-DROWNED-CHAPEL', 'LOC-PT-GREENHOLLOW', 'LOC-PT-HOLLOWMERE']);
   const unidentified = views.filter(v => v.state === 'unidentified');
-  assert.deepEqual(unidentified.map(v => [v.name, Object.keys(v).sort()]), [['[TEST] A distant light', ['key', 'name', 'state', 'teaser']]]);
+  assert.deepEqual(unidentified.map(v => [v.name, Object.keys(v).sort()]), [['[TEST] A distant light', ['key', 'name', 'parent', 'state', 'teaser']]]); // 0.45.0: its parent (Hollowmere) is revealed
   const text = JSON.stringify(views) + views.map(viewHtml).join('');
   assert.doesNotMatch(text, /must not see|until revealed|Ash Hollow|ASH-HOLLOW|Sunken Cache|SUNKEN-CACHE|Lantern Mound|LANTERN-MOUND|GM-only Resin|pt-cinder-coal|pt-chapel-seam|"dc":13/);
   const shown = views.flatMap(v => v.resources ?? []).filter(n => 'dc' in n);

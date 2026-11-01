@@ -1,3 +1,14 @@
+## 0.45.0 — 2026-11-01
+
+Changed: in the player Locations list, an unidentified place ("Unknown location") now sits under its parent's Region headers (for example Fosstryn Frontier > Fosstryn) when the player can see that parent. No other change for the GM.
+
+- **When it is grouped.** An unidentified place (and the "Everyone else sees it as unidentified" placeholder of a Selected-players place) carries its parent only when that parent is **Revealed, published, not archived, and visible to every player who can read the card**. For a placeholder the parent is the real place's parent and must be open to Everyone. Otherwise nothing changes: a hidden, unidentified or restricted parent is not named, hinted at or counted, and the place stays in the flat **Unidentified** group at the bottom. The card is one page for all its readers, so a Selected-players parent is left out even for a player who is in its audience.
+- **Still generic.** The row shows only the generic label and teaser. A placeholder's view never carries the real name, id, pin key, region or description.
+- **Counts.** An unidentified place does not make its parent appear as a header and is **not counted** in a header's number. The header's tooltip adds it apart ("2 places inside, and 1 unidentified"). The flat Unidentified group counts its own rows as before. `listModel` sections gain `unidentified` (additive).
+- **Visible side effect.** An unidentified Region that holds a visible place and has a visible parent now nests under that parent's header instead of sitting at the top level, so the parent's count includes the places inside it.
+- **Test players** get exactly the same views and rules. Saved data is unchanged (no migration); `parent` is added to the published view at the next Publish or sync, which happens when Locations syncs the player journal.
+- Tests are mocked Foundry: they prove the data, privacy rules and window HTML, not a live Forge world. To check: update Locations, as a Test player open Locations and find *Shrine of the Eternal Witness* and *The Court of Names* as "Unknown location" under their Region headers, then confirm one whose parent is hidden still sits in the flat Unidentified group.
+
 ## 0.44.0 — 2026-11-01
 
 Changed: the six **Blight** weather effects (0.41.0) are no longer part of Locations. They are scene moods, not locations, and now live in **General Manager 0.99.0** (Scenes tab and Scene Config > Basics > Weather) with the same six ids and labels. Update both together.
