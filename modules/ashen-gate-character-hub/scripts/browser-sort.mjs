@@ -257,18 +257,25 @@ export function sortedBrowserClass(Base) {
 }
 
 /**
- * Opens the sorted browser and resolves the picked uuid (or null), as CompendiumBrowser.selectOne does. Returns
- * `undefined` without opening anything when the subclass could not be built, so the caller can use selectOne.
+ * Opens the sorted browser and resolves the picked uuids as an array (empty when cancelled), as CompendiumBrowser.select
+ * does with its Set. `selection` is dnd5e's own {min, max}. Returns `undefined` without opening anything when the
+ * subclass could not be built, so the caller can use dnd5e's plain browser.
  */
-export async function selectOneSorted(Base, options, kind) {
+export async function selectSorted(Base, options, kind, selection = {min: 1, max: 1}) {
   let browser;
   try {
     const Sorted = sortedBrowserClass(Base);
-    browser = new Sorted({...options, selection: {min: 1, max: 1}, agSort: {kind}});
+    browser = new Sorted({...options, selection: {...selection}, agSort: {kind}});
   } catch (err) { console.warn(`${MODULE_ID} | sorted compendium browser not available`, err); return undefined; }
   const picked = await new Promise(resolve => {
     browser.addEventListener('close', () => resolve(browser.selected?.size ? browser.selected : null), {once: true});
     browser.render({force: true});
   });
-  return picked?.size ? [...picked][0] : null;
+  return picked?.size ? [...picked] : [];
+}
+
+/** The single-pick form kept for callers that want one uuid (or null). */
+export async function selectOneSorted(Base, options, kind) {
+  const picked = await selectSorted(Base, options, kind, {min: 1, max: 1});
+  return picked === undefined ? undefined : (picked[0] ?? null);
 }

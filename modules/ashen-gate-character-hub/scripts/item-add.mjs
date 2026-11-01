@@ -1,7 +1,7 @@
 /**
  * Add to the sheet (0.45.0): attacks, items, spells and features, from the Hub's Combat, Inventory, Magic and Features
- * tabs. Nothing here is a rule: the compendium browser is dnd5e's own (CompendiumBrowser.selectOne, as level-up.mjs
- * addClass uses it), the new item is built with Foundry's fromCompendium and dnd5e's item model onDropCreate hook, and
+ * tabs. Nothing here is a rule: the compendium browser is dnd5e's own (CompendiumBrowser.select with selection min 1 / max 50 since 0.70.0, so
+ * several entries can be ticked and added together; level-up.mjs addClass still uses selectOne), the new item is built with Foundry's fromCompendium and dnd5e's item model onDropCreate hook, and
  * dnd5e's AdvancementManager.forNewItem runs for items that carry advancement (as the native sheet does on a drop).
  * Owner or GM only, checked here and not only by hiding the button. Every function resolves {ok, result?, error?}.
  *
@@ -15,7 +15,7 @@ import {readDrop, resolveItemDrop, grantBundle} from './ag-item-drop.mjs';
 import {renderBeside} from './popout.mjs';
 import {advancementManager, showManager, hasSteps, setting} from './level-up.mjs';
 import {esc} from './constants.mjs';
-import {kindFor, canSort, selectOneSorted} from './browser-sort.mjs';
+import {kindFor, canSort, selectSorted} from './browser-sort.mjs';
 
 const refuse = error => ({ok: false, error});
 const note = (kind, msg) => globalThis.ui?.notifications?.[kind]?.(msg);
@@ -34,6 +34,8 @@ export const ADD_LABELS = Object.freeze({
   features: {button: 'Add feature…', what: 'feature'},
   combat: {button: 'Add attack…', what: 'attack'}
 });
+/** Most entries one Browse compendiums… pick may add together (dnd5e's browser enforces it as selection.max). */
+export const BATCH_MAX = 50;
 /** Every type a drop onto any list accepts. */
 export const DROP_TYPES = Object.freeze([...new Set(Object.values(ADD_TYPES).flat())]);
 /** Types that belong to Level up, not to a list. */
@@ -87,7 +89,7 @@ export function itemDataFor(actor, doc) {
  * Adds one Item document to the character. `target` is the element the drop landed on or the tab's list (dnd5e's
  * onDropCreate reads it for the spell list). `sheet` shows dnd5e's advancement window when the item has steps.
  */
-export async function addDocument(actor, doc, {tab = null, sheet = null, target = null, event = null, types = DROP_TYPES} = {}) {
+export async function addDocument(actor, doc, {tab = null, sheet = null, target = null, event = null, types = DROP_TYPES, quiet = false} = {}) {
   const state = tab ? addState(actor, tab) : (canEdit(actor) ? {ok: true} : refuse(`You don't own ${actor?.name ?? 'this character'}, so you can't add to it.`));
   if (!state.ok) return state;
   if (!doc || doc.documentName !== 'Item') return refuse('Drop an item.');
@@ -109,12 +111,12 @@ export async function addDocument(actor, doc, {tab = null, sheet = null, target 
     if (Object.keys(data.system?.advancement ?? {}).length && !setting('disableAdvancements', false) && typeof Manager?.forNewItem === 'function') {
       const manager = Manager.forNewItem(actor, data);
       if (rows.length === 1 && hasSteps(manager)) {
-        await showManager(manager, sheet, () => note('info', `Added ${data.name} to ${actor.name}.`));
+        await showManager(manager, sheet, () => { if (!quiet) note('info', `Added ${data.name} to ${actor.name}.`); });
         return {ok: true, result: 'advancement', name: data.name};
       }
     }
     await actor.createEmbeddedDocuments('Item', rows, rows.length > 1 ? {keepId: true} : {});
-    note('info', `Added ${data.name} to ${actor.name}${rows.length > 1 ? ` with ${rows.length - 1} ${rows.length === 2 ? 'item' : 'items'} inside` : ''}.`);
+    if (!quiet) note('info', `Added ${data.name} to ${actor.name}${rows.length > 1 ? ` with ${rows.length - 1} ${rows.length === 2 ? 'item' : 'items'} inside` : ''}.`);
     return {ok: true, result: 'created', name: data.name};
   } catch (err) {
     console.error('ashen-gate-character-hub | add item', err);
@@ -122,23 +124,71 @@ export async function addDocument(actor, doc, {tab = null, sheet = null, target 
   }
 }
 
-/** Browse compendiums… : dnd5e's browser locked to this tab's types; the pick is added like a drop. */
+/** The compendium uuid an embedded Item was made from (V14 _stats.compendiumSource, older flags.core.sourceId), or ''. */
+const sourceOf = item => String(item?._stats?.compendiumSource ?? item?.flags?.core?.sourceId ?? '');
+/** True when the sheet already has an Item made from this compendium entry. Physical items stack, so only spells and features count. */
+const alreadyOn = (actor, doc) => !['spell', 'feat'].includes(doc.type) ? false
+  : [...(actor.items?.contents ?? actor.items ?? [])].some(i => i.type === doc.type && sourceOf(i) === doc.uuid);
+
+/**
+ * Adds several compendium entries, one after another, each through addDocument (the single-add path: owner/GM check, type
+ * check, fromCompendium, onDropCreate, advancement). Nothing is added when more than `max` are given. A repeat in the
+ * list or a spell / feature already on the sheet is skipped; one that fails does not stop the rest. Resolves
+ * {ok, result: 'batch', added, skipped, failed, pending, summary, errors}, with the same summary shown as a notification.
+ */
+export async function addMany(actor, tab, uuids, {sheet = null, max = BATCH_MAX} = {}) {
+  const state = addState(actor, tab); if (!state.ok) return state;
+  const list = [...new Set((uuids ?? []).filter(Boolean))];
+  if (!list.length) return {ok: true, result: null};
+  if (list.length > max) return refuse(`Pick at most ${max} at a time (you picked ${list.length}). Nothing was added.`);
+  let added = 0, skipped = 0, pending = 0;
+  const errors = [];
+  for (const uuid of list) {
+    // Re-check on every entry: ownership or Player visibility can change while the batch runs.
+    const again = addState(actor, tab); if (!again.ok) { errors.push(again.error); break; }
+    const doc = await globalThis.fromUuid?.(uuid);
+    if (!doc) { errors.push("An entry no longer exists or you can't see it."); continue; }
+    if (alreadyOn(actor, doc)) { skipped++; continue; }
+    const r = await addDocument(actor, doc, {tab, sheet, types: ADD_TYPES[tab], quiet: true});
+    if (!r.ok) { errors.push(r.error); continue; }
+    if (r.result === 'advancement') pending++; else added++;
+  }
+  const parts = [];
+  if (added || (!skipped && !errors.length && !pending)) parts.push(`Added ${added}`);
+  if (pending) parts.push(`${pending} waiting on dnd5e's advancement window`);
+  if (skipped) parts.push(`skipped ${skipped} (already on the sheet)`);
+  if (errors.length) parts.push(`${errors.length} could not be added`);
+  const summary = `${parts.join(', ')}.`.replace(/^./, c => c.toUpperCase());
+  const failedAll = !added && !pending && !skipped;
+  note(errors.length ? 'warn' : 'info', errors.length ? `${summary} ${errors[0]}` : summary);
+  if (failedAll) return {...refuse(`${summary} ${errors[0] ?? ''}`.trim()), added, skipped, failed: errors.length, pending, summary, errors};
+  return {ok: true, result: 'batch', added, skipped, failed: errors.length, pending, summary, errors};
+}
+
+/**
+ * Browse compendiums… : dnd5e's browser locked to this tab's types, in its own multi-select mode (selection min 1, max
+ * BATCH_MAX). One pick is added like a drop; several go through addMany. Cancelling adds nothing.
+ */
 export async function browseAndAdd(actor, tab, {sheet = null} = {}) {
   const state = addState(actor, tab); if (!state.ok) return state;
   const {CompendiumBrowser} = dnd5eApps();
-  if (typeof CompendiumBrowser?.selectOne !== 'function') return refuse("This version of dnd5e has no compendium browser to pick from. Drag the item onto the list, or use Create new….");
-  let uuid;
-  const options = {filters: {locked: {types: new Set(ADD_TYPES[tab])}}}, kind = kindFor(ADD_TYPES[tab]);
+  if (typeof CompendiumBrowser?.select !== 'function' && typeof CompendiumBrowser?.selectOne !== 'function') return refuse("This version of dnd5e has no compendium browser to pick from. Drag the item onto the list, or use Create new….");
+  let uuids;
+  const options = {filters: {locked: {types: new Set(ADD_TYPES[tab])}}}, kind = kindFor(ADD_TYPES[tab]), selection = {min: 1, max: BATCH_MAX};
   try {
-    // 0.52.0: spells and items open with a Sort by control (browser-sort.mjs); anything it cannot build uses selectOne as before.
-    uuid = kind && canSort(CompendiumBrowser) ? await selectOneSorted(CompendiumBrowser, options, kind) : undefined;
-    if (uuid === undefined) uuid = await CompendiumBrowser.selectOne(options);
+    // 0.52.0: spells and items open with a Sort by control (browser-sort.mjs); anything it cannot build uses dnd5e's browser as is.
+    uuids = kind && canSort(CompendiumBrowser) ? await selectSorted(CompendiumBrowser, options, kind, selection) : undefined;
+    if (uuids === undefined) {
+      if (typeof CompendiumBrowser.select === 'function') uuids = [...(await CompendiumBrowser.select({...options, selection}) ?? [])];
+      else { const one = await CompendiumBrowser.selectOne(options); uuids = one ? [one] : []; }   // a dnd5e with only the single pick
+    }
   } catch (err) {
     console.error('ashen-gate-character-hub | compendium browser', err);
     return refuse(`Could not open the compendium browser: ${err?.message ?? err}`);
   }
-  if (!uuid) return {ok: true, result: null};
-  const doc = await globalThis.fromUuid?.(uuid);
+  if (!uuids.length) return {ok: true, result: null};
+  if (uuids.length > 1) return addMany(actor, tab, uuids, {sheet});
+  const doc = await globalThis.fromUuid?.(uuids[0]);
   if (!doc) return refuse("That item no longer exists or you can't see it.");
   return addDocument(actor, doc, {tab, sheet, types: ADD_TYPES[tab]});
 }
