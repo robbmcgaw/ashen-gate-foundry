@@ -37,7 +37,7 @@ const actor=(id,name,known)=>({id,name,type:'character',hasPlayerOwner:true,item
 const alpha=actor('a1','[TEST] Alpha',['REC-TEST-000','REC-TEST-001']),bravo=actor('a2','[TEST] Bravo',['REC-TEST-000']);
 let itemReads=0;
 const items={get contents(){itemReads++;return world;},get size(){return world.length;},get:id=>world.find(x=>x.id===id)};
-const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.43.0'};
+const moduleObj={get api(){return api},set api(v){api=v},active:true,version:'0.44.0'};
 globalThis.game={user:gm,users:{contents:[gm,player],get:id=>[gm,player].find(u=>u.id===id),get activeGM(){return gm;}},items,
   actors:{contents:[alpha,bravo],size:2,get:id=>[alpha,bravo].find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
