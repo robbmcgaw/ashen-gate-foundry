@@ -49,7 +49,7 @@ export function createNotesService(deps) {
       if (!loc) throw new Error('No location found with that reference.');
       return loc;
     }
-    if (!deps.playerAccessEnabled()) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
+    if (!deps.playerAccessEnabled(user)) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
     const loc = all.find(l => l.pinKey === ref) ?? all.find(l => l.id === ref && l.state === 'revealed');
     if (!loc || loc.state === 'hidden' || !loc.published || !inAudience(loc, user.id)) throw new Error(NOT_AVAILABLE);
     return loc;
@@ -93,7 +93,7 @@ export function createNotesService(deps) {
     return serial(async () => {
       if (!me?.id) throw new Error('Unknown user.');
       if (!deps.shared) throw new Error('A GM must be connected to change Party Notes. You can still read them.');
-      if (!deps.playerAccessEnabled()) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
+      if (!deps.playerAccessEnabled(me)) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
       const {op, ref, text, rev} = payload ?? {};
       if (!OPS.has(op)) throw new Error(`Unknown Party Notes action "${op}".`);
       if (op === 'clear') throw new Error('Only the GM can clear Party Notes.');

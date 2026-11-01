@@ -154,3 +154,11 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Recipe previews for players** (0.37.12, replaces the 0.37.10 world-setting copy): on the Individual tab a known recipe's Makes item and ingredients show picture and name as buttons that open a read-only preview (type, price, the item's own description). The GM client copies these onto each character (Actor flag `recipePreviews`, received only by the character's owners/observers and GMs; never a world setting) for the recipes that character knows, so the world Items can stay GM-only. If the player's client cannot read the result Item, Craft is routed to the GM client (the same authenticated request used for shared materials), which makes the item on the character. Assign → Recipe previews: Rebuild recipe previews, and an information-only list of items players can't open in Foundry. Without a preview the name stays plain text.
 - **Who is in a gather** (0.37.11): the Gather tab and an open gather have an Included checkbox per eligible character, with Include all / none. Only included characters get the roll pop-up, and the Ledger refuses a roll for anyone else. API `gathering.include`, `gathering.includeAll`, `start({include})`.
 - **Requirement line** (0.37.12): a recipe with no tool and no station whose profession checks a skill (GM Setup mapping) reads "Check: <skill>" instead of "Tool or station: None needed".
+
+## Test players
+
+General Manager (0.98.0+) can list "Test players" (GM Setup > General). A Test player sees the Profession Ledger launcher, window and sheet tab as if Player Access were on. Real players keep following the Ledger's Player Access setting.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (an array of User ids) through this module's own copy of `ag-test-players.mjs`; it never imports Manager code. No Manager, an unregistered setting or a malformed value means no Test players, and it never throws.
+- It grants no GM power: GM-only actions stay GM-only, and document permissions (Actor ownership, Item and journal permissions) are checked as for any player.
+- Contract (`ag-test-players/1`) and the full list of modules: [docs/test-players.md](../../docs/test-players.md).

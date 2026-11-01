@@ -13,7 +13,11 @@ const BADGES = {
 };
 export const accessBadge = state => BADGES[state] ?? {label: String(state ?? 'Unsupported'), tone: ''};
 
-export function moduleCards(launchers = [], access = []) {
+/** Shown on a player-facing module's card while at least one Test player is set (they see it even when it is hidden from players). */
+export const TEST_PLAYERS_NOTE = 'Test players: on';
+
+/** `testPlayerCount`: how many Test players are set (GM Setup > General); 0 adds no note. */
+export function moduleCards(launchers = [], access = [], testPlayerCount = 0) {
   const byId = new Map(access.map(row => [row.id, row]));
   const cards = launchers.map(l => ({...l, access: byId.get(l.id) ?? null}));
   for (const row of access) {
@@ -30,6 +34,7 @@ export function moduleCards(launchers = [], access = []) {
     const a = c.access;
     const state = a?.state ?? 'Unsupported';
     return {...c, playerAccessState: state, badge: accessBadge(state), canToggle: Boolean(a?.canToggle),
+      testPlayersNote: testPlayerCount > 0 && ['Visible', 'Hidden'].includes(state) ? TEST_PLAYERS_NOTE : '',
       playerAccessEnabled: a?.playerAccessEnabled === true, accessReason: a?.reason ?? 'No compatible Player Access API exposed.'};
   }).sort((x, y) => String(x.title).localeCompare(String(y.title)));
 }

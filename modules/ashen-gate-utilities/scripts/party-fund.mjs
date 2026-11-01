@@ -5,7 +5,7 @@
    Setup. Same gate as the stash: Player Access and the stash on for players. The GM client makes the one currency
    update, writes stash History (`coin-exchange`) and whispers the card to the player and the GM. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,readCoins,bankQuote,bankText,coinExchangeEntry} from './core.mjs';
-import {tradeCtx,receivers,readablePurse,whisper,gmIds,warn,postTradeCard} from './shop-buy.mjs';
+import {accessFor,tradeCtx,receivers,readablePurse,whisper,gmIds,warn,postTradeCard} from './shop-buy.mjs';
 import {bankPayer} from './services.mjs';
 import {icon,button,randomId} from './shops.mjs';
 
@@ -21,7 +21,7 @@ export function fundFee(){const n=Number(game.settings.get(ID,'exchangeFeePercen
 /** The stash's own gate: the GM always passes; a player needs Player Access and the stash on for players. */
 export function fundGate(user=game.user){
  if(user?.isGM)return;
- if(game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');
+ if(!accessFor(user))throw Error('Utilities is hidden for players.');
  if(!tradeCtx().stashEnabled?.())throw Error('The GM has turned the party stash off.');
 }
 function cleanReq(r={}){

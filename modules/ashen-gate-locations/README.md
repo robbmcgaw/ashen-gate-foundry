@@ -233,3 +233,11 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
 - 0.40.0 field, optional, GM only: `overlandConditions` on a Location record, `{conditionId: 0..3}` with only the six ids (`harsh-weather`, `hard-ground`, `poor-visibility`, `warped-paths`, `blight-taint`, `ashen-menace`). Omitted = not set here (the nearest Region above decides); an explicit `0` clears an inherited value. Never published, never in a player view or player export; the GM export and import carry it, and an update record that leaves it out keeps the world's. `scripts/validate-content.mjs` flags any other id or a value outside 0 to 3.
 - Party Notes are campaign state, not definition: exports leave them out and imports never read or change them.
 - **Export** (Locations tab toolbar) writes the same format. [`examples/test-locations.json`](examples/test-locations.json) is a synthetic sample; **GM Setup → Developer Tools** imports it.
+
+## Test players
+
+General Manager (0.98.0+) can list "Test players" (GM Setup > General). A Test player sees the Locations launcher and viewer as if Player Access were on (`api.playerAccess.getState()` still reports the world setting alone). Real players keep following Locations' Player Access setting.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (an array of User ids) through this module's own copy of `ag-test-players.mjs`; it never imports Manager code. No Manager, an unregistered setting or a malformed value means no Test players, and it never throws.
+- It grants no GM power: GM-only actions stay GM-only, and document permissions (Actor ownership, Item and journal permissions) are checked as for any player.
+- Contract (`ag-test-players/1`) and the full list of modules: [docs/test-players.md](../../docs/test-players.md).

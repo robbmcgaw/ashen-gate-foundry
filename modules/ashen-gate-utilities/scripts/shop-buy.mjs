@@ -8,6 +8,7 @@ import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,stra
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
  nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory,normalizeMerchantList,audiencePresented} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {shopsFolderId} from './folder-nesting.mjs';
 import {focusKey,restoreFocus,refocusSoon,guardKeys} from './ui-parts.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
@@ -24,7 +25,9 @@ export const GM_SLOW='The GM did not answer in time. If the purchase still goes 
 const isGM=()=>Boolean(game.user?.isGM);
 const gmOnly=()=>{if(!isGM())throw Error('GM only.');};
 const electrum=()=>game.settings.get(ID,'electrumEnabled')===true;
-const access=()=>game.settings.get(ID,'playerAccessEnabled')===true;
+/** Player Access as `user` (default: this client) sees it: the world setting, or ON for a Test player (ag-test-players/1, set in General Manager). */
+export const accessFor=(user=game.user)=>game.settings.get(ID,'playerAccessEnabled')===true||isTestPlayer(user,game);
+const access=accessFor;
 export const shopsOn=()=>game.settings.get(ID,'shopsEnabled')===true;
 const clone=v=>structuredClone(v);
 const levels=()=>globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS??{NONE:0,OBSERVER:2};
@@ -41,7 +44,7 @@ export const tradeCtx=()=>ctx;
 /** *Party must accept when a player spends the party purse*: '' (never saved) follows the coin vote. */
 export const shopVoteRequired=()=>{const v=game.settings.get(ID,'shopPurseVote');return v==='on'?true:v==='off'?false:Boolean(ctx.purseVoteRequired?.());};
 /** Design §6 wording. The GM always passes. */
-export function playerGate(user=game.user){if(user?.isGM)return;if(!access())throw Error('Utilities is hidden for players.');if(!shopsOn())throw Error('The GM has turned shops off.');}
+export function playerGate(user=game.user){if(user?.isGM)return;if(!access(user))throw Error('Utilities is hidden for players.');if(!shopsOn())throw Error('The GM has turned shops off.');}
 /** The Shops tab shows for players while Player Access and *Shops on for players* are both on. */
 export const shopsVisible=()=>isGM()||(access()&&shopsOn());
 

@@ -25,7 +25,7 @@ export function createShareService(deps) {
   function perform({ref, userIds} = {}, user) {
     return serial(async () => {
       if (!user?.id || user.isGM) throw new Error('Only players share locations; the GM sets who can see a location on its card.');
-      if (!deps.playerAccessEnabled()) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
+      if (!deps.playerAccessEnabled(user)) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
       if (typeof ref !== 'string' || !ref || ref.length > 64) throw new Error(NOT_AVAILABLE);
       const all = deps.readAll();
       const loc = all.find(l => l.pinKey === ref) ?? all.find(l => l.id === ref && l.state === 'revealed');

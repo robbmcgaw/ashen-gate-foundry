@@ -4,6 +4,7 @@
  * Codex: they ask the active GM through a Foundry query (point to point, V13+), and the GM's client returns only the
  * player projection for that user's characters. Nothing hidden is sent.
  */
+import { isTestPlayer } from './ag-test-players.mjs';
 import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEntry, playerCodex,
   buildCodexExport, planRevealsImport, linkKind, isLinkId, knowsRule, resolvePlayerLinks, DEITY_TIPS,
   applyReveals, undoReveals, presetKeys, checkRevealKeys, revealMessage, displayName, buildCodexBackupLayer} from './codex.js';
@@ -153,7 +154,8 @@ export function createCodexService({game, moduleId}) {
       canUndo: undoStack.has(id)};
   };
   const write = async (npc, state) => { await npc.actor.setFlag(moduleId, CODEX_FLAG, state); return state; };
-  const accessOn = () => { try { return Boolean(game.settings.get(moduleId, CODEX_ACCESS_SETTING)); } catch { return false; } };
+  // A Test player (ag-test-players/1, set in GM Setup) counts as Codex access ON; the world setting itself is unchanged.
+  const accessOn = (user = game.user) => { try { return Boolean(game.settings.get(moduleId, CODEX_ACCESS_SETTING)) || isTestPlayer(user, game); } catch { return false; } };
 
   const service = {
     characters: () => { requireGM(); return characters(); },
@@ -215,7 +217,7 @@ export function createCodexService({game, moduleId}) {
       requireGM();
       const user = game.users?.get?.(userId);
       if (!user) throw new Error('Unknown user.');
-      if (!user.isGM && !accessOn()) throw new Error('The NPC Codex is not shared with players. Ask your GM.');
+      if (!user.isGM && !accessOn(user)) throw new Error('The NPC Codex is not shared with players. Ask your GM.');
       const ids = user.isGM ? [] : actorIdsFor(user);
       return playerCodex(npcs(), ids, {linkFor: playerLinker(ids, claimsOf(data))});
     },
@@ -249,7 +251,7 @@ export function createCodexService({game, moduleId}) {
       }
       return {done, errors};
     },
-    playerAccessEnabled: accessOn,
+    playerAccessEnabled: () => accessOn(),
     /**
      * 0.40.0, any client: how this client shows a deity link, as a function link -> {open, title, unknown?}.
      * Feature-detects Renown's api.open and asks Renown's own getDeities (a player gets only deities they discovered).

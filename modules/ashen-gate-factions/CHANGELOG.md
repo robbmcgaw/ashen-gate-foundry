@@ -1,3 +1,10 @@
+## 0.29.0 — 2026-11-01
+
+**New: Test players.** The Renown launcher, dashboard and player requests (the GM client checks the requesting user) treat a Test player as if Player Access were on. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.28.0 — 2026-10-31
 
 - **Character Hub embed: Factions and Pantheon are two sub-tabs.** In Character Hub → Ashen Gate → Renown, the one long scroll is now **Factions** and **Pantheon** (the kit's sub-tabs: one Tab stop, Left/Right/Home/End move between them, Enter or Space opens one). Both tabs are always there; with nothing to show they say "No factions known yet." or "No deities known yet." instead of disappearing. The last tab you used is remembered per user on this device. Keyboard focus stays on the same tab or **Open** button when the view redraws.

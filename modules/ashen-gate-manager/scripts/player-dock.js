@@ -39,6 +39,7 @@
  * Keyboard: the menu opens on Enter/Space/click and focuses its first item; Arrow Up/Down, Home and End move; Escape closes
  * and returns focus to the Ashen Gate button; Tab or a click outside closes. Escape is only swallowed while a menu is open.
  */
+import { isTestPlayer } from './ag-test-players.mjs';
 import { openSidebarTab, closeSidebarTab, isSidebarTabOpen, sharedPeek } from './sidebar-tabs.js';
 import { applyPlayersList, createControlsLayout, shouldDockControls, toggleUserConfiguration, userConfigurationOpen } from './dock-controls.js';
 
@@ -84,7 +85,8 @@ async function playerMayOpen(api) {
   const access = api?.playerAccess;
   if (access?.contract !== ACCESS_CONTRACT || typeof access.getState !== 'function') return false;
   const state = await access.getState();
-  return state?.contract === ACCESS_CONTRACT && state.audience !== 'gm-only' && state.playerAccessEnabled === true;
+  // A Test player (ag-test-players/1, set in GM Setup) is offered the module as if its Player Access were on.
+  return state?.contract === ACCESS_CONTRACT && state.audience !== 'gm-only' && (state.playerAccessEnabled === true || isTestPlayer(globalThis.game?.user));
 }
 
 /**

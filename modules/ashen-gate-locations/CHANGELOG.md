@@ -1,3 +1,10 @@
+## 0.43.0 — 2026-11-01
+
+**New: Test players.** The Locations launcher, viewer, Party Notes and "Share with..." treat a Test player as if Player Access were on. `api.playerAccess.getState()` still reports the world setting alone. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.42.1 — 2026-10-31
 
 Fixed: the Player Preview no longer shows a Travel button that players would not get.

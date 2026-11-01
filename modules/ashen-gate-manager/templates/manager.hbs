@@ -1145,7 +1145,7 @@
     {{#each moduleCards}}
       <article class="ag-card agmanager-module-card">
         <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{slug}}</code>
-          <p class="agmanager-module-card__badge"><span class="ag-badge{{#if badge.tone}} ag-badge--{{badge.tone}}{{/if}}">{{badge.label}}</span></p>
+          <p class="agmanager-module-card__badge"><span class="ag-badge{{#if badge.tone}} ag-badge--{{badge.tone}}{{/if}}">{{badge.label}}</span>{{#if testPlayersNote}} <span class="ag-badge ag-badge--accent" data-tooltip="Your Test players see this module as if Player Access were on.">{{testPlayersNote}}</span>{{/if}}</p>
           <p class="agmanager-tiny">v{{version}} · {{state}}</p><p class="agmanager-tiny">{{role}}</p>
           {{#unless canToggle}}<p class="agmanager-tiny">{{accessReason}}</p>{{/unless}}</div>
         <div class="agmanager-module-card__actions">
@@ -1473,6 +1473,12 @@
             <option value="player" {{#if itemsReadable}}selected{{/if}}>Yes: approved player-visible records</option>
           </select>
           <span class="ag-field__hint">Applies to Items Manager creates or updates from now on. Journals and Actors keep their rule, and handout Items always stay readable so item links in a revealed handout open. Items already in your world are never changed by this setting: use Items &gt; Checks &gt; Player access to Items to hide or release them. Saved with Save Changes.</span></div>
+      </section>
+      <section class="ag-section" aria-label="Test players">
+        <div class="ag-section__head"><h3 class="ag-section__title">Test players</h3></div>
+        <p class="agmanager-tiny">{{testPlayersHint}}</p>
+        <div class="agm-checks" data-ag-test-players role="group" aria-label="Test players">{{#each testPlayerRows}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-test-player="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">This world has no player users yet. Add one in Foundry's User Configuration, then pick it here.</p>{{/each}}</div>
+        <p class="agmanager-tiny">Saved with Save Changes. A Test player only sees the module windows and launchers; GM-only actions stay GM-only. Reload that player's browser tab after saving if a launcher does not appear.</p>
       </section>
       {{{backupSettingsHtml}}}
     </div>

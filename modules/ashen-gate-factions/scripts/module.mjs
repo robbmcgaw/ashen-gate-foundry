@@ -3,6 +3,7 @@ import {MODULE_ID,SCHEMA_VERSION,TEST_FACTIONS_DEMO,UNKNOWN_FACTION,OTHER_FOLDER
 import {showLabel,isPartyMember,isMember,memberActorIds,hasAnyMember,setKnown,setMember,hidingRemovesMembership,hasMembershipField,membershipFromDiscovery,blankMembership,recruitChip,recruitBadge,scopeStatus,KNOWN_NOT_RECRUITED} from './membership.mjs';
 import {confirmDialog,confirmDanger,guardDirty,formDialog,promptText,infoDialog,esc,checklistDialog} from './ag-dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs,objectiveKind,objectiveRecords,objectiveName} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
 import {runSupersede} from './supersede.mjs';
@@ -31,7 +32,8 @@ const playerAccessEnabled=()=>game.settings.get(MODULE_ID,'playerAccessEnabled')
 /** 0.25.0 world setting (GM Setup, replaces the 0.24.0 switch): how a player sees ranks they have not unlocked.
  * 'flavor' (default): every rank, a locked rank as a flavor-only card. 'hide': the 0.24.0 behaviour (first unlock only). 'all': everything, as before 0.24.0. */
 const lockedMode=()=>normalizeLockedMode(game.settings.get(MODULE_ID,LOCKED_RANKS_SETTING));
-const playerMayOpen=()=>Boolean(game.user?.isGM||playerAccessEnabled());
+// A Test player (ag-test-players/1, set in General Manager) counts as Player Access ON; the world setting itself is unchanged.
+const playerMayOpen=()=>Boolean(game.user?.isGM||playerAccessEnabled()||isTestPlayer(game.user,game));
 function requirePlayerAccess(){
   if(!playerMayOpen())throw Error('Renown is hidden from players. Ask your GM to enable Player Access.');
 }
@@ -403,7 +405,7 @@ const planFactionsImport=(data,options)=>{assertGM();const o=importOptions(optio
 async function importFactions(data,options){assertGM();return runImport(planFactionsImport(data,options),importIO());}
 const previewFactionsImport=(data,options)=>{const {errors,rows}=planFactionsImport(data,options);return {errors,rows:rows.map(({id,name,kind,action,reason,changes,edited,dropped})=>({id,name,kind,action,reason,...(changes?{changes}:{}),...(edited?{edited:true}:{}),...(dropped?.length?{no_longer_defined:dropped.map(x=>`${x.kind} ${x.id}`)}:{})}))};};
 const findKnownUser=(id,user)=>buildPlayerPayload(user).factions.find(x=>x.id===id);
-function requestAuthorized(msg){if(!playerAccessEnabled())throw Error('Renown player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
+function requestAuthorized(msg){if(!playerAccessEnabled()&&!isTestPlayer(msg.userId,game))throw Error('Renown player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
 function sendClientAction(message){
   if(!activeGM())throw Error('An online GM is required to process Renown requests.');
   if(!game.socket?.emit)throw Error('Renown socket is unavailable.');
@@ -1251,8 +1253,8 @@ function attachLauncher(app,html,visible=playerMayOpen()){
 }
 // Called after a world setting change and from the GM API. No campaign-state writes.
 async function applyPlayerAccess(enabled=playerAccessEnabled()){
-  attachLauncher(ui.actors,null,game.user.isGM||enabled);
-  if(!game.user.isGM&&!enabled&&dashboard?.rendered){
+  attachLauncher(ui.actors,null,game.user.isGM||enabled||isTestPlayer(game.user,game));
+  if(!game.user.isGM&&!enabled&&!isTestPlayer(game.user,game)&&dashboard?.rendered){
     try{await dashboard.close({animate:false});}catch(e){console.error(`[${MODULE_ID}] Failed to close player interface`,e);}
   }
 }

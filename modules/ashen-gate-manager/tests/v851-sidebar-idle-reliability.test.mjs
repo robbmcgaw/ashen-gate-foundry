@@ -133,7 +133,7 @@ test('other early exits: unknown expanded state, a tab other than Chat/Settings,
 });
 test('wiring: 0.85.1, changelog names the cause, 0.x, no core wrapping, no status labels',()=>{
   const man=JSON.parse(read('../module.json')),log=read('../CHANGELOG.md');
-  assert.equal(man.version,'0.97.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.97.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
+  assert.equal(man.version,'0.98.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.98.0/ashen-gate-manager.zip'));assert.match(man.version,/^0\./);
   assert.match(log,/^## 0\.85\.1 /m);assert.match(log.split('## 0.85.0')[0],/prose-mirror/);assert.doesNotMatch(log.split('## 0.85.0')[0],/\b(Alpha|Beta|Preview)\b/);
   const src=read('../scripts/sidebar-idle.js').replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
   assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|setFlag|updateDocuments|settings\.set|new Proxy|\.blur\(/);

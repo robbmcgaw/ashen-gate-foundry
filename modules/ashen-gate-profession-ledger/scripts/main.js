@@ -3,6 +3,7 @@ import {SCHEMA,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLib
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
   nextProgress,adjustProgress,validateProgressState,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel,suggestActivityXP} from './progression.mjs';
 import {DRAFT_RECIPE_LABEL_DEFAULTS,RECIPE_LABEL_MAX,recipeLabelsOf,resolveRecipeLabels,pickRecipeLabel,cleanLabelStore,cleanRecipeLabel} from './recipe-labels.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition,definitionSource} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,executeConsume,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
@@ -38,7 +39,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.44.0';
+const VERSION='0.45.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -125,7 +126,7 @@ const modeHint=preset=>preset.sources.length?`Preset from ${preset.sources.join(
 function syncLedgerPlayerAccess(enabled){
   refreshEmbeds();
   if(game.user?.isGM&&current?.rendered)current.render();
-  if(!game.user?.isGM&&enabled!==true){
+  if(!game.user?.isGM&&enabled!==true&&!isTestPlayer(game.user,game)){
     const windows=new Set([...openLedgerWindows,...(current?[current]:[])]);
     for(const window of windows)if(window?.rendered)Promise.resolve(window.close?.({animate:false}))
       .catch(err=>console.error(`[${ID}] Could not close hidden player window`,err));

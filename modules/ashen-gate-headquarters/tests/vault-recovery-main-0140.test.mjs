@@ -19,7 +19,7 @@ globalThis.foundry={applications:{api:{
 globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).push(f);return k;},off:()=>{}};
 globalThis.ui={notifications:{warn:m=>toasts.push(['warn',m]),info:m=>toasts.push(['info',m]),error:m=>toasts.push(['error',m])}};
 globalThis.document={querySelectorAll:()=>[]};
-const mod={id:'ashen-gate-headquarters',version:'0.16.0'};
+const mod={id:'ashen-gate-headquarters',version:'0.17.0'};
 const journals=[];
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm],['p1',player]]),{activeGM:gm}),modules:{get:()=>mod},
  settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>settings.get(`${m}.${k}`),set:async(m,k,v)=>{settings.set(`${m}.${k}`,v);}},

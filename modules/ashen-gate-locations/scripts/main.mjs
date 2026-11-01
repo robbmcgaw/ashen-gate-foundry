@@ -18,11 +18,14 @@ import {createCanvasDrop} from './canvas-drop.mjs';
 import {createOverland, useOverland} from './overland.mjs';
 import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
+import {isTestPlayer} from './ag-test-players.mjs';
 import {registerSceneEffects, addStrengthField, guardStrengthChange, strengthChanged, refreshWeather} from './scene-effects.mjs';
 
-const VERSION = '0.42.1';
+const VERSION = '0.43.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
-const mayOpen = () => isGM() || playerAccessEnabled();
+/** Player Access as `user` (default: this client) sees it: the world setting, or ON for a Test player (ag-test-players/1, set in General Manager). */
+const playerAccessFor = (user = game.user) => playerAccessEnabled() || isTestPlayer(user, game);
+const mayOpen = () => isGM() || playerAccessFor();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
 const resultText = r => String(r?.name || r?.description || r?.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 /** 0.20.0: the GM's Roll on a linked RollTable: Foundry's own draw, posted to chat with the table's roll mode. */
@@ -52,8 +55,8 @@ function attachActorsLauncher(app, html, visible = mayOpen()) {
 function applyPlayerAccess(enabled) {
   setTimeout(checkActive, 300);
   listChanged();
-  attachActorsLauncher(ui.actors, null, isGM() || enabled);
-  if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
+  attachActorsLauncher(ui.actors, null, isGM() || enabled || isTestPlayer(game.user, game));
+  if (!isGM() && !enabled && !isTestPlayer(game.user, game) && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
 }
 // 0.24.0: every client reports when the active set changes (see active.mjs). Re-checked after any Locations journal change.
 let activeTimer = null;
@@ -138,11 +141,11 @@ Hooks.once('ready', () => {
   const isPrimaryGM = () => isGM() && (game.users?.activeGM?.isSelf ?? true);
   // Party Notes: players ask the primary GM's client, which checks and writes; with no GM connected they write
   // the shared page of a location they can see (party-notes.mjs).
-  const notes = createNotesService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled,
+  const notes = createNotesService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled: playerAccessFor,
     readAll, readNotes, writeNotes, reconcile: loc => syncSharedNotes([loc]),
     shared: {read: readSharedNotes, write: writeSharedNotes}, socket: game.socket});
   // 1.8.0 "Share with...": players ask the primary GM's client to add players to a location they can see (sharing.mjs).
-  const sharing = createShareService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled, readAll, writeAll, socket: game.socket});
+  const sharing = createShareService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled: playerAccessFor, readAll, writeAll, socket: game.socket});
   // 0.23.0 "Show to Players": the GM opens a location in the other clients' Locations window (show.mjs).
   const show = createShowService({users: game.users, currentUser: () => game.user, socket: game.socket, readAll,
     getLocation: ref => game.modules.get(MODULE_ID).api.getLocation(ref), mayOpen, autoOpen: () => game.settings.get(MODULE_ID, 'showOpensWindow') !== false,
@@ -176,7 +179,7 @@ Hooks.once('ready', () => {
     listContext,
     // 0.42.0: which players count as "this character's player" for the Personal badge in a partner's list (GM: its owners; a player: themself if they own it).
     playersOfActor: actorId => playersOfActor(actorId, {users: game.users, actors: game.actors, viewer: game.user}),
-    version: VERSION, isGM, playerAccessEnabled,
+    version: VERSION, isGM, playerAccessEnabled: playerAccessFor, playerAccessSetting: playerAccessEnabled,
     // 0.33.0 Travel: the current user and a way to find a scene by uuid (null when this client does not hold it).
     currentUser: () => game.user,
     // fromUuidSync can miss a world Scene this client holds (or return an index entry); fall back to the Scenes collection by id.

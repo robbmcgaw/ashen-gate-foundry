@@ -106,3 +106,11 @@ Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, pa
 `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-cinders/module.json`
 
 and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page (tag `ashen-gate-cinders-v<version>`). Change history is in [CHANGELOG.md](CHANGELOG.md).
+
+## Test players
+
+General Manager (0.98.0+) can list "Test players" (GM Setup > General). A Test player sees the Cinders launcher and window as if Player Access were on. Real players keep following Cinders' Player Access setting.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (an array of User ids) through this module's own copy of `ag-test-players.mjs`; it never imports Manager code. No Manager, an unregistered setting or a malformed value means no Test players, and it never throws.
+- It grants no GM power: GM-only actions stay GM-only, and document permissions (Actor ownership, Item and journal permissions) are checked as for any player.
+- Contract (`ag-test-players/1`) and the full list of modules: [docs/test-players.md](../../docs/test-players.md).

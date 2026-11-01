@@ -7,6 +7,7 @@
 
 /** Reads the GM Setup form. Missing controls stay undefined, so saveGmSetup leaves those settings alone. */
 import { PLAYER_SCREEN_FLAGS, DOCK_CORNERS, cleanAutoCollapse } from './appearance.js';
+import { cleanTestPlayerIds, readTestPlayers, TEST_PLAYERS_SETTING } from './test-players.js';
 import { policyFromChecklist, presetOf, samePolicy, isEverything, summarizeRows, CHAT_TAB } from './sidebar-policy.js';
 
 /** Tab checklist (0.84.0): every box carries data-ag-setup-tab="<tab id>"; ticked = players keep that tab. Chat is locked on. */
@@ -50,7 +51,10 @@ export function readGmSetupForm(root) {
   const dockCorner = q('[data-ag-setup-dock-corner]:checked');
   // 0.86.0 World backup: repository, branch and the token typed this time (an empty box means "leave the saved token").
   const backupRepo = q('[data-ag-setup-backup-repo]');
+  // Test players: undefined when the section is not in the form, so saving leaves the setting alone.
+  const testPlayers = q('[data-ag-test-players]');
   return {
+    ...(testPlayers ? {testPlayers: all('[data-ag-setup-test-player]').filter(el => el.checked).map(el => el.dataset.agSetupTestPlayer)} : {}),
     ...(backupRepo ? {backup: {repo: backupRepo.value ?? '', branch: q('[data-ag-setup-backup-branch]')?.value ?? '', token: q('[data-ag-setup-backup-token]')?.value ?? ''}} : {}),
     codexAccess: access ? Boolean(access.checked) : undefined,
     ...(pause ? {compactPause: Boolean(pause.checked)} : {}),
@@ -146,6 +150,15 @@ export async function saveGmSetup(values, {game, moduleId, codexAccessKey, items
     if (next !== (game.settings.get(moduleId, itemsKey) === 'player' ? 'player' : 'gm')) {
       await game.settings.set(moduleId, itemsKey, next);
       saved.push(next === 'gm' ? 'new Items are hidden from players' : 'new approved, player-visible Items are readable by players');
+    }
+  }
+  if (values.testPlayers !== undefined) {
+    // Who sees every module as if Player Access were on (ag-test-players/1). Only existing non-GM users are kept.
+    const next = cleanTestPlayerIds(values.testPlayers, game.users).sort();
+    const before = [...readTestPlayers(game, moduleId)].sort();
+    if (next.join('\n') !== before.join('\n')) {
+      await game.settings.set(moduleId, TEST_PLAYERS_SETTING, next);
+      saved.push(next.length ? `${next.length} test player${next.length === 1 ? '' : 's'}` : 'no test players');
     }
   }
   if (values.codexAccess !== undefined) {

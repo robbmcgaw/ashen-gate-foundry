@@ -150,3 +150,11 @@ An Item's description may end with a short **Related** list so players can jump 
 - An Item whose description you edited in Foundry is left alone (preview: Kept: edited / conflict). Nothing else in a description changes, and no saved data needs migrating.
 - Players see the record's name, or a neutral word, and only for lines they may open; the rest are hidden. The GM sees all lines.
 - For authors: nothing to add. Use `refs` with a `relation` (anything not structural) and the permanent id of the person, handout or quest.
+
+## Test players
+
+General Manager (0.98.0+) can list "Test players" (GM Setup > General). This module owns the setting: GM Setup > General > Test players (a checklist of the world's non-GM users, saved with **Save Changes**; hint: "These users see every Ashen Gate module as if Player Access were on. Other players follow each module's own setting. Item and journal permissions still follow normal player rules."). The Modules tab shows a **Test players: on** note on player-facing module cards while the list is not empty, and the NPC Codex and player dock follow the rule for a Test player. The list is also at `api.testPlayers` (`get()`; GM-only `set(ids)`). Real players keep following each module's Player Access setting.
+
+- Other modules read only the world setting `ashen-gate-manager.testPlayers` (an array of User ids) through their own copy of `ag-test-players.mjs`; they never import Manager code. No Manager, an unregistered setting or a malformed value means no Test players, and the helper never throws.
+- It grants no GM power: GM-only actions stay GM-only, and document permissions (Actor ownership, Item and journal permissions) are checked as for any player.
+- Contract (`ag-test-players/1`) and the full list of modules: [docs/test-players.md](../../docs/test-players.md).

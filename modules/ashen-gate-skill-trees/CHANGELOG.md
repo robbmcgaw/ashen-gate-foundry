@@ -1,3 +1,10 @@
+## 0.26.0 — 2026-11-01
+
+**New: Test players.** The Skill Trees launcher, window and unlock requests (the GM client checks the requesting user) treat a Test player as if Player Access were on. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.
+
+- Reads only the world setting `ashen-gate-manager.testPlayers` (never Manager code) through the shared `ag-test-players.mjs`; no Manager, an unregistered setting or a malformed value counts as no Test players. No saved data changes.
+- Check in Forge: with Player Access off here, log in as the Test player in a second browser and confirm the launcher appears; a normal player must not see it.
+
 ## 0.25.0 — 2026-11-01
 
 **New (GM only): `api.exportState()` so General Manager's world backup can save your tree layouts and every character's progress.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-skill-trees').api.exportState()`; it returns `{schema_version: 'ag-skill-trees-state-export/0.1', trees, progress}`. As a player the same call is refused ("GM only").
