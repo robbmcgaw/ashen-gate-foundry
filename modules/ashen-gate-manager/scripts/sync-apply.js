@@ -10,7 +10,7 @@
  */
 import {MODULE_ID, MANAGED_TYPES, baselineFields} from './core.js';
 import {isArtPath, artDecision, liveArt} from './art-fields.js';
-import {withSourceLabel, withSourceLabelFields, customOf, isBlank, SOURCE_PATH} from './source-label.js';
+import {withSourceLabel, withSourceLabelFields, customOf, isBlank, SOURCE_PATH, SOURCE_LABEL} from './source-label.js';
 import {ACTOR_ITEMS_FLAG, ITEM_FLAG, ITEM_PLAY_STATE, itemKeys, itemLeaves, keyOf} from './actor-update.js';
 import {contentHash} from './world-export.js';
 import {applyLocations, applyRoutes} from './location-handoff.js';
@@ -22,6 +22,7 @@ import {ConnectionLost, isInterruption} from './sync-connection.js';
 import {writeArchive, writeRestore, applyPartnerArchive} from './sync-archive.js';
 import {SYNC_PHRASE, MEMO_KEY, incomingFields, pageFields, ledgerKey, phraseOk, phraseRequired} from './sync.js';
 
+const LABEL_CHUNK = 50;
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const get = (o, path) => path.split('.').reduce((v, k) => v == null ? undefined : v[k], o);
 
@@ -471,6 +472,33 @@ async function runSync(plan, adapter, options = {}, log, state) {
     await adapter.pause?.();
   }
 
+  // 0.97.0: Items the package left alone because they already match it ("unchanged"; a record kept for an edit is not touched) get an EMPTY custom source label filled in the same run, in
+  // one batched write per chunk and only for an Item that really lacks it (one that has any label costs nothing). A label that is there is never replaced.
+  if (!signal?.aborted) {
+    const lacking = [];
+    for (const row of plan.rows) {
+      if (row.group !== 'untouched' || row.external || row.refused || row.kind !== 'Item' || !row.unchanged) continue;
+      const doc = docOf(row);
+      if (!doc || doc.documentName !== 'Item' || doc.parent || doc.getFlag?.(MODULE_ID, 'source')?.sourceId !== row.id || !isBlank(customOf(doc))) continue;
+      lacking.push(doc);
+    }
+    let labelled = 0;
+    for (let i = 0; i < lacking.length; i += LABEL_CHUNK) {
+      if (signal?.aborted) return result(plan, log, true);
+      await ensure();
+      const part = lacking.slice(i, i + LABEL_CHUNK);
+      say('label', 'Setting the Ashen Gate source label…', finished, total, {step: 'Labelling', stepDone: i, stepTotal: lacking.length});
+      const updates = part.map(doc => ({_id: doc.id, [SOURCE_PATH]: SOURCE_LABEL}));
+      try { await guard(adapter.updateDocuments ? adapter.updateDocuments('Item', updates, bulkWrite()) : Promise.all(part.map(doc => doc.update({[SOURCE_PATH]: SOURCE_LABEL}, bulkWrite())))); labelled += part.length; }
+      catch (e) {
+        if (isInterruption(e)) throw e;
+        log.push({id: '—', kind: 'Item', name: `${part.length} unchanged Items`, action: 'label', status: 'error', message: `Source label not set: ${String(e?.message ?? e)}`});
+      }
+      await adapter.pause?.();
+    }
+    if (labelled) log.push({id: '—', kind: 'Item', name: 'Ashen Gate source label', action: 'label', status: 'ok', labelled});
+  }
+
   // Other modules' records: their own import APIs, update mode only with the 0.76.0 switch (Locations/Routes/Shops), in dependency order (locations, routes, shops, specialist files).
   const apis = adapter.apis ?? {};
   const pass = async (rows, runner, kind) => {
@@ -571,7 +599,7 @@ const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { 
 function result(plan, log, cancelled) {
   const n = (action, status = 'ok') => log.filter(x => x.action === action && x.status === status && !x.metadataOnly).length;
   const counts = {rebound: n('rebind'), renamed: n('rename'), created: n('create'), recreated: n('recreate'), updated: log.filter(x => x.action === 'update' && x.status === 'ok' && !x.metadataOnly).length, metadataRefreshed: log.filter(x => x.metadataOnly && x.status === 'ok').length,
-    deleted: n('delete'), archived: n('archive'), restored: n('restore'), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
+    deleted: n('delete'), archived: n('archive'), restored: n('restore'), labelled: log.filter(x => x.action === 'label' && x.status === 'ok').reduce((n, x) => n + (x.labelled ?? 0), 0), failed: log.filter(x => x.status === 'error').length, skipped: log.filter(x => x.status === 'skipped').length};
   return {cancelled, log, counts, completed: !cancelled && !counts.failed && !counts.skipped};
 }
 

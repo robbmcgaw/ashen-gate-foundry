@@ -121,7 +121,7 @@ test('the new box starts ticked: no saved choice, a choice saved before 0.90.0, 
   assert.ok(bk.loadBackupSelection(GM, {store: mkStore()}).selection.includes('standings'));
   // Saved by 0.87-0.89 (no `seen`): the old ticks stay as they were and the new type is ticked.
   const old = mkStore({backupTypes: {types: ['Item', 'quests']}});
-  assert.deepEqual(bk.loadBackupSelection(GM, {store: old}).selection, ['Item', 'quests', 'standings', 'party']);
+  assert.deepEqual(bk.loadBackupSelection(GM, {store: old}).selection, ['Item', 'quests', 'standings', 'party', 'skilltrees', 'cinders', 'ledger', 'headquarters']);
   // Saved by this version with standings unticked: it stays unticked.
   const store = mkStore({backupTypes: {types: ['Item', 'quests']}});
   await bk.saveBackupSelection(GM, {store, selection: ['Item', 'quests']});
@@ -145,5 +145,5 @@ test('the dialog and Help say standings are play state', () => {
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   assert.match(main, /standings\.json<\/code>[^]*play state/);
   assert.match(main, /ag-factions-state-export\/0\.1/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.96.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.97.0');
 });

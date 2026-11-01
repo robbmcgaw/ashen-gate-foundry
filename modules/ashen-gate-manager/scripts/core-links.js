@@ -11,8 +11,13 @@
  * `img` and `system` (description and source book included; the custom source label "Ashen Gate" is kept, 0.91.0) into the world item, keeping its name, type, AG id, Manager
  * source flags, folder and ownership. Adopt falls back to link-only when it would change the item type or
  * drop the stack quantity the Ledger and Utilities rely on. Items embedded on Actors are never touched.
+ *
+ * 0.97.0: an Ashen Gate CRAFTED item (its source definition has created_by_recipe_id, profession_id or tierId, or it has
+ * Ashen Gate activities or effects) is LINK ONLY: the coreLink flag is stored, `system` is never replaced (that would swap
+ * its own rules text, weight, price and activities for the core item's), and `img` is taken only when the item's image is
+ * the default placeholder. restoreCrafted* (crafted-restore.js) puts back the text of items an earlier version adopted.
  */
-import {MODULE_ID, getPath, equal, flatten} from './core.js';
+import {MODULE_ID, getPath, equal, flatten, baselineFields} from './core.js';
 import {adoptedSystem} from './source-label.js';
 
 export const LINK_FLAG = 'coreLink';
@@ -22,6 +27,7 @@ export const LINK_HISTORY_LIMIT = 5;
 export const ADOPTED_PATHS = Object.freeze(['img', 'system']);
 export const DEFAULT_SOURCES = Object.freeze({auto:true, packs:[], folders:[]});
 const GM_ONLY = 'Only the GM can link core items.';
+export const CRAFTED_NOTE = 'Link only: this is an Ashen Gate crafted item';
 const fail = message => ({ok:false, message});
 const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 const RANK = {HIGH:0, MEDIUM:1, LOW:2};
@@ -107,6 +113,30 @@ export function nameKey(value) {
     .replace(/[^a-z0-9+]+/g, ' ').trim().replace(/^the /, '');
 }
 const looseKey = value => nameKey(String(value ?? '').replace(/\([^)]*\)/g, ' ').replace(/\+\s*\d+/g, ' '));
+
+const CRAFT_FIELDS = ['created_by_recipe_id', 'profession_id', 'tierId'];
+const hasText = v => v !== undefined && v !== null && String(v).trim() !== '';
+/** An image that is Foundry's or dnd5e's default placeholder (or empty): the only image Core Links may replace on a crafted item. */
+export const isPlaceholderImg = img => !hasText(img) || /^(systems\/dnd5e\/)?icons\/svg\//.test(String(img));
+const effectList = doc => {
+  const direct = doc?.effects;
+  const list = direct ? [...(direct.contents ?? direct)] : (doc?.toObject?.()?.effects ?? []);
+  return list.filter(Boolean);
+};
+/**
+ * True when the world Item is an Ashen Gate CRAFTED item (0.97.0): its stored source definition carries created_by_recipe_id,
+ * profession_id or tierId, or it has Ashen Gate activities (package-defined, recorded in the import baseline) or Ashen Gate
+ * effects (an effect Manager made). Plain gear, whose definition has none of these, is not crafted.
+ */
+export function isCraftedItem(doc) {
+  const source = getPath(doc, `flags.${MODULE_ID}.source`);
+  if(!source?.sourceId) return false;
+  if(CRAFT_FIELDS.some(k => hasText(source.definition?.[k]))) return true;
+  const baseline = baselineFields(source.managedFields) ?? {};
+  if(Object.keys(baseline).some(k => k.startsWith('system.activities.'))) return true;
+  if(Object.keys(source.definition?.foundry?.data?.system?.activities ?? {}).length) return true;
+  return effectList(doc).some(e => getPath(e, `flags.${MODULE_ID}`) !== undefined);
+}
 
 /** The core_ref an AG world Item carries, or null (never a candidate). */
 export function coreRefOf(doc) {
@@ -244,14 +274,25 @@ export function createCoreLinks({game,
           const core = await loadCore(best.uuid);
           if(!core) {row.status = 'nomatch'; row.reason = `${best.name} could not be loaded.`; rows.push(row); continue;}
           const blockers = adoptBlockers(doc, core);
-          row.canAdopt = !blockers.length;
-          row.adopt = row.canAdopt;
           row.ticked = best.confidence === 'HIGH';
-          if(row.canAdopt) row.diff = adoptDiff(doc.toObject?.() ?? doc, core);
-          if(row.status === 'adopt' && !row.canAdopt) row.status = 'link';
-          row.reason = [link ? `Linked core item ${link.name} is gone; best new match shown.` : '',
-            best.confidence !== 'HIGH' ? `${best.confidence} match (${best.mismatched.join(', ')} differs): tick to accept.` : '',
-            blockers.length ? `Link only: ${blockers.join('; ')}.` : ''].filter(Boolean).join(' ') || 'Exact 2024 match: adopt core data and link.';
+          if(isCraftedItem(doc)) {
+            // 0.97.0: a crafted Ashen Gate item keeps its own rules text. Link only; the core image only over the default placeholder.
+            row.crafted = true; row.canAdopt = false; row.adopt = false;
+            row.adoptImg = isPlaceholderImg(doc.img ?? doc.toObject?.()?.img) && hasText(core.img) && !isPlaceholderImg(core.img);
+            row.diff = row.adoptImg ? [{path:'img', before:String(doc.img ?? '(none)'), after:String(core.img)}] : [];
+            if(['adopt', 'link'].includes(row.status)) row.status = 'link';
+            row.reason = [link ? `Linked core item ${link.name} is gone; best new match shown.` : '',
+              best.confidence !== 'HIGH' ? `${best.confidence} match (${best.mismatched.join(', ')} differs): tick to accept.` : '',
+              `${CRAFTED_NOTE}${row.adoptImg ? '; the core image is used because this item has the default image' : ''}.`].filter(Boolean).join(' ');
+          } else {
+            row.canAdopt = !blockers.length;
+            row.adopt = row.canAdopt;
+            if(row.canAdopt) row.diff = adoptDiff(doc.toObject?.() ?? doc, core);
+            if(row.status === 'adopt' && !row.canAdopt) row.status = 'link';
+            row.reason = [link ? `Linked core item ${link.name} is gone; best new match shown.` : '',
+              best.confidence !== 'HIGH' ? `${best.confidence} match (${best.mismatched.join(', ')} differs): tick to accept.` : '',
+              blockers.length ? `Link only: ${blockers.join('; ')}.` : ''].filter(Boolean).join(' ') || 'Exact 2024 match: adopt core data and link.';
+          }
         }
         rows.push(row);
       }
@@ -275,10 +316,17 @@ export function createCoreLinks({game,
       const doc = game.items.get(row.id);
       if(!doc) {failed.push(`${row.name}: no longer exists`); continue;}
       try {
-        const adopt = row.canAdopt && !plain.has(row.id);
+        const adopt = row.canAdopt && !row.crafted && !plain.has(row.id);
         const raw = doc.toObject?.() ?? doc;
         const prev = {img:raw.img ?? null, system:clone(raw.system ?? {}), link:clone(row.link)};
-        if(adopt) {
+        let imgOnly = false;
+        if(row.crafted) {
+          // Re-checked at the write: a crafted item never has its system replaced; the image only while it is still the placeholder.
+          if(row.adoptImg && isPlaceholderImg(raw.img)) {
+            const core = await loadCore(row.best.uuid);
+            if(core && hasText(core.img) && !isPlaceholderImg(core.img)) {await update(doc, {img:core.img}); imgOnly = true;}
+          }
+        } else if(adopt) {
           const core = await loadCore(row.best.uuid);
           if(!core) throw new Error('core item could not be loaded');
           if(adoptBlockers(doc, core).length) throw new Error('core item changed since preview');
@@ -286,14 +334,14 @@ export function createCoreLinks({game,
           await update(doc, {img:core.img, system:adoptedSystem(raw.system, core.system)}, {recursive:false});
         }
         const link = {uuid:row.best.uuid, source:row.best.sourceLabel, sourceKind:row.best.kind, packId:row.best.packId, name:row.best.name, type:row.best.type,
-          matchedOn:row.best.matchedOn, confidence:row.best.confidence, linkedAt:at, adopted:adopt, adoptedPaths:adopt ? [...ADOPTED_PATHS] : []};
+          matchedOn:row.best.matchedOn, confidence:row.best.confidence, linkedAt:at, adopted:adopt && !row.crafted, adoptedPaths:adopt && !row.crafted ? [...ADOPTED_PATHS] : imgOnly ? ['img'] : []};
         await update(doc, {[`flags.${MODULE_ID}.${LINK_FLAG}`]:link});
-        done.push({id:row.id, name:row.name, adopted:adopt, prev, linkedAt:at});
+        done.push({id:row.id, name:row.name, adopted:link.adopted, imgOnly, prev, linkedAt:at});
       } catch(error) {failed.push(`${row.name}: ${error.message ?? error}`);}
     }
     if(done.length) await game.settings.set(MODULE_ID, LINK_HISTORY_SETTING, [{at, rows:done}, ...history()].slice(0, LINK_HISTORY_LIMIT));
     return {ok:true, linked:done.length, adopted:done.filter(d => d.adopted).length, failed,
-      message:done.length ? `Linked ${done.length} item(s), adopted core data for ${done.filter(d => d.adopted).length}.${failed.length ? ` ${failed.length} failed.` : ''}` : 'Nothing was linked.'};
+      message:done.length ? `Linked ${done.length} item(s), adopted core data for ${done.filter(d => d.adopted).length}${done.some(d => d.imgOnly) ? ` and the core image for ${done.filter(d => d.imgOnly).length} crafted item(s)` : ''}.${failed.length ? ` ${failed.length} failed.` : ''}` : 'Nothing was linked.'};
   }
 
   /** Restores img/system/link of the last run's items, if they still carry the link that run wrote. */
@@ -308,6 +356,7 @@ export function createCoreLinks({game,
       if(!doc) {notes.push(`${row.name}: no longer exists`); continue;}
       if(getPath(doc, `flags.${MODULE_ID}.${LINK_FLAG}`)?.linkedAt !== row.linkedAt) {notes.push(`${row.name}: changed since, left as it is`); continue;}
       if(row.adopted) await update(doc, {img:row.prev.img, system:row.prev.system}, {recursive:false});
+      else if(row.imgOnly) await update(doc, {img:row.prev.img});
       if(row.prev.link) await update(doc, {[`flags.${MODULE_ID}.${LINK_FLAG}`]:row.prev.link});
       else await doc.unsetFlag(MODULE_ID, LINK_FLAG);
       restored++;

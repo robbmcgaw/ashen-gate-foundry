@@ -433,6 +433,12 @@
       <p class="agmanager-tiny">New Items made from Ashen Gate records get the Custom Label "{{srclabel.label}}" (Configure Source on the Item sheet) automatically. This does the same for Items already in your world. It lists how many Items change before anything is written. Only an empty label is filled in: a label you typed is never replaced, nothing else on an Item changes, and Items that did not come from an Ashen Gate record are not touched. Running it again changes nothing more.</p>
       <p class="agmanager-tiny" role="status" data-ag-srclabel-status>{{srclabel.message}}</p>
     </section>
+    <section class="ag-section aglib-section agcraftrestore" aria-label="Restore Ashen Gate text on crafted items">
+      <div class="ag-section__head"><h3 class="ag-section__title">Crafted items linked to core items</h3>
+        <button type="button" class="ag-btn" data-ag-action="craftedrestore-run" {{#if release.running}}disabled{{/if}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Restore Ashen Gate text on linked crafted items…</button></div>
+      <p class="agmanager-tiny">Core links used to replace a crafted item's description, weight, price and activities with the core item's. This puts the Ashen Gate text back on those items, from the record stored on each Item. It lists how many Items change before anything is written. Quantity, the source label, name, folder and ownership stay, and plain gear is never touched. Running it again changes nothing more.</p>
+      <p class="agmanager-tiny" role="status" data-ag-craftedrestore-status>{{craftedrestore.message}}</p>
+    </section>
     <section class="ag-section aglib-section agicons" aria-label="Improve icons">
       <div class="ag-section__head"><h3 class="ag-section__title">Improve icons</h3>
         <button type="button" class="ag-btn" data-ag-action="icons-scan"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Find placeholder icons</button></div>
@@ -924,7 +930,7 @@
             <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Scan</button></div>
           <p class="agmanager-tiny" role="status">{{cl.message}}</p>
           {{#if cl.noRefs}}<div class="ag-empty"><p class="ag-empty__title">Nothing to link</p><p class="ag-empty__text">No Ashen Gate item in this world has a <code>core_ref</code>. Add one in the source data and re-import, or ignore this section.</p></div>{{/if}}
-          <p class="agmanager-tiny">Checks Ashen Gate world Items with <code>core_ref</code> against 2024 (5.5e) items; where it looks is set in {{{gotoSources}}}. <strong>Adopt</strong> takes the core item's image and data and keeps the name, id, folder, ownership and module data. Player inventories are never touched.</p>
+          <p class="agmanager-tiny">Checks Ashen Gate world Items with <code>core_ref</code> against 2024 (5.5e) items; where it looks is set in {{{gotoSources}}}. <strong>Adopt</strong> takes the core item's image and data and keeps the name, id, folder, ownership and module data. An Ashen Gate crafted item is link only: it keeps its own description, weight, price and activities, and takes the core image only if it still has the default one. Player inventories are never touched.</p>
           {{#if cl.preview}}
           <div class="ag-cluster">
             <span class="ag-badge">Core items found: {{cl.preview.poolSize}}</span>

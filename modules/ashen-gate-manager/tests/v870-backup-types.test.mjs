@@ -68,7 +68,7 @@ test('Quest Log or Renown too old to export is skipped with a plain reason; the 
   const why = Object.fromEntries(p.skipped.map(s => [s.label.split(/\W/)[0], s.reason]));
   assert.match(why.Quests, /no source export; update Quest Log/);
   assert.match(why.Factions, /no definitions export; update Renown/);
-  assert.deepEqual(p.types.filter(t => !t.available).map(t => t.id), ['quests', 'factions', 'standings']);
+  assert.deepEqual(p.types.filter(t => !t.available).map(t => t.id), ['quests', 'factions', 'standings', 'skilltrees', 'cinders', 'ledger', 'headquarters']);
 });
 
 test('an export that throws (a player, say) is skipped without leaking its message', () => {
@@ -110,7 +110,7 @@ test('a type left unticked is not written and not removed from the branch', asyn
 test('the selection is remembered per device: all by default, saved, cleaned, GM only', async () => {
   const store = mkStore();
   assert.deepEqual(bk.loadBackupSelection(GM, {store}).selection, bk.ALL_TYPE_IDS);
-  assert.equal(bk.ALL_TYPE_IDS.length, 11);
+  assert.equal(bk.ALL_TYPE_IDS.length, 15);
   const saved = await bk.saveBackupSelection(GM, {store, selection: ['shops', 'Item', 'bogus', 'Item']});
   assert.deepEqual(saved.selection, ['Item', 'shops']);
   assert.deepEqual(store.data.backupTypes, {types: ['Item', 'shops'], seen: bk.ALL_TYPE_IDS});
@@ -147,5 +147,5 @@ test('wiring: dialog is a form dialog with Back up as the action, choice saved o
   assert.match(main, /not written and not removed/);
   assert.match(main, /one tick box per type/);
   assert.doesNotMatch(main, /sends five files/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.96.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.97.0');
 });

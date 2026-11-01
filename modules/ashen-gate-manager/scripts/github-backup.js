@@ -19,6 +19,10 @@
  *    additive `npc_codex` key with the NPC Codex layer, so the schema string stays the same).
  *  - Renown standings (0.90.0, `standings.json`) are PLAY STATE, not content: Renown's `api.exportState()` in its own schema
  *    `ag-factions-state-export/0.1`, which the reconcile script does not read (it lists and skips unknown formats).
+ *  - Skill Trees, Cinders, Profession Ledger and Headquarters state (0.97.0: `skill-trees.json`, `cinders.json`, `ledger.json`,
+ *    `headquarters.json`) are PLAY STATE too: each partner's GM-only `api.exportState()` in its own schema
+ *    (`ag-skill-trees-state-export/0.1`, `ag-cinders-state-export/0.1`, `ag-ledger-state-export/0.1`, `ag-headquarters-state-export/0.1`),
+ *    written as returned and skipped by the reconcile script. A partner without `exportState` is skipped with a plain reason.
  *  - Party characters (0.93.0, `party.json`) are PLAY STATE too: a slim copy of the players' character sheets in the schema
  *    `ag-party-sheets-export/0.1` (see party-sheets.js), also skipped by the reconcile script. GM only; Ashen Gate module state is read
  *    through public apis, feature-detected.
@@ -125,11 +129,15 @@ export const BACKUP_TYPES = Object.freeze([
   {id: 'factions', label: 'Factions and deities', source: 'factions'},
   {id: 'shops', label: 'Shops', source: 'shops'},
   {id: 'standings', label: 'Renown standings and claims', source: 'standings'},
-  {id: 'party', label: 'Party characters', source: 'party'}
+  {id: 'party', label: 'Party characters', source: 'party'},
+  {id: 'skilltrees', label: 'Skill Trees layouts and progress', source: 'skilltrees'},
+  {id: 'cinders', label: 'Cinders instances and Strain', source: 'cinders'},
+  {id: 'ledger', label: 'Profession Ledger state', source: 'ledger'},
+  {id: 'headquarters', label: 'Headquarters state', source: 'headquarters'}
 ]);
 export const ALL_TYPE_IDS = Object.freeze(BACKUP_TYPES.map(t => t.id));
-/** The types that existed before 0.90.0. A selection remembered before then did not know the newer ones (standings 0.90.0, party 0.93.0), so they start ticked. */
-const LEGACY_TYPE_IDS = Object.freeze(ALL_TYPE_IDS.filter(id => id !== 'standings' && id !== 'party'));
+/** The types that existed before 0.90.0. A selection remembered before then did not know the newer ones (standings 0.90.0, party 0.93.0, the four partner play-state types 0.97.0), so they start ticked. */
+const LEGACY_TYPE_IDS = Object.freeze(ALL_TYPE_IDS.filter(id => !['standings', 'party', 'skilltrees', 'cinders', 'ledger', 'headquarters'].includes(id)));
 const cleanSelection = list => ALL_TYPE_IDS.filter(id => Array.isArray(list) && list.includes(id));
 
 /** The types ticked last time on this device; every type when nothing was remembered. */
@@ -228,7 +236,21 @@ const SOURCES = [
   // Players' character sheets (ag-party-sheets-export/0.1), built from world Actors here; Ashen Gate state through public apis. Play state.
   {id: 'party', ids: ['party'], path: 'party.json', label: 'Party characters (character sheets), play state',
     note: 'Holds character sheets; play state, not content.',
-    build: game => ({data: buildPartySheets(game)})}
+    build: game => ({data: buildPartySheets(game)})},
+  // 0.97.0: partner play state, each the module's own GM-only api.exportState() in its own schema, written as returned. Not content; never imported.
+  ...[
+    ['skilltrees', 'skill-trees.json', 'Skill Trees layouts and progress (Skill Trees), play state', 'ashen-gate-skill-trees', 'Skill Trees'],
+    ['cinders', 'cinders.json', 'Cinders instances, stage art and Strain (Cinders), play state', 'ashen-gate-cinders', 'Cinders'],
+    ['ledger', 'ledger.json', 'Profession Ledger state (Profession Ledger), play state', 'ashen-gate-profession-ledger', 'Profession Ledger'],
+    ['headquarters', 'headquarters.json', 'Headquarters state (Headquarters), play state', 'ashen-gate-headquarters', 'Headquarters']
+  ].map(([id, path, label, module, name]) => ({
+    id, ids: [id], path, label, module, note: 'Play state, not content.',
+    build: (game, now, {api}) => {
+      const exportState = fn(api, 'exportState');
+      if (!exportState) throw new Skip(`this version of ${name} has no state export; update ${name}`);
+      return {data: exportState.call(api)};
+    }
+  }))
 ];
 const labelOf = id => BACKUP_TYPES.find(t => t.id === id)?.label ?? id;
 
