@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {MODULE_ID, exportedFields} from '../scripts/core.js';
 import {sourceMetadata} from '../scripts/source-projection.mjs';
+import {withSourceLabel} from '../scripts/source-label.js';
 import {itemKeys, ITEM_FLAG, ACTOR_ITEMS_FLAG} from '../scripts/actor-update.js';
 import {buildSyncSet, makeSnapshot, nameIndex, planSync, SYNC_PHRASE, phraseOk, compareVersions, ledgerKey} from '../scripts/sync.js';
 import {executeSync, writeOverwrite, removeDoc, assertSyncTarget, buildSyncBackup} from '../scripts/sync-apply.js';
@@ -69,7 +70,7 @@ function makeWorld({docs = [], retired = [], ledger = {}, deleteUnscoped = false
   world.adapter = (set, over = {}) => ({
     async backup(plan) { world.downloads.push(buildSyncBackup(plan)); },
     async replan() { return world.plan(set); },
-    async create(row) { const raw = clone(row.record.foundry.data); raw.flags = {...(raw.flags ?? {}), [MODULE_ID]: {source: sourceOf(row.record, row.manifest)}}; const d = new Doc(row.record.foundry.document_type, raw); world.docs.push(d); return d; },
+    async create(row) { const raw = clone(row.record.foundry.data); raw.flags = {...(raw.flags ?? {}), [MODULE_ID]: {source: sourceOf(row.record, row.manifest)}}; if (row.record.foundry.document_type === 'Item') raw.system = withSourceLabel(raw).system; const d = new Doc(row.record.foundry.document_type, raw); world.docs.push(d); return d; },
     docFor: row => world.docs.find(d => !d.deleted && d.getFlag(MODULE_ID, 'source')?.sourceId === row.id),
     buildFlag: row => sourceOf(row.record, row.manifest),
     async bindLinks() {},
@@ -541,7 +542,7 @@ test('wiring: switch off by default, separate wording, data-layer guards, shared
   assert.match(apply, /Character sheets are never changed by Sync/);
   assert.doesNotMatch(read('../scripts/sync.js') + apply, /\bgame\.|ui\.notifications|globalThis\.foundry|\bfoundry\.(utils|applications)/, 'planning and writing stay free of Foundry globals');
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.96.0');
+  assert.equal(manifest.version, '0.97.0');
   assert.match(read('../CHANGELOG.md'), /^## 0\.56\.0 /m);
 });
 

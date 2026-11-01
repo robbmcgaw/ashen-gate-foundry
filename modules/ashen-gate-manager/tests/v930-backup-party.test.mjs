@@ -171,7 +171,7 @@ test('selection memory: party starts ticked for older saved choices, and an unti
   assert.deepEqual(bk.loadBackupSelection(gm, {store: old}).selection, ['Item', 'locations', 'party']);
   // Pre-0.90.0 shape (no seen): standings and party both start ticked.
   const older = mkStore({backupTypes: {types: ['Item']}});
-  assert.deepEqual(bk.loadBackupSelection(gm, {store: older}).selection, ['Item', 'standings', 'party']);
+  assert.deepEqual(bk.loadBackupSelection(gm, {store: older}).selection, ['Item', 'standings', 'party', 'skilltrees', 'cinders', 'ledger', 'headquarters']);
   // Unticked once, it stays unticked.
   await bk.saveBackupSelection(gm, {store: old, selection: ['Item']});
   assert.deepEqual(bk.loadBackupSelection(gm, {store: old}).selection, ['Item']);
@@ -218,5 +218,5 @@ test('dialog hint, export text, Help, README, docs and changelog say it holds ch
 
 test('version 0.96.0, 0.x only, download URL agrees', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.96.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.96.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.97.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.97.0/ashen-gate-manager.zip'));
 });
