@@ -20,7 +20,7 @@ import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 import {isTestPlayer} from './ag-test-players.mjs';
 
-const VERSION = '0.44.0';
+const VERSION = '0.45.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 /** Player Access as `user` (default: this client) sees it: the world setting, or ON for a Test player (ag-test-players/1, set in General Manager). */
 const playerAccessFor = (user = game.user) => playerAccessEnabled() || isTestPlayer(user, game);

@@ -19,7 +19,7 @@ test('the public API exposes nothing about scene effects, and still builds witho
   const globals = ['CONFIG', 'canvas'].map(k => [k, globalThis[k]]);
   delete globalThis.CONFIG; delete globalThis.canvas;
   try {
-    const api = createApi({version: '0.44.0', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
+    const api = createApi({version: '0.45.0', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
       readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {}});
     for (const k of Object.keys(api)) assert.ok(!/weather|blight|sceneEffect/i.test(k), k);
     assert.equal(typeof api.listLocations, 'function');

@@ -556,6 +556,19 @@ export function effectiveConditions(raw, all = [], {player = false, normalized =
 }
 
 /**
+ * 0.45.0: the parent ref an unidentified view may carry: {id, key, name} of the published parent, only when that parent is Revealed (not
+ * hidden, unidentified or archived), published, and visible to every reader of `loc` (`covers`). Otherwise null, and nothing about the parent
+ * (no id, name, region or flag) reaches the view. `normalized` as in playerView.
+ */
+function visibleParent(loc, all, normalized) {
+  const parentId = loc.published?.parentLocationId;
+  if (!parentId || parentId === loc.id) return null;
+  const p = (normalized ?? all.map(normalizeLocation)).find(l => l.id === parentId);
+  if (!p || p.state !== 'revealed' || p.archived || !p.published || !covers(p, loc)) return null;
+  return {id: p.id, key: p.pinKey, name: p.published.name};
+}
+
+/**
  * The only data players ever receive, built from the published content only (Save is private).
  * Hidden: null. Unidentified: {key, state, name: the generic label, teaser?} and nothing else, so no
  * LOC id, true name, children or flags. Revealed: hidden fields, sections and entries are omitted (not
@@ -576,6 +589,9 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
     const view = {key: loc.pinKey, state: 'unidentified', name: pub.unidentifiedLabel || fallback};
     if (loc.active) view.active = true;
     if (pub.teaser) view.teaser = pub.teaser;
+    // 0.45.0: the parent, only when it is a revealed place everyone who can read this card can also see (the same rule as a revealed view).
+    const up = visibleParent(loc, all, normalized);
+    if (up) view.parent = up;
     if (share) view.share = share;
     return view;
   }
@@ -685,10 +701,16 @@ export function inheritedPin(parentId, all, selfId = '') {
  * Only the opaque companion key and the unidentified label (the location's own, else the world's): never the real name, id, pin key,
  * teaser, description or any other content.
  */
-export function companionView(raw, {label = ''} = {}) {
+export function companionView(raw, {label = '', all = [], normalized = null} = {}) {
   const loc = normalizeLocation(raw);
   if (!companionActive(loc)) return null;
-  return {key: loc.companionKey, state: 'unidentified', name: loc.published.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL};
+  const view = {key: loc.companionKey, state: 'unidentified', name: loc.published.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL};
+  // 0.45.0: the real location's parent, only when it is Revealed and open to Everyone. The readers are the players OUTSIDE the real audience, so a
+  // Selected-players parent could be one they cannot see; it is left out. The ref is the parent's own (id, key, name), never anything of this place.
+  const parentId = loc.published.parentLocationId;
+  const p = parentId && parentId !== loc.id ? (normalized ?? all.map(normalizeLocation)).find(l => l.id === parentId) : null;
+  if (p && p.state === 'revealed' && !p.archived && p.published && p.audience?.mode !== 'selected') view.parent = {id: p.id, key: p.pinKey, name: p.published.name};
+  return view;
 }
 
 /**

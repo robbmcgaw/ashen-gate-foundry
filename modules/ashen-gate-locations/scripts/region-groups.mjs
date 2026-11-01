@@ -11,6 +11,11 @@
  * visible child is never reachable: the child's chain simply stops, and it falls into the nearest visible ancestor's section (or the flat
  * region groups when there is none). An unidentified place appears by its generic label only, and (players) is a header only when a visible
  * place sits inside it, because a bare unidentified view cannot say what kind of place it is.
+ *
+ * 0.45.0: an unidentified view may carry a `parent` too, but only a parent this player can see (playerView/companionView decide that). Such a
+ * place sits under its parent's headers like any other row. Without a visible parent it stays in the flat "Unidentified" group, as before. An
+ * unidentified place never makes its parent a header, and is not part of a header's `count`; it is counted apart in `unidentified` (each is a
+ * visible row under that header anyway, so the number says nothing the list does not).
  */
 
 /** GM records. */
@@ -32,7 +37,7 @@ const rankOf = s => s.flat ? (s.label === UNIDENTIFIED ? 3 : s.label === NO_REGI
 
 /**
  * Sections for `items` (the places to show, structure included: pass the places to display plus their ancestors).
- * Returns [{id, label, item, container, flat, sections: [section], rows: [item], count}]: `rows` are the places directly under this header
+ * Returns [{id, label, item, container, flat, sections: [section], rows: [item], count, unidentified}]: `rows` are the places directly under this header
  * (nest them with buildTree), `count` is every place inside it at any depth (headers themselves are not counted). Pure; items are not changed.
  */
 export function buildRegionSections(items, access = GM_ACCESS, {sortRows = null} = {}) {
@@ -47,26 +52,29 @@ export function buildRegionSections(items, access = GM_ACCESS, {sortRows = null}
   };
   const chains = new Map(items.map(i => [A.idOf(i), chain(i)]));
   // A Region (or, for players, an unidentified place) becomes a header only when something is inside it; otherwise it is an ordinary row.
+  // An unidentified place does not make its parent a header (0.45.0).
   const inside = new Set();
-  for (const ancestors of chains.values()) for (const a of ancestors) inside.add(A.idOf(a));
+  for (const i of items) if (!A.unidentifiedFlat(i)) for (const a of chains.get(A.idOf(i))) inside.add(A.idOf(a));
   const isHeader = i => inside.has(A.idOf(i)) && (A.isRegion(i) || A.containerHeader(i));
   const headerIds = new Set(items.filter(isHeader).map(A.idOf));
 
   const sections = new Map();
-  const make = i => ({id: A.idOf(i), label: A.nameOf(i), item: i, container: !A.isRegion(i), flat: false, sections: [], rows: [], count: 0});
+  const make = i => ({id: A.idOf(i), label: A.nameOf(i), item: i, container: !A.isRegion(i), flat: false, sections: [], rows: [], count: 0, unidentified: 0});
   for (const i of items) if (headerIds.has(A.idOf(i))) sections.set(A.idOf(i), make(i));
   const home = i => chains.get(A.idOf(i)).find(a => headerIds.has(A.idOf(a))) ?? null;
 
   const root = [], loose = new Map();
   const looseSection = label => {
-    if (!loose.has(label)) loose.set(label, {id: `loose:${label}`, label, item: null, container: false, flat: true, sections: [], rows: [], count: 0});
+    if (!loose.has(label)) loose.set(label, {id: `loose:${label}`, label, item: null, container: false, flat: true, sections: [], rows: [], count: 0, unidentified: 0});
     return loose.get(label);
   };
   for (const i of items) {
     const id = A.idOf(i), h = home(i);
     if (headerIds.has(id)) { (h ? sections.get(A.idOf(h)).sections : root).push(sections.get(id)); continue; }
     if (h) { sections.get(A.idOf(h)).rows.push(i); continue; }
-    looseSection(A.unidentifiedFlat(i) ? UNIDENTIFIED : A.looseOf(i) || NO_REGION).rows.push(i);
+    // An unidentified place with a visible parent joins the parent's flat group (so the tree can nest it); with none it is in "Unidentified".
+    const up = A.unidentifiedFlat(i) ? chains.get(id)[0] : null;
+    looseSection(A.unidentifiedFlat(i) ? (up ? A.looseOf(up) || NO_REGION : UNIDENTIFIED) : A.looseOf(i) || NO_REGION).rows.push(i);
   }
   // A flat region group named like a top-level Region header joins it (the same name twice would only confuse).
   const top = new Map(root.filter(s => !s.container).map(s => [s.label.trim().toLowerCase(), s]));
@@ -78,8 +86,12 @@ export function buildRegionSections(items, access = GM_ACCESS, {sortRows = null}
   const finish = s => {
     s.sections.sort(byLabel);
     if (sortRows) s.rows.sort(sortRows);
-    s.count = s.rows.length + s.sections.reduce((n, c) => n + finish(c), 0);
-    return s.count;
+    const flatUnidentified = s.flat && s.label === UNIDENTIFIED;
+    const unid = flatUnidentified ? 0 : s.rows.filter(A.unidentifiedFlat).length;
+    s.count = s.rows.length - unid;
+    s.unidentified = unid;
+    for (const c of s.sections) { finish(c); s.count += c.count; s.unidentified += c.unidentified; }
+    return s.count + s.unidentified;
   };
   for (const s of root) finish(s);
   return root.sort((a, b) => rankOf(a) - rankOf(b) || byLabel(a, b));

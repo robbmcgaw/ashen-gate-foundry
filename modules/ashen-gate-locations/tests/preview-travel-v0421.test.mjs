@@ -16,8 +16,8 @@ const SCENES = {town: mk('town', '[TEST] Town Square'), tower: mk('tower', '[TES
 const resolveScene = uuid => SCENES[uuid.replace('Scene.', '')] ?? null;
 function boot({access = true} = {}) {
   const game = installFoundry();
-  const mod = {version: '0.44.0', active: true};
-  mod.api = createApi({version: '0.44.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
+  const mod = {version: '0.45.0', active: true};
+  mod.api = createApi({version: '0.45.0', isGM: () => game.user.isGM, playerAccessEnabled: () => access, setPlayerAccess: async () => {},
     readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, resolveScene, currentUser: () => game.user});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   globalThis.ui = {notifications: {warn() {}, info() {}, error() {}}};

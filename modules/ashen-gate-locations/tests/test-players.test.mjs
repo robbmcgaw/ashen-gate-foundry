@@ -67,7 +67,7 @@ import {createApi} from '../scripts/api.mjs';
 import {createShareService} from '../scripts/sharing.mjs';
 
 test('getState reports the world setting alone; access checks use the effective answer (Test players included)', () => {
-  const base = {version: '0.44.0', isGM: () => false, setPlayerAccess: async () => {}, readAll: () => [], writeAll: async () => {}, readViews: () => [],
+  const base = {version: '0.45.0', isGM: () => false, setPlayerAccess: async () => {}, readAll: () => [], writeAll: async () => {}, readViews: () => [],
     placeNote: async () => ({}), open: () => {}, openLocation: () => {}};
   const api = createApi({...base, playerAccessEnabled: () => true, playerAccessSetting: () => false});
   assert.equal(api.playerAccess.getState().playerAccessEnabled, false, 'a Test player does not change what Manager reads');
@@ -79,7 +79,7 @@ test('getState reports the world setting alone; access checks use the effective 
 });
 
 test('a Test player cannot change Player Access (no GM power)', async () => {
-  const api = createApi({version: '0.44.0', isGM: () => false, playerAccessEnabled: () => true, playerAccessSetting: () => false, setPlayerAccess: async () => {},
+  const api = createApi({version: '0.45.0', isGM: () => false, playerAccessEnabled: () => true, playerAccessSetting: () => false, setPlayerAccess: async () => {},
     readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {}});
   await assert.rejects(() => api.playerAccess.setEnabled(true), /Only the GM/);
 });

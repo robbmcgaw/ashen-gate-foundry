@@ -71,7 +71,7 @@ export function buildListModel(records, {gm = false, query = '', filters = {}, s
     : buildTree(s.rows, {...access, sort: cmp}).map(function make(n) { return node(n.item, n.children.map(make)); });
   const section = s => {
     const rows = rowNodes(s), sections = s.sections.map(section), hereNow = s.item?.active === true;
-    return {id: s.id, label: s.label, count: s.count, flat: s.flat, container: s.container, ref: s.item ? refOf(s.item) : null, hereNow,
+    return {id: s.id, label: s.label, count: s.count, unidentified: s.unidentified, flat: s.flat, container: s.container, ref: s.item ? refOf(s.item) : null, hereNow,
       containsHere: hereNow || rows.some(r => r.hereNow || r.containsHere) || sections.some(c => c.containsHere), rows, sections};
   };
   const sections = buildRegionSections(items, access, {sortRows: cmp}).map(section);
