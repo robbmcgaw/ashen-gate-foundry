@@ -154,7 +154,7 @@ test('ST-17: arrow keys move the focused node in Edit layout and save once; outs
 test('template: kit notices and folds, mode toggles in the canvas bar, Reset in a fold, labelled row actions',async()=>{
   const [tpl,css,src]=await Promise.all([read('../templates/tree.hbs'),read('../styles/trees.css'),read('../scripts/main.js')]);
   assert.doesNotMatch(tpl+css,/agst-banner|agst-linklike|agst-side-section/,'ST-06: no hand-rolled banner or link');
-  assert.equal((tpl.match(/class="ag-notice ag-notice--(warn|info) agst-canvas-notice[^"]*" role="(status|alert)"/g)??[]).length,5);
+  assert.equal((tpl.match(/class="ag-notice ag-notice--(warn|info) agst-canvas-notice[^"]*" role="(status|alert)"/g)??[]).length,6);
   const bar=tpl.slice(tpl.indexOf('<div class="agst-canvas-bar">'),tpl.indexOf('</div>',tpl.indexOf('<div class="agst-canvas-bar">')));
   for(const act of ['player-preview','edit-mode'])assert.match(bar,new RegExp(`data-act="${act}" class="ag-btn ag-btn--ghost ag-btn--sm" aria-pressed=`),`ST-12 ${act}`);
   assert.match(tpl,/data-act="cancel-link">Cancel connecting<\/button>/);

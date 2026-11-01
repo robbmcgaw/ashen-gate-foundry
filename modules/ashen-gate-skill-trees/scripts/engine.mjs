@@ -376,6 +376,27 @@ function professionBlock(tree,a,n,level,siblings) {
   if(st.available<1)return `No perk points left (${st.spent} of ${st.earned} used at level ${level}${st.trees?`, shared by ${st.trees.length} trees`:''})`;
   return null;
 }
+/** A perk's name for a reason sentence; a teaser or unnamed node reads as an undiscovered perk. */
+export const perkLabel=n=>n&&!n.silhouette&&n.name?n.name:'a perk you have not discovered yet';
+/** "A", "A and B", "A, B and C". */
+const andList=items=>items.length<2?items.join(''):`${items.slice(0,-1).join(', ')} and ${items.at(-1)}`;
+/**
+ * 0.27.0: what a node still needs, by name ("Needs Scribe for Hire", "Needs A and B", "Needs one of C or D"), or null when its
+ * prerequisites are met. Required perks first, then each unmet alternative group. Never a bare "Prerequisite required".
+ */
+export function prerequisiteReason(tree,rawAccount,node) {
+  const a=cleanAccount(rawAccount),by=new Map(asArray(tree?.nodes).map(x=>[x.id,x]));
+  const label=id=>perkLabel(by.get(id));
+  const parts=[];
+  const all=asArray(node?.requiresAll).filter(id=>!a.unlocks.includes(id));
+  if(all.length)parts.push(`Needs ${andList(all.map(label))}`);
+  for(const group of asArray(node?.requiresAny)){
+    if(group.some(id=>a.unlocks.includes(id)))continue;
+    const names=group.map(label);
+    parts.push(names.length<2?`Needs ${names[0]??'another perk'}`:`Needs one of ${orList(names)}`);
+  }
+  return parts.length?parts.join('; '):null;
+}
 /**
  * Can this node be unlocked now? level: Ledger level (profession trees). siblings: the character's other trees of the same
  * profession, [{tree, account}] (shared wallet). access: the Ledger's proficiency answer, passed for player unlocks only.
@@ -394,8 +415,8 @@ export function availability(tree,rawAccount,nodeId,{canModify=true,level=null,s
   const taken=tree.nodes.filter(x=>a.unlocks.includes(x.id));
   const excluded=taken.find(x=>n.excludes.includes(x.id)||x.excludes.includes(n.id));
   if(excluded)return {ok:false,reason:`Mutually exclusive with ${excluded.name}`};
-  if(n.requiresAll.some(id=>!a.unlocks.includes(id)))return {ok:false,reason:'Required prerequisite not unlocked'};
-  if(n.requiresAny.some(group=>!group.some(id=>a.unlocks.includes(id))))return {ok:false,reason:'One required alternative is not unlocked'};
+  const needs=prerequisiteReason(tree,a,n);
+  if(needs)return {ok:false,reason:needs};
   const blocked=professionBlock(tree,a,n,level,siblings);
   if(blocked)return {ok:false,reason:blocked};
   const cost=nodeCost(tree,n);
@@ -543,14 +564,15 @@ export function publicAvailability(tree,acc,nodeId,{level=null,siblings=[],acces
   const n=tree.nodes.find(n=>n.id===nodeId);
   if(!n)return {ok:false,reason:'Unknown node'};
   if(n.silhouette)return {ok:false,reason:'Not yet revealed'};
-  if(n.unrevealedPrerequisite)return {ok:false,reason:'Unrevealed prerequisite'};
+  if(n.unrevealedPrerequisite)return {ok:false,reason:'Needs a perk the GM has not revealed yet'};
   const a=cleanAccount(acc);
   if(a.unlocks.includes(nodeId))return {ok:false,reason:'Already unlocked'};
   const gate=accessBlock(tree,access,accessLabel);
   if(gate)return {ok:false,reason:gate,access:true};
-  if(n.excludes.some(id=>a.unlocks.includes(id)) || tree.nodes.some(x=>a.unlocks.includes(x.id)&&asArray(x.excludes).includes(nodeId)))return {ok:false,reason:'Excluded by a chosen perk'};
-  if(n.requiresAll.some(id=>!a.unlocks.includes(id)))return {ok:false,reason:'Prerequisite required'};
-  if(n.requiresAny.some(g=>!g.some(id=>a.unlocks.includes(id))))return {ok:false,reason:'An alternative prerequisite is required'};
+  const rival=tree.nodes.find(x=>a.unlocks.includes(x.id)&&(n.excludes.includes(x.id)||asArray(x.excludes).includes(nodeId)));
+  if(rival)return {ok:false,reason:`Excluded by ${perkLabel(rival)}`};
+  const needs=prerequisiteReason(tree,a,n);
+  if(needs)return {ok:false,reason:needs};
   const blocked=professionBlock(tree,a,n,level,siblings);
   if(blocked)return {ok:false,reason:blocked};
   if(tree.provider.kind!=='profession'){

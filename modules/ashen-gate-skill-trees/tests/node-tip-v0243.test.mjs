@@ -87,7 +87,8 @@ test('wiring: main.js uses the controller, no longer falls back to the selected 
   assert.match(src,/bindNodeTip\(board/);
   assert.doesNotMatch(src,/pointerout',e=>\{if\(nodeOf\(e\)\)this\._showTip\(this\.nodeId\)/);
   assert.doesNotMatch(src,/this\._showTip\(this\.nodeId\)/);
-  assert.match(src,/this\._showTip\(this\._pinnedId\(\)\)/);
+  assert.match(src,/this\._showTip\(null\)/);
+  assert.doesNotMatch(src,/_pinnedId|\._pinned\b/,'0.27.0: nothing is pinned; the card follows hover and keyboard focus only');
   assert.match(src,/async close\(options\)\{[^]*_tipCtl\?\.dismiss\(\)/);
-  assert.match(src,/moved=true;this\._pinned=null;this\._tipCtl\?\.dismiss\(\)/);
+  assert.match(src,/moved=true;this\._tipCtl\?\.dismiss\(\)/);
 });

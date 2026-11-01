@@ -249,3 +249,20 @@
 .agst-library-region{display:flex;flex-direction:column;gap:var(--ag-space-2)}
 .agst-library-region .ag-fold__body>.ag-rows{border:0;border-radius:0}
 .agst-library-group__head .agst-library-group__title{font-size:var(--ag-text-sm,.9rem)}
+
+/* 0.27.0: every profession block in the Hub embed folds the same way (Artistry's tab panels used to stay open under a closed header) */
+.agst-embed details.agst-embed__tree:not([open])>:not(summary){display:none}
+.agst-embed .agst-embed__hidden{margin-top:var(--ag-space-2)}
+.agst-embed .agst-embed__hidden>summary{cursor:pointer;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+
+/* 0.27.0: selected-perk panel (facts as chips, effect and notes as paragraphs, lock reason, action buttons) */
+.agst-facts{display:flex;flex-wrap:wrap;gap:var(--ag-space-1);margin:0 0 var(--ag-space-3)}
+.agst-fact{display:inline-flex;flex-wrap:wrap;gap:var(--ag-space-1);align-items:baseline;max-width:100%;padding:0 var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-sunken);font-size:var(--ag-text-sm)}
+.agst-fact dt{margin:0;color:var(--ag-muted)}.agst-fact dt::after{content:":"}
+.agst-fact dd{margin:0;overflow-wrap:anywhere}
+.agst-perk-text :where(h1,h2,h3,h4,h5,h6){margin:var(--ag-space-3) 0 var(--ag-space-1);font-size:var(--ag-text-sm);font-weight:600;text-transform:none;letter-spacing:0;color:var(--ag-text)}
+.agst-perk-text :where(p,ul,ol){margin:0 0 var(--ag-space-2)}.agst-perk-text :where(ul,ol){padding-left:var(--ag-space-5)}
+.agst-perk-text table{border-collapse:collapse;max-width:100%}.agst-perk-text :where(th,td){padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border);text-align:left;vertical-align:top}
+.agst-lock-reason{margin:var(--ag-space-2) 0 0;font-size:var(--ag-text-sm);color:var(--ag-text);overflow-wrap:anywhere}
+.agst-action-why{margin:calc(var(--ag-space-1) * -1) 0 var(--ag-space-1);font-size:var(--ag-text-sm);color:var(--ag-text);overflow-wrap:anywhere}
+.agst-hidden-trees{margin-top:var(--ag-space-2)}.agst-hidden-trees>summary{cursor:pointer;font-size:var(--ag-text-sm)}

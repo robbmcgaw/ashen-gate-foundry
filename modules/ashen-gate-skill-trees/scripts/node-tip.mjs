@@ -46,7 +46,14 @@ export function bindNodeTip(board, {show, pinned = () => null, unpin = () => {},
     if (!rest()) return;
     e.stopPropagation(); dismiss({pin: true});
   });
+  /** After a re-render the pointer may already rest on a node (no pointerover will come): pick it up so the card follows the pointer, not the old state. */
+  function seedHover() {
+    let el = null;
+    try { el = board.querySelector?.(`${NODE}:hover`); } catch { el = null; }
+    const id = el?.dataset?.id ?? null;
+    if (id && pointerKind === 'mouse') { hover = id; paint(); }
+  }
   return {
-    dismiss, refresh: paint, state: () => ({hover, focus}),
+    dismiss, seedHover, refresh: paint, state: () => ({hover, focus}),
   };
 }
