@@ -115,7 +115,7 @@ When a partner module offers `api.embed.mount(element, {actorId, mode})` (return
 |---|---|---|
 | Inventory → Party stash | Utilities 0.12.0 | Its stash view: purse, items, Take, Deposit |
 | Ashen Gate → Professions | Profession Ledger 0.19.0 | Its Individual panel: professions, recipes, Learn, Craft |
-| Ashen Gate → Skill Trees | Skill Trees 0.14.0 | Points, perks available now with Unlock, unlocked and locked perks, Open tree |
+| Ashen Gate → Skill Trees | Skill Trees 0.14.0 | Two tabs (0.72.0): Professions (points, perks available now with Unlock, unlocked and locked perks, Open tree) and Cinders (each bound Cinder's tree progress and Open Skill Trees…) |
 | Ashen Gate → Renown | Renown 0.10.0 | Party and character standing per organization, next milestone, Open |
 | Ashen Gate → Quests | Quest Log 0.8.0 | Party and character quests, Track, objectives, Character notes |
 | Ashen Gate → Locations | Locations 0.34.0+ for the folders, filters and sorting (`api.listModel`); older Locations 0.18.0+ show their embed or the flat summary | The Locations list, drawn by the Hub: nested Region folders, search, the GM's filters and sort, one Open Locations button; a place opens in Locations |
@@ -127,7 +127,7 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 | Panel | Reads | Open goes to |
 |---|---|---|
 | Profession Ledger | `getProfessions(actor)` (Ledger 0.18.0+); else `getProfessionProgress` per profession id from Skill Trees' `listTrees`. Plus `getKnownRecipes` | `open({actorId, view: 'individual'})` |
-| Skill Trees | `listTrees`, `actorProgress`, and `pointsSummary(actor)` (Skill Trees 0.13.0+) for points to spend / spent | `open({actorId})` |
+| Skill Trees | `listTrees`, `actorProgress`, and `pointsSummary(actor)` (Skill Trees 0.13.0+) for points to spend / spent | `open({actorId, tab?, treeId?})`: the Hub adds `tab: 'professions'` or `'cinders'` (ignored by older Skill Trees); optional tree-visibility call (`treeVisibility(actorId)` or `visibleTrees(actorId)`) filters the Hub-drawn list |
 | Cinders (ashen-gate-cinders, 0.18.0) | `cinder.list(actor)`: the character's Cinders, powers and Push modes with cost and Backfire chance. **Push** uses `cinder.previewPush` for the confirmation, then `cinder.push` (a player's Push is rolled by the GM client). Each Cinder is a compact orb (0.24.0): Strain ring, socket dots, and `cinder.list` `art` (Cinders 0.6.0+) or the default orb whose colour follows Strain; 0.31.0: art sits on the Strain-toned orb as a glow and turns slowly (Cinders 0.9.0's markup; off when Cinders' `rotateArt` or `rotateArtLocal` setting is off, and under reduced motion). **Open skill tree** next to the Cinders title opens Skill Trees' `api.open({actorId, treeId})` (players: while Perks is shown). **Sockets** (Cinders 0.3.0+, contract `ag-sockets/1`): `sockets.hosts(actor)` rows with **Attach / Swap / Detach** and drop-on-a-row through `canAttach`, `attach`, `swap`, `detach` (GM: `attachDropped` for a sidebar Item), and an Items that fit tray from `socketable`. Owner while Cinders' Player Access is on and the Cinder isn't locked; GM always; Cinders checks again | `open({actorId})` |
 | Renown (ashen-gate-factions) | `getFactions` (the user's own filtered view) | `open()` |
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |

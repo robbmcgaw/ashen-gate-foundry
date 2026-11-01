@@ -89,6 +89,7 @@ export const ACTIONS = {
   'bio-cancel': s => { bio.clearDraft(s); bioGuard(s).markClean(); return s.render(); },
   'ag-subtab': (s, t) => { s.agTab = t.dataset.tab ?? t.dataset.partner; return s.render(); },
   'st-tree-tab': (s, t) => pickTreeTab(t),
+  'trees-open': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, null, {tab: t.dataset.tab === 'cinders' ? 'cinders' : 'professions'}),
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
@@ -157,7 +158,7 @@ export const ACTIONS = {
   // 0.31.0: the header Cinder chip opens Ashen Gate → Cinders here; Open skill tree opens Skill Trees (players: only while Perks is shown).
   // Compact (0.32.0) has no tabs: Full opens at Cinders for this window only (0.33.0, CH-14: the saved Compact choice stays).
   'cinder-open': async s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false, {save: false}) : s.render(); },
-  'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
+  'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null, {tab: 'cinders'}),
   // 0.34.0: the Conditions strip (conditions.mjs checks who may change what, again, at the click).
   'cond-mode': (s, t) => { s.condMode = conds.cleanMode(t.dataset.mode); return s.render(); },
   'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; return condDone(s, await conds.applyCondition(s.document, s.condMode, s.condPick)); },

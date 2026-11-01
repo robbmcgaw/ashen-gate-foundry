@@ -12,7 +12,8 @@ import {tooltipAttrs} from './tooltips.mjs';
 const ENTITIES = {amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", apos: "'", nbsp: ' '};
 /**
  * Item description HTML → plain text. Paragraphs and line breaks become new lines; enricher links like
- * @UUID[...]{Name} keep their name and inline rolls like [[/r 1d6]] keep their formula. Never returns HTML.
+ * @UUID[...]{Name} keep their name and inline rolls like [[/r 1d6]] keep their formula. Tables read one row per line with the cells
+ * separated by " | " (0.72.0; they used to run together). Never returns HTML.
  */
 export function plainText(html) {
   return String(html ?? '')
@@ -20,7 +21,8 @@ export function plainText(html) {
     .replace(/@\w+\[([^\]]*)\]/g, (m, ref) => ref.split(/[.#]/).pop())
     .replace(/\[\[\/?\w*\s*([^\]]*)\]\](\{([^}]*)\})?/g, (m, f, l, label) => label ?? f)
     .replace(/<\s*br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, '\n')
+    .replace(/<\/t[dh]>\s*(?=<t[dh]\b)/gi, ' | ')   // 0.72.0: table cells of one row stay apart ("Cinder Type | Signature power"), not run together
+    .replace(/<\/(p|div|li|h[1-6]|tr|caption|blockquote|table)>/gi, '\n')
     .replace(/<li[^>]*>/gi, '• ')
     .replace(/<[^>]*>/g, '')
     .replace(/&(#?\w+);/g, (m, e) => ENTITIES[e] ?? (e.startsWith('#') ? String.fromCodePoint(Number(e.slice(1)) || 32) : m))

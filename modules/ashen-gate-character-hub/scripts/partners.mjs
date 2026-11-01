@@ -10,7 +10,9 @@ import {btn} from './buttons.mjs';
 import {coinChip} from './coins.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
 import {isTestPlayer} from './ag-test-players.mjs';
-import {cindersSummary, skillTreeBtn} from './cinders.mjs';
+import {cindersSummary, skillTreeBtn, boundCinders} from './cinders.mjs';
+import {toggleButton, bodyAttrs, sectionKey} from './collapse.mjs';
+import {lockedNeed, treeVisibility, applyVisibility, cindersTabHtml} from './tree-tabs.mjs';
 import {linkButton, subTabs, tabPanelAttrs} from './ag-html.mjs';
 import {LOCATIONS_ID, listModelApi, locationsPanelState} from './locations-list.mjs';
 
@@ -167,7 +169,10 @@ export function pickTreeTab(tab) {
   for (const t of list.querySelectorAll('[role="tab"]')) {
     const on = t === tab;
     t.setAttribute('aria-selected', String(on)); t.setAttribute('tabindex', on ? '0' : '-1');
-    const panel = (list.ownerDocument ?? globalThis.document)?.getElementById?.(t.getAttribute('aria-controls'));
+    // 0.72.0: the panel is looked up inside this tab list's own block first. The same character's Hub can be open twice (window and
+    // pop-out) with the same ids; a document-wide getElementById then flips the other copy and leaves this one showing the old tree.
+    const want = t.getAttribute('aria-controls'), scope = list.parentElement;
+    const panel = [...(scope?.querySelectorAll?.('[role="tabpanel"]') ?? [])].find(el => el.id === want) ?? (list.ownerDocument ?? globalThis.document)?.getElementById?.(want);
     if (panel) panel.hidden = !on;
   }
   if (list.dataset?.stChoice) treeTabChoice.set(list.dataset.stChoice, tab.dataset.tab);
@@ -176,9 +181,10 @@ export function pickTreeTab(tab) {
 const treePerks = m => {
   const nodes = Array.isArray(m?.nodes) ? m.nodes : [], owned = nodes.filter(n => n.unlocked), locked = nodes.filter(n => !n.unlocked && !n.available);
   const ready = nodes.filter(n => n.available);
-  // Locked reasons ("Needs … proficiency", "Needs profession level 3 (now 1)") are Skill Trees' own words, shown as given.
+  // Locked reasons ("Needs … proficiency", "Needs profession level 3 (now 1)") are Skill Trees' own words, shown as given; the generic
+  // "Prerequisite required" is made specific by lockedNeed (0.72.0).
   return `${m.access ? `<p class="agch-muted">${esc(m.access)}</p>` : ''}<p class="agch-muted">${owned.length ? `${plural(owned.length, 'perk')}: ${owned.map(n => esc(n.name)).join(', ')}` : 'No perks yet'}${ready.length ? ` · available now: ${ready.map(n => esc(n.name)).join(', ')}` : ''}</p>`
-    + (locked.length ? `<details class="agch-stlocked"><summary>Locked (${locked.length})</summary><ul class="agch-plist">${locked.map(n => `<li>${esc(n.name)}${n.reason ? ` <span class="agch-muted">${esc(n.reason)}</span>` : ''}</li>`).join('')}</ul></details>` : '');
+    + (locked.length ? `<details class="agch-stlocked"><summary>Locked (${locked.length})</summary><ul class="agch-plist">${locked.map(n => { const need = lockedNeed(n, m); return `<li>${esc(n.name)}${need ? ` <span class="agch-muted">${esc(need)}</span>` : ''}</li>`; }).join('')}</ul></details>` : '');
 };
 /** One wallet's points: "n points to spend" and "x of y spent" (only what was used when the Ledger is off). */
 const walletPoints = g => g.available === null || g.available === undefined
@@ -189,10 +195,13 @@ const walletPoints = g => g.available === null || g.available === undefined
  * shared points once and kit sub-tabs for its trees; Skill Trees works out points, gates and reasons, the Hub only shows them.
  */
 function groupedTrees(actor, api) {
-  const groups = api.embed.data(actor.id) ?? [];
+  const vis = treeVisibility(api, actor.id);   // 0.72.0: Skill Trees' own tree-visibility answer when it has one; else the list is unchanged
+  const groups = applyVisibility(api.embed.data(actor.id) ?? [], vis);
   const active = m => (m.nodes ?? []).some(n => n.unlocked || n.available) || num(m.earned) > 0;
+  // 0.72.0: every profession block folds the same way, remembered per character like the other sections (collapse.mjs).
+  const block = (g, head, body) => { const key = sectionKey('sttree', actor.id, g.key); return `<li class="agch-stgroup agch-stblock">${toggleButton(key, head.title)}${head.points}<div class="agch-stblock__body"${bodyAttrs(key)}>${body}</div></li>`; };
   const rows = groups.filter(g => (g.trees ?? []).some(active)).map(g => {
-    if (!g.shared) { const m = g.trees[0]; return `<li><strong>${esc(m.name || g.name)}</strong>${walletPoints(m)}${treePerks(m)}</li>`; }
+    if (!g.shared || g.trees.length < 2) { const m = g.trees[0]; return block(g, {title: esc(m.name || g.name), points: walletPoints(m)}, treePerks(m)); }
     const choice = `${actor.id}|${g.key}`, kept = treeTabChoice.get(choice);
     const pick = g.trees.some(m => m.id === kept) ? kept
       : (g.trees.find(m => m.nodes?.some(n => n.available)) ?? g.trees.find(m => m.nodes?.some(n => n.unlocked)) ?? g.trees[0]).id;
@@ -201,11 +210,37 @@ function groupedTrees(actor, api) {
       .replace('role="tablist"', `role="tablist" data-st-choice="${esc(choice)}"`).replace('class="ag-tabs ag-tabs--sub"', 'class="ag-tabs ag-tabs--sub agch-sttabs"')
       .replaceAll('role="tab" ', 'role="tab" data-action="st-tree-tab" data-ag-always ');
     const split = g.trees.map(m => `${esc(m.label || m.name)} ${num(m.treeSpent)}`).join(' · ');
-    return `<li class="agch-stgroup"><strong>${esc(g.name)}</strong>${walletPoints(g)}
-      <p class="agch-muted">One pool of points shared by ${g.trees.length} trees: ${split}</p>${tabs}
-      ${g.trees.map(m => `<div ${tabPanelAttrs(group, m.id, {hidden: m.id !== pick})}>${treePerks(m)}</div>`).join('')}</li>`;
+    return block(g, {title: esc(g.name), points: walletPoints(g)}, `<p class="agch-muted">One pool of points shared by ${g.trees.length} trees: ${split}</p>${tabs}
+      ${g.trees.map(m => `<div ${tabPanelAttrs(group, m.id, {hidden: m.id !== pick})}>${treePerks(m)}</div>`).join('')}`);
   });
-  return list(rows, 'No points or perks yet.');
+  // The hint line Skill Trees provides with its visibility answer (for example, that some trees are hidden until a proficiency is held).
+  return list(rows, 'No points or perks yet.') + (vis?.hint ? `<p class="agch-muted agch-sthint">${esc(vis.hint)}</p>` : '');
+}
+
+// ---------- Skill Trees tab shell (0.72.0): Professions | Cinders ----------
+
+export const TREES_ID = 'ashen-gate-skill-trees';
+/** Asks Skill Trees to open on a tab. Only the `tab` field is new: an older Skill Trees ignores it; one that refuses it is asked again without. */
+async function openTreesOn(api, actor, tab) {
+  try { return await api.open({actorId: actor.id, tab}); } catch { return api.open({actorId: actor.id}); }
+}
+/**
+ * The same two top-level tabs for every role: Professions (Skill Trees' own view, or the Hub's list without it) and Cinders (the bound
+ * Cinders with their tree progress and Open Skill Trees…). The Cinders tab is an empty state, never hidden. The choice is kept per character.
+ */
+export function treesShell(actor, professionsHtml) {
+  const api = partnerApi(TREES_ID);
+  let groups = [];
+  try { groups = typeof api?.embed?.data === 'function' ? api.embed.data(actor.id) ?? [] : []; } catch { groups = []; }
+  const button = treeId => btn('cinder-tree', 'Open Skill Trees…', {kind: 'sm', icon: 'fa-solid fa-diagram-project', data: treeId ? {tree: treeId} : {}, always: true,
+    title: treeId ? 'Open this Cinder\'s skill tree in Skill Trees' : 'Open the Cinders tab in Skill Trees'});
+  const choice = `${actor.id}|trees-section`, kept = treeTabChoice.get(choice), pick = kept === 'cinders' ? 'cinders' : 'professions';
+  const group = `agch-stsec-${actor.id}`.replace(/[^A-Za-z0-9_-]/g, '-');
+  const tabs = subTabs({group, label: 'Skill Trees sections', selected: pick, tabs: [{id: 'professions', label: 'Professions'}, {id: 'cinders', label: 'Cinders'}]})
+    .replace('role="tablist"', `role="tablist" data-st-choice="${esc(choice)}"`).replace('class="ag-tabs ag-tabs--sub"', 'class="ag-tabs ag-tabs--sub agch-sttabs"')
+    .replaceAll('role="tab" ', 'role="tab" data-action="st-tree-tab" data-ag-always ');
+  return `${tabs}<div ${tabPanelAttrs(group, 'professions', {hidden: pick !== 'professions'})}>${professionsHtml}</div>
+    <div ${tabPanelAttrs(group, 'cinders', {hidden: pick !== 'cinders'})}>${cindersTabHtml(boundCinders(actor), groups, button)}</div>`;
 }
 
 /** The viewing user's own projection: group standing, and this character's standing if the user owns it. */
@@ -279,7 +314,7 @@ export const PANELS = [
   {id: 'ashen-gate-profession-ledger', embedMode: 'individual', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
   {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Skill Trees', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
-    open: (api, actor) => api.open({actorId: actor.id})},
+    open: (api, actor) => openTreesOn(api, actor, 'professions')},
   {id: 'ashen-gate-cinders', tab: 'Cinders', label: 'Cinders', icon: 'fa-solid fa-fire', summary: cindersSummary,
     open: (api, actor) => api.open({actorId: actor.id}), headActions: actor => skillTreeBtn(actor, {canSeePerks: canSee('perks')})},
   {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Renown', label: 'Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
@@ -341,6 +376,7 @@ export function ashenGateTab({actor, sheet}) {
     if (gm || !state.refused) break;
     panels = panels.filter(p => p !== current); current = null;
   }
+  if (state?.state === 'ok' && current?.id === TREES_ID) state = {...state, html: treesShell(actor, state.html)};
   if (!current) return '<div class="ag-empty"><i class="fa-solid fa-dungeon" aria-hidden="true"></i><p class="ag-empty__title">Nothing here yet.</p><p class="ag-empty__text">Ashen Gate sections show here once your GM shares them.</p></div>';
   // 0.33.0: kit sub-tabs (one Tab stop, arrow keys via bindTablist in the sheet) instead of a segmented control;
   // the sub-tab and the bottom quick bar use the same name per module (CH-10). Hidden-from-players ones carry the eye.

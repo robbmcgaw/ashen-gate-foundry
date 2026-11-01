@@ -1,3 +1,14 @@
+## 0.72.0 — 2026-11-01
+
+Skill Trees tab and Features tab fixes.
+
+- **Open Skill Trees opens the right place.** From the Cinders panel the button asks Skill Trees for its Cinders tab (for this character and, when known, that Cinder's tree); from Ashen Gate → Skill Trees it asks for Professions. The Hub passes a `tab` field to `api.open`; an older Skill Trees ignores it and opens as before.
+- **Skill Trees tab: Professions and Cinders tabs** for every role. Professions is Skill Trees' own view (or the Hub's list without it); Cinders lists each bound Cinder with its tree progress and **Open Skill Trees…**, or says no Cinder is bound. The Hub keeps no tree state.
+- **Hub-drawn list (used when Skill Trees offers no embed):** every profession block folds (kept per character), locked perks say what they need ("Needs Waymarks", "Needs an earlier perk in this tree" instead of "Prerequisite required"), the Visual Arts sub-tab shows its own perks even when the Hub is open twice, and trees Skill Trees marks hidden (missing tool proficiency) are left out with its hint line, when Skill Trees offers a tree-visibility call.
+- **Features: one collapsible Professions header** around all profession sections in the Origin view (default open).
+- **Descriptions:** tables in item descriptions read one row per line with cells separated by " | " instead of running together.
+- Check in Forge: Cinders panel → Open skill tree; Ashen Gate → Skill Trees → Cinders / Professions; Features (Group: Origin) → Professions header; open a Cinder power → More.
+
 ## 0.71.0 — 2026-11-01
 
 **New: Test players.** Hub tabs, buttons and the party stash treat a Test player as if each partner module's Player Access were on (a part you turned off in the Hub's own GM Setup stays off). Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.

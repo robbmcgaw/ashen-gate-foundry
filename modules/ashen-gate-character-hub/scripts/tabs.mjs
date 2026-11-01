@@ -277,7 +277,13 @@ function featuresTab(ctx) {
   const hideBtn = g => g.section === 'profession' && !off ? btn('group-hide', 'Hide', {kind: 'sm', icon: 'fa-solid fa-eye-slash', data: {key: g.key}, title: `Hide ${g.label} from this list (nothing is deleted)`, aria: `Hide ${g.label}`, extra: 'agch-sec__hide'}) : '';
   const groups = group === 'origin' ? originGroups(sortRows(shown, sort), origins).map(g => ({...g, headEnd: hideBtn(g)})) : group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
-  const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}), {headEnd: g.headEnd ?? ''})).join('');
+  const one = g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), list(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}), {headEnd: g.headEnd ?? ''});
+  // 0.72.0: in the Origin view every profession's section sits under one collapsible "Professions" header (default open, remembered like the others).
+  const profs = group === 'origin' ? groups.filter(g => g.section === 'profession') : [];
+  const sections = groups.map(g => {
+    if (!profs.includes(g)) return one(g);
+    return g === profs[0] ? sectionHtml(sectionKey('features', 'professions-all'), 'Professions', profs.map(one).join(''), {extra: 'agch-sec--parent'}) : '';
+  }).join('');
   const hiddenBar = hiddenGroups.length ? hiddenGroupsBar(hiddenGroups, sheet?.hiddenGroupsOpen === true, off) : '';
   const emptyState = all.length ? (visible.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('All groups are hidden.', 'Use Hidden groups above to show them again. Nothing was deleted.')) : empty('No features yet.', 'Class, species and other features show here.');
   // Action-type buttons for the dnd5e activation types these features have.
