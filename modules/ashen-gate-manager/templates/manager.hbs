@@ -1006,7 +1006,7 @@
       {{#with codex.detail}}
       <div class="aglib-detail__head">
         {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
-        <div class="aglib-detail__title"><h3>{{name}}</h3>
+        <div class="aglib-detail__title"><h3>{{name}}{{#if onlyYou}} <span class="ag-badge agcodex-onlyyou" data-tooltip="Only you can see this NPC or its GM-only fields" data-tooltip-class="ag-tooltip">Only you</span>{{/if}}{{#if life.showChip}} <span class="ag-badge agcodex-life agcodex-life--{{life.value}}">{{life.chip}}</span>{{/if}}</h3>
           <div class="aglib-row__meta">{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">{{id}}</code> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-copy-id="{{id}}" aria-label="Copy id for {{name}}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button></details></div></div>
         <button type="button" class="ag-btn" data-ag-codex-revealto="{{id}}"><i class="fa-solid fa-eye" aria-hidden="true"></i> Reveal to…</button>
         <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
@@ -1052,8 +1052,8 @@
       </div>
       {{#each fields}}
       <div class="agcodex-field">
-        <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
-          {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<button type="button" class="agcodex-link agcodex-link--{{kind}} is-open" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}</button>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add links under Notes &amp; links.</p>{{/if}}
+        <div class="agcodex-field__body"><div class="agcodex-label">{{label}}{{#if edited}} <span class="ag-badge ag-badge--accent">Edited in your world</span>{{/if}}</div>
+          {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<button type="button" class="agcodex-link agcodex-link--{{kind}} is-open" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}</button>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add links under Edit details.</p>{{/if}}
           {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
         </div>
         <div class="agcodex-control"><div class="agcodex-seg-wrap"><div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who knows: {{label}}" data-ag-codex-seg="{{key}}"><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" class="agcodex-seg__party" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Party</button></div>
@@ -1065,14 +1065,20 @@
       {{/each}}
       {{/if}}
       {{#if ../codex.onNotes}}
-      <div class="agcodex-gm">
-        <h4><i class="fa-solid fa-lock" aria-hidden="true"></i> GM only: never sent to players</h4>
-        {{#each gmFields}}<div class="agcodex-gmrow"><span class="agcodex-label">{{label}}</span>{{#if items}}<ul class="agcodex-value">{{#each items}}<li>{{this}}</li>{{/each}}</ul>{{else}}<p class="agcodex-value">{{text}}</p>{{/if}}</div>{{else}}<p class="agmanager-tiny">The record has no portrayal, session role, stat block or GM notes.</p>{{/each}}
-      </div>
       <div class="agcodex-edit" data-ag-codex-form>
+        <p class="agmanager-tiny">Your edits are a layer over the pack record: a Sync or re-import never overwrites them. Players see your edited text for any field you have revealed. Save Changes saves everything below.</p>
+        <label class="ag-field agcodex-status" for="agcodex-status">Status <select id="agcodex-status" data-ag-codex-status-select aria-describedby="agcodex-status-hint">{{#each statusOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select><span id="agcodex-status-hint" class="ag-field__hint">Players see it only when you reveal Status on Reveals. It changes no Actor, token or combat state.</span></label>
+        {{#each editFields}}
+        <div class="ag-field agcodex-editrow{{#if gmOnly}} agcodex-editrow--gm{{/if}}" data-ag-codex-editrow="{{key}}">
+          <label for="agcodex-edit-{{key}}">{{label}}{{#if gmOnly}} <span class="agcodex-lock" data-tooltip="Only you" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-lock" aria-hidden="true"></i><span class="ag-sr-only">Only you</span></span>{{/if}}</label>
+          {{#if multiline}}<textarea id="agcodex-edit-{{key}}" rows="{{rows}}" data-ag-codex-edit="{{key}}" data-pack="{{pack}}">{{value}}</textarea>{{else}}<input type="text" id="agcodex-edit-{{key}}" data-ag-codex-edit="{{key}}" data-pack="{{pack}}" value="{{value}}">{{/if}}
+          <span class="agcodex-editmark" data-ag-codex-editmark {{#unless edited}}hidden{{/unless}}><span class="ag-badge ag-badge--accent">Edited in your world</span> <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-codex-revert="{{key}}" aria-label="Revert {{label}} to pack text">Revert to pack text</button></span>
+        </div>
+        {{/each}}
+        {{#if statBlock}}<div class="ag-field agcodex-editrow agcodex-editrow--gm"><span class="agcodex-label">Stat block <span class="agcodex-lock" data-tooltip="Only you" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-lock" aria-hidden="true"></i><span class="ag-sr-only">Only you</span></span> <span class="agmanager-tiny">Read-only</span></span><p class="agcodex-value">{{statBlock}}</p></div>{{/if}}
         <label class="ag-field">What the party has learned <textarea rows="3" data-ag-codex-learned>{{learned}}</textarea></label>
         <label class="ag-field">Connections <input type="text" data-ag-codex-links value="{{linksText}}" aria-describedby="agcodex-links-hint"><span id="agcodex-links-hint" class="ag-field__hint">Ids separated by spaces: LOC-, FAC-, DEITY-, QUEST-, NPC-.</span></label>
-        <label class="ag-field">Your notes (GM only) <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
+        <label class="ag-field agcodex-editrow agcodex-editrow--gm">Your notes <span class="agcodex-lock" data-tooltip="Only you" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-lock" aria-hidden="true"></i><span class="ag-sr-only">Only you</span></span> <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
         <footer class="ag-footer agcodex-footer">
           <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-cancel">Cancel</button>
           <span class="ag-footer__status" role="status" data-ag-codex-status></span>

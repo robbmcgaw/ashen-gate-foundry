@@ -9,14 +9,31 @@ export const CODEX_FLAG = 'codex';
 export const CODEX_STATE_VERSION = 1;
 export const CODEX_EXPORT_SCHEMA = 'ag-npc-codex-export/0.1';
 /** Fields a GM can reveal, in display order. 'learned' and 'links' are Codex play state; the rest come from the record. */
-export const REVEAL_FIELDS = Object.freeze(['role', 'appearance', 'signature_line', 'wants', 'knows', 'learned', 'links']);
+export const REVEAL_FIELDS = Object.freeze(['role', 'status', 'appearance', 'signature_line', 'wants', 'knows', 'learned', 'links']);
 /** Record fields that never leave the GM: not revealable, never in a player projection. */
 export const GM_FIELDS = Object.freeze(['portrayal', 'session_role', 'stat_block', 'gm_notes']);
 export const FIELD_LABELS = Object.freeze({
-  role: 'Role', appearance: 'Appearance', signature_line: 'Signature line', wants: 'Wants', knows: 'Knows',
+  role: 'Role', status: 'Status', appearance: 'Appearance', signature_line: 'Signature line', wants: 'Wants', knows: 'Knows',
   learned: 'What the party has learned', links: 'Connections',
   portrayal: 'Portrayal', session_role: 'Session role', stat_block: 'Stat block', gm_notes: 'GM notes'
 });
+/**
+ * 0.96.0: NPC text the GM can edit in the Codex. These are a WORLD LAYER over the pack record: the edit is stored in the Codex
+ * state (`edits`), never in `source.definition`, so a Sync or re-import that rewrites the record cannot overwrite it. The
+ * Codex reads an edited field first. `stat_block` stays read-only. GM_FIELDS (portrayal, session_role, gm_notes) are editable
+ * here and still never leave the GM.
+ */
+export const EDIT_FIELDS = Object.freeze(['name', 'role', 'appearance', 'signature_line', 'wants', 'knows', 'portrayal', 'session_role', 'gm_notes']);
+export const EDIT_LIMITS = Object.freeze({name: 200, role: 400, gm_notes: 8000});
+export const EDIT_LIMIT_DEFAULT = 4000;
+const editLimit = key => EDIT_LIMITS[key] ?? EDIT_LIMIT_DEFAULT;
+/** 0.96.0: life status. A reveal-governed field: a player sees it only when `status` is revealed to them. */
+export const STATUS_VALUES = Object.freeze(['alive', 'deceased', 'unknown']);
+export const DEFAULT_STATUS = 'alive';
+export const STATUS_LABELS = Object.freeze({alive: 'Alive', deceased: 'Deceased', unknown: 'Unknown'});
+/** Chip text (never colour alone). */
+export const STATUS_CHIPS = Object.freeze({alive: 'Alive', deceased: 'Deceased', unknown: 'Status unknown'});
+export const normalizeStatus = v => STATUS_VALUES.includes(v) ? v : DEFAULT_STATUS;
 /** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too.
  * DEITY- (0.40.0) is a Renown Pantheon deity: a player only ever sees one they have discovered in Renown. */
 export const LINK_PREFIXES = Object.freeze(['LOC', 'FAC', 'FACTION', 'RENOWN', 'DEITY', 'QUEST', 'ORDER', 'CONTRACT', 'NPC']);
@@ -72,9 +89,39 @@ export function normalizeState(raw, def = null) {
     fields,
     learned: str(saved ? raw.learned : ''),
     links: uniq((saved && Array.isArray(raw.links) ? raw.links : []).filter(isLinkId)),
-    notes: str(saved ? raw.notes : '')
+    notes: str(saved ? raw.notes : ''),
+    status: normalizeStatus(saved ? raw.status : undefined),
+    edits: normalizeEdits(saved ? raw.edits : undefined)
   };
 }
+const nl = v => str(v).replace(/\r\n?/g, '\n');
+/** Stored edits: only EDIT_FIELDS, only strings, cut to the field's cap. A blank name is not an edit. */
+export function normalizeEdits(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const key of EDIT_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(raw, key) || typeof raw[key] !== 'string') continue;
+    const text = nl(raw[key]).slice(0, editLimit(key));
+    if (key === 'name' && !text.trim()) continue;
+    out[key] = text;
+  }
+  return out;
+}
+/** The pack record's text for an editable field, as the editor shows it (gm_notes: one note per line). The name falls back to the Actor name. */
+export function packTextOf(npc, key) {
+  const def = npc?.def ?? {};
+  const v = def[key];
+  if (key === 'gm_notes') return (Array.isArray(v) ? v.map(str).filter(Boolean) : str(v) ? [str(v)] : []).join('\n');
+  if (key === 'name') return str(v) || str(npc?.name);
+  return nl(v);
+}
+/** What the Codex shows for an editable field: the world edit when there is one, else the pack text. */
+export function effectiveText(npc, state, key) {
+  const edits = state?.edits;
+  return edits && Object.prototype.hasOwnProperty.call(edits, key) ? edits[key] : packTextOf(npc, key);
+}
+/** Display name everywhere the Codex names an NPC. */
+export const displayName = (npc, state = normalizeState(npc?.state, npc?.def)) => effectiveText(npc, state, 'name') || 'Unnamed NPC';
 
 /** Change one rule. key is 'discovery' or a REVEAL_FIELDS key. mode: hidden | party | actor (with actorId, on true/false). */
 export function setReveal(state, key, {mode, actorId = null, on = true} = {}) {
@@ -103,7 +150,8 @@ export const REVEAL_KEY_LABELS = Object.freeze({discovery: 'Name and portrait', 
 export const DEFAULT_REVEAL_KEYS = Object.freeze(['discovery', 'role', 'appearance', 'signature_line']);
 export const REVEAL_PRESETS = Object.freeze({
   basics: Object.freeze({label: 'Reveal basics', keys: Object.freeze(['discovery', 'role', 'appearance'])}),
-  everything: Object.freeze({label: 'Reveal everything player-safe', keys: REVEAL_KEYS})
+  // 0.96.0: status is never part of a preset: reveal it on its own, so a bulk reveal cannot announce a death.
+  everything: Object.freeze({label: 'Reveal everything player-safe', keys: Object.freeze(REVEAL_KEYS.filter(k => k !== 'status'))})
 });
 export function presetKeys(name) {
   const preset = REVEAL_PRESETS[name];
@@ -165,10 +213,40 @@ export function revealMessage({count, mode, names = [], already = 0}) {
   return `Revealed ${noun} to ${mode === 'party' ? 'the whole party' : joinNames(names)}${note}.`;
 }
 
+/** Validates a life status. Anything but alive / deceased / unknown is refused. */
+export function setStatus(value) {
+  if (!STATUS_VALUES.includes(value)) throw new Error(`Status must be one of: ${STATUS_VALUES.join(', ')}.`);
+  return value;
+}
+/**
+ * Change the edit layer. patch: {field: text | null}. null reverts the field to the pack text. Text equal to the pack text is
+ * stored as no edit at all, so "edited" always means "differs from the pack". Only EDIT_FIELDS; `stat_block` is read-only.
+ * A blank name cannot be saved (revert instead). Returns {edits, changed: [field keys whose stored edit changed]}.
+ */
+export function setEdits(current, npc, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Edits must be an object of field: text.');
+  const edits = normalizeEdits(current), changed = [];
+  for (const [key, raw] of Object.entries(patch)) {
+    if (!EDIT_FIELDS.includes(key)) throw new Error(key === 'stat_block' ? 'The stat block is read-only here.' : `"${key}" cannot be edited. Editable: ${EDIT_FIELDS.join(', ')}.`);
+    const had = Object.prototype.hasOwnProperty.call(edits, key) ? edits[key] : undefined;
+    if (raw === null) delete edits[key];
+    else {
+      if (typeof raw !== 'string') throw new Error(`"${key}" must be text.`);
+      const text = nl(raw).slice(0, editLimit(key));
+      if (key === 'name' && !text.trim()) throw new Error('A name cannot be blank. Use Revert to pack text instead.');
+      if (text === packTextOf(npc, key)) delete edits[key]; else edits[key] = text;
+    }
+    if (had !== (Object.prototype.hasOwnProperty.call(edits, key) ? edits[key] : undefined)) changed.push(key);
+  }
+  return {edits, changed};
+}
+
 /** GM-editable text and links. Links are filtered to known id prefixes; anything else is reported. */
-export function setDetails(state, {learned, notes, links} = {}) {
-  const next = normalizeState(state);
+export function setDetails(state, {learned, notes, links, status, edits} = {}, npc = null) {
+  const next = normalizeState(state, npc?.def);
   const rejected = [];
+  if (status !== undefined) next.status = setStatus(status);
+  if (edits !== undefined) next.edits = setEdits(next.edits, npc, edits).edits;
   if (learned !== undefined) next.learned = str(learned).slice(0, 4000);
   if (notes !== undefined) next.notes = str(notes).slice(0, 8000);
   if (links !== undefined) {
@@ -186,8 +264,10 @@ export function linksOf(def, state) {
   return uniq([...fromRecord, ...fromRefs, ...normalizeState(state).links].filter(isLinkId)).filter(id => id !== def?.id);
 }
 
-const fieldValue = (def, state, key) => key === 'learned' ? state.learned : key === 'links' ? null : str(def?.[key]);
+const fieldValue = (npc, state, key) => key === 'learned' ? state.learned : key === 'links' ? null
+  : key === 'status' ? STATUS_CHIPS[state.status] : effectiveText(npc, state, key);
 const textOf = v => Array.isArray(v) ? v.map(str).filter(Boolean) : str(v);
+const GM_EDIT_SET = new Set(['portrayal', 'session_role', 'gm_notes']);
 
 /**
  * GM view of one NPC. `npc` is {def, state, uuid, img, name}. `nameOf(id)` resolves a link id to a display name (GM side).
@@ -197,14 +277,24 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
   const charName = id => characters.find(c => c.id === id)?.name ?? 'Unknown character';
   const describe = rule => rule.party ? 'Party' : rule.actors.length ? rule.actors.map(charName).join(', ') : 'Hidden';
   const links = linksOf(def, state).map(id => { const name = nameOf(id); return {id, kind: linkKind(id), name: name ?? `${LINK_KIND_LABEL[linkKind(id)] ?? 'Linked'} record (not in this world)`, named: Boolean(name), gmAdded: state.links.includes(id)}; });
+  const gmText = key => key === 'gm_notes' ? effectiveText(npc, state, key).split('\n').map(l => l.trim()).filter(Boolean) : effectiveText(npc, state, key);
+  const edited = key => Object.prototype.hasOwnProperty.call(state.edits, key);
+  const name = displayName(npc, state);
+  // 0.96.0: one "Only you" chip by the name when the NPC is not yet known to players or the record is GM-only; GM-only fields carry a quiet cue instead.
+  const onlyYou = ruleMode(state.discovery) === 'hidden' || def.visibility === 'gm';
   return {
-    id: def.id, uuid: npc.uuid ?? null, name: str(def.name) || str(npc.name) || 'Unnamed NPC', img: npc.img ?? null,
+    id: def.id, uuid: npc.uuid ?? null, name, img: npc.img ?? null,
     status: str(def.status), discovery: state.discovery, discoveryMode: ruleMode(state.discovery), discoveryLabel: describe(state.discovery),
-    fields: REVEAL_FIELDS.map(key => ({key, label: FIELD_LABELS[key], value: fieldValue(def, state, key), rule: state.fields[key],
-      mode: ruleMode(state.fields[key]), who: describe(state.fields[key]),
-      empty: key === 'links' ? !links.length : !fieldValue(def, state, key)})),
-    gmFields: GM_FIELDS.map(key => ({key, label: FIELD_LABELS[key], value: textOf(def[key])}))
+    life: {value: state.status, label: STATUS_LABELS[state.status], chip: STATUS_CHIPS[state.status], showChip: state.status !== DEFAULT_STATUS},
+    onlyYou,
+    fields: REVEAL_FIELDS.map(key => ({key, label: FIELD_LABELS[key], value: fieldValue(npc, state, key), rule: state.fields[key],
+      mode: ruleMode(state.fields[key]), who: describe(state.fields[key]), edited: EDIT_FIELDS.includes(key) && edited(key),
+      empty: key === 'links' ? !links.length : !fieldValue(npc, state, key)})),
+    gmFields: GM_FIELDS.map(key => ({key, label: FIELD_LABELS[key], value: key === 'stat_block' ? textOf(def[key]) : gmText(key), edited: edited(key)}))
       .filter(f => Array.isArray(f.value) ? f.value.length : f.value),
+    editFields: EDIT_FIELDS.map(key => ({key, label: key === 'name' ? 'Name' : FIELD_LABELS[key], gmOnly: GM_EDIT_SET.has(key),
+      value: effectiveText(npc, state, key), pack: packTextOf(npc, key), edited: edited(key),
+      multiline: key !== 'name' && key !== 'role', rows: key === 'gm_notes' ? 4 : 3})),
     learned: state.learned, notes: state.notes, links, gmLinks: state.links,
     revealedCount: REVEAL_FIELDS.filter(k => ruleMode(state.fields[k]) !== 'hidden').length
   };
@@ -222,7 +312,7 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
 export function playerEntry(npc, actorIds = [], {linkFor = () => null} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   if (!knowsRule(state.discovery, actorIds)) return null;
-  const out = {id: def.id, name: str(def.name) || str(npc.name) || 'Unnamed NPC', img: npc.img ?? null, fields: []};
+  const out = {id: def.id, name: displayName(npc, state), img: npc.img ?? null, fields: []};
   for (const key of REVEAL_FIELDS) {
     const rule = state.fields[key];
     if (!knowsRule(rule, actorIds)) continue;
@@ -238,8 +328,10 @@ export function playerEntry(npc, actorIds = [], {linkFor = () => null} = {}) {
       if (links.length) out.fields.push({key, label: FIELD_LABELS[key], links, onlyYou});
       continue;
     }
-    const value = fieldValue(def, state, key);
-    if (value) out.fields.push({key, label: FIELD_LABELS[key], value, onlyYou});
+    const value = fieldValue(npc, state, key);
+    if (!value) continue;
+    // 0.96.0: status goes to a player only when it is revealed to them (the rule check above); hidden status adds nothing at all.
+    out.fields.push(key === 'status' ? {key, label: FIELD_LABELS[key], value, status: state.status, onlyYou} : {key, label: FIELD_LABELS[key], value, onlyYou});
   }
   return out;
 }
@@ -265,6 +357,25 @@ export function buildCodexExport(npcs, {exportedAt = new Date().toISOString()} =
     definitions: sorted.map(n => structuredClone(n.def)),
     reveals: Object.fromEntries(sorted.map(n => [n.def.id, normalizeState(n.state, n.def)]))
   };
+}
+
+/**
+ * 0.96.0: the Codex layer for the world backup (`npc_codex` in manager-edits.json), an additive key beside `records` and `world_only`.
+ * Per NPC that has saved Codex state: edits, status, learned, notes, GM-added links, discovery and per-field reveals. GM file only.
+ * Actor ids in reveals are world-local; `actor_names` names them. Sorted by id so a re-run changes only what changed.
+ */
+export function buildCodexBackupLayer(npcs, characters = []) {
+  const name = id => characters.find(c => c.id === id)?.name ?? null;
+  return [...npcs].filter(n => n.state && typeof n.state === 'object').sort((a, b) => str(a.def?.id).localeCompare(str(b.def?.id))).map(n => {
+    const state = normalizeState(n.state, n.def);
+    const ids = uniq([...state.discovery.actors, ...Object.values(state.fields).flatMap(r => r.actors)]);
+    return {
+      id: n.def.id, name: displayName(n, state), pack_name: packTextOf(n, 'name'), status: state.status,
+      edits: state.edits, learned: state.learned, notes: state.notes, links: state.links,
+      discovery: state.discovery, reveals: state.fields,
+      actor_names: Object.fromEntries(ids.map(id => [id, name(id)]).filter(([, v]) => v))
+    };
+  });
 }
 
 /**
@@ -317,13 +428,15 @@ export function renderPlayerCodexHtml(entries, {message = '', deityLink = () => 
     const initials = esc(e.name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0]).join('') || '?');
     const portrait = e.img ? `<img class="agm-codex-portrait" src="${esc(e.img)}" alt="">` : `<span class="agm-codex-portrait" aria-hidden="true">${initials}</span>`;
     const role = e.fields.find(f => f.key === 'role');
-    const rows = e.fields.filter(f => f.key !== 'role').map(f => {
+    const life = e.fields.find(f => f.key === 'status');
+    const chip = life ? ` <span class="ag-badge agm-codex-life agm-codex-life--${esc(life.status)}">${esc(life.value)}</span>` : '';
+    const rows = e.fields.filter(f => f.key !== 'role' && f.key !== 'status').map(f => {
       const only = f.onlyYou ? ' <span class="ag-badge ag-badge--accent">only you</span>' : '';
       const body = f.links ? f.links.map(l => linkHtml(l, deityLink)).join(' ')
         : f.key === 'signature_line' ? `<q>${esc(f.value)}</q>` : esc(f.value);
       return `<dt>${esc(f.label)}${only}</dt><dd>${body}</dd>`;
     }).join('');
-    return `<article class="ag-card agm-codex-card" data-npc="${esc(e.id)}"><header class="agm-codex-card__head">${portrait}<div><h3>${esc(e.name)}</h3>`
+    return `<article class="ag-card agm-codex-card" data-npc="${esc(e.id)}"><header class="agm-codex-card__head">${portrait}<div><h3>${esc(e.name)}${chip}</h3>`
       + `<p>${role ? esc(role.value) : '<em>Role not known yet</em>'}</p></div></header>${rows ? `<dl>${rows}</dl>` : ''}</article>`;
   };
   return `<div class="agm-codex-player">${entries.map(card).join('')}</div>`;

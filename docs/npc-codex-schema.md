@@ -1,13 +1,13 @@
 # NPC Codex: record schema and reveal model
 
-General Manager 0.33.0 and later. The NPC Codex lives in **General Manager → Items → NPC Codex** (rail icon; it was under Library before 0.36.0). It shows every imported NPC record. For each field, the GM decides who knows it: nobody (hidden), the whole party, or specific characters. Players get a read-only codex of only what has been revealed to them.
+General Manager 0.33.0 and later (edits and status: 0.96.0). The NPC Codex lives in **General Manager → Items → NPC Codex** (rail icon; it was under Library before 0.36.0). It shows every imported NPC record. For each field, the GM decides who knows it: nobody (hidden), the whole party, or specific characters. Players get a read-only codex of only what has been revealed to them.
 
 ## Where things live
 
 | What | Where | Written by | Re-import |
 |---|---|---|---|
 | NPC content (role, appearance, wants, …) | The NPC record in a Manager package (`ag-foundry-import/0.2`). It is stored on the NPC Actor as `flags.ashen-gate-manager.source.definition` | Package import | Only with **Update existing actors** (see below) |
-| Reveals, what the party has learned, GM-added connections, GM notes | `flags.ashen-gate-manager.codex` on the same NPC Actor | GM only, from the Codex | **Never touched** |
+| Reveals, what the party has learned, GM-added connections, GM notes, **edits to the NPC text and the life status** (0.96.0) | `flags.ashen-gate-manager.codex` on the same NPC Actor | GM only, from the Codex | **Never touched** |
 | Players can open the codex | World setting `ashen-gate-manager.codexPlayerAccess` (default off). GM Setup → NPC Codex | GM | n/a |
 
 Existing NPC records keep working as they are. NPCs still import as Actor shells, matched by permanent id. The `codex` block below is optional and additive.
@@ -69,13 +69,22 @@ Use the deity's permanent Renown id, e.g. `"DEITY-EXAMPLE-LANTERN-MOTHER"`. Keep
 - **Visibility follows Renown, not the Codex alone.** Even with Connections revealed, a player only sees a deity link if Renown says one of their characters (or the party) has discovered that deity (Renown's player-filtered `getPantheon`/`getDeities`). Otherwise the link shows as **Unknown**, unlinked, and the player's data carries neither the deity's id nor its name. The party-level view and preview show a deity only when every player character knows it.
 - **Missing partner.** Renown not active, hidden from players, or the deity not in this world: the link is plain text with a tooltip (for players with Renown missing: **Unknown**). Never an error.
 
+### World edits and status (Manager 0.96.0)
+
+The Codex can edit the NPC's text without touching the pack record. Edits are a **world layer**: `codex.edits` in the Codex state, beside (never inside) `source.definition`, so a Sync or re-import that rewrites the record cannot overwrite them. The Codex shows the edited text where there is one, else the pack text; players see the edited text for any field revealed to them.
+
+- `edits`: `{field: text}` for `name`, `role`, `appearance`, `signature_line`, `wants`, `knows`, `portrayal`, `session_role`, `gm_notes`. `gm_notes` is a list in the record and one note per line in an edit. `stat_block` is read-only. A field is stored as an edit only while its text differs from the pack text; saving the pack text back (Revert to pack text) removes it. Caps: `name` 200, `role` 400, `gm_notes` 8000, the rest 4000. A name cannot be blank.
+- `status`: `"alive"` (default), `"deceased"` or `"unknown"`. A revealable field like `role`: reveal key `status`, players see it only when it is revealed to them, and a hidden status adds nothing to what they receive. Shown as a text chip beside the name (`Alive`, `Deceased`, `Status unknown`). No preset (`Reveal basics`, `Reveal everything player-safe`) and no default reveal in this repo's UI includes it; a record's `codex.default_reveal.fields.status` can. It changes no Actor, token or combat state.
+- Portrayal, session role and GM notes stay GM-only whether edited or not: they are not revealable and never in a player projection.
+- GM only, enforced in the service: `api.codex.setDetails(id, {edits, status, learned, notes, links})` (`edits` values are text, or `null` to revert one field), `api.codex.revertEdit(id, field)`. A refused patch (unknown field, `stat_block`, blank name, bad status) writes nothing.
+
 ### `codex.default_reveal`
 
 ```json
 {"discovery": "hidden", "fields": {"role": "party", "appearance": "party"}}
 ```
 
-`discovery` and each field take `"hidden"` or `"party"`. Only `"party"` reveals: any other value, including a typo, counts as hidden. Field keys: `role`, `appearance`, `signature_line`, `wants`, `knows`, `learned`, `links`. Other keys are ignored. Per-character reveals are made in play, not in the record.
+`discovery` and each field take `"hidden"` or `"party"`. Only `"party"` reveals: any other value, including a typo, counts as hidden. Field keys: `role`, `status`, `appearance`, `signature_line`, `wants`, `knows`, `learned`, `links`. Other keys are ignored. Per-character reveals are made in play, not in the record.
 
 ## Reveal model
 
@@ -99,11 +108,14 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
     "wants": {"party": false, "actors": ["<actorId>"]},
     "knows": {"party": false, "actors": []},
     "learned": {"party": true, "actors": []},
-    "links": {"party": false, "actors": []}
+    "links": {"party": false, "actors": []},
+    "status": {"party": false, "actors": []}
   },
   "learned": "She logs every crossing twice.",
   "links": ["QUEST-EXAMPLE-DOUBLE-LEDGER"],
-  "notes": "GM-only notes added in play."
+  "notes": "GM-only notes added in play.",
+  "status": "alive",
+  "edits": {"role": "Harbour clerk at the gate"}
 }
 ```
 
@@ -159,7 +171,11 @@ Storage is unchanged. These GM-only `api.codex` calls change several rules in on
  "reveals": {"NPC-EXAMPLE-MIRA-VANE": {/* stored state, as above */}}}
 ```
 
-It is a GM file: it contains GM-only fields. **Restore reveals from a codex export** needs `schema_version` `ag-npc-codex-export/0.1` and a `reveals` object, otherwise the file is not used. It replaces the stored state of the listed NPCs that exist in this world and skips the rest (an archived NPC Actor counts as missing). It never changes NPC content, which comes from the package import. Actor ids in `actors` are world-local, so a restore into a different world keeps party reveals but not per-character ones. The world export (Items → Export and backup) leaves Codex state out.
+It is a GM file: it contains GM-only fields. **Restore reveals from a codex export** needs `schema_version` `ag-npc-codex-export/0.1` and a `reveals` object, otherwise the file is not used. It replaces the stored state of the listed NPCs that exist in this world and skips the rest (an archived NPC Actor counts as missing). It never changes NPC content, which comes from the package import. Actor ids in `actors` are world-local, so a restore into a different world keeps party reveals but not per-character ones. The world export (Items → Export and backup) leaves Codex state out. Since 0.96.0 the export and restore also carry `edits` and `status` (additive keys, same schema string); restoring a file made before 0.96.0 replaces the stored state, so it resets edits and status to none and Alive. The world backup to GitHub writes the same layer (below) as `npc_codex`.
+
+### In the GitHub world backup (0.96.0)
+
+`world-backup/manager-edits.json` (schema `ag-world-edits/0.1`, unchanged) gains an additive top-level `npc_codex` array, written with the **Edited Actors** tick: one row per NPC with saved Codex state, sorted by id: `{id, name, pack_name, status, edits, learned, notes, links, discovery, reveals, actor_names}`. `reveals` is the per-field `{party, actors}` rules; Actor ids are world-local and `actor_names` names them. Readers that ignore unknown keys are unaffected. It is a GM file.
 
 ## API (`game.modules.get('ashen-gate-manager').api.codex`)
 
@@ -167,7 +183,8 @@ It is a GM file: it contains GM-only fields. **Restore reveals from a codex expo
 |---|---|---|
 | `list()`, `get(id)`, `characters()` | GM | Full GM entries; player characters available for reveals |
 | `setReveal(id, key, {mode, actorId, on})` | GM | `key`: `discovery` or a field key (any other key is refused); `mode`: `hidden` (clears party and characters), `party` (keeps any listed characters), or `actor` with `actorId` and `on` (also turns `party` off) |
-| `setDetails(id, {learned, notes, links})` | GM | `{state, rejected}` (`rejected`: link ids that are not linkable). `links` is an array or space/comma-separated text and replaces the GM-added links; `learned` is cut to 4000 characters, `notes` to 8000 |
+| `setDetails(id, {learned, notes, links, status, edits})` | GM | `{state, rejected}` (`rejected`: link ids that are not linkable). `links` is an array or space/comma-separated text and replaces the GM-added links; `learned` is cut to 4000 characters, `notes` to 8000. 0.96.0: `status` (`alive`, `deceased`, `unknown`) and `edits` (see *World edits and status*) |
+| `revertEdit(id, field)` | GM | Puts one edited field back to the pack text (0.96.0) |
 | `previewAs(actorIds)` | GM | Exactly what a player owning those characters receives (`[]` = party only) |
 | `exportAll()` | GM | The export file object |
 | `forPlayer()` | anyone | The calling player's codex. A player's client asks the active GM over a Foundry query (V13+); the GM's client re-checks access and returns only that player's projection. A GM gets the party view. |

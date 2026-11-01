@@ -14,6 +14,8 @@ General Manager, Items > Export > **Back up world now…** (GM only). It writes 
 | Renown standings and claims | `standings.json` | `ag-factions-state-export/0.1` (Renown `api.exportState()`, Renown 0.27.0+) | **play state** |
 | Party characters | `party.json` | `ag-party-sheets-export/0.1` (built by Manager from world Actors; Manager 0.93.0+) | **play state** |
 
+The edits file also carries, from Manager 0.96.0, an additive top-level `npc_codex` array (written with the Edited Actors tick): the NPC Codex layer per NPC with saved state, `{id, name, pack_name, status, edits, learned, notes, links, discovery, reveals, actor_names}` (see `docs/npc-codex-schema.md`). The schema string stays `ag-world-edits/0.1`; the layer is world-local play and edit state, so a reader that merges content should ignore `npc_codex` unless it knows it.
+
 The content files are formats the content pack's reconcile script reads. **`standings.json` and `party.json` are play state** and deliberately use their own schema strings: the reconcile lists unknown formats and skips them, so they are never merged into content. Skipped with the reason "update Renown" when Renown is missing, off or older than 0.27.0.
 
 ## `standings.json` (`ag-factions-state-export/0.1`)
