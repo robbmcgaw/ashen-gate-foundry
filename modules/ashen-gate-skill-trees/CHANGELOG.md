@@ -1,3 +1,11 @@
+## 0.25.0 — 2026-11-01
+
+**New (GM only): `api.exportState()` so General Manager's world backup can save your tree layouts and every character's progress.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-skill-trees').api.exportState()`; it returns `{schema_version: 'ag-skill-trees-state-export/0.1', trees, progress}`. As a player the same call is refused ("GM only").
+
+- `trees`: each tree's id, name, kind, status, visibility, source ref and look settings, with every node's id, perk id, x/y, cost, requires, excludes, status, visibility and display. Perk text is not included (the content pack holds it); only a custom node keeps its own name.
+- `progress`: for each character with stored progress, the unlocked and kept node ids per tree and the points earned, spent and available. Level-backup copies and NPCs are left out.
+- Rows are sorted by id so a re-run changes only what changed; there are no timestamps. It only reads, through the same readers the window uses. The existing Export and Back up progress downloads are unchanged.
+
 ## 0.24.4 — 2026-10-31
 
 Character Hub: the available-perk cards in the Skill Trees tab are readable now. No saved data changed.

@@ -25,7 +25,9 @@ Independent. General Manager owns import: tree files (`ag-skill-trees/0.3`, 0.2 
 
 ## Public API
 
-`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `listTreesForProfession`, `actorProgress`, `pointsSummary`, `professionWallet`, `unlock`, `embed.mount`, `embed.data`, `accounts` (0.17.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `listTreesForProfession`, `actorProgress`, `pointsSummary`, `professionWallet`, `unlock`, `embed.mount`, `embed.data`, `accounts` (0.17.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`, `exportState` (0.25.0, optional: feature-detect it).
+
+`api.exportState()` (GM only, read-only, writes nothing) returns the GM layouts and every character's stored progress as plain JSON, schema `ag-skill-trees-state-export/0.1`: `{schema_version, trees, progress}`. `trees` has one row per tree (id, name, kind, status, visibility, source ref, provider, access, look settings, and its nodes with x/y, requires, excludes, visibility; perk text is never included). `progress` has one row per character with stored progress (actor id and name, then per tree the unlocked node ids and points earned, spent and available). Rows are sorted and there are no timestamps. General Manager's world backup uses it; see `docs/world-backup.md`.
 
 ### `pointsSummary(actor)` (0.13.0)
 
