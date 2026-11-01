@@ -4,6 +4,7 @@
  */
 import {SYNC_NAME, SYNC_PHRASE, phraseOk, phraseRequired, UPDATE_EXTERNAL_LABEL, UPDATE_EXTERNAL_EXPLAIN} from './sync.js';
 import {ARCHIVE_LABEL, ARCHIVE_EXPLAIN} from './sync-archive.js';
+import {REFUSAL} from './sync-retired.js';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -13,7 +14,7 @@ const STALE_WHY = 'Sync holds files from an older pull. Load the new pull first.
 
 export const SYNC_INTRO = `${SYNC_NAME} makes the world match the files you choose, as if they were literally the old files. A record that matches by permanent id is updated to the package's version; one you edited in this world since it was imported is kept as it is (listed, with what would differ) unless you tick the option below. Records Manager imported from these packages that no file mentions are deleted. Character sheets are never touched: no player character, nothing on one, no hotbar. An Item that is also on a character sheet stays there exactly as it is, even when the world Item is changed or deleted. A record the package renamed is renamed in your world too (listed under Renames, no typed confirmation when that is all the run does), unless you renamed it by hand. Documents Manager did not import (your own, core and player ones) are never read or changed.`;
 
-const group = (title, count, body, {open = false} = {}) => `<details class="ag-fold"${open ? ' open' : ''}>
+const group = (title, count, body, {open = false, key = ''} = {}) => `<details class="ag-fold"${key ? ` data-ag-fold-key="${esc(key)}"` : ''}${open ? ' open' : ''}>
   <summary class="ag-fold__summary"><span class="ag-fold__title">${esc(title)}</span><span class="ag-fold__count">${count}</span></summary>
   <div class="ag-fold__body">${body}</div></details>`;
 const more = (shown, total) => total > shown ? `<p class="agmanager-tiny">and ${total - shown} more (Download preview lists every row).</p>` : '';
@@ -177,9 +178,13 @@ export function syncView(state) {
       if (refusedAll.length) {
         const byReason = new Map();
         for (const r of refusedAll) (byReason.get(r.reason) ?? byReason.set(r.reason, []).get(r.reason)).push(r);
-        const blocks = [...byReason].sort((a, b) => b[1].length - a[1].length).map(([reason, list]) => `<li class="ag-row"><details class="ag-row__main"${byReason.size === 1 ? ' open' : ''}><summary><strong>${esc(reason)}</strong> <span class="ag-badge">${plural(list.length, 'record')}</span></summary>
-          <ul class="ag-rows">${list.slice(0, SHOWN_ROWS).map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.kind)}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`).join('')}</ul>${more(Math.min(SHOWN_ROWS, list.length), list.length)}</details></li>`).join('');
-        parts.push(group('Refused', refusedAll.length, `<p class="agmanager-tiny">Sync did not touch these records, for the reason shown. Fix the cause in your world (for example delete or rename the document that is in the way) and preview again.</p><ul class="ag-rows">${blocks}</ul>`, {open: true}));
+        // 0.100.0: a record held back only because its id is on Sync's retired list can be allowed again (GM only; the data layer checks too).
+        const allowRow = r => state.isGM && r.retired ? (r.allowable ? ` <button type="button" class="ag-btn ag-btn--ghost" data-ag-sync-allow="${esc(r.id)}" ${state.busy ? 'disabled' : ''}>Allow again…</button>` : ` <span class="agmanager-tiny">${esc(REFUSAL.superseded)}</span>`) : '';
+        const blocks = [...byReason].sort((a, b) => b[1].length - a[1].length).map(([reason, list]) => { const retired = list.some(r => r.retired), allowable = list.filter(r => r.retired && r.allowable).length;
+          const allowAll = state.isGM && retired && allowable ? `<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-sync-allow="all" ${state.busy ? 'disabled' : ''}>Allow these ids again…</button><span class="agmanager-tiny">${allowable === 1 ? 'Allows the 1 id' : `Allows the ${allowable} ids`} below that the package carries. Nothing changes until the next Sync.</span></div>` : '';
+          return `<li class="ag-row"><details class="ag-row__main"${byReason.size === 1 || retired ? ' open' : ''}><summary><strong>${esc(reason)}</strong> <span class="ag-badge">${plural(list.length, 'record')}</span></summary>${allowAll}
+          <ul class="ag-rows">${list.slice(0, SHOWN_ROWS).map(r => `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(r.name)}</span><span class="ag-row__meta">${esc(r.kind)}${allowRow(r)}</span>${r.id ? `<details class="agm-tech" data-ag-technical><summary>Details</summary><code class="agm-id">${esc(r.id)}</code></details>` : ''}</span></li>`).join('')}</ul>${more(Math.min(SHOWN_ROWS, list.length), list.length)}</details></li>`; }).join('');
+        parts.push(group('Refused', refusedAll.length, `<p class="agmanager-tiny">Sync did not touch these records, for the reason shown. Fix the cause in your world (for example delete or rename the document that is in the way) and preview again.</p><ul class="ag-rows">${blocks}</ul>`, {open: true, key: 'sync-refused'}));
       }
       const refused = keep.filter(r => !r.keptEdited && !r.refused && !r.keptReferenced && !r.notArchived && (r.kept || r.notRemoved)), quiet = keep.length - refusedAll.length - refused.length - kept.length - keptGone.length - keptRef.length - notArch.length - keptSw.length;
       parts.push(group('Untouched', c.untouched, `${refused.length ? list(refused, line) : ''}<p class="agmanager-tiny">${quiet} record(s) already match the package${plan.outOfScope?.records ? `; ${plan.outOfScope.records} Manager-imported record(s) belong to other package lines or have no line; documents without Manager's flag are never listed or changed` : ''}.</p>`, {open: refused.length > 0 && refused.length <= 12}));

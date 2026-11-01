@@ -180,7 +180,7 @@ test('writeOverwrite sends the removal inside the one flag write and needs no ex
 
 test('0.72.2 version and CHANGELOG', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.99.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.99.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
   assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.71\.3 /m);
   for (const f of ['sync-apply.js', 'actor-update.js', 'main.js']) assert.match(fs.readFileSync(new URL(`../scripts/${f}`, import.meta.url), 'utf8'), /replacingSourceFlag\(/, f);
 });

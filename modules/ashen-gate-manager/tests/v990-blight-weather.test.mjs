@@ -180,7 +180,7 @@ test('adding a Blight layer sets the weather id and a calm switch refuses the fl
   const scene = Object.assign(new Scene(), {id: 'S1', name: '[TEST] Mill', weather: '', environment: {base: {hue: 0, intensity: 0, saturation: 0, luminosity: 0}}, flags: {},
     getFlag(scope, key) { return this.flags[key]; },
     async update(data) { for (const [k, v] of Object.entries(data)) { if (k === 'weather') this.weather = v; else if (k.startsWith('flags.ashen-gate-manager.')) this.flags[k.split('.').pop()] = v; } return this; }});
-  const game = {user: {isGM: true, id: 'U1'}, users: {activeGM: {id: 'U1'}}, modules: {get: () => ({version: '0.99.0'})},
+  const game = {user: {isGM: true, id: 'U1'}, users: {activeGM: {id: 'U1'}}, modules: {get: () => ({version: '0.100.0'})},
     settings: {get: (ns, key) => structuredClone(store[key]), set: async (ns, key, v) => { store[key] = v; return v; }},
     scenes: {contents: [scene], get: () => scene, active: scene}};
   const config = {weatherEffects: Object.fromEntries(['snow', ...ALL].map(w => [w, {id: w}]))};
@@ -203,7 +203,7 @@ test('Manager registers the effects in init and manifest/version agree (0.x only
   assert.match(main, /import \{registerBlightWeather[^}]*\} from '\.\/blight-weather\.js'/);
   assert.match(main, /registerBlightWeather\(\{calm:/);
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.99.0'); assert.match(m.version, /^0\./);
-  assert.ok(m.download.endsWith('/ashen-gate-manager-v0.99.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.100.0'); assert.match(m.version, /^0\./);
+  assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
   assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.99\.0 /m);
 });

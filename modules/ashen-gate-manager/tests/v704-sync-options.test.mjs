@@ -109,6 +109,6 @@ test('0.70.4 many identical failures are summarised in one line with example nam
 
 test('0.70.4 version, download URL and CHANGELOG', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.99.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.99.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
   assert.match(read('../CHANGELOG.md'), /^## 0\.70\.4 /m);
 });
