@@ -6,6 +6,7 @@ import {
   sharedWalletKey,walletGroups,groupName,memberName,accessText,cleanAccess,PROFESSION_MAX_LEVEL,perkLabel
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
+import {isProgressive,applyReveal,revealDetails,REVEAL_SCHEMA,planShowCinderTrees,showCinderTreesText} from './reveal.mjs';
 import {sanitizePerkHtml} from './perk-html.mjs';
 import {buildPerkCard,groupByTier,unreleasedPerkMessage} from './perk-card.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
@@ -32,7 +33,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.27.1';
+const VERSION='0.28.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -40,6 +41,7 @@ const LEDGER_ID='ashen-gate-profession-ledger';
 const LEDGER_CONTRACT='ag-ledger-progression/1';
 const CINDERS_ID='ashen-gate-cinders';
 const SAFE_SETTING='publicTreesV2';
+const REVEAL_FLAG='revealV1'; // per-character text of the progressive-tree nodes that character can see (written by the GM client)
 // 0.17.0: generic partner contract. Skill Trees knows no partner by name: it reports progress changes and lets a partner veto one.
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
 const PROGRESS_HOOK='ashenGateSkillTrees.progressChanged';
@@ -89,7 +91,7 @@ function treesForActor(actor){
   if(game.user.isGM)return readPrivate();
   if(!actor)return [];
   const cinderIds=boundCinders(actor);
-  return readPublic().filter(t=>holdsFor(actor,t,cinderIds));
+  return readPublic().filter(t=>holdsFor(actor,t,cinderIds)).map(t=>revealFor(actor,t));
 }
 /** What this user may see across all their characters (players); the published trees for the GM's Player preview. */
 function visiblePublic(){
@@ -97,6 +99,21 @@ function visiblePublic(){
   const actors=ownedCharacters(),pub=readPublic();
   return pub.filter(t=>actors.some(a=>holdsFor(a,t)));
 }
+/**
+ * 0.28.0 progressive reveal, one character's view of a published tree (players, the GM's Player preview, the Hub embed). Hidden nodes are
+ * removed, later nodes are silhouettes, and the text of the nodes the character can see comes from that character's own record (revealV1).
+ * The GM client reads it from the private tree instead. Trees that are not progressive come back as they are.
+ */
+function revealFor(actor,tree){
+  if(!isProgressive(tree)||!actor)return tree;
+  const unlocks=readProgress(actor,tree).unlocks;
+  let details;
+  if(game.user.isGM){const stored=readPrivate().find(x=>x.id===tree.id),full=stored?projectFull(stored):null;details=full?revealDetails(full,unlocks):{};}
+  else details=safeFlag(actor,REVEAL_FLAG)?.trees?.[tree.id]??{};
+  return applyReveal(tree,unlocks,details,sanitizePerkHtml);
+}
+/** The shared copy with no character in mind (api.listTrees): a progressive tree shows only what nobody has to earn. */
+const revealNone=tree=>isProgressive(tree)?applyReveal(tree,[],{}):tree;
 const readSelectedTrees=preview=>game.user.isGM&&!preview?readPrivate():visiblePublic();
 const readProgress=(actor,tree)=>cleanAccount(safeFlag(actor,'progressV2')?.[walletKey(tree)]);
 const allProgressFor=(tree)=>(game.actors?.contents??[]).map(a=>readProgress(a,tree));
@@ -256,7 +273,9 @@ const safePublicSource=n=>{
   return Boolean(doc?.documentName==='Item'&&doc?.type==='feat'&&source?.entityType===
     (n.perkId.startsWith('PERK-')?'ProfessionPerk':'Power') && !/placeholder/i.test(doc.name));
 };
-const project=t=>{const r=resolved(t);return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})});};
+const project=(t,options)=>{const r=resolved(t);return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})},options);};
+/** GM client only: the player projection with every node's text (never written to the shared setting). */
+const projectFull=t=>project(t,{full:true});
 const publishedPayload=trees=>{defIndex=buildDefinitionIndex(game);try{return {schema:SCHEMA,revision:Date.now(),trees:trees.map(project).filter(Boolean)};}finally{defIndex=null;}};
 async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
@@ -272,9 +291,42 @@ async function createStore(){
   if(!d)throw Error('Unable to create the private definition Journal');
   return d;
 }
+/**
+ * 0.28.0, GM client: what one character may read of each progressive tree, {treeId: {nodeId: details}}, worked out from the private trees
+ * and that character's progress (records: the progress map to use instead of the stored one, for a change about to be saved).
+ */
+function revealRecord(actor,records=null){
+  const out={},mine=records??safeFlag(actor,'progressV2')??{},cinderIds=boundCinders(actor);
+  for(const stored of readPrivate()){
+    if(!isProgressive(stored)||stored.visibility!=='player')continue;
+    const account=cleanAccount(mine[walletKey(stored)]);
+    if(!holdsTree(stored,{level:professionLevel(actor,stored),cinderIds,account}))continue;
+    const full=projectFull(stored);if(!full)continue;
+    const details=revealDetails(full,account.unlocks);
+    if(Object.keys(details).length)out[stored.id]=details;
+  }
+  return out;
+}
+/** Write the character's record when it changed (idempotent). Returns true when it wrote. */
+async function syncReveal(actor,records=null){
+  if(!game.user.isGM)throw Error('GM only');
+  if(!actor||actor.type!=='character'||isLevelBackup(actor))return false;
+  const next=revealRecord(actor,records),current=safeFlag(actor,REVEAL_FLAG)?.trees??{};
+  if(JSON.stringify(next)===JSON.stringify(current))return false;
+  await actor.setFlag(MODULE,REVEAL_FLAG,{schema:REVEAL_SCHEMA,trees:next});
+  return true;
+}
+async function syncAllReveals(){
+  let wrote=0;
+  for(const actor of game.actors?.contents??[]){
+    try{if(await syncReveal(actor))wrote++;}catch(error){console.error(`[${MODULE}] Could not update ${actor?.name??'a character'}'s revealed perks`,error);}
+  }
+  return wrote;
+}
 async function publishPublic(){
   if(!game.user.isGM)throw Error('GM only');
   await game.settings.set(MODULE,SAFE_SETTING,publishedPayload(readPrivate()));
+  await syncAllReveals();
   return readPublic().length;
 }
 async function saveTrees(trees,{previous=null,checkPurchased=true}={}){
@@ -300,9 +352,21 @@ async function saveTrees(trees,{previous=null,checkPurchased=true}={}){
     }
   }
   await store.setFlag(MODULE,'payload',{schema:SCHEMA,trees:normalized});
-  try{await game.settings.set(MODULE,SAFE_SETTING,publishedPayload(normalized));}
+  try{await game.settings.set(MODULE,SAFE_SETTING,publishedPayload(normalized));await syncAllReveals();}
   catch(error){console.error(`[${MODULE}] Public projection update failed`,error);throw Error('Private save completed, but public projection did not update. Retry Publish before players use trees.');}
   return check.warnings;
+}
+/**
+ * 0.28.0, GM only: make every Cinder tree visible to the characters that hold it, revealing as they unlock (planShowCinderTrees),
+ * then republish the player view. Idempotent. Returns the counts. Never touches positions, art, tiers, status or progress.
+ */
+async function showCinderTrees(){
+  if(!game.user?.isGM)throw Error('GM only');
+  if(!gmPrivate())throw Error('Initialize the private GM store first');
+  const before=readPrivate(),{trees,counts}=planShowCinderTrees(before);
+  if(counts.treesChanged)await saveTrees(trees,{previous:before}); // saves, republishes and updates each character's record
+  else await publishPublic();
+  return {...counts};
 }
 async function persistAccount(actor,tree,next){
   if(!game.user.isGM)throw Error('GM only: Actor progression writes');
@@ -310,6 +374,8 @@ async function persistAccount(actor,tree,next){
   assertNotLevelBackup(actor);
   const records=copy(safeFlag(actor,'progressV2')??{});
   records[walletKey(tree)]=cleanAccount(next);
+  // 0.28.0: what the character may now read of progressive trees is written first, so a new node never appears before its text.
+  await syncReveal(actor,records);
   await actor.setFlag(MODULE,'progressV2',records);
   // 0.17.0: partner modules (e.g. Ashen Gate | Cinders) keep their own records in step through this hook.
   Hooks.callAll?.(PROGRESS_HOOK,{actorId:actor.id,treeId:tree.id,sourceRef:tree.sourceRef??null,kind:tree.provider?.kind??null,wallet:walletKey(tree),sharedWallet:sharedWalletKey(tree),account:copy(records[walletKey(tree)])});
@@ -351,7 +417,7 @@ async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
     const access=forUser?await accessCheck(actor,stored):null;
     if(forUser){ // A player may unlock only what the player view shows them, and only on a tree their character holds.
       if(!holdsFor(actor,stored))throw Error('Unknown tree');
-      const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
+      const pub=projectFull(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
       if(!pub||!pn||pn.silhouette)throw Error(unreleasedPerkMessage('',{forPlayer:true}));
       const ok=publicAvailability(pub,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});if(!ok.ok)throw Error(ok.reason);
     }
@@ -784,7 +850,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(game.user.isGM&&!this.playerPreview)return all;
     const actor=this.actor;if(!actor||!actorChoices().some(a=>a.id===actor.id))return [];
     const cinderIds=boundCinders(actor);
-    return all.filter(t=>holdsFor(actor,t,cinderIds));
+    return all.filter(t=>holdsFor(actor,t,cinderIds)).map(t=>revealFor(actor,t));
   }
   /** The trees this user may pick from under the current top tab (0.27.0): the proficiency gate hides a player's tree they cannot use and own nothing in. */
   get trees(){return treesInTab(this.allTrees.filter(t=>!this._hidden.has(t.id)),this.treeTab);}
@@ -916,7 +982,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       treeHiddenFromPlayers:Boolean(raw&&t&&this._vis.get(t.id)?.hiddenFromPlayers),
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
-      emptyText:emptyTabText(this.treeTab,{gm,actorName:actor?.name??''})??EMPTY_PLAYER_TREES,emptyTitle:this.treeTab==='cinders'?'No Cinder tree yet':'No skill trees yet',
+      emptyText:emptyTabText(this.treeTab,{gm,actorName:actor?.name??'',bound:Boolean(actor&&boundCinders(actor)?.size)})??EMPTY_PLAYER_TREES,emptyTitle:this.treeTab==='cinders'?'No Cinder tree yet':'No skill trees yet',
       trees:treeOptions,treeGroups:this.treeTab==='cinders'?null:pickerGroups(treeOptions,this.trees),treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
       treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
@@ -1280,6 +1346,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'undo':await this._undo();break;
         case 'redo':await this._redo();break;
         case 'publish':await publishPublic();notify('Player view republished.');break;
+        case 'show-cinders':await this._showCinderTrees();break;
         case 'export':this._export(false,el.dataset.tree);break;
         case 'export-all':this._export(true);break;
         case 'backup-progress':this._backupProgress();break;
@@ -1288,6 +1355,12 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       this.render();
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
+  }
+  async _showCinderTrees(){
+    if(!game.user.isGM)throw Error('GM only');
+    if(!await confirm('Show every Cinder tree to the players whose character has that Cinder bound.\nEach tree becomes player-visible and its perks are set to shown, revealing as the player unlocks: the first power, then a silhouette of what comes next, and nothing beyond it.\nPositions, art, tiers, release status and character progress are not changed. Each perk must still be released to players through General Manager.',
+      {title:'Show Cinder trees to their bearers?',yes:'Show Cinder trees'}))return;
+    notify(showCinderTreesText(await showCinderTrees()));
   }
   async _help(){
     await infoDialog('Skill Trees help',`
@@ -1381,10 +1454,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <label class="ag-field">Description (player-readable when published)<textarea name="description" rows="3">${escape(t.description)}</textarea></label>
       <label class="ag-field">Release status<select name="status"><option value="draft" ${t.status==='draft'?'selected':''}>Draft: GM only</option><option value="test" ${t.status==='test'?'selected':''}>Test: not canon</option><option value="approved" ${t.status==='approved'?'selected':''}>Approved</option></select></label>
       <label class="ag-field">Visibility<select name="visibility"><option value="gm" ${t.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${t.visibility==='player'?'selected':''}>Player-visible</option></select></label>
+      <label class="ag-field">Reveal<select name="reveal"><option value="" ${t.reveal==='progressive'?'':'selected'}>All shown</option><option value="progressive" ${t.reveal==='progressive'?'selected':''}>As you unlock</option></select></label>
+      <p class="ag-field__hint">All shown: players see every released perk. As you unlock: a player sees the perks they can take now, a silhouette of what comes next, and nothing beyond that.</p>
       ${t.provider.kind==='generic_points'?`<label class="ag-field">Max points<input type="number" min="1" max="999" name="maxPoints" value="${t.provider.maxPoints??10}"></label>`:''}
       <p>Only release source content you have permission to show. Editing does not change a Profession's XP rules.</p></div>`);
     if(!f)return;
     t.name=String(f.name??'').trim();t.description=String(f.description??'');t.status=f.status;t.visibility=f.visibility;
+    if(f.reveal==='progressive')t.reveal='progressive';else delete t.reveal;
     if(t.provider.kind==='generic_points')t.provider.maxPoints=Number(f.maxPoints);
     await this._saveEdited(t);notify('Tree saved and player snapshot refreshed.');
   }
@@ -2097,12 +2173,14 @@ Hooks.once('ready',()=>{
      */
     treeVisibility,
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},
-    listTrees:()=>{checkTreePlayerAccess();return copy(readSelectedTrees(false));},
+    listTrees:()=>{checkTreePlayerAccess();return copy(game.user.isGM?readSelectedTrees(false):readSelectedTrees(false).map(revealNone));},
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=treesForActor(actor).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
     /** 0.25.0, GM only: layouts and per-character progress as plain JSON (ag-skill-trees-state-export/0.1). Read-only; used by General Manager's world backup. */
     exportState:()=>exportState(),
+    /** 0.28.0, GM only: show every Cinder tree to its bearers (player-visible, reveal 'progressive'), then republish. Idempotent. Returns the counts. */
+    showCinderTrees:()=>showCinderTrees(),
     embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed,
       /** 0.21.0: the embed's data, trees grouped by wallet (a profession with several trees is one group). Owner or GM. */
       data:actorId=>{checkTreePlayerAccess();const actor=game.actors?.get?.(actorId)??null,refusal=embedRefusal(actor);if(refusal)throw Error(refusal);return copy(embedData(actor));}},

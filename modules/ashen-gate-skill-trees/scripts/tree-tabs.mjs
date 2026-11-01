@@ -32,8 +32,9 @@ export function chooseActor(actors, currentId, hasTrees = () => true) {
 }
 
 /** The sentence shown in place of a tab with no tree. */
-export function emptyTabText(tab, {gm = false, actorName = ''} = {}) {
+export function emptyTabText(tab, {gm = false, actorName = '', bound = false} = {}) {
   if (tab === 'cinders') {
+    if (!gm && bound) return `${actorName || 'This character'} has a bound Cinder, but its tree has not been released yet. Ask your GM.`;
     return gm ? 'No Cinder trees yet. Import a Cinder tree through General Manager, or create one in the Tree Library.'
       : `${actorName || 'This character'} has no bound Cinder yet. When a Cinder is bound to this character, its tree appears here.`;
   }
