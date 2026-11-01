@@ -1,3 +1,11 @@
+## 0.43.1 — 2026-11-01
+
+Fixed: choosing something in the Travel tab no longer throws the window back to the top.
+
+- **Travel redraws in place.** Changing the area, a switch, the Action preview or a journal entry now redraws only the Travel pane, keeping its scroll position and the focused control. The rest of the window is not rebuilt.
+- **Every scroll container is kept** when the whole window does redraw (GM Setup, tables, text boxes), not only the list, detail and pane, and putting focus back never scrolls the view.
+- No saved data changes. Check in Forge: open Travel, scroll down, change the Current area, a Destination and a switch, and confirm the window stays where it was and the control you used keeps focus.
+
 ## 0.43.0 — 2026-11-01
 
 **New: Test players.** The Locations launcher, viewer, Party Notes and "Share with..." treat a Test player as if Player Access were on. `api.playerAccess.getState()` still reports the world setting alone. Which users count is set in General Manager > GM Setup > General > Test players; real players still follow this module's Player Access setting, GM-only actions stay GM-only, and document permissions are unchanged.

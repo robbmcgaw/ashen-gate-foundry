@@ -18,7 +18,7 @@ import {travelLabel} from './travel.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, bindSplitNav, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {confirmPlacement} from './pin-verify.mjs';
 import {setDragging} from './canvas-drop.mjs';
-import {captureView, restoreView} from './keep-view.mjs';
+import {captureView, restoreView, keepScroll} from './keep-view.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 import {overland, ACTIONS as ACTION_NAMES} from './overland.mjs';
 import {travelHtml} from './overland-view.mjs';
@@ -1444,12 +1444,22 @@ export class LocationsApp extends Base {
     const before = this.travelPreview;
     this.travelPreview = next;
     try { api().overland.previewAction(this.travelPreviewRequest()); } catch (err) { this.travelPreview = before ?? null; ui.notifications?.warn(err?.message ?? String(err)); }   // the API refuses a non-GM here
-    await this.render(); this.focusBack(selector);
+    await this.redrawTravel(selector);
+  }
+  /**
+   * 0.43.1: after a Travel change, redraws only the Travel pane in place (header, tabs and window stay), so the scroll position and focus
+   * do not move. Falls back to a full render when the Travel tab is not the one showing.
+   */
+  async redrawTravel(selector) {
+    const pane = this.element?.querySelector?.('#agl-pane');
+    if (this.tab !== 'travel' || !pane || !this.rendered) { await this.render(); return this.focusBack(selector); }
+    keepScroll(pane, () => { pane.innerHTML = this.travelPane(); try { this.bind(pane); } catch (err) { console.warn(`${MODULE_ID} | Travel pane bind`, err); } });
+    this.focusBack(selector);
   }
   /** One Travel change (Travel, Scout, Explore, Resolve, Undo, New day, a switch, a journal edit): applies at once, then the tab redraws with focus back on the same control. */
   async travelDo(selector, run) {
     try { await run(overland()); } catch (err) { ui.notifications?.warn(err?.message ?? String(err)); }
-    await this.render(); this.focusBack(selector);
+    await this.redrawTravel(selector);
   }
   /** GM Setup's Save Changes: saves Player Access, the pin defaults and the Map Pins look. */
   async saveSetup(root = this.element) {
@@ -1778,9 +1788,9 @@ export class LocationsApp extends Base {
         this.travelPreview = null; this.travelText = '';
         ui.notifications?.info(r.summary);
       } catch (err) { ui.notifications?.warn(err?.message ?? String(err)); }
-      await this.render(); return this.focusBack('#agl-ov-area');
+      return this.redrawTravel('#agl-ov-area');
     }
-    if (action === 'ov-scope') { this.travelScope = el.dataset.scope === 'area' ? 'area' : 'all'; await this.render(); return this.focusBack(`[data-action="ov-scope"][data-scope="${this.travelScope}"]`); }
+    if (action === 'ov-scope') { this.travelScope = el.dataset.scope === 'area' ? 'area' : 'all'; return this.redrawTravel(`[data-action="ov-scope"][data-scope="${this.travelScope}"]`); }
     if (action === 'ov-open') {
       const doc = el.dataset.uuid ? await fromUuid(el.dataset.uuid).catch(() => null) : null;
       if (doc?.sheet) return doc.sheet.render(true);
@@ -2090,7 +2100,7 @@ export class LocationsApp extends Base {
       return this.render();
     }
   }
-  focusBack(selector) { this.element?.querySelector?.(selector)?.focus(); }
+  focusBack(selector) { this.element?.querySelector?.(selector)?.focus?.({preventScroll: true}); }   // 0.43.1: focus never scrolls the view
   /** Re-renders once typing in a search box pauses (SEARCH_DELAY), keeping focus and the caret in the box. */
   searchSoon(selector) {
     clearTimeout(this.searchTimer);

@@ -286,6 +286,11 @@ device to Comfortable.
     [WCAG 1.4.3] [WCAG 1.4.11] [Primer Forms]
 12. Keyboard shortcuts go through Foundry's keybinding settings so users can see and rebind them. Single-key shortcuts only
     work while the window has focus. [WCAG 2.1.4] [MS Keyboard accelerators]
+13. **Interacting with a UI element must not move the viewer's scroll position.** Preserve `scrollTop` of every scroll
+   container (and focus) across re-renders; prefer updating in place over re-rendering the whole window; for
+   ApplicationV2 declare scrollable regions in `PARTS` (`scrollable`) or restore scroll in `_onRender`; add a test that a
+   re-render keeps the scroll position where the code is testable. Focus restoration uses `focus({preventScroll: true})`.
+   Applies to every module. (Locations: `keep-view.mjs`, `keepScroll()`.) **Ours**
 
 ## 10. Motion
 
