@@ -8,7 +8,7 @@
  * the action is not possible) and Open sheet.
  */
 import {buildPerkCard} from './perk-card.mjs';
-import {sanitizePerkHtml} from './perk-html.mjs';
+import {sanitizePerkHtml, balanceHtml} from './perk-html.mjs';
 
 const escapeText = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -32,7 +32,7 @@ export function perkPanelBody(name, html, plain = '') {
   // The card folds the effect text away when it is only one sentence; the panel always shows the whole text.
   const text = String(plain ?? '').replace(/\s+/g, ' ').trim();
   const body = card.detailsHtml || (card.summary ? `<p>${escapeText(card.summary)}</p>` : (!safe && text ? `<p>${escapeText(text)}</p>` : ''));
-  return {facts: factsHtml(card.meta), body, tier: card.tier};
+  return {facts: factsHtml(card.meta), body: balanceHtml(body), tier: card.tier};
 }
 
 /** Words for the unlock and refund buttons. "Unlock (2 points)…" opens a confirmation, so it ends in an ellipsis. */
