@@ -103,7 +103,7 @@ test('(f) Renown faction links no longer look among deities (deities are DEITY- 
 
 test('(g) an unknown reveal key says what is wrong', () => {
   const s = normalizeState(null);
-  assert.throws(() => setReveal(s, 'rol', {mode: 'party'}), /"rol" is not a Codex field\. Reveal "discovery" or one of: role, appearance/);
+  assert.throws(() => setReveal(s, 'rol', {mode: 'party'}), /"rol" is not a Codex field\. Reveal "discovery" or one of: role, status, appearance/);
   assert.throws(() => setReveal(s, 'gm_notes', {mode: 'party'}), /"gm_notes" is a GM-only field and cannot be revealed/);
 });
 

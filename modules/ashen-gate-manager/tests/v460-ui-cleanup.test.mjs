@@ -125,7 +125,7 @@ test('GM-NV-01/03/08: six top-level tabs, NPC Codex its own tab, text sub-tabs, 
   assert.ok(!ITEM_VIEWS.some(v => v.id === 'codex' || v.id === 'adopt'));
   assert.doesNotMatch(tpl, /aglib-rail|data-ag-items-view|data-ag-mood-view/, 'no icon-only rails');
   for (const row of ["IMPORT_TABS=[{id:'package',label:'Load and preview'},{id:'history',label:'Import history'}]",
-    "CODEX_TABS=[{id:'reveals',label:'Reveals'},{id:'notes',label:'Notes & links'},{id:'preview',label:'Player preview'}]"]) assert.ok(main.includes(row), row);
+    "CODEX_TABS=[{id:'reveals',label:'Reveals'},{id:'notes',label:'Edit details'},{id:'preview',label:'Player preview'}]"]) assert.ok(main.includes(row), row);
   for (const slot of ['{{{importTabsHtml}}}', '{{{itemsTabsHtml}}}', '{{{../codex.tabsHtml}}}', '{{{moods.tabsHtml}}}', '{{{setupTabsHtml}}}']) assert.ok(tpl.includes(slot), slot);
   assert.match(main, /for\(const list of root\.querySelectorAll\('\.ag-tabs--sub'\)\)\{/);
   assert.deepEqual(resolveTab('history'), {tab: 'import', view: 'all', importView: 'history'});

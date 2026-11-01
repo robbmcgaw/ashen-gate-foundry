@@ -124,9 +124,9 @@ test('dock: layering is CSS only (no polling, no hooks into bringToFront, no wra
   assert.doesNotMatch(js, /bringToFront|zIndex|setInterval|requestAnimationFrame/);
 });
 
-test('version 0.95.0, 0.x only, download URL, changelog and Help/README mention both fixes', () => {
+test('version 0.96.0, 0.x only, download URL, changelog and Help/README mention both fixes', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.95.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.95.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.96.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.96.0/ashen-gate-manager.zip'));
   const log = read('../CHANGELOG.md');
   assert.match(log, /^## 0\.94\.0 /m);
   assert.match(log.split('## 0.93.0')[0], /NPC Codex/); assert.match(log.split('## 0.93.0')[0], /dock/i);
