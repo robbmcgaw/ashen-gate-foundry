@@ -86,7 +86,10 @@
 .agst-window-v2 button.agst-node.agst-unlocked .agst-node-icon{background:var(--ag-ok-soft);box-shadow:0 0 0 3px var(--ring),0 0 14px 3px color-mix(in srgb,var(--ag-ok) 65%,transparent)}
 .agst-window-v2 button.agst-node.agst-rival .agst-node-icon{outline:2px dashed var(--ag-danger);outline-offset:5px} /* ag-lint-allow: ring geometry (graph.mjs RING) */
 .agst-window-v2 button.agst-node.agst-crossroads .agst-node-icon{outline:4px double var(--ag-info);outline-offset:4px} /* ag-lint-allow: ring geometry (graph.mjs RING) */
-.agst-window-v2 button.agst-node.agst-silhouette .agst-node-icon{box-shadow:0 0 0 3px var(--ring);outline:2px dotted var(--ag-muted);outline-offset:5px} /* ag-lint-allow: fixed board ring geometry */
+/* 0.28.1: an undiscovered perk must read on the dark canvas and on a background picture: a solid backing, a dashed ring in the text colour, and a full-strength question mark (the locked dimming does not apply). */
+.agst-window-v2 button.agst-node.agst-silhouette{--ring:var(--ag-text)}
+.agst-window-v2 button.agst-node.agst-silhouette .agst-node-icon{background:var(--ag-surface-raised);box-shadow:0 0 0 3px var(--ag-surface-raised),0 0 0 5px var(--ag-text);outline:2px dashed var(--ag-text);outline-offset:8px} /* ag-lint-allow: fixed board ring geometry */
+.agst-window-v2 button.agst-node.agst-silhouette .agst-node-icon>*{filter:none;opacity:1;color:var(--ag-text)}
 .agst-window-v2 button.agst-node.agst-node-warn{--ring:var(--ag-warn)}
 .agst-window-v2 button.agst-node.agst-node-review{--ring:var(--ag-warn)}
 .agst-window-v2 button.agst-node.agst-selected .agst-node-icon{filter:drop-shadow(0 0 6px var(--ag-accent))}

@@ -551,10 +551,12 @@ export function publicTree(tree,{full=false}={}) {
   if(t.visibility!=='player'||t.status==='draft')return null;
   const progressive=isProgressive(t);
   // A progressive tree needs shown nodes: a stored 'hidden' or 'teaser' is not a floor there, such a node is simply not published.
-  const allowed=n=>n.status!=='placeholder'&&n.status!=='draft'&&n.visibility==='player'&&(progressive?n.display==='shown':n.display!=='hidden');
+  const allowed=n=>n.status!=='placeholder'&&(n.status!=='draft'||(progressive&&n.unreleased===true))&&n.visibility==='player'&&(progressive?n.display==='shown':n.display!=='hidden');
   const visible=t.nodes.filter(allowed);
   const visibleIds=new Set(visible.map(n=>n.id));
   const masked=n=>progressive&&!full&&(n.requiresAll.length>0||n.requiresAny.length>0);
+  // 0.28.1: a shown node whose perk is not released yet (project() marks it) keeps its place as a silhouette that can never be revealed or taken.
+  const held=n=>progressive&&n.unreleased===true;
   return {
     id:t.id,name:t.name,description:t.description,sourceRef:t.sourceRef??null,
     provider:{kind:t.provider.kind,maxPoints:t.provider.kind==='profession'?null:t.provider.maxPoints??null},
@@ -564,9 +566,9 @@ export function publicTree(tree,{full=false}={}) {
     ...(t.nodeSize?{nodeSize:t.nodeSize}:{}),...(t.background?{background:t.background}:{}),...(t.tiers?{tiers:t.tiers}:{}),
     nodes:visible.map(n=> {
       const missing=n.requiresAll.some(id=>!visibleIds.has(id))||n.requiresAny.some(g=>g.some(id=>!visibleIds.has(id)));
-      if(masked(n))return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:1,silhouette:true,
+      if(masked(n)||held(n))return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:1,silhouette:true,
         requiresAll:n.requiresAll.filter(id=>visibleIds.has(id)),requiresAny:n.requiresAny.map(g=>g.filter(id=>visibleIds.has(id))).filter(g=>g.length),
-        excludes:[],unrevealedPrerequisite:missing};
+        excludes:[],unrevealedPrerequisite:missing||held(n)};
       if(!progressive&&n.display==='teaser')return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:n.cost??1,
         silhouette:true,requiresAll:[],requiresAny:[],excludes:[],unrevealedPrerequisite:true};
       const html=sanitizePerkHtml(n.descriptionHtml);
