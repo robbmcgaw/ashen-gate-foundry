@@ -15,7 +15,8 @@
  *    the commit is a tree on top of the branch's tree that replaces only the files that were written, so earlier files stay.
  *  - Each content file is in the format the content pack's reconcile script reads: Quests are Quest Log's own Export JSON
  *    (`ag-quest-source/0.1`), Factions and deities are Renown's own Export (`ag-factions-source-export/0.4`), Locations and
- *    Shops are their modules' export packages, and edited records are Manager's `ag-world-edits/0.1` bundle.
+ *    Shops are their modules' export packages, and edited records are Manager's `ag-world-edits/0.1` bundle (0.96.0: plus an
+ *    additive `npc_codex` key with the NPC Codex layer, so the schema string stays the same).
  *  - Renown standings (0.90.0, `standings.json`) are PLAY STATE, not content: Renown's `api.exportState()` in its own schema
  *    `ag-factions-state-export/0.1`, which the reconcile script does not read (it lists and skips unknown formats).
  *  - Party characters (0.93.0, `party.json`) are PLAY STATE too: a slim copy of the players' character sheets in the schema
@@ -29,6 +30,8 @@
 import {parseRepo, parseBranch, encodePath, isSha, maskToken, cleanToken, tokenProblem, scrub, mapGithubError} from './github-paths.js';
 import {scanWorldEdits, buildEditsFile, EDIT_TYPES} from './world-edits.js';
 import {buildPartySheets} from './party-sheets.js';
+import {createCodexService} from './codex-service.js';
+import {MODULE_ID} from './core.js';
 
 export const GITHUB_API = 'https://api.github.com';
 export const API_VERSION = '2022-11-28';
@@ -179,7 +182,11 @@ const SOURCES = [
   {id: 'manager', ids: EDIT_TYPES, path: 'manager-edits.json', label: 'Edited records (General Manager)',
     build: (game, now, found, picked) => {
       const scan = scanWorldEdits(game, {types: picked, includeUnchanged: false, includeWorldOnly: true});
-      return {data: buildEditsFile(game, scan, {now}).file, counts: scan.counts};
+      const file = buildEditsFile(game, scan, {now}).file;
+      // 0.96.0: the NPC Codex layer (edits, status, learned, notes, links, reveals) rides in the same file as an additive `npc_codex`
+      // array beside `records` and `world_only`; the schema string is unchanged. Written with the Actors tick (NPC Actors).
+      if (picked.includes('Actor')) file.npc_codex = createCodexService({game, moduleId: MODULE_ID}).backupLayer();
+      return {data: file, counts: scan.counts};
     }},
   {id: 'locations', ids: ['locations'], path: 'locations.json', label: 'Locations', module: 'ashen-gate-locations',
     build: (game, now, {api}) => {

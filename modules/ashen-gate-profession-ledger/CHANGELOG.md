@@ -1,3 +1,11 @@
+## 0.44.0 — 2026-11-01
+
+**New (GM only): `api.exportState()` so General Manager's world backup can save professions, recipes, favourites, the party roster and your gathering nodes.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-profession-ledger').api.exportState()`; it returns `{schema_version: 'ag-ledger-state-export/0.1', roster, characters, gathering_nodes}`. As a player the same call is refused ("Only the GM can export the Ledger state").
+
+- `characters`: for each character with anything stored, every profession (level, XP, tier, selected perk ids, unspent perk choices, how many XP history entries it holds), known recipe ids and favourites. NPCs and level-backup copies are left out.
+- `gathering_nodes`: the node templates exactly as the GM has them in the world (these only left the world through the Nodes tab's Export before), plus the retired node ids. `roster`: the party selection.
+- Rows are sorted by id so a re-run changes only what changed; there are no timestamps. It only reads, through the readers the Ledger already uses.
+
 ## 0.43.0 — 2026-10-31
 
 Recipe list: foldable profession headers, real item sheets, skill proficiency.

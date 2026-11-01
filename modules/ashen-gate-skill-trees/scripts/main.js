@@ -21,13 +21,14 @@ import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
 import {treePicker,walletLine,professionGroups} from './groups.mjs';
 import {bindNodeTip} from './node-tip.mjs';
+import {buildStateExport} from './state-export.mjs';
 import {holdsTree,cinderSourceIds,EMPTY_PLAYER_TREES} from './visibility.mjs';
 import {buildLibrary,renderLibraryHtml,renderFiltersFold,cleanFilters,validSort,validGroup,libraryCountText,filtersTitle,groupOptions,sortOptions,pickerGroups} from './library.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.24.4';
+const VERSION='0.25.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -515,6 +516,27 @@ function pointsSummary(actor){
     }
     return {treeId:t.id,name:t.name,kind,level:null,earned:acc.awarded,spent,available:Math.max(0,acc.awarded-spent)};
   });
+}
+/**
+ * 0.25.0, GM only: the GM layouts and every character's stored progress as plain JSON (`ag-skill-trees-state-export/0.1`), through the same
+ * readers the window uses (readPrivate, readProgress, pointsSummary). Writes nothing. See state-export.mjs. Used by General Manager's world backup.
+ */
+function exportState(){
+  if(!game.user?.isGM)throw Error('GM only');
+  const trees=readPrivate();
+  const actors=(game.actors?.contents??[]).filter(a=>a.type==='character'&&!isLevelBackup(a)).map(actor=>{
+    const points=new Map(pointsSummary(actor).map(r=>[r.treeId,r]));
+    const rows=[];
+    for(const t of trees){
+      const acc=readProgress(actor,t);
+      const kept=Object.keys(acc.kept);
+      if(!acc.unlocks.length&&!acc.awarded&&!kept.length)continue;
+      const p=points.get(t.id)??{};
+      rows.push({treeId:t.id,wallet:walletKey(t),awarded:acc.awarded,unlocks:acc.unlocks,kept,historyLength:acc.history.length,points:{level:p.level??null,earned:p.earned??null,spent:p.spent??null,available:p.available??null}});
+    }
+    return {id:actor.id,name:actor.name,trees:rows};
+  });
+  return buildStateExport({isGM:game.user.isGM===true,trees,actors});
 }
 /** GM reconcile report: every character × profession tree with something to look at. Read-only. */
 function professionReconcile(){
@@ -1958,6 +1980,8 @@ Hooks.once('ready',()=>{
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=treesForActor(actor).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
+    /** 0.25.0, GM only: layouts and per-character progress as plain JSON (ag-skill-trees-state-export/0.1). Read-only; used by General Manager's world backup. */
+    exportState:()=>exportState(),
     embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed,
       /** 0.21.0: the embed's data, trees grouped by wallet (a profession with several trees is one group). Owner or GM. */
       data:actorId=>{checkTreePlayerAccess();const actor=game.actors?.get?.(actorId)??null,refusal=embedRefusal(actor);if(refusal)throw Error(refusal);return copy(embedData(actor));}},

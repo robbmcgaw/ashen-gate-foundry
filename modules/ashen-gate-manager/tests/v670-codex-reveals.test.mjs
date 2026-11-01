@@ -59,7 +59,7 @@ test('0.67.0: GM-only and unknown keys are refused and change nothing (all or no
   assert.deepEqual(s, normalizeState(null), 'input state is not mutated');
   assert.ok(!REVEAL_KEYS.some(k => GM_FIELDS.includes(k)));
   assert.deepEqual(presetKeys('basics'), ['discovery', 'role', 'appearance']);
-  assert.deepEqual(presetKeys('everything'), ['discovery', ...REVEAL_FIELDS]);
+  assert.deepEqual(presetKeys('everything'), ['discovery', ...REVEAL_FIELDS.filter(k => k !== 'status')], '0.96.0: status is revealed on its own, never by a preset');
   assert.throws(() => presetKeys('all'), /Unknown preset/);
 });
 
@@ -169,7 +169,7 @@ test('0.67.0: characters() lists owners and who is online; existing reveals keep
   const saved = structuredClone(flags.get('codex'));
   await svc.revealTo(ID, {characters: ['a1'], fields: ['wants']});
   assert.deepEqual(flags.get('codex'), saved, 'revealing what is already revealed leaves the saved state byte-identical');
-  assert.deepEqual(Object.keys(saved).sort(), ['discovery', 'fields', 'learned', 'links', 'notes', 'version']);
+  assert.deepEqual(Object.keys(saved).sort(), ['discovery', 'edits', 'fields', 'learned', 'links', 'notes', 'status', 'version']);
 });
 
 test('0.67.0: Reveal to... dialog markup, defaults and form reading', () => {

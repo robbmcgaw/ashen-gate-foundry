@@ -19,7 +19,7 @@ import {confirmText,boundMessage} from './cinder-delete.mjs';
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.16.3';
+const VERSION='0.17.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -710,7 +710,9 @@ Hooks.once('ready',()=>{
     modifiers:cinders.modifiersApi,
     /** Cinder sockets (contract ag-sockets/1): hosts, slots, socketable, canAttach, attach / detach / swap; GM: setLocked, setCount, attachDropped. */
     sockets:cinders.socketsApi,
-    adoptLegacy:()=>adoptLegacy()
+    adoptLegacy:()=>adoptLegacy(),
+    /** 0.17.0, GM only: instances, stage art, Strain and rule settings as plain JSON (ag-cinders-state-export/0.1). Read-only; used by General Manager's world backup. */
+    exportState:()=>cinders.exportState()
   };
   game.socket?.on?.(SOCKET,(message,senderId)=>cinders.onSocket(message,senderId));
   if(ui.actors?.rendered)addDirectoryLauncher(ui.actors,ui.actors.element);

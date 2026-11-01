@@ -32,12 +32,13 @@ import {revealHtml} from './reel.mjs';
 import {snapshotItem,readRecipePreviews,storedRecipePreviews,samePreviews,cleanDescription,resolveEnrichers} from './result-preview.mjs';
 import {readHistory,storedHistory,upsertEntry,removeEntry,setRowXp,humanWhen,HISTORY_MAX} from './gather-history.mjs';
 import {makeActionDialog} from './dialog-actions.mjs';
+import {buildStateExport} from './state-export.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
   duplicateTemplate,removeTemplate,templateReferences,previewLocationCopy,planCopyUndo,applyCopyUndo,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,materialMetaOfSource,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.43.0';
+const VERSION='0.44.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -211,6 +212,24 @@ function listProfessions(actor){
   if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OWNER')!==true)throw Error('Actor access denied');
   return professionsOf(actor).map(p=>({professionId:p.sourceId,name:p.name,level:p.level,xp:p.xp,xpToNext:p.toNext,maxLevel:MAX_PROFESSION_LEVEL,
     tier:p.tier,unspentPerkChoices:progressOf(actor,p.sourceId)?.unspentPerkChoices??0}));
+}
+/**
+ * 0.44.0, GM only: every character's professions, known recipes and favorites, the party roster and the GM's gathering node templates as plain JSON
+ * (`ag-ledger-state-export/0.1`), through the readers the Ledger already uses (professionsOf, progressOf, knownRecipesOf, favoritesOf, readNodeStore,
+ * rosterIds). Writes nothing; see state-export.mjs. Used by General Manager's world backup.
+ */
+function exportState(){
+  if(!game.user?.isGM)throw Error('Only the GM can export the Ledger state');
+  const characters=allCharacters().map(actor=>{
+    const professions=professionsOf(actor).map(p=>{
+      const progress=progressOf(actor,p.sourceId),row=actor.flags?.[ID]?.professionProgress?.professions?.[p.sourceId];
+      return {professionId:p.sourceId,name:p.name,level:p.level,xp:p.xp,tier:p.tier,tracked:p.tracked,selectedPerkIds:progress?.selectedPerkIds??[],
+        unspentPerkChoices:progress?.unspentPerkChoices??0,historyLength:Array.isArray(row?.history)?row.history.length:0};
+    });
+    return {id:actor.id,name:actor.name,professions,knownRecipeIds:knownRecipesOf(actor),favorites:favoritesOf(actor)};
+  }).filter(c=>c.professions.length||c.knownRecipeIds.length||c.favorites.professions.length||c.favorites.recipes.length);
+  const roster=rosterIds().map(id=>({id,name:game.actors?.get?.(id)?.name??null}));
+  return buildStateExport({isGM:game.user.isGM===true,roster,characters,nodeStore:readNodeStore()});
 }
 const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.user.name,...extra});
 async function awardXP(actor,profId,points,extra={}){
@@ -5081,6 +5100,8 @@ Hooks.once('ready',()=>{
     getProfessionProgress:(actor,profId)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return progressOf(actor,profId);},
     /** 0.18.0: every profession this character has, as [{professionId,name,level,xp,xpToNext,maxLevel,tier,unspentPerkChoices}]. Owner or GM only. */
     getProfessions:actor=>listProfessions(actor),
+    /** 0.44.0, GM only: professions, recipes, favorites, the party roster and gathering node templates as plain JSON (ag-ledger-state-export/0.1). Read-only; used by General Manager's world backup. Feature-detect it. */
+    exportState:()=>exportState(),
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     adjustProfessionXP:(actor,profId,options)=>adjustXP(actor,profId,options),
     getProfessionXPHistory:(actor,profId)=>{if(!game.user.isGM)throw Error('Only the GM can read XP history');return xpHistoryOf(actor,profId);},

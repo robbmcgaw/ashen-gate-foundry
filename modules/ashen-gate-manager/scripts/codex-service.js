@@ -6,7 +6,7 @@
  */
 import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEntry, playerCodex,
   buildCodexExport, planRevealsImport, linkKind, isLinkId, knowsRule, resolvePlayerLinks, DEITY_TIPS,
-  applyReveals, undoReveals, presetKeys, checkRevealKeys, revealMessage} from './codex.js';
+  applyReveals, undoReveals, presetKeys, checkRevealKeys, revealMessage, displayName, buildCodexBackupLayer} from './codex.js';
 
 export const CODEX_QUERY = 'ashen-gate-manager.codexForPlayer';
 export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
@@ -34,7 +34,7 @@ export function createCodexService({game, moduleId}) {
   const actors = () => game.actors?.contents ?? [];
   const npcOf = a => ({def: a.getFlag(moduleId, 'source')?.definition, state: a.getFlag(moduleId, CODEX_FLAG) ?? null,
     uuid: a.uuid, img: a.img, name: a.name, actor: a});
-  const npcs = () => actors().filter(a => isNpcDefinition(a.getFlag(moduleId, 'source')?.definition)
+  const npcs = () => actors().filter(a => isNpcDefinition(a.getFlag?.(moduleId, 'source')?.definition)
     && !a.getFlag(moduleId, 'lifecycle')?.archived).map(npcOf);
   const find = id => {
     const hits = npcs().filter(n => n.def.id === id);
@@ -62,7 +62,7 @@ export function createCodexService({game, moduleId}) {
   const nameOf = id => {
     try {
       const kind = linkKind(id), api = partner;
-      if (kind === 'npc') return npcs().find(n => n.def.id === id)?.def.name ?? null;
+      if (kind === 'npc') { const n = npcs().find(x => x.def.id === id); return n ? displayName(n) : null; }
       if (kind === 'deity') return (api(RENOWN)?.getDeities?.() ?? []).find(d => d.id === id)?.name ?? null;
       if (kind === 'location') return api('ashen-gate-locations')?.getLocation?.(id)?.name ?? null;
       if (kind === 'quest') return (api('ashen-gate-quest-manager')?.listQuests?.() ?? []).find(q => q.id === id)?.name ?? null;
@@ -102,7 +102,7 @@ export function createCodexService({game, moduleId}) {
       if (kind === 'deity') return deityName(id);
       if (kind === 'npc') {
         const n = all.find(x => x.def.id === id);
-        return n && knowsRule(normalizeState(n.state, n.def).discovery, actorIds) ? (String(n.def.name ?? '') || n.name || null) : null;
+        return n && knowsRule(normalizeState(n.state, n.def).discovery, actorIds) ? displayName(n) : null;
       }
       return CLAIM_KINDS.has(kind) && claimed.has(id) ? true : null;
     };
@@ -148,7 +148,7 @@ export function createCodexService({game, moduleId}) {
       await write(n, out.state);
       undoStack.set(id, {before: out.before, after: out.after, mode, names});
     }
-    return {id, name: String(n.def.name ?? '') || n.name, keys: out.keys, changed: out.changed, mode, names,
+    return {id, name: displayName(n), keys: out.keys, changed: out.changed, mode, names,
       message: revealMessage({count: out.keys.length, mode, names, already: out.keys.length - out.changed.length}),
       canUndo: undoStack.has(id)};
   };
@@ -192,13 +192,22 @@ export function createCodexService({game, moduleId}) {
       if (!last) throw new Error('There is no reveal to undo for this NPC.');
       const out = undoReveals(normalizeState(n.state, n.def), last);
       await write(n, out.state); undoStack.delete(id);
-      return {id, name: String(n.def.name ?? '') || n.name, keys: out.keys, message: `Undid the last reveal on ${String(n.def.name ?? '') || n.name}.`};
+      return {id, name: displayName(n), keys: out.keys, message: `Undid the last reveal on ${displayName(n)}.`};
     },
+    /**
+     * GM only. patch: {learned, notes, links, status, edits}. 0.96.0: `status` is alive | deceased | unknown; `edits` is
+     * {field: text | null} over the pack record (null = revert to pack text). Edits live in the Codex flag, never in the stored
+     * record, so a Sync cannot overwrite them. Nothing is written when anything in the patch is refused.
+     */
     async setDetails(id, patch) {
       requireGM(); const n = find(id);
-      const {state, rejected} = setDetails(normalizeState(n.state, n.def), patch);
+      const {state, rejected} = setDetails(normalizeState(n.state, n.def), patch, n);
       await write(n, state); return {state, rejected};
     },
+    /** GM only: put one edited field back to the pack text. */
+    async revertEdit(id, field) { return service.setDetails(id, {edits: {[field]: null}}); },
+    /** GM only: the Codex layer as the world backup writes it (see buildCodexBackupLayer). */
+    backupLayer: () => { requireGM(); return buildCodexBackupLayer(npcs(), characters()); },
     /** GM preview: exactly what a player owning these characters would get ([] = party-level only). */
     previewAs: (actorIds = []) => { requireGM(); return playerCodex(npcs(), actorIds, {linkFor: playerLinker(actorIds)}); },
     /** Runs on the GM's client for a query from userId. Re-checks everything; never trusts the payload. */
@@ -236,7 +245,7 @@ export function createCodexService({game, moduleId}) {
     async applyImport(plan) {
       requireGM(); let done = 0; const errors = [];
       for (const {id, state} of plan.apply) {
-        try { await write(find(id), state); done++; } catch (e) { errors.push(`${npcs().find(n => n.def.id === id)?.name ?? 'An NPC'}: ${e.message}`); }
+        try { await write(find(id), state); done++; } catch (e) { errors.push(`${(n => n ? displayName(n) : 'An NPC')(npcs().find(x => x.def.id === id))}: ${e.message}`); }
       }
       return {done, errors};
     },

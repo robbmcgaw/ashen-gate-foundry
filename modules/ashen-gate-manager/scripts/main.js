@@ -18,7 +18,7 @@ import {sourceMetadata as projectionSourceMetadata, replacingSourceFlag} from '.
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical, baselineFields} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
-import {renderPlayerCodexHtml, isNpcDefinition} from "./codex.js";
+import {renderPlayerCodexHtml, isNpcDefinition, STATUS_VALUES, STATUS_LABELS} from "./codex.js";
 import {askRevealTo, bulkStatus, runBulkReveal} from "./codex-reveal-dialog.mjs";
 import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibraryRows, groupLibraryRows} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
@@ -85,7 +85,7 @@ const MOOD_VIEWS=[{id:'live',label:'Live',icon:'fa-solid fa-sun'},{id:'library',
 /** Sub-tab rows (kit 2.2, 0.46.0): one level under a top-level tab; remembered per user with uiState. */
 const IMPORT_TABS=[{id:'package',label:'Load and preview'},{id:'history',label:'Import history'}];
 const SETUP_TABS=[{id:'general',label:'General'},{id:'screen',label:'Player screen'},{id:'sources',label:'Core sources'},{id:'developer',label:'Developer Tools'}];
-const CODEX_TABS=[{id:'reveals',label:'Reveals'},{id:'notes',label:'Notes & links'},{id:'preview',label:'Player preview'}];
+const CODEX_TABS=[{id:'reveals',label:'Reveals'},{id:'notes',label:'Edit details'},{id:'preview',label:'Player preview'}];
 const CODEX_VIEWS=CODEX_TABS.map(t=>t.id);
 /** Kit badge tones for History results, check and pre-session rows (0.46.0). */
 const RESULT_TONE=status=>/^(ok|created|updated|linked|pass|done)/i.test(String(status??''))?'ok':/(error|fail)/i.test(String(status??''))?'danger':/(warn|skip|partial)/i.test(String(status??''))?'warn':'';
@@ -316,7 +316,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report, <strong>Release player-visible records</strong> and Improve icons), <strong>Assets</strong> (browse, add and link art files, below) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>Assets:</strong> browse the Forge Assets Library (or the Foundry data folder) as thumbnails with folders, search and <em>Copy path</em>. Drop several images onto the folder, or use <em>Choose files…</em>: Manager first reads the file names and shows how many fit a record and how many fit none, under <em>Files waiting to upload</em>. Files that fit no record start unticked and are not uploaded unless you tick them (or tick <em>Upload unmatched files too</em>); nothing is uploaded until you press the upload button, and files already there are only replaced if you say so. Afterwards <em>Link files to records</em> lists the files in the folder with <em>Files with no match</em>: tick the ones to delete and copy the list, because Foundry and The Forge give modules no way to delete files, so you delete them in the Assets Library (<em>Open the Assets Library</em>). Manager never deletes a file, and never lists one that is a record’s image. <em>Create folder…</em> adds a folder. <em>Link files to records</em> finds files named after a record’s permanent id (for example NPC-OREN.webp), lists the old and new image, and changes nothing until you press Link; images you set in Foundry stay unless you tick them, and Actors are not changed (use Import with Update existing actors). Files named like <em>Echo_Cinder_Stage_1.webp</em> (Ember, Frost, Gale, Echo, Lumen, Root, Stone, Tide, Veil, Crimson, and any other one-word Cinder you have imported; stages 1 to 5) are grouped per Cinder and shown as one row with its stages in order; Link sets that Cinder’s art stages through Ashen Gate | Cinders. <em>Missing art</em> lists records with no image or a generic one. Rename, move and delete are not available to modules, so use <em>Manage on Forge…</em>.</p>',
-  '<p><strong>NPC Codex:</strong> <em>Reveal to…</em> (on every NPC in the list, on the open NPC and in the header menu of an NPC&rsquo;s Actor sheet) picks characters and fields in one small window. On <em>Reveals</em>, tick several fields, choose Hidden, Whole party or chosen characters, then <em>Apply</em>; <em>Reveal basics</em> and <em>Reveal everything player-safe</em> do it in one click, and <em>Undo last reveal</em> puts the last one back. The chips show who can see each field now; per-field controls below fine-tune one field. All of this applies at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
+  '<p><strong>NPC Codex:</strong> <em>Reveal to…</em> (on every NPC in the list, on the open NPC and in the header menu of an NPC&rsquo;s Actor sheet) picks characters and fields in one small window. On <em>Reveals</em>, tick several fields, choose Hidden, Whole party or chosen characters, then <em>Apply</em>; <em>Reveal basics</em> and <em>Reveal everything player-safe</em> do it in one click, and <em>Undo last reveal</em> puts the last one back. The chips show who can see each field now; per-field controls below fine-tune one field. All of this applies at once. <em>Edit details</em> edits the NPC&rsquo;s name, role, appearance, signature line, wants, knows, portrayal, session role and GM notes in your world (a layer over the pack record, so a Sync never overwrites it; a changed field shows <em>Edited in your world</em> and <em>Revert to pack text</em>; players see your edited text for anything you have revealed), sets Status (Alive, Deceased or Unknown; players see it only when you reveal Status, and no preset reveals it) and holds what the party has learned, connections and your GM notes, all saved with Save Changes. A lock beside a field, and the single <em>Only you</em> chip by the name, mean players never see it. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Who can read imported Items (0.72.0):</strong> by default Items are GM-only: GM Setup &gt; Items and players. To hide or release Items already in your world use Items &gt; Checks &gt; Player access to Items. Handout Items always stay readable.</p>',
   '<p><strong>Materials are visible to players (0.89.0):</strong> an approved Material marked <em>player</em> visibility is created readable by players (default ownership Observer) even while new Items are GM-only, so a player can open one a gather gives them or a recipe links to. A re-import or Sync only raises a plain None default to Observer for such a Material, never lowers anything, and never touches per-player ownership. GM-only and draft Materials and every other Item are untouched. For Materials already in your world use <strong>Items → Checks → Materials visible to players → Make materials visible to players…</strong>: the confirmation lists how many Items change, how many are already visible and how many are skipped, with the reason (draft, GM-only, archived, or hidden on purpose); press the button on the right to apply, Cancel on the left to leave everything as it is. Running it again changes nothing more.</p>',
  '<p><strong>Release items in use (0.95.0):</strong> Skill Trees shows a perk to a player, and the Profession Ledger opens an Item for a player, only when the Item is readable by players, and Manager imports Items GM-only. <strong>Items → Checks → Items your players use → Release items in use…</strong> releases just what the current party uses, one tier at a time: for each character a player owns, the perks and recipes of every profession they hold at their current tier and below (with the materials and output items those recipes need), and for each bound Cinder its signature ability and passive, the core powers whose tier requirement they have reached and the enhancements of powers they have unlocked. Professions and Cinders nobody uses stay GM-only, as do draft, GM-only and revealed-later records. The confirmation lists the Items that would change for each character and profession or Cinder, then <strong>Release N items</strong> on the right and Cancel on the left. Only a default of None is raised, to Observer; nothing is lowered and per-player ownership is untouched. Run it again after a tier-up to release the new tier. Players still see only the recipes they have learned in the Ledger.</p>',
@@ -1076,7 +1076,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   #bindNavigation(root) {
     bindTablist(root.querySelector('.agmanager-nav'));
-    const go=(tab,sub)=>{
+    const go=async(tab,sub)=>{
+      // 0.96.0: leaving the NPC Codex with unsaved edits asks first.
+      if(this.tab==='codex'&&tab!=='codex'){if(!(await this.codexGuard.confirm()))return;this.codexDraft=null;}
       this.tab=tab;
       if(sub&&tab==='setup')this.setupTab=this.ui.set('setupTab',sub);
       if(sub&&tab==='import')this.importView=this.ui.set('importView',sub);
@@ -1104,8 +1106,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       const [key,apply]=sub[group]??[];
       if(!key)continue;
-      list.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',event=>{
+      list.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',async event=>{
         event.preventDefault();
+        // 0.96.0: switching NPC sections with unsaved edits asks first (the draft would otherwise sit unseen on another section).
+        if(key==='codexTab'&&el.dataset.tab!==this.codexTab){if(!(await this.codexGuard.confirm()))return;this.codexDraft=null;}
         if(key!=='itemsView'&&key!=='moodView')this.ui.set(key,el.dataset.tab);
         apply(el.dataset.tab);this.focusAfterRender=`.ag-tabs--sub [data-tab="${el.dataset.tab}"]`;void this.render();
       }));
@@ -3876,6 +3880,13 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     if(detail)detail.bulk=this.#bulkView(detail,chars);
     // Unsaved Notes & links (0.46.0) survive re-renders until Save Changes or Cancel.
     if(detail&&this.codexDraft?.id===detail.id)Object.assign(detail,{learned:this.codexDraft.learned,notes:this.codexDraft.notes,linksText:this.codexDraft.links});
+    // 0.96.0: NPC text edits and status are part of the same draft. "Edited in your world" = differs from the pack text, live.
+    if(detail){
+      const d=this.codexDraft?.id===detail.id?this.codexDraft:null,life=d?.status??detail.life.value;
+      detail.editFields=detail.editFields.map(f=>{const value=d?.edits?.[f.key]??f.value;return {...f,value,edited:value!==f.pack};});
+      detail.statusOptions=STATUS_VALUES.map(v=>({value:v,label:STATUS_LABELS[v],selected:v===life}));
+            detail.statBlock=detail.gmFields.find(f=>f.label==='Stat block')?.text??'';
+    }
     // 0.40.0: a deity link opens Renown's Pantheon when Renown is active and knows it; otherwise plain text with a tooltip.
     if(detail){const how=svc.deityLinks();detail.links=detail.links.map(l=>l.kind==='deity'?{...l,isDeity:true,...how(l)}:l);}
     let previewHtml='';
@@ -3936,6 +3947,10 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const why=panel.querySelector('[data-ag-codex-reason]');if(why)why.hidden=st.presetsOk;
     const hint=panel.querySelector('[data-ag-codex-bulk-hint]');if(hint)hint.textContent=st.hint;
   }
+  /** {field: text} for every editable NPC text field in the form. */
+  #readCodexEdits(form) {
+    const out={};form.querySelectorAll('[data-ag-codex-edit]').forEach(el=>{out[el.dataset.agCodexEdit]=el.value;});return out;
+  }
   #bindCodex(root) {
     const run=fn=>fn().catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
     root.querySelector('[data-ag-codex-search]')?.addEventListener('change',e=>{this.codexSearch=e.target.value.trim();void this.render();});
@@ -3950,8 +3965,15 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     const form=root.querySelector('[data-ag-codex-form]');
     if(form){
       const note=()=>{this.codexDraft={id:this.codexFocus,learned:form.querySelector('[data-ag-codex-learned]')?.value??'',
-        notes:form.querySelector('[data-ag-codex-notes]')?.value??'',links:form.querySelector('[data-ag-codex-links]')?.value??''};};
+        notes:form.querySelector('[data-ag-codex-notes]')?.value??'',links:form.querySelector('[data-ag-codex-links]')?.value??'',
+        status:form.querySelector('[data-ag-codex-status-select]')?.value,edits:this.#readCodexEdits(form)};
+        // The "Edited in your world" marker and its Revert control follow the text live (differs from the pack text).
+        form.querySelectorAll('[data-ag-codex-edit]').forEach(el=>{const row=el.closest('[data-ag-codex-editrow]')?.querySelector('[data-ag-codex-editmark]');if(row)row.hidden=el.value===el.dataset.pack;});};
       form.addEventListener('input',note);form.addEventListener('change',note);
+      // Revert to pack text puts the pack text back into the field (an unsaved change); Save Changes then drops the edit.
+      form.querySelectorAll('[data-ag-codex-revert]').forEach(btn=>btn.addEventListener('click',e=>{
+        e.preventDefault();const el=form.querySelector(`[data-ag-codex-edit="${btn.dataset.agCodexRevert}"]`);if(!el)return;
+        el.value=el.dataset.pack??'';el.dispatchEvent(new Event('input',{bubbles:true}));el.focus?.();}));
       this.codexGuard.watch(form);
     }
     root.querySelectorAll('[data-ag-codex-actor]').forEach(el=>el.addEventListener('change',e=>{run(async()=>{
@@ -3999,13 +4021,18 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     switch(name){
       case 'codex-save': {
         const root=this.element;
-        const {rejected}=await svc.setDetails(this.codexFocus,{learned:root.querySelector('[data-ag-codex-learned]')?.value??'',
-          notes:root.querySelector('[data-ag-codex-notes]')?.value??'',links:root.querySelector('[data-ag-codex-links]')?.value??''});
-        this.codexDraft=null;this.codexGuard.markClean();
+        const form=root.querySelector('[data-ag-codex-form]');
+        // A blank name is refused by the service with a message; nothing is saved and the draft stays.
+        let rejected;
+        try{({rejected}=await svc.setDetails(this.codexFocus,{learned:root.querySelector('[data-ag-codex-learned]')?.value??'',
+          notes:root.querySelector('[data-ag-codex-notes]')?.value??'',links:root.querySelector('[data-ag-codex-links]')?.value??'',
+          status:root.querySelector('[data-ag-codex-status-select]')?.value,edits:form?this.#readCodexEdits(form):undefined}));}
+        catch(error){toast(error.message,true);this.codexMessage=error.message;this.focusAfterRender='[data-ag-action="codex-save"]';break;}
+        this.codexDraft=null;this.codexGuard.markClean();this.focusAfterRender='[data-ag-action="codex-save"]';
         this.codexMessage=rejected.length?`Saved. Not a linkable id, left out: ${rejected.join(', ')}. Use LOC-, FAC-, DEITY-, QUEST-, NPC- style ids.`:'Saved.';
         toast(this.codexMessage,rejected.length>0);break;
       }
-      case 'codex-cancel': this.codexDraft=null;this.codexGuard.markClean();this.codexMessage='Changes discarded.';break;
+      case 'codex-cancel': this.codexDraft=null;this.codexGuard.markClean();this.focusAfterRender='[data-ag-action="codex-cancel"]';this.codexMessage='Changes discarded.';break;
       case 'codex-close': if(!(await this.codexGuard.confirm()))return;this.codexDraft=null;this.codexFocus=null;break;
       case 'codex-hide-all': {
         const entry=svc.get(this.codexFocus);

@@ -265,8 +265,8 @@ test('Add spell… and Add item… open the sorted picker; anything else falls b
   r = await add.browseAndAdd(actor, 'inventory');
   r = await add.browseAndAdd(actor, 'features');
   CompendiumBrowser.prototype.render = originalRender;
-  assert.deepEqual(picks[0], [{kind: 'spell'}, ['spell'], {min: 1, max: 1}]);
-  assert.deepEqual(picks[1], [{kind: 'item'}, ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'], {min: 1, max: 1}]);
+  assert.deepEqual(picks[0], [{kind: 'spell'}, ['spell'], {min: 1, max: 50}]);
+  assert.deepEqual(picks[1], [{kind: 'item'}, ['weapon', 'equipment', 'consumable', 'tool', 'loot', 'container'], {min: 1, max: 50}]);
   assert.equal(picks.length, 2, 'features keep dnd5e\'s own picker');
   // a browser without what the sort needs, or that cannot be built: selectOne, exactly as before
   for (const Base of [{async selectOne(o) { picks.push(['plain', o]); return null; }}, class Broken { static fetch() {} static async selectOne(o) { picks.push(['broken', o]); return null; } _prepareResultsContext() {} _attachPartListeners() {} _renderResult() {} constructor() { throw new Error('boom'); } }]) {

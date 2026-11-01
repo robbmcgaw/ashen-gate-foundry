@@ -10,6 +10,7 @@ import {cleanArt,artInput,resolveArt} from './orb.mjs';
 import {stageState,stagesInput,holdInput} from './stages.mjs';
 import {matchCinder,planCinderDelete,boundMessage} from './cinder-delete.mjs';
 import {journalFolderId} from './folder-nesting.mjs';
+import {buildStateExport} from './state-export.mjs';
 import {DEFINITION_ART_SETTING,cleanOverrides,withOverride,resolveStages,matchDefinition} from './definition-art.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
@@ -915,6 +916,35 @@ export function createCinders(deps){
     return perkSources(actor).flatMap(src=>src.modifiers.map(m=>({sourceId:src.sourceId,name:src.name,itemId:src.itemId,...structuredClone(m)})));
   }
 
+  /**
+   * 0.17.0, GM only: every Cinder instance, the GM's stage art, each character's Strain and the rule settings as plain JSON
+   * (`ag-cinders-state-export/0.1`), read through this module's own readers (registry, list, strain). Writes nothing; see state-export.mjs.
+   * Used by General Manager's world backup.
+   */
+  function exportState(){
+    requireGM();
+    const registry=store()?readRegistry():normalizeRegistry(null),nameOf=id=>id?actorById(id)?.name??null:null;
+    const instances=registry.instances.map(inst=>{
+      const actor=inst.bearer?actorById(inst.bearer.actorId):null;
+      let row=null;if(actor){try{row=list(actor).find(c=>c.instanceId===inst.instanceId)??null;}catch{row=null;}}
+      const stage=resolveStages({own:inst.artStages,override:overrideStages(inst.definitionId),record:recordStages(inst.definitionId)}).stages;
+      const st=stageState(stage,unlockedCount(inst),inst.stageHold);
+      return {...inst,name:definitionName(inst.definitionId,null),bearerName:nameOf(inst.bearer?.actorId),lastBearerName:nameOf(inst.lastBearer),unspent:row?.unspent??null,
+        powers:row?.powers??[],enhancements:row?.enhancements??[],stage:st?{number:st.index+1,held:st.held}:null,
+        attachedNames:Object.fromEntries(inst.sockets.attached.map(a=>[a.itemId,itemOf(actor,a.itemId)?.name??null]))};
+    });
+    const cfg=strain.config(),people=[];
+    for(const actor of playable()){
+      if(actor.type!=='character')continue;
+      const state=strain.readState(actor);
+      if(!state.value&&!state.history.length)continue;
+      const sum=strain.api.get(actor);
+      people.push({id:actor.id,name:actor.name,value:state.value,band:sum.band,historyLength:state.history.length});
+    }
+    return buildStateExport({isGM:game.user?.isGM===true,instances,stageArt:overrides(),strain:people,
+      config:{maxCinders:setting(MAX_CINDERS_SETTING),startingPoints:setting(INITIAL_POINTS_SETTING),socketsPerCinder:setting(SOCKETS_SETTING),strain:cfg}});
+  }
+
   const api={
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
     list,previewPush,push:requestPush,validateDefinition,setArt,stages:stagesInfo,setArtStages,setStageHold,getDefinitionArtStages,setDefinitionArtStages,
@@ -932,7 +962,7 @@ export function createCinders(deps){
     detach:(actor,instanceId,slot,{opId=null}={})=>requestSocket(actor,instanceId,{kind:'detach',slot,opId}),
     swap:(actor,instanceId,slot,itemId,{opId=null}={})=>requestSocket(actor,instanceId,{kind:'swap',slot,itemId,opId}),
     setLocked,setCount,attachDropped};
-  return {api,modifiersApi,socketsApi,itemGuards,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
+  return {api,modifiersApi,socketsApi,exportState,itemGuards,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,SOCKETS_SETTING,{name:'Sockets per Cinder',hint:'GM: how many items a Cinder can hold in its sockets (default 3). A Cinder can have its own number (Manage), and perks or items can add sockets.',scope:'world',config:true,type:Number,default:3,range:{min:0,max:MAX_SOCKETS,step:1}});
