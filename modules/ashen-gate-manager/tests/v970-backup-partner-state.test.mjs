@@ -164,8 +164,8 @@ test('the new boxes start ticked: no saved choice, a choice saved before 0.97.0,
 test('version 0.97.0, 0.x only, download URL, changelog, README and the GPT docs mention the four files', () => {
   const read = p => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.99.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.99.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
-  assert.match(read('../CHANGELOG.md'), /^## 0\.99\.0 /);
+  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.match(read('../CHANGELOG.md'), /^## 0\.100\.0 /);
   const docs = read('../../../docs/world-backup.md'), gpt = read('../../../docs/perks-and-modifiers-for-gpt.md'), readme = read('../README.md');
   for (const t of TYPES) {
     assert.match(docs, new RegExp(`\\| \`${t.file.replace('.', '\\.')}\` \\| \`${t.schema.replace(/[/.]/g, '\\$&')}\``));

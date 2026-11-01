@@ -214,5 +214,5 @@ test('the action lives in the Export area and the settings in GM Setup; help exp
   const view = exportView({target: {branch: 'world-backup'}, lastLabel: '2 hours ago', message: {tone: 'ok', text: 'Done.', url: 'https://github.com/o/r/commit/x'}});
   assert.match(view, /Back up world now…/); assert.match(view, /2 hours ago/); assert.match(view, /rel="noopener/);
   assert.doesNotMatch(settingsView({}) + view + JSON.stringify(confirmFields({types: []}, {repo: 'a/b', branch: 'c'})), /\b(Alpha|Beta|Preview)\b/);
-  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.99.0');
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8')).version, '0.100.0');
 });

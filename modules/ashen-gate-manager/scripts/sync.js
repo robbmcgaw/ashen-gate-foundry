@@ -648,7 +648,7 @@ export function planSync(set, world, ctx = {}) {
         }
         // 'no': import the new record as its own document below; the old one is kept (never deleted by this sync).
       }
-      if (ctx.retiredIds?.has(id)) { rows.push(untouched(id, name, kind, 'This id was deleted by an earlier sync and stays retired (ids are never reused). Give the record a new id.', {...base, refused: true})); continue; }
+      if (ctx.retiredIds?.has(id)) { rows.push(untouched(id, name, kind, 'This id was deleted by an earlier sync and stays retired (ids are never reused). Give the record a new id.', {...base, refused: true, retired: true, allowable: !set.supersedes.has(id) && !ctx.supersededIds?.has(id)})); continue; }
       const sameName = (world.unflaggedNames?.[record.foundry.document_type] ?? new Set());
       if (sameName.has?.(record.foundry.data.name)) { rows.push(untouched(id, name, kind, 'An unmanaged document with this name exists; rename or resolve it first.', {...base, refused: true})); continue; }
       rows.push({group: 'create', key: rowKey('create', kind, id), id, name, kind, reason: 'New record.', changes: [], lost: 0, ...base});
