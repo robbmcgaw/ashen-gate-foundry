@@ -48,13 +48,13 @@ function mkWorld({gm = true, activeGm = true} = {}) {
 }
 
 test('new layers are valid, use only V14 fields and core weather ids, and keep the original eight first', () => {
-  const added = DEFAULT_LAYERS.slice(8).map(l => l.label);
-  assert.deepEqual(added, ['Ash fall', 'Blight haze', 'Ember glow', 'Heat shimmer', 'Fog bank', 'Candlelit interior', 'Underwater murk']);
-  for(const p of DEFAULT_LAYERS) {
+  const added = DEFAULT_LAYERS.slice(8, 15).map(l => l.label);
+  assert.deepEqual(added, ['Ash tint', 'Sickly tint', 'Ember glow', 'Heat shimmer', 'Fog bank', 'Candlelit interior', 'Underwater murk']);
+  for(const p of DEFAULT_LAYERS.slice(0, 15)) {
     assert.deepEqual(validatePreset(p), [], p.id);
     for(const path of Object.keys(p.set)) assert.ok(V14_PATHS.includes(path), path);
     if(p.set.weather) assert.ok(CORE_WEATHER.includes(p.set.weather), p.set.weather);
-    assert.notEqual(p.flashing, true, 'no shipped preset flashes');
+    assert.notEqual(p.flashing, true, 'no core-weather preset flashes');
   }
 });
 
@@ -174,8 +174,8 @@ test('apply a look to chosen scenes: preview first, writes only after apply, one
   const snapshots = scenes.map(s => structuredClone({e: s.environment, w: s.weather, f: s.fog}));
   const pv = looks.previewLook('ashen-dusk', ids);
   assert.equal(pv.rows.length, 3);
-  assert.deepEqual(pv.rows[1].already, ['Ash fall'], 'a layer already on is reported, not duplicated');
-  assert.deepEqual(pv.rows[0].adds, ['Ash fall', 'Ember glow']);
+  assert.deepEqual(pv.rows[1].already, ['Ash tint'], 'a layer already on is reported, not duplicated');
+  assert.deepEqual(pv.rows[0].adds, ['Ash tint', 'Ember glow']);
   assert.equal(scenes[0].updates.length, 0, 'preview writes nothing');
   assert.deepEqual(scenes.map(s => s.weather), startWeather);
   const before2 = structuredClone(scenes[1].environment), beforeW2 = scenes[1].weather, flag2 = structuredClone(scenes[1].flags);

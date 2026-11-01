@@ -17,7 +17,7 @@ test('the suite is pre-release: Locations is on 0.x and its manifest, VERSION an
 test('the API offers what partners detect (Manager import/preview/migration, Hub panel); 0.20.0: no route or journey methods', () => {
   const api = createApi({version: manifest.version, isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {}});
-  assert.equal(api.version, '0.43.1');
+  assert.equal(api.version, '0.44.0');
   for (const fn of ['listLocations', 'importLocations', 'previewLocation', 'setLocationState', 'publishLocation', 'moveLocation', 'setAudience',
     'hazardsAt', 'rollTablesAt', 'rollTable', 'convertRoutes', 'open', 'openLocation']) assert.equal(typeof api[fn], 'function', fn);
   // Partners feature-detect these; they must be gone so Manager reports Route records as retired instead of calling them.

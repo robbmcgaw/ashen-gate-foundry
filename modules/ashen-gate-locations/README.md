@@ -63,12 +63,6 @@ A light way to keep days on the road. **Travel** is the second tab of the window
 - **Updating from 0.38.0 or earlier.** On the first GM load after the update the primary GM's client moves the severities, Mounted and Announce out of the public setting into the GM-only store and clears them there, and turns the old short log into Journal cards (a card without text). Safe to run again; nothing else changes. Until a GM client has loaded once, the old values are still in the public setting.
 - **Authoring.** The `travel` modifier scope (targets, ranges, `applies`, stacking, counting) is in `docs/modifiers-schema.md`.
 
-## Scene effects (0.41.0)
-- **Six Blight weather effects for battle maps.** Scene Config → Basics → **Weather** lists *Blight: Ash fall*, *Spore drift*, *Red rain*, *Blight haze*, *Glass motes* and *Warped shimmer* beside Foundry's own. They are a scene setting, so players see them on the canvas; only a GM can set them. Muted colours so they do not fight the map art.
-- **Blight strength (GM only).** The field under Weather: *Default (2, Moderate)* or 0 (off for this scene) to 3, like the overland Blight Taint severity. It scales particle counts and colour strength and is stored as the Scene flag `flags.ashen-gate-locations.blightStrength`. Non-GM changes are refused in the data layer.
-- **Cost and motion.** At most 160 particles per generator (scaled further by the visible area); rain, haze and shimmer are shaders. With the system's reduce-motion preference on, the effects drift slowly and stop pulsing, winking and flickering.
-- **Fails soft.** An effect is only added when Foundry has the pieces it needs; otherwise it is skipped with one console line. Nothing is migrated or rewritten. Details, ids and tuning: `docs/scene-effects.md`.
-
 ## Storage
 
 - **Locations (GM Data)** Journal (no player permission) holds every record.

@@ -86,8 +86,8 @@ export const DEFAULT_LAYERS = Object.freeze([
   {id:'pitch-black', label:'Pitch black', kind:'layer', isDefault:true, set:{[DARKNESS]:1, 'environment.globalLight.enabled':false}},
   {id:'bright-moon', label:'Bright moon', kind:'layer', isDefault:true, set:{[DARKNESS]:0.65, 'environment.dark.luminosity':0}},
   // 0.61.0 Blight and atmosphere layers. Colour and weather only, nothing animated by Manager. Hue 0.28 is a sickly green, 0.05 an ember orange.
-  {id:'ash-fall', label:'Ash fall', kind:'layer', isDefault:true, set:{'weather':'snow', 'environment.base.hue':0.08, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.5}},
-  {id:'blight-haze', label:'Blight haze', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.base.hue':0.28, 'environment.base.intensity':0.35, 'environment.base.saturation':-0.2,
+  {id:'ash-fall', label:'Ash tint', kind:'layer', isDefault:true, set:{'weather':'snow', 'environment.base.hue':0.08, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.5}},
+  {id:'blight-haze', label:'Sickly tint', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.base.hue':0.28, 'environment.base.intensity':0.35, 'environment.base.saturation':-0.2,
     'environment.dark.hue':0.3, 'environment.dark.intensity':0.4, 'fog.colors.unexplored':'#1f2a14', 'fog.colors.explored':'#3a4a22'}},
   {id:'ember-glow', label:'Ember glow', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.dark.hue':0.05, 'environment.dark.intensity':0.5, 'environment.dark.saturation':0.4,
     'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ff7a33', 'environment.globalLight.luminosity':0.15}},
@@ -96,7 +96,15 @@ export const DEFAULT_LAYERS = Object.freeze([
   {id:'candlelit-interior', label:'Candlelit interior', kind:'layer', isDefault:true, set:{[DARKNESS]:0.55, 'weather':NO_WEATHER, 'environment.cycle':true, 'environment.dark.hue':0.08, 'environment.dark.intensity':0.3,
     'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ffcf8a', 'environment.globalLight.luminosity':0.25}},
   {id:'underwater-murk', label:'Underwater murk', kind:'layer', isDefault:true, set:{[DARKNESS]:0.4, 'environment.cycle':true, 'environment.base.hue':0.5, 'environment.base.intensity':0.45, 'environment.base.saturation':-0.1,
-    'environment.dark.hue':0.52, 'environment.dark.intensity':0.5, 'fog.colors.unexplored':'#0d2a33', 'fog.colors.explored':'#1c4a55'}}
+    'environment.dark.hue':0.52, 'environment.dark.intensity':0.5, 'fog.colors.unexplored':'#0d2a33', 'fog.colors.explored':'#1c4a55'}},
+  // 0.99.0 Blight weather layers: the animated "Blight:" effects (blight-weather.js, same ids Locations once registered) plus a light colour grade.
+  // Values reuse the Ash tint, Sickly tint, Cold night and Heat shimmer layers above. Glass motes and Warped shimmer wink or flicker, so they are `flashing`.
+  {id:'blight-fx-ash-fall', label:'Ash fall', kind:'layer', isDefault:true, set:{'weather':'agBlightAshFall', 'environment.base.hue':0.08, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.5}},
+  {id:'blight-fx-spore-drift', label:'Spore drift', kind:'layer', isDefault:true, set:{'weather':'agBlightSporeDrift', 'environment.base.hue':0.2, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.2}},
+  {id:'blight-fx-red-rain', label:'Red rain', kind:'layer', isDefault:true, set:{'weather':'agBlightRedRain', 'environment.base.hue':0, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.2}},
+  {id:'blight-fx-haze', label:'Blight haze', kind:'layer', isDefault:true, set:{'weather':'agBlightHaze', 'environment.base.hue':0.28, 'environment.base.intensity':0.2, 'environment.base.saturation':-0.2}},
+  {id:'blight-fx-glass-motes', label:'Glass motes', kind:'layer', isDefault:true, flashing:true, set:{'weather':'agBlightGlassMotes', 'environment.base.hue':0.6, 'environment.base.intensity':0.15, 'environment.base.saturation':-0.4}},
+  {id:'blight-fx-warped-shimmer', label:'Warped shimmer', kind:'layer', isDefault:true, flashing:true, set:{'weather':'agBlightWarpedShimmer', 'environment.base.hue':0.1, 'environment.base.intensity':0.25, 'environment.base.saturation':0.3, 'environment.base.luminosity':0.1}}
 ].map(freezePreset));
 const DEFAULTS = {mood:DEFAULT_MOODS, layer:DEFAULT_LAYERS};
 /** 0.35.0 default sets that lacked `environment.cycle`; a stored, unedited copy is read as the current default. */
@@ -104,9 +112,13 @@ const OUTDATED_DEFAULT_SETS = Object.freeze({
   'cold-night':{'environment.dark.hue':0.6, 'environment.dark.intensity':0.4},
   'blood-moon':{'environment.dark.hue':0, 'environment.dark.intensity':0.6, 'environment.dark.saturation':0.3}
 });
+/** 0.99.0: the two colour-only layers were renamed so the weather layers can take "Ash fall" and "Blight haze". An untouched stored default follows the new name. */
+const RENAMED_DEFAULTS = Object.freeze({'ash-fall':['Ash fall', 'Ash tint'], 'blight-haze':['Blight haze', 'Sickly tint']});
 const sameSet = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
 /** Read-time upgrade of stored layers (never writes; re-runnable). Only untouched defaults change. */
 export function upgradeStoredPreset(preset) {
+  const renamed = RENAMED_DEFAULTS[preset?.id];
+  if(renamed && preset.isDefault && preset.label === renamed[0]) preset = {...preset, label:renamed[1]};
   const old = OUTDATED_DEFAULT_SETS[preset?.id];
   if(!old || !preset.isDefault || !sameSet(preset.set, old)) return preset;
   const current = DEFAULT_LAYERS.find(p => p.id === preset.id);

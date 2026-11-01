@@ -19,9 +19,8 @@ import {createOverland, useOverland} from './overland.mjs';
 import {createTravelChannel} from './overland-socket.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 import {isTestPlayer} from './ag-test-players.mjs';
-import {registerSceneEffects, addStrengthField, guardStrengthChange, strengthChanged, refreshWeather} from './scene-effects.mjs';
 
-const VERSION = '0.43.1';
+const VERSION = '0.44.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 /** Player Access as `user` (default: this client) sees it: the world setting, or ON for a Test player (ag-test-players/1, set in General Manager). */
 const playerAccessFor = (user = game.user) => playerAccessEnabled() || isTestPlayer(user, game);
@@ -119,25 +118,11 @@ Hooks.once('init', () => {
   });
   registerPinLook();
   registerPinTravel(); // 0.33.0: right-click > Travel on a pin
-  registerSceneEffects(); // 0.41.0: the six "Blight:" weather effects in Scene Config; fails soft, never throws
   // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
-});
-
-// 0.41.0: Blight scene effects. The optional per-scene strength (0 to 3) is a Scene flag; only a GM may change it.
-Hooks.on('renderSceneConfig', (app, html) => {
-  try { addStrengthField(html?.querySelector ? html : html?.[0], app?.document, isGM()); } catch (err) { console.warn(`${MODULE_ID} |`, err); }
-});
-Hooks.on('preUpdateScene', (scene, changes, options, userId) => {
-  try { return guardStrengthChange(changes, game.users?.get?.(userId)?.isGM === true); } catch (err) { console.warn(`${MODULE_ID} |`, err); return true; }
-});
-Hooks.on('updateScene', (scene, changes) => {
-  try { if (scene?.id === canvas?.scene?.id && strengthChanged(changes)) refreshWeather(); } catch (err) { console.warn(`${MODULE_ID} |`, err); }
 });
 
 Hooks.once('ready', () => {
   const mod = game.modules.get(MODULE_ID);
-  // 0.41.0: a change to the system's reduced-motion preference redraws a Blight effect on the viewed scene.
-  try { globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.addEventListener?.('change', () => refreshWeather()); } catch { /* optional */ }
   const isPrimaryGM = () => isGM() && (game.users?.activeGM?.isSelf ?? true);
   // Party Notes: players ask the primary GM's client, which checks and writes; with no GM connected they write
   // the shared page of a location they can see (party-notes.mjs).
