@@ -50,6 +50,31 @@ The content files are formats the content pack's reconcile script reads. **`stan
 - Actor ids are world-local; the name sits beside every one (`actor_name`, and `actor_names` inside `group`). Faction, deity, rank and reward ids are the permanent canonical ids. No timestamps of its own and no definition text (that is `factions.json`). Rows are sorted so a re-run changes only what changed.
 - Never write this file by hand and never import it. It is for reading.
 
+## Skill Trees state (`ag-skill-trees-state-export/0.1`, Skill Trees 0.25.0)
+
+GM-only, read-only play state from Skill Trees `api.exportState()` (optional: feature-detect it). General Manager will write it as its own file when it is wired in; it is never imported.
+
+```json
+{
+  "schema_version": "ag-skill-trees-state-export/0.1",
+  "trees": [
+    {
+      "tree_id": "TREE-TEST", "name": "[TEST] Tree", "kind": "generic_points", "status": "draft", "visibility": "gm", "source_ref": null,
+      "provider": {"kind": "generic_points", "maxPoints": 10}, "access": null,
+      "appearance": {"node_size": "compact", "background": null, "tiers": []},
+      "nodes": [{"id": "NODE-TEST-1", "perk_id": "PERK-TEST", "x": 10, "y": 20, "cost": 1, "requires_all": [], "requires_any": [["NODE-TEST-2", "NODE-TEST-3"]], "excludes": [], "status": "draft", "visibility": "gm", "display": "hidden", "content_ref": null, "lane": null}]
+    }
+  ],
+  "progress": [
+    {"actor_id": "(world-local id)", "actor_name": "[TEST] Hero", "trees": [{"tree_id": "TREE-TEST", "wallet": "tree:TREE-TEST", "unlocked_node_ids": ["NODE-TEST-1"], "kept_node_ids": [], "awarded": 5, "history_length": 2, "points": {"level": null, "earned": 5, "spent": 1, "available": 4}}]}
+  ]
+}
+```
+
+- `trees` are the GM layouts as the GM has them in the world (the GM may edit layouts there). Perk text is never exported (the content pack holds it): a perk node carries `perk_id`; only a custom node (no perk) adds its own `name`. Rows and nodes are sorted by id.
+- `progress` has one row per character that has unlocked, kept or been awarded anything; level-backup copies and NPCs are left out. `points.earned`/`available` are `null` when a profession tree's Ledger level is unavailable. Actor ids are world-local; the name sits beside each.
+- No timestamps of its own. The window's Export and Back up progress downloads are separate and unchanged.
+
 ## `party.json` (`ag-party-sheets-export/0.1`, Manager 0.93.0)
 
 Read-only play state: a slim, plain-JSON copy of the players' character sheets (the old hand-made party export was about 5 MB of full Actors). **Never import it and never write records in this schema.** GM only. Ticked by default.
