@@ -1,3 +1,13 @@
+## 0.70.0 — 2026-11-01
+
+Add several from the compendium at once.
+
+- **Add spell… / Add item… / Add feature… / Add attack… → Browse compendiums…** now opens dnd5e's own compendium browser in its multi-select mode: tick as many entries as you want (up to **50**) and press dnd5e's confirm button. The footer shows dnd5e's own count. Before this the browser took exactly one pick. Nothing of dnd5e's browser is replaced; the Sort by control on spells and items is unchanged.
+- **Each ticked entry goes through the same add as a single pick or a drop**: owner/GM check, the tab's type check, `fromCompendium`, dnd5e's per-type step (so a spell is prepared or known exactly as it is today) and dnd5e's advancement window for items that carry advancement. Entries are added one after another, in the order dnd5e returns them.
+- **One summary** replaces one note per entry, for example "Added 5, skipped 1 (already on the sheet)." A spell or feature that is already on the sheet from the same compendium entry is skipped; items such as potions or arrows are physical and stack, so they are still added. An entry that fails (it no longer exists, or the tab does not take its type) does not stop the others and is counted ("2 could not be added"), with the first reason shown. Items with an advancement window are counted as "waiting on dnd5e's advancement window".
+- More than 50 are refused with nothing added (dnd5e's browser already stops you at 50). Cancelling adds nothing. Ownership is checked again before each entry. A single pick behaves exactly as before, including its "Added <name> to <character>." note.
+- No stored data changes, no migration. Tests are mocked Foundry and dnd5e; they do not open the real compendium browser.
+
 ## 0.69.0 — 2026-10-31
 
 Effects tab and Locations list tidied.
