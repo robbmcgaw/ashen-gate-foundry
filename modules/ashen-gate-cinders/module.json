@@ -2,7 +2,7 @@
   "id": "ashen-gate-cinders",
   "title": "Ashen Gate | Cinders",
   "description": "Cinder instances that keep their own powers and points and move between bearers, Push and Backfire, and the shared Strain resource that other Ashen Gate modules read and change. Uses Ashen Gate | Skill Trees 0.17.0+ for Cinder trees. The GM can switch player access on or off.",
-  "version": "0.16.3",
+  "version": "0.17.0",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -41,5 +41,5 @@
   "readme": "README.md",
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-cinders/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-cinders-v0.16.3/ashen-gate-cinders.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-cinders-v0.17.0/ashen-gate-cinders.zip"
 }

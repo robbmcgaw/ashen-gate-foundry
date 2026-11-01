@@ -114,3 +114,30 @@ Included: world Actors of type `character` that a non-GM user owns, sorted by na
 - `description` is the feature's text with HTML and enrichers stripped, at most 600 characters (ends with `…` when cut).
 - Under `ashen_gate`, each of `professions`, `cinders` and `skill_trees` is either the list shown or `{"skipped": "<reason>"}` when that module is not installed, not active, too old to have the call, or the read failed for that character. The reads use only public module APIs (Profession Ledger `getProfessions` and `getProfessionProgress`, Cinders `cinder.list`, Skill Trees `pointsSummary`).
 - Actor ids and Cinder instance ids are world-local; ids with a canonical prefix (`PROF-`, `PERK-`, tree and Cinder definition ids) are permanent.
+
+## Cinders state (`ag-cinders-state-export/0.1`, Cinders 0.17.0)
+
+GM-only, read-only play state from Cinders `api.exportState()` (optional: feature-detect it). General Manager will write it as its own file when it is wired in; it is never imported.
+
+```json
+{
+  "schema_version": "ag-cinders-state-export/0.1",
+  "config": {"cinders_per_character": 1, "starting_points": 1, "sockets_per_cinder": 3, "strain": {"schema": "ag-strain-config/0.1", "backfire_schedule": [0, 5, 10], "guarantee_at": 10}},
+  "cinders": [
+    {
+      "instance_id": "(world-local id)", "definition_id": "MUT-TEST-EMBER", "name": "[TEST] Ember Cinder", "status": "bound",
+      "bearer": {"actor_id": "(world-local id)", "actor_name": "[TEST] Hero"}, "last_bearer": null,
+      "points": {"awarded": 4, "unspent": 2, "grants": [{"key": "initial", "amount": 1}]},
+      "unlocked_node_ids": ["NODE-TEST-A"], "powers": [{"power_id": "POWER-TEST", "node_id": "NODE-TEST-A"}], "enhancements": [],
+      "art": {"own": null, "own_stages": null, "stage_hold": null, "stage": {"number": 1, "held": false}},
+      "sockets": {"count": 2, "locked": false, "attached": [{"slot": 0, "item_id": "(world-local id)", "source_id": "ITEM-TEST-GEM", "item_name": "[TEST] Gem"}]}
+    }
+  ],
+  "stage_art": [{"definition_id": "MUT-TEST-EMBER", "stages": [{"art": "art/ember-1.webp", "at": 0}, {"art": "art/ember-2.webp", "at": 3}]}],
+  "strain": [{"actor_id": "(world-local id)", "actor_name": "[TEST] Hero", "value": 3, "band": {"label": "Band 2", "from": 3, "to": 4}, "history_length": 1}]
+}
+```
+
+- `status` is `bound`, `unbound` or `lost` (a lost Cinder has no `bearer`). `powers`, `enhancements` and `points.unspent` are read from the bearer's character, so they are empty or `null` for a Cinder nobody bears. Strain history keeps its last 30 entries on the character; only the count is exported. `strain` lists only characters with Strain above 0 or a history.
+- `config.strain` is the full Strain config in force (band names, Backfire schedule, rest recovery). Actor and instance ids are world-local; `definition_id` and the ids of powers, nodes and items are permanent.
+- Rows are sorted. No timestamps (registry and socket times, user ids and operation ids are left out) and no definition text.

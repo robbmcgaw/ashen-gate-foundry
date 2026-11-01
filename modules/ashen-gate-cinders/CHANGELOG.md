@@ -1,3 +1,11 @@
+## 0.17.0 — 2026-11-01
+
+**New (GM only): `api.exportState()` so General Manager's world backup can save your Cinders and Strain.** Nothing changes in the window, and no saved data changes. Check in Forge: as the GM open the browser console and run `game.modules.get('ashen-gate-cinders').api.exportState()`; it returns `{schema_version: 'ag-cinders-state-export/0.1', config, cinders, stage_art, strain}`. As a player the same call is refused ("GM only").
+
+- `cinders`: every Cinder (bound, unbound or lost) with its ids, bearer, points, unlocked nodes, powers and enhancements, art and stage in use, sockets and attached items.
+- `stage_art`: the stage art you gave each kind of Cinder (Manage → Cinders → Stage art). `strain`: each character's Strain value, band and how many history entries it holds (the entries themselves are not copied). `config`: Cinders per character, starting points, sockets per Cinder and the Strain config.
+- Rows are sorted by id so a re-run changes only what changed; there are no timestamps. It only reads, through the registry, the character reads and the Strain reads the module already uses.
+
 ## 0.16.3 — 2026-10-31
 
 Fix: the Stages… window (Manage → Cinders → Stage art, and the per-character Stages…) could not be scrolled or clicked.
