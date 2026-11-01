@@ -1,3 +1,13 @@
+## 0.28.1 — 2026-11-01
+
+**Fix: a Cinder tree shown "As you unlock" now appears with its silhouettes even when only some of its perks are released.** Tests are mocked Foundry; the live window was not run, so the steps to check in Forge are in the pull request.
+
+- **Cause.** When the player view was built, every node whose perk was not released to players (Manager status approved, player-visible, readable by all players) was thrown away before publishing. In a progressive tree that left only the released nodes in the shared copy: with just the first power released, the player saw one node, "Tree as a list" had one row, and unlocking it revealed nothing because the other nodes did not exist on the player's side (so no character record was written either).
+- **Fix.** In a progressive tree, a node the GM set to shown whose perk is not released (or whose status is still draft) is now published as a silhouette: position and prerequisite ids only, never a name, text or picture. It stays "Undiscovered" and cannot be taken until the perk is released through General Manager and the player view is republished. Placeholder nodes and nodes the GM keeps hidden are still not published. Trees that are not progressive are unchanged.
+- **Silhouettes are easier to see.** A solid backing, a dashed ring in the text colour and a full-strength question mark, so they read on the dark canvas and on a background picture. They keep the "Undiscovered" label.
+- **Show Cinder trees to their bearers…** now also says how many perks are not released yet and show as Undiscovered.
+- New tests (`reveal-v0281.test.mjs`) use a synthetic 24-node tree with one released perk: 24 nodes and 23 silhouettes in the shared setting, 5 nodes for a Test player and a normal player, the next ring after unlocking once the perks are released, refund re-hiding it, and no hidden name, text or picture anywhere. No saved data changes; republish the player view after updating.
+
 ## 0.28.0 — 2026-11-01
 
 **New: players can see their own Cinder tree before unlocking anything, and later tiers stay hidden until reached. A new GM action releases all ten Cinder trees at once.** Tests are mocked Foundry; the live window was not run, so the steps to check in Forge are in the pull request.

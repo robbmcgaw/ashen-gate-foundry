@@ -33,7 +33,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.28.0';
+const VERSION='0.28.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -273,7 +273,19 @@ const safePublicSource=n=>{
   return Boolean(doc?.documentName==='Item'&&doc?.type==='feat'&&source?.entityType===
     (n.perkId.startsWith('PERK-')?'ProfessionPerk':'Power') && !/placeholder/i.test(doc.name));
 };
-const project=(t,options)=>{const r=resolved(t);return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})},options);};
+/**
+ * 0.28.0 dropped every shown node whose perk was not released, so a progressive tree with one released perk published ONE node and no silhouettes.
+ * 0.28.1: in a progressive tree such a node is kept as a silhouette (layout only, never any text) that stays locked until the perk is released.
+ */
+const project=(t,options)=>{const r=resolved(t),progressive=isProgressive(r);
+  const wanted=n=>n.status!=='placeholder'&&n.visibility==='player'&&n.display==='shown';
+  return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)&&!(progressive&&n.status==='draft'&&wanted(n))?n:progressive&&wanted(n)?{...n,unreleased:true}:{...n,visibility:'gm',display:'hidden'})},options);};
+/** GM only: how many shown nodes of progressive trees wait on an unreleased perk (they are published as permanent silhouettes). */
+function heldPerkCount(){
+  defIndex=buildDefinitionIndex(game);
+  try{return readPrivate().filter(isProgressive).reduce((sum,t)=>sum+resolved(t).nodes.filter(n=>n.status!=='placeholder'&&n.visibility==='player'&&n.display==='shown'&&(!safePublicSource(n)||n.status==='draft')).length,0);}
+  finally{defIndex=null;}
+}
 /** GM client only: the player projection with every node's text (never written to the shared setting). */
 const projectFull=t=>project(t,{full:true});
 const publishedPayload=trees=>{defIndex=buildDefinitionIndex(game);try{return {schema:SCHEMA,revision:Date.now(),trees:trees.map(project).filter(Boolean)};}finally{defIndex=null;}};
@@ -1360,7 +1372,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM)throw Error('GM only');
     if(!await confirm('Show every Cinder tree to the players whose character has that Cinder bound.\nEach tree becomes player-visible and its perks are set to shown, revealing as the player unlocks: the first power, then a silhouette of what comes next, and nothing beyond it.\nPositions, art, tiers, release status and character progress are not changed. Each perk must still be released to players through General Manager.',
       {title:'Show Cinder trees to their bearers?',yes:'Show Cinder trees'}))return;
-    notify(showCinderTreesText(await showCinderTrees()));
+    const text=showCinderTreesText(await showCinderTrees()),held=heldPerkCount();
+    notify(held?`${text} ${held} perk${held===1?' is':'s are'} not released to players yet and show as Undiscovered until released through General Manager.`:text);
   }
   async _help(){
     await infoDialog('Skill Trees help',`
