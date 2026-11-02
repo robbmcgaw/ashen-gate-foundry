@@ -12,7 +12,7 @@ import * as prep from '../scripts/spell-prep.mjs';
 import * as rows from '../scripts/spell-rows.mjs';
 import * as ia from '../scripts/item-actions.mjs';
 import {gmSetupTab} from '../scripts/companion-views.mjs';
-import {HELP_HTML} from '../scripts/help.mjs';
+import {HELP_HTML, helpHtml} from '../scripts/help.mjs';
 
 const CSS = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
 const README = fs.readFileSync(new URL('../README.md', import.meta.url), 'utf8');
@@ -322,6 +322,6 @@ test('observers cannot prepare at all (ownership first); Help and README describ
   const r = await ia.togglePrepared(wizard(), 'w3');
   assert.equal(r.ok, false); assert.match(r.error, /don't own/);
   for (const t of [HELP_HTML, README]) { assert.match(t, /Show spell descriptions/); assert.match(t, /preparation limit|prepare/i); }
-  assert.match(HELP_HTML, /Enforce spell preparation limits/);
+  assert.match(helpHtml(true), /Enforce spell preparation limits/); assert.doesNotMatch(HELP_HTML, /Enforce spell preparation limits/, 'GM-only');
   assert.match(README, /Enforce spell preparation limits/);
 });

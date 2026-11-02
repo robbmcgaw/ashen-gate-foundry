@@ -319,5 +319,5 @@ test('README, Help and CHANGELOG describe the single line, the priorities and th
   assert.match(README, /Properties at 575px[\s\S]*Recovery at 565px[\s\S]*Uses at 535px[\s\S]*Range at 475px[\s\S]*Dice at 400px[\s\S]*To hit at 390px/);
   assert.match(README, /icons at 775px[\s\S]*Weight at 615px[\s\S]*Value at 555px[\s\S]*Qty at 490px/);
   assert.match(README, /Type at 590px[\s\S]*Use time at 490px[\s\S]*Recovery at 400px[\s\S]*Uses at 390px/);
-  assert.match(HELP_HTML, /Combat, Inventory and Features[\s\S]*exactly one line/);
+  assert.match(HELP_HTML, /Combat, Inventory, Magic and Features<\/strong> show one line per item/);
 });

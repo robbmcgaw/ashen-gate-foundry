@@ -225,7 +225,7 @@ test('CH-01 / CH-03: rail tabs carry their names, GM Setup is marked GM; the hea
   assert.match(html, /data-tab="journey"[^>]*><i[^>]*><\/i><span class="agch-rail__label" aria-hidden="true">Journey<\/span>/, 'CH-23: no "(alpha)" in the tab');
 });
 
-test('CH-25: Help is grouped into folds (the first open), and names the new places', () => {
+test('Help is grouped into folds (the first open), and names the new places', () => {
   assert.equal((HELP_HTML.match(/<details class="ag-fold"/g) ?? []).length, HELP_SECTIONS.length);
   assert.match(HELP_HTML, /^[\s\S]*?<details class="ag-fold" open>/);
   assert.equal((HELP_HTML.match(/<details class="ag-fold" open>/g) ?? []).length, 1);

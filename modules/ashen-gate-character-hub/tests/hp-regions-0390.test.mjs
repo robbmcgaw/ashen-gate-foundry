@@ -133,6 +133,6 @@ test('Full, Compact and the read-only view all draw the regions; Help describes 
     assert.equal(/data-hp-bar data-band="mid" tabindex="0"/.test(html), name !== 'observer', `${name}: editable only for the owner`);
   }
   delete globalThis.document;
-  assert.match(HELP_HTML, /side by side, so none hides another/);
+  assert.match(HELP_HTML, /current HP first, then temp HP in silver stripes, then missing HP/);
   assert.doesNotMatch(HELP_HTML, /blue frame/);
 });

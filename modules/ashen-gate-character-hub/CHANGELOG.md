@@ -1,3 +1,13 @@
+## 0.72.1 — 2026-11-02
+
+Help rewrite. Text only; no behaviour changes.
+
+- **Character Hub Help is now player-facing and about half as long.** A quick start, then task-based groups that fold (Getting started, Your character, Lists and tabs, Marks, conditions and the quick bar, Ashen Gate modules, Keyboard and accessibility). Short sentences, one idea per bullet, and the names match the buttons and tabs.
+- **Removed:** version numbers, internal ticket tags and release notes from the player text; GM Setup details no longer show to players.
+- **For the GM** is a short separate fold that only the GM sees (Player visibility, Hub appearance, spell limit switch, Pet slots, Companion types, level backups, Detach, Strain − / +, Journey notes). Level backups are now described where they are (Actors sidebar, Ashen Gate / Backups).
+- **About** (the Hub's and active modules' versions) moves to the very end of the dialog.
+- Check in Forge: open the Hub, press Help as a player and as the GM, read through, and confirm the names match the buttons.
+
 ## 0.72.0 — 2026-11-01
 
 Skill Trees tab and Features tab fixes.
