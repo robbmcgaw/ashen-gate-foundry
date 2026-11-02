@@ -138,11 +138,16 @@ export function applySidebarTabs({ game, doc, ui, appearance, peek = sharedPeek 
  * window, so a collapsed sidebar stays collapsed); otherwise it expands the sidebar, marks the tab as peeked and switches to
  * it. Every Foundry name is feature-detected. Returns 'popout', 'tab' or false (nothing could be opened); never throws.
  */
-export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, prefer = 'tab', reapply = null, memory = sharedDockOpen } = {}) {
+export function openSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, prefer = 'tab', reapply = null, memory = sharedDockOpen, positions = null } = {}) {
   const popout = () => {
     const app = ui?.[tabId];
     if (typeof app?.renderPopout !== 'function') return false;
-    try { app.renderPopout(); memory[tabId] = { via: 'popout' }; return 'popout'; } catch (error) { console.warn('[ashen-gate-manager] Pop-out failed', error); return false; }
+    try {
+      const result = app.renderPopout(); memory[tabId] = { via: 'popout' };
+      // 0.101.0: put the window back where the player left it (and start remembering). Fails soft; no saved value changes nothing.
+      try { positions?.attach?.(tabId, { ui, result }); } catch { /* position memory is optional */ }
+      return 'popout';
+    } catch (error) { console.warn('[ashen-gate-manager] Pop-out failed', error); return false; }
   };
   const inline = () => {
     const sidebar = ui?.sidebar;
@@ -172,12 +177,13 @@ export function isSidebarTabOpen(tabId, { ui = globalThis.ui } = {}) {
  * sidebar goes back to the tab that was open before (Chat if unknown) and the sidebar is collapsed again if the dock had
  * expanded it. Returns 'popout', 'tab' or false (it was not open); never throws.
  */
-export function closeSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, reapply = null, memory = sharedDockOpen } = {}) {
+export function closeSidebarTab(tabId, { ui = globalThis.ui, peek = sharedPeek, reapply = null, memory = sharedDockOpen, positions = null } = {}) {
   const rec = memory[tabId];
   delete memory[tabId];
   try {
     const pop = ui?.[tabId]?.popout;
     if (pop?.rendered === true && typeof pop.close === 'function') {
+      try { positions?.release?.(tabId); } catch { /* position memory is optional */ }
       Promise.resolve(pop.close()).catch(error => console.warn('[ashen-gate-manager] Pop-out not closed', error));
       return 'popout';
     }

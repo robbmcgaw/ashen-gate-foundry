@@ -151,8 +151,8 @@ test('the wiring: GM check, preview re-run (scroll pane and Refused fold kept), 
   assert.doesNotMatch(view, /\b(Alpha|Beta)\b/);
 });
 
-test('0.100.0 version', () => {
+test('0.101.0 version', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
-  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.100\.0 /);
+  assert.equal(m.version, '0.101.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.match(fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'), /^## 0\.101\.0 /);
 });

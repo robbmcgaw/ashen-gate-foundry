@@ -229,7 +229,7 @@ test('wiring: button, GM check, labelled confirmation, no chat, version and docs
   assert.match(tpl, /data-ag-action="inuse-run"[^>]*>[\s\S]*Release items in use…/);
   assert.match(main, /Release items in use \(0\.95\.0\)/);
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.equal(m.version, '0.101.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
   assert.match(read('../CHANGELOG.md'), /^## 0\.95\.0 /m);
   assert.match(read('../README.md'), /Release items in use/);
 });

@@ -258,8 +258,8 @@ test('wiring: button, handler, API, versions and docs', () => {
   assert.match(tpl, /data-ag-action="world-edits-export"[^>]*>.*Export edited records…/s);
   assert.match(main, /case "world-edits-export"/);
   assert.match(main, /exportEdits:options=>saveWorldEdits\(game,options,\{save:downloadJson\}\)/);
-  assert.equal(JSON.parse(read('../module.json')).version, '0.100.0');
-  assert.ok(JSON.parse(read('../module.json')).download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
+  assert.equal(JSON.parse(read('../module.json')).version, '0.101.0');
+  assert.ok(JSON.parse(read('../module.json')).download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip'));
   assert.ok(fs.existsSync(new URL('../../../docs/world-edits-export.md', import.meta.url)));
   assert.match(read('../CHANGELOG.md'), /^## 0\.77\.0/m);
   assert.match(read('../README.md'), /Export edited records/);

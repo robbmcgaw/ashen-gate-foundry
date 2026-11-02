@@ -41,6 +41,7 @@
  */
 import { isTestPlayer } from './ag-test-players.mjs';
 import { openSidebarTab, closeSidebarTab, isSidebarTabOpen, sharedPeek } from './sidebar-tabs.js';
+import { createPopoutPositions } from './popout-position.js';
 import { applyPlayersList, createControlsLayout, shouldDockControls, toggleUserConfiguration, userConfigurationOpen } from './dock-controls.js';
 
 export const DOCK_ID = 'agm-player-dock';
@@ -336,7 +337,7 @@ export function buildDock(doc, { corner = 'top-left', actions, minimized = false
  * players list, the scene controls under the dock). Idempotent: running it again changes nothing. Returns the element when
  * the dock is showing, else null.
  */
-export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThis.ui, tabs = null, peek = sharedPeek, storage = localStore(), layout = null, idle = null, toggleConfig = toggleUserConfiguration, configOpen = userConfigurationOpen, setTimer = null, clearTimer = null, memory }) {
+export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThis.ui, tabs = null, peek = sharedPeek, storage = localStore(), layout = null, idle = null, toggleConfig = toggleUserConfiguration, configOpen = userConfigurationOpen, setTimer = null, clearTimer = null, memory, positions = null }) {
   const state = appearance?.getState?.() ?? {};
   const isGM = Boolean(game?.user?.isGM);
   try { applyPlayersList({ game, doc, state }); } catch (error) { console.warn('[ashen-gate-manager] Players list not updated', error); }
@@ -361,7 +362,8 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
   }
   const notify = message => { try { getUi()?.notifications?.warn?.(message); } catch { /* nothing to tell the player with */ } };
   const reapply = () => { try { tabs?.apply?.(); } catch { /* the tab hider reports its own errors */ } };
-  const mem = memory ? { memory } : {};
+  const pos = positions ?? createPopoutPositions({ storage, getUserId: () => game.user?.id });
+  const mem = { ...(memory ? { memory } : {}), positions: pos };
   const toggleTab = (tabId, prefer, what) => {
     const ui = getUi();
     if (isSidebarTabOpen(tabId, { ui })) {
@@ -399,6 +401,8 @@ export function applyPlayerDock({ game, doc, appearance, getUi = () => globalThi
 
 /** Hooks that re-check the module gates and pressed states without rebuilding the dock. */
 export const LIVE_HOOKS = Object.freeze(['ready', 'updateSetting', 'createSetting', 'deleteSetting', 'collapseSidebar', 'changeSidebarTab', 'renderCombatTracker', 'closeCombatTracker', 'renderUserConfig', 'closeUserConfig']);
+/** Close hooks that tell the position memory a pop-out has closed (the generic sidebar-tab one, and the combat tracker's own). */
+export const POPOUT_CLOSE_HOOKS = Object.freeze(['closeAbstractSidebarTab', 'closeCombatTracker']);
 const isModuleSetting = setting => String(setting?.key ?? '').startsWith(ACCESS_KEY_PREFIX);
 
 /**
@@ -406,8 +410,9 @@ const isModuleSetting = setting => String(setting?.key ?? '').startsWith(ACCESS_
  * setting of an Ashen Gate module changes (Player Access on or off reaches connected players at once). Returns a function that
  * stops listening.
  */
-export function installPlayerDock({ game, hooks, doc = globalThis.document, getUi = () => globalThis.ui, appearance, tabs = null, idle = null, layout = createControlsLayout({ doc }), setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id) }) {
-  const apply = () => { try { applyPlayerDock({ game, doc, appearance, getUi, tabs, idle, layout, setTimer, clearTimer }); } catch (error) { console.warn('[ashen-gate-manager] Player dock not updated', error); } };
+export function installPlayerDock({ game, hooks, storage = localStore(), doc = globalThis.document, getUi = () => globalThis.ui, appearance, tabs = null, idle = null, layout = createControlsLayout({ doc }), setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = id => clearTimeout(id) }) {
+  const positions = createPopoutPositions({ storage, getUserId: () => game.user?.id, win: doc?.defaultView ?? globalThis.window, doc, setTimer, clearTimer });
+  const apply = () => { try { applyPlayerDock({ game, doc, appearance, getUi, tabs, idle, layout, setTimer, clearTimer, storage, positions }); } catch (error) { console.warn('[ashen-gate-manager] Player dock not updated', error); } };
   const refresh = () => { try { const dock = doc?.getElementById?.(DOCK_ID); if (dock) void dock.agmRefresh?.(); else apply(); } catch (error) { console.warn('[ashen-gate-manager] Player dock not refreshed', error); } };
   apply();
   const outside = event => {
@@ -420,6 +425,8 @@ export function installPlayerDock({ game, hooks, doc = globalThis.document, getU
     const handler = ['updateSetting', 'createSetting', 'deleteSetting'].includes(name) ? setting => { if (isModuleSetting(setting)) refresh(); } : refresh;
     ids.push([name, hooks?.on?.(name, handler)]);
   }
+  // 0.101.0: save a pop-out's position when it closes (AppV2 runs the hook of every parent class, so one name covers every sidebar tab).
+  for (const name of POPOUT_CLOSE_HOOKS) ids.push([name, hooks?.on?.(name, app => positions.onClosed(app))]);
   const stop = appearance?.subscribe?.(apply);
   return () => {
     doc?.removeEventListener?.('click', outside, true);
