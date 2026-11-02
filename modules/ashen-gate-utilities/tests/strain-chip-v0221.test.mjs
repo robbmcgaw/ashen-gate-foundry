@@ -63,8 +63,9 @@ test('Conditions view: chip listed read only with the hint, no Remove for GM or 
  let html=await app._renderHTML();
  assert.ok(html.includes('Strain: Band 3'),'chip shown');assert.ok(html.includes('Read only'));assert.ok(html.includes('Changed in Ashen Gate | Cinders or the Character Hub Strain bar'));
  assert.ok(html.includes('data-status="prone"'));assert.ok(!html.includes('data-status="ag-strain-2"'),'GM: no Remove');
- const select=html.match(/<select id="agu-condition-status">(.*?)<\/select>/s)[1];
- assert.ok(select.includes('value="prone"'));assert.ok(!select.includes('ag-strain-'),'not in the Apply dropdown');
+ const ids=api.conditions.choices().map(c=>c.id);
+ assert.ok(ids.includes('prone'));assert.ok(!ids.some(i=>i.startsWith('ag-strain-')),'not in the Apply list');
+ assert.ok(!/id="agu-condition-status"[^>]*value="ag-strain-/.test(html));
  game.user=alice;html=await app._renderHTML();
  assert.ok(html.includes('data-status="prone"'));assert.ok(!html.includes('data-status="ag-strain-2"'),'owner: no Remove');
  game.user=gm;
