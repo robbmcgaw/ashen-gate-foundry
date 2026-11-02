@@ -258,7 +258,7 @@ test('backup layer is GM-only', () => {
 
 test('version 0.96.0, 0.x only, download URL, changelog, README, Help and schema doc mention the work', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
+  assert.equal(m.version, '0.101.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip')); assert.match(m.version, /^0\./);
   const log = read('../CHANGELOG.md');
   assert.match(log, /^## 0\.96\.0 /m);
   const top = log.split('## 0.95.0')[0];

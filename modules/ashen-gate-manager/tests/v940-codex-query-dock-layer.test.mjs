@@ -126,7 +126,7 @@ test('dock: layering is CSS only (no polling, no hooks into bringToFront, no wra
 
 test('version 0.96.0, 0.x only, download URL, changelog and Help/README mention both fixes', () => {
   const m = JSON.parse(read('../module.json'));
-  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.101.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip'));
   const log = read('../CHANGELOG.md');
   assert.match(log, /^## 0\.94\.0 /m);
   assert.match(log.split('## 0.93.0')[0], /NPC Codex/); assert.match(log.split('## 0.93.0')[0], /dock/i);

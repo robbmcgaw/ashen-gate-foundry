@@ -218,5 +218,5 @@ test('dialog hint, export text, Help, README, docs and changelog say it holds ch
 
 test('version 0.96.0, 0.x only, download URL agrees', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(m.version, '0.100.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));
+  assert.equal(m.version, '0.101.0'); assert.ok(m.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip'));
 });

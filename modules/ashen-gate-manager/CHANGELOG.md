@@ -1,3 +1,14 @@
+## 0.101.0 — 2026-11-02
+
+**Player dock: the combat tracker pop-out comes back where you left it.** When you drag or resize the combat tracker that the dock opens, close it and open it again from the dock, it now returns to the same spot and size instead of Foundry's default place. The same applies to any other sidebar tab the dock opens as a pop-out window.
+
+- **Per user, per browser.** The position is kept in this browser's local storage under the signed-in user (key `agm-dock-window:<user id>:<tab id>`), so it never reaches the world, other players or another computer, and no world setting, flag or document is written.
+- **Saved when you move, resize or close it.** A short pause after you let go of the window frame or it changes size, and once more when it closes (the dock's second press or the window's own X). Nothing is written when the position has not changed.
+- **Always on screen.** On reopening, the saved rectangle is fitted into the current browser window: never wider or taller than it, never smaller than a minimum, and moved fully inside, so a smaller window or another monitor cannot hide it. A missing or damaged saved value is ignored and the pop-out opens exactly as before.
+- **Fails soft.** Every Foundry call is feature-detected; if this Foundry does not report a position, the dock behaves as in 0.100.0. The dock's second press still closes the pop-out.
+- Saved data: new browser-local keys only; no migration. Docs: README (player dock), Help (Player screen). Tests are mocked Foundry; they prove the saving, restoring, clamping and per-user keys, not how the live window moves.
+- Check in Forge: as a player (or a Test player) open **Combat** from the dock, drag and resize the tracker, close it (press Combat again or use its X), press **Combat** again; it should return to the same place and size. Shrink the browser window, then reopen it from the dock; it should sit fully inside.
+
 ## 0.100.0 — 2026-11-01
 
 **Sync preview: a record held back by a retired id can be allowed again.** In Import > Sync, the **Refused** group of the sync preview "This id was deleted by an earlier sync and stays retired" now has **Allow these ids again…** (GM only) and **Allow again…** on each row. It asks "Allow N ids again?", explains that the ids were removed by an earlier Sync, that allowing them lets the next Sync create the records again from the pack and that nothing else changes, and on **Allow ids** (never the default button) removes only those ids from the world setting `syncRetiredIds`, then previews again. The Refused section stays open and the scroll position and focus are kept.

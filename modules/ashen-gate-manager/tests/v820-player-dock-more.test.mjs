@@ -287,7 +287,7 @@ test('wiring: GM Setup field and Help, hooks, no wrapping of core methods, versi
   assert.match(tpl,/Auto-collapse chat and Settings after \(seconds\)/);
   assert.match(main,/installSidebarIdleCollapse\(/);assert.match(main,/<em>Auto-collapse chat and Settings after \(seconds\)<\/em>/);
   assert.match(main,/<em>Hide the players list from players<\/em>/);assert.match(main,/<em>Quest Log<\/em>/);
-  assert.equal(man.version,'0.100.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.100.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
+  assert.equal(man.version,'0.101.0');assert.ok(man.download.endsWith('/ashen-gate-manager-v0.101.0/ashen-gate-manager.zip'));assert.match(log,/\n## 0\.83\.0 /);
   for(const f of ['dock-controls','sidebar-idle','player-dock']){
     const src=read(`../scripts/${f}.js`).replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
     assert.doesNotMatch(src,/\.prototype|libWrapper|Object\.defineProperty|ownership|setFlag|updateDocuments|settings\.set|new Proxy/,f);
