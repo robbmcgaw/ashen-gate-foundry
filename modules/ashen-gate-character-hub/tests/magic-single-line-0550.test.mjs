@@ -167,5 +167,5 @@ test('README and Help describe the single line and the steps', () => {
   assert.match(README, /single line since 0\.55\.0/);
   assert.match(README, /Components at 680px or less, Casting at 590px, Range at 505px[\s\S]*455px[\s\S]*415px/);
   assert.match(README, /Dice/);
-  assert.match(HELP_HTML, /exactly one line each[\s\S]*Casting[\s\S]*Components[\s\S]*Prepared<\/strong> is the gold one/);
+  assert.match(HELP_HTML, /<strong>C<\/strong> marks concentration and <strong>R<\/strong> marks a ritual[\s\S]*Prepared<\/strong> \(gold\)/);
 });

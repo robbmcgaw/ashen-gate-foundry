@@ -20,10 +20,10 @@ const Hub = createHubSheetClass(FakeActorSheetV2);
 const narrow = CSS.split('@container (max-width: 900px) {').slice(1).map(b => b.slice(0, b.indexOf('\n}\n'))).join('\n');
 const rule = sel => { const at = narrow.indexOf(`  ${sel} {`); assert.ok(at >= 0, `narrow rule ${sel}`); return narrow.slice(at, narrow.indexOf('}', at)); };
 
-test('version is 0.70.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.72.0');
-  assert.equal(manifest.version, '0.72.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.72\.0\/ashen-gate-character-hub\.zip$/);
+test('version is 0.72.1 in the code, module.json and its download URL', () => {
+  assert.equal(VERSION, '0.72.1');
+  assert.equal(manifest.version, '0.72.1');
+  assert.match(manifest.download, /ashen-gate-character-hub-v0\.72\.1\/ashen-gate-character-hub\.zip$/);
 });
 
 test('a new Hub shows the whole character column: Hide character, no folded class', async () => {
@@ -105,8 +105,7 @@ test('Left / Right move along the rail (wrapping), with a roving tabindex', () =
 });
 
 test('Help and README describe the shown-by-default character, the slim tab row and the pinned bottom', () => {
-  for (const words of ['Hide character', 'Show character', 'one slim row', 'scrolls sideways', 'stay along the bottom', 'quick bar']) assert.ok(HELP_HTML.includes(words), words);
-  assert.doesNotMatch(HELP_HTML, /character folds to its Cinders, the star, HP and AC; <strong>Show character<\/strong> opens it/);
+  for (const words of ['Hide character', 'Show character', 'one row at the top', 'narrow window', 'Quick bar']) assert.ok(HELP_HTML.includes(words), words);
   assert.match(README, /The character shows by default there; \*\*Hide character\*\*/);
   assert.match(README, /stay pinned along the bottom \(0\.41\.0\)/);
 });
