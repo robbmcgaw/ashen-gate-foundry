@@ -46,28 +46,32 @@ await import('../scripts/main.mjs');
 handlers.once.get('init')();handlers.once.get('ready')();
 const api=game.modules.get(ID).api;
 
-/** What a browser shows as a single select's value: the last option marked selected, else the first option. */
-const browserValue=html=>{const sel=/<select id="agu-condition-status">([\s\S]*?)<\/select>/.exec(html)?.[1]??'';
- const opts=[...sel.matchAll(/<option value="([^"]*)" (selected)?/g)];return (opts.filter(o=>o[2]).at(-1)??opts[0])?.[1];};
-const optionIds=html=>[...(/<select id="agu-condition-status">([\s\S]*?)<\/select>/.exec(html)?.[1]??'').matchAll(/<option value="([^"]*)"/g)].map(m=>m[1]);
+import {pickerDoc} from './picker-dom.mjs';
+/** 0.38.0: the picker is a combobox button; its `value` attribute is the picked status id. */
+const browserValue=html=>/<button[^>]*id="agu-condition-status"[^>]*\svalue="([^"]*)"/.exec(html)?.[1];
+const optionIds=()=>api.conditions.choices().map(c=>c.id);
 
-test('the Apply list renders from the V14 record: every native status once, Strain left out, one option selected',async()=>{
+test('the Apply list renders from the V14 record: every native status once, Strain left out, one value',async()=>{
  const app=await api.open();app.tab='conditions';app.actorId='a1';
  const html=await app._renderHTML();
- assert.deepEqual(optionIds(html),['blinded','prone','stable'],'0.29.1: A to Z by name, the one list the Hub also offers');
- assert.equal((/<select id="agu-condition-status">[\s\S]*?<\/select>/.exec(html)[0].match(/ selected/g)||[]).length,1,'exactly one selected option');
+ assert.deepEqual(optionIds(),['blinded','prone','stable'],'0.29.1: A to Z by name, the one list the Hub also offers');
+ assert.ok(!html.includes('<select id="agu-condition-status"'),'no native select any more');
+ assert.equal((html.match(/id="agu-condition-status"/g)||[]).length,1);
  assert.equal(browserValue(html),'blinded','first status by default, not the last');
 });
 test('the chosen status survives a re-render and is the one Apply passes to toggleStatusEffect',async()=>{
  wren.statuses=new Set();wren.toggled.length=0;
  const app=await api.open();app.tab='conditions';app.actorId='a1';
- // The select's change listener remembers the pick (bound on render).
- let onChange=null;const select={value:'prone',addEventListener:(ev,fn)=>{if(ev==='change')onChange=fn;}};
- app.bind({querySelector:s=>s==='#agu-condition-status'?select:null,querySelectorAll:()=>[]});
- assert.ok(onChange,'change listener bound');select.value='blinded';onChange({target:select});
+ // The picker's onChange remembers the pick (bound on render); choosing a row feeds it.
+ const doc=pickerDoc(),btn=doc.createElement('button',{id:'agu-condition-status',value:'prone'});doc.body.append(btn);
+ btn.value='prone';
+ app.bind({querySelector:s=>s==='#agu-condition-status'?btn:null,querySelectorAll:()=>[]});
+ btn.click();const row=doc.body.querySelectorAll('[role="option"]').find(r=>r.getAttribute('data-value')==='blinded');
+ assert.ok(row,'the list is open with a row for Blinded');row.click();
  const html=await app._renderHTML();// an actor or effect update re-renders the window before Apply is clicked
  assert.equal(browserValue(html),'blinded');
- await app.handle('add-status',{disabled:false,dataset:{}},{querySelector:s=>s==='#agu-condition-status'?{value:browserValue(html)}:null,querySelectorAll:()=>[]});
+ assert.equal(btn.value,'blinded','the control reads back as the pick');
+ await app.handle('add-status',{disabled:false,dataset:{}},{querySelector:s=>s==='#agu-condition-status'?btn:null,querySelectorAll:()=>[]});
  assert.deepEqual(wren.toggled,[['blinded',true]]);assert.ok(wren.statuses.has('blinded'));
 });
 test('every offered status applies and removes with the native toggle (GM)',async()=>{

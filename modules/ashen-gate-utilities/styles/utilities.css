@@ -314,6 +314,9 @@
 .agu-overlay .agu-ov-head .agu-ov-fade {margin-bottom:0;}
 .agu-overlay .agu-ov-controls {display:flex;align-items:center;gap:var(--ag-space-2);}
 .agu-overlay .agu-ov-status {flex:1 1 auto;min-width:0;}
+.agu-overlay .agu-ov-top {display:flex;align-items:center;justify-content:space-between;gap:var(--ag-space-2);}
+.agu-overlay .agu-ov-top .agu-ov-fade {flex:0 1 auto;min-width:0;}
+.agu-overlay .agu-ov-scope {flex:none;min-height:var(--ag-control-h-sm);min-width:var(--ag-control-h-sm);padding:0;}
 .agu-overlay .agu-ov-target {margin:0;min-height:2.6em;}
 .agu-overlay .agu-ov-cards {display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:var(--ag-space-2);align-items:start;}
 .agu-overlay .agu-ov-card {display:flex;flex-direction:column;gap:var(--ag-space-1);padding:var(--ag-space-1) var(--ag-space-2);border:1px solid color-mix(in srgb,var(--ag-border) 70%,transparent);border-radius:var(--ag-radius);background:color-mix(in srgb,var(--ag-surface-raised) 80%,transparent);}
@@ -330,7 +333,7 @@
 
 /* 0.31.0: condition icons: a small picture beside the list, chips in the overlay, and the GM's Condition icons fold. The name is always text. */
 .ag-utilities .agu-pick, .agu-overlay .agu-ov-controls {display:flex;align-items:center;gap:var(--ag-space-2);}
-.ag-utilities .agu-pick select {flex:1 1 auto;min-width:0;}
+.ag-utilities .agu-pick .agu-combo {flex:1 1 auto;min-width:0;}
 .agu-overlay .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:contain;flex:none;border:0;margin-right:var(--ag-space-1);}
 .agu-overlay .agu-ov-controls .agu-pick-icon {margin-right:0;}
 .ag-utilities .agu-icon-list {list-style:none;margin:var(--ag-space-2) 0 0;padding:0;}
@@ -370,3 +373,20 @@
 @container (min-width:66rem) {.ag-utilities .agu-sc--shown {width:11rem;}.ag-utilities .agu-sc--shown .agu-sc__txt,.ag-utilities .agu-sc--warn .agu-sc__txt {position:static !important;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none;white-space:nowrap;}}
 @container (min-width:72rem) {.ag-utilities .agu-srow__end {width:27rem;}.ag-utilities .agu-srow__lab {position:static !important;width:auto;height:auto;margin:0;overflow:visible;clip:auto;clip-path:none;white-space:nowrap;}.ag-utilities .agu-srow__btn i {margin-inline-end:var(--ag-space-1);}}
 @media (prefers-reduced-motion:reduce) {.ag-utilities .agu-srow__chev i {transition:none;}}
+
+/* ---------- 0.38.0 condition picker: a button with the picked icon and name; the list opens in a layer on the page body ---------- */
+.agu-combo {display:flex;min-width:0;}
+.agu-combo > .agu-combo__button {display:flex;align-items:center;gap:var(--ag-space-2);flex:1 1 auto;width:100%;min-width:0;justify-content:flex-start;text-align:left;font-weight:400;}
+.agu-combo__button .agu-status-icon {margin:0;}
+.agu-combo__name {flex:1 1 auto;min-width:0;overflow-wrap:anywhere;text-align:left;}
+.agu-combo__caret {flex:none;color:var(--ag-muted);font-size:var(--ag-text-xs);}
+.agu-combo__button[aria-expanded="true"] .agu-combo__caret {transform:rotate(180deg);}
+.agu-combo__button:disabled {opacity:.6;cursor:not-allowed;}
+.agu-combo-layer {position:fixed;z-index:var(--z-index-tooltip,10000);box-sizing:border-box;background:transparent;text-shadow:none;}
+.agu-combo-layer .agu-combo__list {position:static;display:block;max-height:inherit;margin:0;overflow-y:auto;box-sizing:border-box;}
+.agu-combo-layer .agu-combo__option {display:flex;flex-wrap:nowrap;align-items:center;gap:var(--ag-space-2);}
+.agu-combo-layer .agu-combo__option .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:contain;flex:none;border:0;margin:0;}
+.agu-combo-layer .agu-combo__option[data-active] {background:var(--ag-surface-hover);outline:1px solid var(--ag-focus);outline-offset:-1px;}
+.agu-combo-layer .agu-combo__head {padding-block:var(--ag-space-1);color:var(--ag-muted);font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.04em;pointer-events:none;user-select:none;}
+.agu-combo-layer .agu-combo__group + .agu-combo__group {margin-top:var(--ag-space-1);border-top:1px solid var(--ag-border);padding-top:var(--ag-space-1);}
+@media (prefers-reduced-motion:no-preference) {.agu-combo__caret {transition:transform .12s ease;}}

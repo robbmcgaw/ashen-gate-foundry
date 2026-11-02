@@ -1,6 +1,7 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
+import {statusSource, dedupeConditionRows, nearDuplicateRows} from './condition-kinds.mjs';
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.37.0';
+export const VERSION = '0.38.0';
 /** The Party Stash character Actor's default name (0.34.0; was the legacy name). The Actor is found by its flag, never by name. */
 export const DEFAULT_STASH_NAME = 'Party', LEGACY_STASH_NAME = 'Ashen Gate | Party Stash';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
@@ -306,11 +307,20 @@ export function friendlyStatusError(err, {label = 'that condition', actorName = 
  * 0.31.0: only statuses a toggle can find (`registry`, when given), never an automatic effect or a group name (manualStatusEntries),
  * and `img` follows the icon chain: `icons[id]` (the GM's custom icon) > the status's own image > the generic one.
  */
-export function sharedConditionChoices(entries, {label = e => e.name ?? e.id, registry = null, icons = {}} = {}) {
-  return manualStatusEntries(entries).filter(e => !isReadOnlyStatus(e.id) && (registry === null || statusIsToggleable(registry, e.id)))
-    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: resolveConditionIcon({custom: icons[e.id], status: e}), custom: Boolean(cleanIconPath(icons[e.id]))}))
+export function analyzeConditionChoices(entries, {label = e => e.name ?? e.id, registry = null, icons = {}, systemIds = []} = {}) {
+  const rows = manualStatusEntries(entries).filter(e => !isReadOnlyStatus(e.id) && (registry === null || statusIsToggleable(registry, e.id)))
+    .map(e => ({id: e.id, label: String(label(e.id) ?? e.id), img: cleanIconPath(e.img ?? e.icon), source: statusSource(e.id, {systemIds}), exclusiveGroup: e.exclusiveGroup, riders: Array.isArray(e.statuses) ? e.statuses : [], entry: e}));
+  const {kept, removed} = dedupeConditionRows(rows);
+  const choices = kept.map(r => ({id: r.id, label: r.label, img: resolveConditionIcon({custom: icons[r.id], status: r.entry}), custom: Boolean(cleanIconPath(icons[r.id]))}))
     .sort((a, b) => a.label.localeCompare(b.label));
+  return {choices, removed, near: nearDuplicateRows(kept), rows: kept.map(({id, label, source}) => ({id, label, source}))};
 }
+/**
+ * 0.38.0: duplicates are left out of the list (display only; nothing is deleted): one row per status id, and rows with the
+ * same label and a similar icon are one condition, keeping dnd5e system > Foundry core > other. Rows whose exclusive group or
+ * riders differ are kept. See condition-kinds.mjs.
+ */
+export function sharedConditionChoices(entries, opts = {}) { return analyzeConditionChoices(entries, opts).choices; }
 /** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
 export const STATUS_ALIASES = Object.freeze({blind: 'blinded', charm: 'charmed', deaf: 'deafened', fear: 'frightened', grapple: 'grappled', incapacitate: 'incapacitated', paralysis: 'paralyzed', petrify: 'petrified', poison: 'poisoned', restrain: 'restrained', stun: 'stunned', sleep: 'sleeping', fly: 'flying', burrow: 'burrowing', hover: 'hovering'});
 /** `id` when it is native, else its alias when that is native, else `id` unchanged (and refused as unknown later). */

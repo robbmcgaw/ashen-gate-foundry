@@ -31,7 +31,7 @@ const reset=()=>{wren.statuses=new Set(['prone']);ash.statuses=new Set();quill.s
 const lastReceipt=()=>sent.filter(([,m])=>m.type==='receipt').at(-1)?.[1];
 const deliver=async msg=>{const was=game.user;game.user=gm;await socketHandler(msg,msg.userId);await new Promise(r=>setTimeout(r,5));game.user=was;};
 const open=async user=>{game.user=user;const o=await api.openOverlay();o.selectedId=null;o.statusPick=null;return o;};
-const disabledSelect=html=>/<select id="agu-ov-status"[^>]*\sdisabled/.test(html);
+const disabledSelect=html=>/<button[^>]*id="agu-ov-status"[^>]*\sdisabled/.test(html);
 const disabledApply=html=>/<button[^>]*data-ov-apply[^>]*>/.exec(html)[0].includes(' disabled');
 
 test('model: a card for every player character, empty ones included; a non-player character only when it has a condition',()=>{
@@ -91,11 +91,11 @@ test('controls by role: GM and controller can use them on any player character; 
  assert.equal(overlayControlState({actor:null,user:gm,users}).enabled,false);
  game.user=gm;await api.setController('bob',false);
 });
-test('the select offers the shared list (api.choices), Exhaustion included, one option selected',async()=>{
+test('the picker offers the shared list (api.choices), Exhaustion included, one value',async()=>{
  reset();const o=await open(gm);const html=await o._renderHTML();
- const ids=[...html.matchAll(/<option value="([^"]+)"/g)].map(m=>m[1]);
- assert.deepEqual(ids,api.choices().map(c=>c.id));assert.ok(ids.includes('exhaustion'));
- assert.equal((html.match(/<option [^>]*selected/g)||[]).length,1);
+ assert.ok(api.choices().some(c=>c.id==='exhaustion'));assert.ok(!html.includes('<select'),'no native select');
+ assert.equal((html.match(/id="agu-ov-status"/g)||[]).length,1);
+ assert.match(html,/<button[^>]*id="agu-ov-status"[^>]*role="combobox"[^>]*value="blinded"/,'first by name is the default');
  await api.closeOverlay();
 });
 test('GM applies from the header: the existing apply path runs on the GM client',async()=>{
